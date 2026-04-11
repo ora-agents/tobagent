@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.middleware.guardrails_middleware import _GUARDRAILS_SYSTEM_PROMPT
+from src.prompts.docs_agent_prompt import docs_agent_prompt
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -159,4 +160,81 @@ def test_guardrails_prompt_default_is_still_allow():
         "valid LangChain questions. Verify that the fix did not remove the "
         "'YOUR DEFAULT IS TO ALLOW' or 'when uncertain, ALWAYS choose ALLOWED' "
         "language from the prompt."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Prompt must have a zero-tolerance NSFW/explicit content block rule
+# ---------------------------------------------------------------------------
+
+
+def test_guardrails_prompt_has_nsfw_block_rule():
+    """Guardrails prompt must explicitly block NSFW/explicit adult content.
+
+    This rule must be zero-tolerance (not subject to the lenient 5-criteria
+    test) and must appear as its own section to signal higher priority.
+    """
+    nsfw_terms = ["nsfw", "sexually explicit", "adult content", "pornographic"]
+    found = [term for term in nsfw_terms if term in PROMPT_LOWER]
+    assert len(found) >= 2, (
+        "The guardrails system prompt must contain at least two of the "
+        f"following NSFW-related terms: {nsfw_terms}. Found: {found}. "
+        "Add a zero-tolerance NSFW block section to _GUARDRAILS_SYSTEM_PROMPT."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: NSFW block must be independent of the lenient 5-criteria test
+# ---------------------------------------------------------------------------
+
+
+def test_guardrails_nsfw_rule_is_zero_tolerance():
+    """NSFW block rule must NOT be inside the 'ONLY BLOCK' section.
+
+    The ONLY BLOCK section uses a lenient 'must meet ALL criteria' test.
+    NSFW content must be blocked unconditionally, so its rule must appear
+    BEFORE the ONLY BLOCK section (higher priority).
+    """
+    only_block_idx = PROMPT_LOWER.find("## only block")
+    assert only_block_idx != -1, "Prompt must have an '## ONLY BLOCK' section header"
+
+    # At least one NSFW term must appear BEFORE the ONLY BLOCK section
+    nsfw_terms = ["nsfw", "sexually explicit", "adult content", "pornographic"]
+    before_block = PROMPT_LOWER[:only_block_idx]
+    found_before = [term for term in nsfw_terms if term in before_block]
+    assert len(found_before) >= 1, (
+        "At least one NSFW-related term must appear BEFORE the '## ONLY BLOCK' "
+        "section to signal that NSFW blocking is zero-tolerance and not "
+        f"subject to the lenient 5-criteria test. Found before: {found_before}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Main agent prompt must have defense-in-depth NSFW refusal
+# ---------------------------------------------------------------------------
+
+AGENT_PROMPT_LOWER = docs_agent_prompt.lower()
+
+
+def test_agent_prompt_has_nsfw_refusal():
+    """Main agent prompt must instruct the agent to refuse NSFW content.
+
+    Even if the guardrails classifier fails open, the agent itself should
+    refuse to generate explicit content.
+    """
+    nsfw_terms = ["nsfw", "sexually explicit", "adult content"]
+    found_nsfw = [term for term in nsfw_terms if term in AGENT_PROMPT_LOWER]
+    assert len(found_nsfw) >= 1, (
+        "The docs agent prompt must contain at least one NSFW-related term "
+        f"as a defense-in-depth refusal instruction. Found: {found_nsfw}. "
+        "Add an NSFW refusal rule to the 'Important Customer Service Rules' "
+        "section of docs_agent_prompt."
+    )
+
+    refusal_terms = ["never", "refuse", "decline", "do not", "must not"]
+    found_refusal = [term for term in refusal_terms if term in AGENT_PROMPT_LOWER]
+    assert len(found_refusal) >= 1, (
+        "The docs agent prompt must contain refusal language alongside NSFW "
+        f"terms. Found refusal terms: {found_refusal}. The prompt should "
+        "instruct the agent to refuse, not just mention NSFW content."
     )
