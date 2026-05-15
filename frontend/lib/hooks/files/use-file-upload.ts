@@ -11,6 +11,11 @@
 import { useState, useCallback } from "react"
 import type { ImageAttachment } from "../../types"
 import { createImageAttachment, validateImageFile } from "../../utils/chat"
+import {
+  FILE_TOO_LARGE_MESSAGE,
+  IMAGE_UNSUPPORTED_MODEL_MESSAGE,
+  MAX_INPUT_CHARS,
+} from "../../constants/features"
 
 // ============================================================================
 // Types
@@ -29,6 +34,14 @@ export interface UseFileUploadReturn {
   clearFiles: () => void
   setUploadError: (error: string | null) => void
 }
+
+interface UseFileUploadOptions {
+  getInputLength?: () => number
+  disableImageUploads?: boolean
+}
+
+const isImageFile = (file: File): boolean =>
+  file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(file.name)
 
 // ============================================================================
 // Hook Implementation
@@ -53,10 +66,12 @@ export interface UseFileUploadReturn {
  * )
  * ```
  */
-export function useFileUpload(): UseFileUploadReturn {
+export function useFileUpload(options: UseFileUploadOptions = {}): UseFileUploadReturn {
   const [attachedFiles, setAttachedFiles] = useState<ImageAttachment[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const getInputLength = options.getInputLength ?? (() => 0)
+  const disableImageUploads = options.disableImageUploads ?? false
 
   /**
    * Process multiple files and add them to attached files list.
@@ -64,6 +79,10 @@ export function useFileUpload(): UseFileUploadReturn {
    */
   const processFiles = useCallback(async (files: File[]) => {
     setUploadError(null)
+    let acceptedTextLength = attachedFiles.reduce((total, file) => {
+      if (file.mimeType?.startsWith('image/')) return total
+      return total + (file.textLength ?? 0)
+    }, 0)
 
     for (const file of files) {
       // Validate file
@@ -74,15 +93,40 @@ export function useFileUpload(): UseFileUploadReturn {
       }
 
       try {
-        // Convert to image attachment
+        const isImage = isImageFile(file)
+        let textLength: number | undefined
+
+        if (isImage && disableImageUploads) {
+          setUploadError(IMAGE_UNSUPPORTED_MODEL_MESSAGE)
+          continue
+        }
+
+        if (!isImage) {
+          const text = await file.text()
+          textLength = text.length
+
+          if (textLength > MAX_INPUT_CHARS) {
+            setUploadError(FILE_TOO_LARGE_MESSAGE)
+            continue
+          }
+
+          if (getInputLength() + acceptedTextLength + textLength > MAX_INPUT_CHARS) {
+            setUploadError(FILE_TOO_LARGE_MESSAGE)
+            continue
+          }
+        }
+
+        // Convert to attachment
         const imageAttachment = await createImageAttachment(file)
+        imageAttachment.textLength = textLength
         setAttachedFiles(prev => [...prev, imageAttachment])
+        acceptedTextLength += textLength ?? 0
       } catch (error) {
         console.error("Error processing file:", error)
         setUploadError("Failed to process file")
       }
     }
-  }, [])
+  }, [attachedFiles, disableImageUploads, getInputLength])
 
   /**
    * Handle file selection from input element.
@@ -112,6 +156,11 @@ export function useFileUpload(): UseFileUploadReturn {
       if (item.type.startsWith('image/')) {
         event.preventDefault() // Prevent default paste behavior for images
 
+        if (disableImageUploads) {
+          setUploadError(IMAGE_UNSUPPORTED_MODEL_MESSAGE)
+          continue
+        }
+
         const file = item.getAsFile()
         if (!file) continue
 
@@ -133,7 +182,7 @@ export function useFileUpload(): UseFileUploadReturn {
         }
       }
     }
-  }, [])
+  }, [disableImageUploads])
 
   /**
    * Handle drag over event.

@@ -4,18 +4,23 @@ import logging
 import os
 import random
 from typing import Any, Literal
-from typing_extensions import NotRequired
-from pydantic import BaseModel, Field
+
+import langsmith as ls
 from langchain.agents.middleware import AgentMiddleware, AgentState, hook_config
 from langchain.chat_models import init_chat_model
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
-import langsmith as ls
 from langsmith import Client
+from pydantic import BaseModel, Field
+from typing_extensions import NotRequired
 
 from src.prompts.guardrails_prompts import (
     fallback_rejection_message as _FALLBACK_REJECTION_MESSAGE,
+)
+from src.prompts.guardrails_prompts import (
     guardrails_system_prompt as _LOCAL_GUARDRAILS_SYSTEM_PROMPT,
+)
+from src.prompts.guardrails_prompts import (
     rejection_system_prompt as _REJECTION_SYSTEM_PROMPT,
 )
 
@@ -24,6 +29,9 @@ logger = logging.getLogger(__name__)
 # Dataset configuration for guardrails evaluation
 GUARDRAILS_DATASET_NAME = "Chat-LangChain-Guardrails-Samples"
 ALLOWED_SAMPLE_RATE = 0.01  # 1% of allowed queries go to dataset
+GUARDRAILS_MAX_RETRIES = 2
+GUARDRAILS_TIMEOUT_SECONDS = 10
+GUARDRAILS_FAILURE_MESSAGE = "something went wrong, please try again"
 _USE_LOCAL_PROMPTS = os.getenv("USE_LOCAL_PROMPTS", "").lower() in {
     "1",
     "true",
@@ -55,6 +63,12 @@ class GuardrailsDecision(BaseModel):
             "Do not include hidden chain-of-thought."
         )
     )
+
+
+class GuardrailsClassificationError(Exception):
+    """Raised when guardrails classification fails after retries."""
+
+    pass
 
 
 class GuardrailsState(AgentState):
@@ -139,17 +153,20 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         except Exception as e:
             logger.warning(f"Failed to add query to dataset: {e}")
 
-    async def _generate_rejection_message(self, content: str) -> AIMessage:
+    async def _generate_rejection_message(self, content) -> AIMessage:
         """Generate a friendly rejection message for off-topic queries."""
         prompt = [
             SystemMessage(content=_REJECTION_SYSTEM_PROMPT),
             HumanMessage(
-                content=f"The user asked: {content}\n\nGenerate a brief, friendly response explaining this is outside your scope."
+                content=self._build_rejection_content(content)
             ),
         ]
 
         try:
-            response = await self.llm.ainvoke(prompt)
+            response = await asyncio.wait_for(
+                self.llm.ainvoke(prompt),
+                timeout=GUARDRAILS_TIMEOUT_SECONDS,
+            )
             return AIMessage(content=response.content)
         except Exception as e:
             logger.error(f"Error generating rejection message: {e}")
@@ -171,21 +188,23 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             if hasattr(last_message, "content")
             else str(last_message)
         )
-        query_preview = (
-            last_content[:100]
-            if isinstance(last_content, str)
-            else str(last_content)[:100]
-        )
+        safe_last_content = self._content_to_safe_text(last_content)
+        query_preview = safe_last_content[:100]
 
         # One classifier, every turn. Covers topic relevance + zero-tolerance
         # categories (NSFW, fiction, harmful-use-case, prompt-extraction,
         # social-pressure). The prompt's lenient follow-up rules keep legit
         # mid-conversation follow-ups ("show in Python", "3rd one") ALLOWED,
         # while zero-tolerance bullets override the default ALLOW.
-        guardrails_decision = await self._classify_query(messages)
-        if guardrails_decision is None:
-            # Classification failed - allow query through (fail-open)
-            return None
+        try:
+            guardrails_decision = await self._classify_query(messages)
+        except GuardrailsClassificationError:
+            logger.error("Guardrails check failed after retries; stopping run.")
+            return {
+                "messages": [AIMessage(content=GUARDRAILS_FAILURE_MESSAGE)],
+                "off_topic_query": False,
+                "jump_to": "end",
+            }
 
         decision = guardrails_decision.decision
         explanation = guardrails_decision.explanation
@@ -196,7 +215,12 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
         # Sample to dataset for evaluation (100% blocked, 10% allowed)
         if decision == "BLOCKED" or random.random() < ALLOWED_SAMPLE_RATE:
             asyncio.create_task(
-                self._add_to_dataset(last_content, decision, explanation, query_preview)
+                self._add_to_dataset(
+                    safe_last_content,
+                    decision,
+                    explanation,
+                    query_preview,
+                )
             )
 
         # Handle allowed queries
@@ -225,6 +249,95 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             "jump_to": "end",
         }
 
+    def _content_to_safe_text(self, content) -> str:
+        """Convert multimodal content to text without leaking encoded media."""
+        if isinstance(content, str):
+            return content
+
+        if not isinstance(content, list):
+            return str(content)
+
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+                continue
+
+            if not isinstance(block, dict):
+                continue
+
+            block_type = block.get("type")
+            if block_type == "text" and isinstance(block.get("text"), str):
+                parts.append(block["text"])
+            elif block_type in ("image_url", "input_image"):
+                parts.append("[image attached]")
+            elif block_type:
+                parts.append(f"[{block_type} attached]")
+
+        return " ".join(part for part in parts if part).strip()
+
+    def _build_rejection_content(self, content) -> str | list:
+        """Build rejection prompt while preserving images for vision-capable models."""
+        instruction = (
+            "The user asked the following request. Consider both the text and any "
+            "attached images, then generate a brief, friendly response explaining "
+            "this is outside your scope."
+        )
+
+        if not isinstance(content, list):
+            return f"{instruction}\n\nUser request: {content}"
+
+        blocks: list[Any] = [{"type": "text", "text": instruction}]
+        for block in content:
+            if isinstance(block, str):
+                blocks.append({"type": "text", "text": block})
+            elif isinstance(block, dict):
+                blocks.append(block)
+
+        blocks.append(
+            {
+                "type": "text",
+                "text": (
+                    "Generate a brief, friendly response explaining this is outside "
+                    "your scope."
+                ),
+            }
+        )
+        return blocks
+
+    def _content_has_media(self, content) -> bool:
+        """Return whether content contains non-text multimodal blocks."""
+        if not isinstance(content, list):
+            return False
+
+        return any(
+            isinstance(block, dict) and block.get("type") not in (None, "text")
+            for block in content
+        )
+
+    def _build_guardrails_content(self, content, context_section: str) -> str | list:
+        """Build classifier input while preserving image blocks for vision models."""
+        instruction = (
+            "Classify this user query for the LangChain documentation assistant. "
+            "Consider both the text and any attached images. "
+            "Return both the decision and one concise sentence explaining why."
+        )
+
+        if context_section:
+            instruction += context_section
+
+        if not isinstance(content, list):
+            return f"{instruction}\n\nUser query: {content}"
+
+        blocks: list[Any] = [{"type": "text", "text": instruction}]
+        for block in content:
+            if isinstance(block, str):
+                blocks.append({"type": "text", "text": block})
+            elif isinstance(block, dict):
+                blocks.append(block)
+
+        return blocks
+
     def _extract_message_text(self, msg) -> str | None:
         """Extract plain text content from a message."""
         content = getattr(msg, "content", None)
@@ -246,21 +359,26 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         return None
 
-    async def _classify_query(self, messages: list) -> GuardrailsDecision | None:
+    async def _classify_query(self, messages: list) -> GuardrailsDecision:
         """Classify query as ALLOWED or BLOCKED.
 
-        Returns:
-            GuardrailsDecision, or None if classification failed
+        Raises:
+            GuardrailsClassificationError: If classification fails after retries.
         """
         # Extract the current query (last human message)
+        current_message = None
         current_query = None
         for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
+                current_message = msg
                 current_query = self._extract_message_text(msg)
-                if current_query:
+                if current_query or self._content_has_media(getattr(msg, "content", None)):
                     break
 
-        if not current_query:
+        if current_message is None or (
+            not current_query
+            and not self._content_has_media(getattr(current_message, "content", None))
+        ):
             return GuardrailsDecision(
                 decision="ALLOWED",
                 explanation="No human query was available to classify.",
@@ -268,41 +386,63 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
 
         # Build context from previous human messages (for follow-up detection)
         prior_queries = []
-        for msg in messages[:-1]:  # Exclude current message
+        for msg in reversed(messages[:-1]):  # Exclude current message
             if isinstance(msg, HumanMessage):
                 text = self._extract_message_text(msg)
                 if text:
                     prior_queries.append(text[:200])  # Truncate for brevity
+                    if len(prior_queries) == 3:
+                        break
 
         # Build the classification prompt
         context_section = ""
         if prior_queries:
-            recent = prior_queries[-3:]  # Last 3 prior queries
+            recent = list(reversed(prior_queries))  # Restore chronological order.
             context_section = (
                 "\n\nPrevious questions in this conversation:\n"
                 + "\n".join(f"- {q}" for q in recent)
             )
 
+        current_content = getattr(current_message, "content", current_query or "")
         prompt = [
             SystemMessage(content=_GUARDRAILS_SYSTEM_PROMPT),
             HumanMessage(
-                content=(
-                    f"Classify this query: {current_query}{context_section}\n\n"
-                    "Return both the decision and one concise sentence explaining why."
-                )
+                content=self._build_guardrails_content(current_content, context_section)
             ),
         ]
 
-        try:
-            structured_llm = self.llm.with_structured_output(GuardrailsDecision)
-            result: GuardrailsDecision = await structured_llm.ainvoke(
-                prompt, config={"callbacks": [], "tags": ["guardrails"]}
-            )
-            return result
-        except Exception as e:
-            logger.error(f"Error in guardrails classification: {e}")
-            logger.info("Guardrails check failed, allowing query through...")
-            return None
+        structured_llm = self.llm.with_structured_output(GuardrailsDecision)
+        last_exception: Exception | None = None
+
+        for attempt in range(GUARDRAILS_MAX_RETRIES + 1):
+            try:
+                result: GuardrailsDecision = await asyncio.wait_for(
+                    structured_llm.ainvoke(
+                        prompt, config={"callbacks": [], "tags": ["guardrails"]}
+                    ),
+                    timeout=GUARDRAILS_TIMEOUT_SECONDS,
+                )
+                return result
+            except Exception as e:
+                last_exception = e
+                if attempt < GUARDRAILS_MAX_RETRIES:
+                    logger.warning(
+                        "Guardrails classification failed attempt %s/%s: %s. Retrying...",
+                        attempt + 1,
+                        GUARDRAILS_MAX_RETRIES + 1,
+                        e,
+                    )
+                    continue
+
+                logger.error(
+                    "Guardrails classification failed after %s attempts: %s",
+                    GUARDRAILS_MAX_RETRIES + 1,
+                    e,
+                )
+
+        raise GuardrailsClassificationError(
+            f"Guardrails classification failed after retries: {last_exception}"
+        )
 
     def _track_decision_metadata(self, decision: GuardrailsDecision) -> None:
         """Add guardrails decision to LangSmith run metadata."""
@@ -315,4 +455,4 @@ class GuardrailsMiddleware(AgentMiddleware[GuardrailsState]):
             pass  # Silently ignore if run tree is not available
 
 
-__all__ = ["GuardrailsMiddleware"]
+__all__ = ["GuardrailsMiddleware", "GuardrailsClassificationError"]
