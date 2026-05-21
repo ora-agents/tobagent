@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from src.api.langsmith_routes import router as langsmith_router
-from src.tools.docs_tools import clear_cache, get_cache_stats
 
 load_dotenv()
 
@@ -104,40 +103,6 @@ async def generate_conversation_title(request: TitleGenerationRequest):
     )
 
 
-@app.get("/metrics/cache")
-async def get_cache_metrics():
-    """Get documentation search cache statistics."""
-    stats = get_cache_stats()
-    total_hits = stats["hits_exact"] + stats["hits_fuzzy"]
-    total_requests = stats["total_requests"]
-    stats["api_calls_saved"] = total_hits
-    stats["api_calls_made"] = stats["misses"]
-    stats["cost_reduction_percent"] = (
-        round((total_hits / total_requests) * 100, 1) if total_requests else 0.0
-    )
-
-    return {
-        "status": "success",
-        "cache_metrics": stats,
-        "description": "Mintlify API documentation search cache statistics",
-    }
-
-
-@app.post("/metrics/cache/clear")
-async def clear_cache_endpoint():
-    """Clear the documentation search cache and reset metrics."""
-    stats_before = get_cache_stats()
-    old_entries = stats_before.get("total_entries", 0)
-    clear_cache()
-
-    logger.warning("Cache manually cleared via API: %s entries removed", old_entries)
-    return {
-        "status": "success",
-        "message": "Cache cleared successfully",
-        "entries_removed": old_entries,
-        "cache_stats": get_cache_stats(),
-    }
-
 
 @app.get("/")
 async def root():
@@ -148,8 +113,6 @@ async def root():
         "endpoints": {
             "health": "/health",
             "generate_title": "/generate-title",
-            "cache_metrics": "/metrics/cache",
-            "cache_clear": "/metrics/cache/clear (POST)",
             "langsmith": "/langsmith",
         },
     }

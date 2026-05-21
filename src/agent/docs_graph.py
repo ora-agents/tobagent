@@ -24,7 +24,6 @@ from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
 from src.tools.pricing_tools import fetch_langchain_pricing
-from src.tools.pylon_tools import get_support_article_content, search_support_articles
 
 # Set up logging for this module
 logger = logging.getLogger(__name__)
@@ -88,8 +87,6 @@ logger.info(
 
 docs_agent_tools = [
     *mcp_docs_tools,
-    search_support_articles,
-    get_support_article_content,
     fetch_langchain_pricing,
     check_links,
 ]
