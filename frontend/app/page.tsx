@@ -12,7 +12,7 @@ import { resolveClientProfile } from "@/lib/config/client-config"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { generateQuickTitle, generateThreadTitle } from "@/lib/utils/string"
 import {
-  getAllowedModels,
+  fetchAvailableModels,
   getAllowedAgents,
   getDefaultModel,
   getDefaultAgent,
@@ -28,6 +28,7 @@ function DashboardContent() {
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
 
   // Track newly created threads that haven't been initialized in backend yet
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -74,6 +75,11 @@ function DashboardContent() {
   useEffect(() => {
     localStorage.setItem(CONFIG_STORAGE.key, JSON.stringify(agentConfig))
   }, [agentConfig])
+
+  // Fetch available models from OpenAI-compatible API
+  useEffect(() => {
+    fetchAvailableModels().then(setAvailableModels)
+  }, [])
 
   // Load threads from LangGraph backend
   const {
@@ -295,10 +301,10 @@ function DashboardContent() {
 
   // Cycle to next model
   const handleCycleModel = () => {
-    const models = getAllowedModels()
-    const currentIndex = models.indexOf(agentConfig.model as ModelOption)
-    const nextIndex = (currentIndex + 1) % models.length
-    const nextModel = models[nextIndex]
+    if (availableModels.length === 0) return
+    const currentIndex = availableModels.indexOf(agentConfig.model as ModelOption)
+    const nextIndex = (currentIndex + 1) % availableModels.length
+    const nextModel = availableModels[nextIndex]
     setAgentConfig({ ...agentConfig, model: nextModel })
 
     // Trigger the existing tooltip to show

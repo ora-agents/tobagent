@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Inconsolata } from "next/font/google";
+import { Inter, Inconsolata, Cormorant_Garamond } from "next/font/google";
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import Script from "next/script";
 import "./globals.css";
 import { SegmentProvider } from "@/components/providers/segment-provider";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { I18nProvider } from "@/lib/i18n";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -15,9 +17,15 @@ const inconsolata = Inconsolata({
   subsets: ["latin"],
 });
 
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
 export const metadata: Metadata = {
-  title: "Chat LangChain",
-  description: "AI-powered guide to the LangChain ecosystem",
+  title: "Chat",
+  description: "AI-powered assistant",
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -36,7 +44,7 @@ export default function RootLayout({
   const segmentWriteKey = process.env.NEXT_PUBLIC_SEGMENT_WRITE_KEY;
 
   return (
-    <html lang="en">
+    <html lang="zh" suppressHydrationWarning>
       <head>
         {/* Segment Analytics */}
         {segmentWriteKey && (
@@ -55,14 +63,17 @@ analytics.page();
         )}
       </head>
       <body
-        className={`${inter.variable} ${inconsolata.variable} antialiased`}
-        suppressHydrationWarning
+        className={`${inter.variable} ${inconsolata.variable} ${cormorant.variable} antialiased`}
       >
-        <SegmentProvider>
-          <NuqsAdapter>
-            {children}
-          </NuqsAdapter>
-        </SegmentProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <I18nProvider>
+            <SegmentProvider>
+              <NuqsAdapter>
+                {children}
+              </NuqsAdapter>
+            </SegmentProvider>
+          </I18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
