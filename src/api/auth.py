@@ -4,15 +4,13 @@ import os
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
-from src.agent.config import DEFAULT_MODEL, MODELS, PUBLIC_MODEL_IDS
+from src.agent.config import DEFAULT_MODEL
 from src.utils.prompt_provenance import get_prompt_provenance
 
 auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
 MAX_MESSAGE_CHARS = 50_000
-IMAGE_UNSUPPORTED_MODEL_IDS = {MODELS["glm-5"].id}
-UNSUPPORTED_IMAGE_MODEL_MESSAGE = "Selected model does not support image uploads"
 
 
 def _get_auth_secret() -> str | None:
@@ -279,21 +277,10 @@ def validate_config(config: dict | None, *, input_has_image: bool = False):
     requested_model = configurable.get("model")
     if requested_model is None:
         return
-    if not isinstance(requested_model, str):
+    if not isinstance(requested_model, str) or not requested_model.strip():
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized model input: {type(requested_model)}"
         )
-
-    if requested_model == DEFAULT_MODEL.id:
-        return
-
-    if requested_model not in PUBLIC_MODEL_IDS:
-        raise Auth.exceptions.HTTPException(
-            422, f"Model is not allowed: {requested_model}"
-        )
-
-    if input_has_image and requested_model in IMAGE_UNSUPPORTED_MODEL_IDS:
-        raise Auth.exceptions.HTTPException(422, UNSUPPORTED_IMAGE_MODEL_MESSAGE)
 
 
 def cap_recursion_limit(config: dict):

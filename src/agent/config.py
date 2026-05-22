@@ -6,7 +6,8 @@ from typing import Optional
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
-from langchain.chat_models import init_chat_model
+from langchain_core.runnables import ConfigurableField
+from langchain_openai import ChatOpenAI
 
 from src.middleware.retry_middleware import ModelRetryMiddleware
 from src.middleware.tool_retry_middleware import ToolRetryMiddleware
@@ -16,119 +17,69 @@ dotenv.load_dotenv()
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# Model Registry
+# OpenAI-compatible endpoint configuration
+#
+# Reads NEXT_PUBLIC_OPENAI_* so that a single set of env vars serves both
+# the Next.js frontend and this backend — no duplicate config needed.
 # =============================================================================
+
+OPENAI_COMPATIBLE_BASE_URL = (
+    os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()
+    or os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()  # legacy fallback
+)
+OPENAI_COMPATIBLE_API_KEY = (
+    os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()
+    or os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()  # legacy fallback
+    or os.getenv("OPENAI_API_KEY", "").strip()
+    or "dummy"
+)
+_DEFAULT_MODEL_NAME = (
+    os.getenv("NEXT_PUBLIC_OPENAI_DEFAULT_MODEL", "").strip()
+    or os.getenv("OPENAI_COMPATIBLE_DEFAULT_MODEL", "gpt-4o").strip()  # legacy fallback
+)
+# Propagate to standard OpenAI env vars so init_chat_model and other
+# OpenAI-based callers also use this endpoint.
+if OPENAI_COMPATIBLE_BASE_URL:
+    os.environ.setdefault("OPENAI_BASE_URL", OPENAI_COMPATIBLE_BASE_URL)
+if OPENAI_COMPATIBLE_API_KEY and OPENAI_COMPATIBLE_API_KEY != "dummy":
+    os.environ.setdefault("OPENAI_API_KEY", OPENAI_COMPATIBLE_API_KEY)
 
 
 @dataclass
 class ModelConfig:
-    id: str  # e.g., "google_genai:gemini-3.1-flash-lite-preview"
-    name: str  # Display name, e.g., "Gemini 3.1 Flash Lite"
-    provider: str  # e.g., "google", "openai", "baseten"
-    api_key_env: str  # Environment variable for API key
-    description: Optional[str] = None
+    id: str    # model name passed to the API, e.g. "gpt-4o" or "llama3.2"
+    name: str  # display name
 
 
-# All backend-supported models. This intentionally mirrors the frontend's
-# selectable model IDs plus Jewel's guardrails/fallback models.
-MODELS: dict[str, ModelConfig] = {
-    # Anthropic
-    "claude-haiku-4.5": ModelConfig(
-        id="anthropic:claude-haiku-4-5-20251001",
-        name="Claude Haiku 4.5",
-        provider="anthropic",
-        api_key_env="ANTHROPIC_API_KEY",
-        description="Fast and cheap Anthropic model",
-    ),
-    # OpenAI
-    "gpt-5.4-nano": ModelConfig(
-        id="openai:gpt-5.4-nano",
-        name="GPT-5.4 Nano",
-        provider="openai",
-        api_key_env="OPENAI_API_KEY",
-        description="Cheapest GPT-5.4-class model for simple high-volume tasks",
-    ),
-    "gpt-5.4-mini": ModelConfig(
-        id="openai:gpt-5.4-mini",
-        name="GPT-5.4 Mini",
-        provider="openai",
-        api_key_env="OPENAI_API_KEY",
-        description="Strongest mini model for coding, computer use, and subagents",
-    ),
-    # Google
-    "gemini-2.5-flash": ModelConfig(
-        id="google_genai:gemini-2.5-flash",
-        name="Gemini 2.5 Flash",
-        provider="google",
-        api_key_env="GOOGLE_API_KEY",
-        description="Fast and capable Google model",
-    ),
-    "gemini-3.1-flash-lite": ModelConfig(
-        id="google_genai:gemini-3.1-flash-lite-preview",
-        name="Gemini 3.1 Flash Lite",
-        provider="google",
-        api_key_env="GOOGLE_API_KEY",
-        description="Fastest, most cost-effective Gemini",
-    ),
-    # Baseten
-    "glm-5": ModelConfig(
-        id="baseten:zai-org/GLM-5",
-        name="GLM 5",
-        provider="baseten",
-        api_key_env="BASETEN_API_KEY",
-        description="Z.ai GLM 5 served via Baseten",
-    ),
-}
+# Default model (used by context-summary middleware)
+# id uses "openai:" prefix so init_chat_model routes through ChatOpenAI,
+# which will pick up OPENAI_BASE_URL if set.
+DEFAULT_MODEL = ModelConfig(
+    id=f"openai:{_DEFAULT_MODEL_NAME}",
+    name=_DEFAULT_MODEL_NAME,
+)
 
-# Default models for different use cases
-DEFAULT_MODEL = MODELS["gemini-3.1-flash-lite"]
-GUARDRAILS_MODEL = MODELS["gpt-5.4-nano"]
-
-# Models public API callers are allowed to select. This mirrors the frontend
-# deployment allowlist; backend-only guardrails/fallback models stay excluded.
-PUBLIC_MODEL_KEYS = [
-    "gpt-5.4-mini",
-    "gemini-3.1-flash-lite",
-    "glm-5",
-]
-PUBLIC_MODEL_IDS = {MODELS[key].id for key in PUBLIC_MODEL_KEYS}
-
-# Fallback chain (in order of preference)
-FALLBACK_MODELS = [
-    MODELS["gemini-2.5-flash"],
-    MODELS["claude-haiku-4.5"],
-]
-
-# =============================================================================
-# API Key Setup
-# =============================================================================
-
-API_KEYS = [
-    "OPENAI_API_KEY",
-    "ANTHROPIC_API_KEY",
-    "GOOGLE_API_KEY",
-    "BASETEN_API_KEY",
-]
-
-for key in API_KEYS:
-    if value := os.getenv(key):
-        os.environ[key] = value.strip()
-        logger.info(f"{key} configured")
-
+logger.info(f"OpenAI base URL: {OPENAI_COMPATIBLE_BASE_URL or '(standard OpenAI)'}")
+logger.info(f"Default model: {DEFAULT_MODEL.name}")
 
 # =============================================================================
 # Model Initialization
 # =============================================================================
 
-# Retry configuration
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
-# Primary configurable model (can be switched at runtime)
-configurable_model = init_chat_model(
-    model=DEFAULT_MODEL.id,
-    configurable_fields=("model",),
+# Primary configurable model — model name is set per-request via LangGraph config
+_base_model = ChatOpenAI(
+    base_url=OPENAI_COMPATIBLE_BASE_URL or None,
+    api_key=OPENAI_COMPATIBLE_API_KEY,
+    model=_DEFAULT_MODEL_NAME,
 )
-logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
+
+configurable_model = _base_model.configurable_fields(
+    model_name=ConfigurableField(id="model", name="Model", description="Model name to use")
+)
+
+logger.info(f"Configurable model initialised (default: {_DEFAULT_MODEL_NAME})")
 
 # =============================================================================
 # Middleware
@@ -137,29 +88,20 @@ logger.info(f"Default model: {DEFAULT_MODEL.name} ({DEFAULT_MODEL.id})")
 model_retry_middleware = ModelRetryMiddleware(max_retries=MAX_RETRIES)
 tool_retry_middleware = ToolRetryMiddleware(max_attempts=3)
 
-model_fallback_middleware = ModelFallbackMiddleware(*[m.id for m in FALLBACK_MODELS])
-logger.info(f"Fallback chain: {' -> '.join(m.name for m in FALLBACK_MODELS)}")
+# Fallback to the same default model; real resilience comes from model_retry_middleware
+model_fallback_middleware = ModelFallbackMiddleware(DEFAULT_MODEL.id)
 
 # =============================================================================
 # Exports
 # =============================================================================
 
 __all__ = [
-    # Models
-    "MODELS",
     "DEFAULT_MODEL",
-    "GUARDRAILS_MODEL",
-    "FALLBACK_MODELS",
-    "PUBLIC_MODEL_IDS",
-    "PUBLIC_MODEL_KEYS",
     "ModelConfig",
-    # Configurable models
     "configurable_model",
-    # Middleware
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
-    # Config
     "MAX_RETRIES",
     "logger",
 ]
