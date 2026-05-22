@@ -27,14 +27,67 @@ export const OPENAI_DEFAULT_MODEL = process.env.NEXT_PUBLIC_OPENAI_DEFAULT_MODEL
 
 export type ModelOption = string  // plain model ID, e.g. "gpt-4o" or "llama3.2"
 
+// =============================================================================
+// Model cache (Layer A: in-memory, Layer B: localStorage)
+// =============================================================================
+
+const MODELS_CACHE_KEY = "models-cache"
+const MODELS_CACHE_TTL_MS = 60 * 60 * 1000  // 1 hour
+
+interface ModelsCache {
+  models: ModelOption[]
+  expiresAt: number
+}
+
+// Layer A: in-memory cache (lives for the lifetime of the page)
+let memoryCache: ModelsCache | null = null
+
+function readLocalStorageCache(): ModelsCache | null {
+  try {
+    const raw = localStorage.getItem(MODELS_CACHE_KEY)
+    if (!raw) return null
+    const parsed: ModelsCache = JSON.parse(raw)
+    return parsed.expiresAt > Date.now() ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function writeLocalStorageCache(models: ModelOption[]): void {
+  try {
+    const entry: ModelsCache = { models, expiresAt: Date.now() + MODELS_CACHE_TTL_MS }
+    localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify(entry))
+  } catch {
+    // localStorage unavailable (SSR, private mode quota) — silently skip
+  }
+}
+
+/** Invalidate both cache layers (e.g. to force a fresh fetch). */
+export function clearModelsCache(): void {
+  memoryCache = null
+  try { localStorage.removeItem(MODELS_CACHE_KEY) } catch { /* noop */ }
+}
+
 /**
  * Fetch all available models from the OpenAI-compatible /models endpoint.
- * Returns an array of model IDs.
+ * Results are cached in memory (page lifetime) and localStorage (1 hour TTL).
  */
 export async function fetchAvailableModels(): Promise<ModelOption[]> {
   if (!OPENAI_BASE_URL) {
     console.warn("NEXT_PUBLIC_OPENAI_BASE_URL is not set; cannot fetch models")
     return OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : []
+  }
+
+  // Layer A: memory cache
+  if (memoryCache && memoryCache.expiresAt > Date.now()) {
+    return memoryCache.models
+  }
+
+  // Layer B: localStorage cache
+  const lsCache = readLocalStorageCache()
+  if (lsCache) {
+    memoryCache = lsCache
+    return lsCache.models
   }
 
   try {
@@ -53,7 +106,14 @@ export async function fetchAvailableModels(): Promise<ModelOption[]> {
     // Support both { data: [...] } and flat array shapes
     const models: Array<{ id: string }> = Array.isArray(data) ? data : (data.data ?? [])
     const ids = models.map((m) => m.id).filter(Boolean)
-    return ids.length > 0 ? ids : (OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : [])
+    const result = ids.length > 0 ? ids : (OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : [])
+
+    // Populate both cache layers
+    const entry: ModelsCache = { models: result, expiresAt: Date.now() + MODELS_CACHE_TTL_MS }
+    memoryCache = entry
+    writeLocalStorageCache(result)
+
+    return result
   } catch (e) {
     console.error("Failed to fetch models from OpenAI-compatible API:", e)
     return OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : []
