@@ -28,19 +28,6 @@ export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, ag
       <div className="flex items-center justify-between w-full px-4 sm:px-6">
         {/* Wordmark */}
         <div className="flex items-center gap-2">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 18 18"
-            fill="none"
-            aria-hidden="true"
-          >
-            {/* 4-spoke radial spike mark */}
-            <line x1="9" y1="1" x2="9" y2="17" stroke="#cc785c" strokeWidth="2" strokeLinecap="round" />
-            <line x1="1" y1="9" x2="17" y2="9" stroke="#cc785c" strokeWidth="2" strokeLinecap="round" />
-            <line x1="3.2" y1="3.2" x2="14.8" y2="14.8" stroke="#cc785c" strokeWidth="1.5" strokeLinecap="round" />
-            <line x1="14.8" y1="3.2" x2="3.2" y2="14.8" stroke="#cc785c" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
           <span
             className="text-xl font-medium tracking-tight text-foreground"
             style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.3px" }}
