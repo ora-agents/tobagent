@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Settings, Sun, Moon } from "lucide-react"
+import { Sun, Moon, ChevronDown } from "lucide-react"
 import { useTheme } from "next-themes"
 import { AgentSettings, type AgentConfig } from "./agent-settings"
 import { useT } from "@/lib/i18n"
+import type { AgentProfile } from "@/lib/types/agent-profiles"
 
 interface HeaderProps {
   showToolCalls?: boolean
@@ -16,25 +17,49 @@ interface HeaderProps {
   forceShowTooltip?: number
   showSettingsDialog?: boolean
   onSettingsDialogChange?: (open: boolean) => void
+  /** Currently selected custom agent profile (null = default docs agent). */
+  selectedAgentProfile?: AgentProfile | null
+  /** Called when user clicks the agent name to open the profiles dialog. */
+  onOpenAgentProfiles?: () => void
 }
 
-export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, agentConfig, onAgentConfigChange, onShowShortcuts, forceShowTooltip, showSettingsDialog, onSettingsDialogChange }: HeaderProps) {
+export function Header({
+  showToolCalls = false,
+  onToggleToolCalls,
+  onNewChat,
+  agentConfig,
+  onAgentConfigChange,
+  onShowShortcuts,
+  forceShowTooltip,
+  showSettingsDialog,
+  onSettingsDialogChange,
+  selectedAgentProfile,
+  onOpenAgentProfiles,
+}: HeaderProps) {
   const t = useT()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  const agentLabel = selectedAgentProfile?.name ?? "Default"
+
   return (
     <header className="border-b border-border bg-background h-16 flex items-center">
       <div className="flex items-center justify-between w-full px-4 sm:px-6">
-        {/* Wordmark */}
-        <div className="flex items-center gap-2">
+        {/* Agent name / wordmark — click to open agent selector */}
+        <button
+          onClick={onOpenAgentProfiles}
+          className="flex items-center gap-1 group hover:opacity-80 transition-opacity"
+          title="Switch or manage agents"
+        >
           <span
             className="text-xl font-medium tracking-tight text-foreground"
             style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.3px" }}
           >
-            Chat
+            {agentLabel}
           </span>
-        </div>
+          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors mt-0.5" />
+        </button>
 
         <div className="flex items-center gap-3">
           <button
