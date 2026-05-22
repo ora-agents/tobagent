@@ -8,16 +8,9 @@ from langsmith import Client
 
 from src.agent.config import (
     DEFAULT_MODEL,
-    GUARDRAILS_MODEL,
     configurable_model,
-    model_fallback_middleware,
     model_retry_middleware,
     tool_retry_middleware,
-)
-from src.middleware.guardrails_middleware import GuardrailsMiddleware
-from src.middleware.guardrails_middleware import (
-    guardrails_prompt_commit,
-    guardrails_prompt_source,
 )
 from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.prompts.context_summary_prompt import context_summary_prompt
@@ -67,13 +60,6 @@ else:
         prompt_commit = None
         prompt_source = "local:src/prompts/docs_agent_prompt.py"
 
-# Guardrails middleware ensures users only ask LangChain-related questions
-guardrails_middleware = GuardrailsMiddleware(
-    model=GUARDRAILS_MODEL.id,
-    block_off_topic=True,
-)
-logger.info(f"Guardrails middleware using {GUARDRAILS_MODEL.name}")
-
 context_summary_middleware = SummarizationMiddleware(
     model=DEFAULT_MODEL.id,
     trigger=("tokens", 130_000),
@@ -92,11 +78,9 @@ docs_agent_tools = [
 ]
 
 docs_agent_middleware = [
-    guardrails_middleware,
     context_summary_middleware,
     tool_retry_middleware,
     model_retry_middleware,
-    model_fallback_middleware,
 ]
 
 docs_agent = create_agent(
@@ -108,12 +92,9 @@ docs_agent = create_agent(
 
 _prompt_metadata: dict[str, str] = {
     "prompt_source": prompt_source,
-    "guardrails_prompt_source": guardrails_prompt_source,
 }
 if prompt_commit:
     _prompt_metadata["prompt_commit"] = prompt_commit
-if guardrails_prompt_commit:
-    _prompt_metadata["guardrails_prompt_commit"] = guardrails_prompt_commit
 if _revision_id := os.environ.get("LANGCHAIN_REVISION_ID"):
     _prompt_metadata["LANGSMITH_AGENT_VERSION"] = _revision_id
 

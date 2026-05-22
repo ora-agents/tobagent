@@ -22,13 +22,6 @@ _HUB_PROMPTS: dict[str, str] = {
         else "public-chat-langchain-test:production"
     ),
 }
-_GUARDRAILS_HUB_PROMPTS: dict[str, str] = {
-    "docs_agent": (
-        "public-chat-langchain-guardrails-test:staging"
-        if _USE_STAGING
-        else "public-chat-langchain-guardrails-test:production"
-    ),
-}
 
 
 @lru_cache(maxsize=8)
@@ -50,22 +43,13 @@ def get_prompt_provenance(graph_id: str) -> dict[str, str]:
     if _USE_LOCAL_PROMPTS and graph_id == "docs_agent":
         return {
             "prompt_source": "local:src/prompts/docs_agent_prompt.py",
-            "guardrails_prompt_source": "local:src/prompts/guardrails_prompts.py",
         }
 
     if graph_id in _HUB_PROMPTS:
         source, commit = _resolve_hub_provenance(_HUB_PROMPTS[graph_id])
-        guardrails_source, guardrails_commit = _resolve_hub_provenance(
-            _GUARDRAILS_HUB_PROMPTS[graph_id]
-        )
-        provenance = {
-            "prompt_source": source,
-            "guardrails_prompt_source": guardrails_source,
-        }
+        provenance = {"prompt_source": source}
         if commit:
             provenance["prompt_commit"] = commit
-        if guardrails_commit:
-            provenance["guardrails_prompt_commit"] = guardrails_commit
 
         return provenance
 
