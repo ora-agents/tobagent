@@ -28,13 +28,8 @@ import {
 } from "@/components/ui/tooltip"
 import {
   fetchAvailableModels,
-  getAllowedAgents,
   getDefaultModel,
-  getDefaultAgent,
   getModelDisplayName,
-  getAgentDisplayName,
-  getAgentShortDisplayName,
-  isAgentAllowed,
   type ModelOption,
   type AgentType,
 } from "@/lib/config/deployment-config"
@@ -112,8 +107,6 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     })
   }, [])
 
-  const allowedAgents = getAllowedAgents()
-
   // Force show tooltip when forceShowTooltip changes
   useEffect(() => {
     if (forceShowTooltip && forceShowTooltip > 0) {
@@ -128,16 +121,6 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     setRecursionLimitInput((config.recursionLimit ?? 100).toString())
   }, [config.recursionLimit])
 
-  // Validate agent type on mount; model is validated lazily after models are fetched
-  useEffect(() => {
-    if (!isAgentAllowed(config.agentType)) {
-      const defaultAgent = getDefaultAgent()
-      console.warn(`Agent ${config.agentType} not allowed. Resetting to ${defaultAgent}`)
-      onConfigChange({ ...config, agentType: defaultAgent })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // Once models are loaded, ensure the persisted model is in the list
   useEffect(() => {
     if (modelsLoading || availableModels.length === 0) return
@@ -150,10 +133,6 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelsLoading, availableModels])
-
-  const handleAgentTypeChange = useCallback((agentType: AgentType) => {
-    onConfigChange({ ...config, agentType })
-  }, [config, onConfigChange])
 
   const handleModelChange = useCallback((model: string) => {
     onConfigChange({ ...config, model })
@@ -211,7 +190,6 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
             <div className="space-y-1 text-xs">
-              <div><span className="font-semibold">{t.agent}:</span> {getAgentShortDisplayName(config.agentType)}</div>
               <div><span className="font-semibold">{t.model}:</span> {getModelDisplayName(config.model as ModelOption)}</div>
               <div><span className="font-semibold">{t.recursionLimitLabel}:</span> {config.recursionLimit ?? 100}</div>
             </div>
@@ -225,24 +203,6 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="agent-type">{t.agentType}</Label>
-            <Select value={config.agentType} onValueChange={handleAgentTypeChange}>
-              <SelectTrigger id="agent-type">
-                <SelectValue placeholder={t.selectAgentType} />
-              </SelectTrigger>
-              <SelectContent>
-                {allowedAgents.map((agentId) => (
-                  <SelectItem key={agentId} value={agentId}>
-                    {getAgentDisplayName(agentId)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {t.moreAgentTypesComing}
-            </p>
-          </div>
           {showRepoSelector && (
             <div className="grid gap-1.5">
               <div className="flex items-center justify-between">
