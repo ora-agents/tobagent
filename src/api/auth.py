@@ -5,7 +5,6 @@ from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
 from src.agent.config import DEFAULT_MODEL
-from src.utils.prompt_provenance import get_prompt_provenance
 
 auth = Auth()
 
@@ -94,14 +93,6 @@ async def enrich_run_metadata(
 ):
     """Inject public Chat LangChain metadata into the root run."""
     metadata = value.setdefault("metadata", {})
-    if (
-        value["assistant_id"] != "docs_agent"
-        and str(value["assistant_id"]) != "bd5caeca-2e94-56a2-abb7-20aa1c78d5c8"
-    ):
-        raise Auth.exceptions.HTTPException(
-            403,
-            f"Only docs_agent runs are allowed to set source_type. Got {value['assistant_id']}",
-        )
 
     config = value["kwargs"].get("config") or value.get("config") or {}
     config_metadata = config.get("metadata") if isinstance(config, dict) else None
@@ -112,10 +103,6 @@ async def enrich_run_metadata(
 
     metadata.setdefault("source_type", "Chat-LangChain")
 
-    graph_id = metadata.get("graph_id") or value.get("assistant_id")
-    if graph_id:
-        for key, val in get_prompt_provenance(graph_id).items():
-            metadata.setdefault(key, val)
     input_has_image = validate_inputs(
         value["kwargs"].get("input"), value["kwargs"].get("command")
     )
