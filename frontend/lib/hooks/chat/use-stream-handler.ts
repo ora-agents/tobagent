@@ -37,7 +37,7 @@ import {
 } from "../../utils/chat"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { shareRun, readRun } from "../../api/langsmith"
-import { getModelProvider, getDefaultModel, type ModelOption } from "../../config/deployment-config"
+import { getDefaultModel, type ModelOption } from "../../config/deployment-config"
 
 // ============================================================================
 // Constants
@@ -412,7 +412,6 @@ export function useStreamHandler({
 
       const model = (agentConfig?.model ?? getDefaultModel()) as ModelOption
       const recursionLimit = agentConfig?.recursionLimit ?? 100
-      const modelProvider = getModelProvider(model)
 
       let assistantContent = ""
       let assistantToolCalls: ToolCall[] = []
@@ -439,7 +438,6 @@ export function useStreamHandler({
           metadata: traceMetadata,
           configurable: {
             model: model,
-            model_provider: modelProvider,
             ...(repos.length > 0 && { repos }),
           },
         } as any,

@@ -1,8 +1,9 @@
 /**
- * Public Chat LangChain Configuration
+ * Public Chat Configuration
  *
- * This frontend is public-only: docs_agent, anonymous browser identity,
- * and the public model allowlist.
+ * Uses a single OpenAI-compatible API endpoint for model listing and selection.
+ * Set NEXT_PUBLIC_OPENAI_BASE_URL, NEXT_PUBLIC_OPENAI_API_KEY, and
+ * NEXT_PUBLIC_OPENAI_DEFAULT_MODEL in the environment.
  */
 
 // =============================================================================
@@ -13,47 +14,59 @@
 export const CONFIG_STORAGE = {
   key: "agent-config",
   versionKey: "agent-config-version",
-  version: "0.5",
+  version: "0.6",
 } as const
 
 // =============================================================================
-// Model Registry
+// OpenAI-compatible endpoint
 // =============================================================================
 
-interface ModelConfig {
-  id: string // e.g., "google_genai:gemini-3.1-flash-lite-preview"
-  name: string // Display name
-  provider: "openai" | "google" | "baseten"
-  description?: string
-}
+export const OPENAI_BASE_URL = process.env.NEXT_PUBLIC_OPENAI_BASE_URL || ""
+export const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY || ""
+export const OPENAI_DEFAULT_MODEL = process.env.NEXT_PUBLIC_OPENAI_DEFAULT_MODEL || ""
+
+export type ModelOption = string  // plain model ID, e.g. "gpt-4o" or "llama3.2"
 
 /**
- * All available models - single source of truth
- * Keys are short names, values contain full configuration
+ * Fetch all available models from the OpenAI-compatible /models endpoint.
+ * Returns an array of model IDs.
  */
-export const MODELS = {
-  "gpt-5.4-mini": {
-    id: "openai:gpt-5.4-mini",
-    name: "GPT-5.4 Mini",
-    provider: "openai",
-    description: "Strongest mini model for coding, computer use, and subagents",
-  },
-  "gemini-3.1-flash-lite": {
-    id: "google_genai:gemini-3.1-flash-lite-preview",
-    name: "Gemini 3.1 Flash Lite",
-    provider: "google",
-    description: "Fastest, most cost-effective Gemini",
-  },
-  "glm-5": {
-    id: "baseten:zai-org/GLM-5",
-    name: "GLM 5",
-    provider: "baseten",
-    description: "Z.ai GLM 5 served via Baseten",
-  },
-} as const satisfies Record<string, ModelConfig>
+export async function fetchAvailableModels(): Promise<ModelOption[]> {
+  if (!OPENAI_BASE_URL) {
+    console.warn("NEXT_PUBLIC_OPENAI_BASE_URL is not set; cannot fetch models")
+    return OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : []
+  }
 
-export type ModelKey = keyof typeof MODELS
-export type ModelOption = (typeof MODELS)[ModelKey]["id"]
+  try {
+    const url = `${OPENAI_BASE_URL.replace(/\/$/, "")}/models`
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (OPENAI_API_KEY) {
+      headers["Authorization"] = `Bearer ${OPENAI_API_KEY}`
+    }
+
+    const response = await fetch(url, { headers })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+    // Support both { data: [...] } and flat array shapes
+    const models: Array<{ id: string }> = Array.isArray(data) ? data : (data.data ?? [])
+    const ids = models.map((m) => m.id).filter(Boolean)
+    return ids.length > 0 ? ids : (OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : [])
+  } catch (e) {
+    console.error("Failed to fetch models from OpenAI-compatible API:", e)
+    return OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : []
+  }
+}
+
+export function getDefaultModel(): ModelOption {
+  return OPENAI_DEFAULT_MODEL
+}
+
+export function getModelDisplayName(modelId: ModelOption): string {
+  return modelId
+}
 
 // =============================================================================
 // Agent Registry
@@ -78,66 +91,16 @@ export const AGENTS = {
 export type AgentKey = keyof typeof AGENTS
 export type AgentType = (typeof AGENTS)[AgentKey]["id"]
 
-interface DeploymentConfig {
-  models: ModelKey[]
-  agents: AgentKey[]
-  defaultModel: ModelKey
-  defaultAgent: AgentKey
-  requiresAuth: boolean
-}
-
-const DEPLOYMENT: DeploymentConfig = {
-  models: ["gpt-5.4-mini", "gemini-3.1-flash-lite", "glm-5"],
-  agents: ["docs"],
-  defaultModel: "gemini-3.1-flash-lite",
-  defaultAgent: "docs",
-  requiresAuth: false,
-}
-
-// =============================================================================
-// Core Functions
-// =============================================================================
-
-export function getDeploymentConfig(): DeploymentConfig {
-  return DEPLOYMENT
-}
-
-// =============================================================================
-// Model Functions
-// =============================================================================
-
-export function getAllowedModels(): ModelOption[] {
-  return getDeploymentConfig().models.map((key) => MODELS[key].id)
-}
-
-export function getDefaultModel(): ModelOption {
-  return MODELS[getDeploymentConfig().defaultModel].id
-}
-
-export function isModelAllowed(modelId: ModelOption): boolean {
-  return getAllowedModels().includes(modelId)
-}
-
-export function getModelDisplayName(modelId: ModelOption): string {
-  const model = Object.values(MODELS).find((m) => m.id === modelId)
-  return model?.name ?? modelId
-}
-
-export function getModelProvider(modelId: ModelOption): string {
-  const model = Object.values(MODELS).find((m) => m.id === modelId)
-  return model?.provider ?? "openai"
-}
-
 // =============================================================================
 // Agent Functions
 // =============================================================================
 
 export function getAllowedAgents(): AgentType[] {
-  return getDeploymentConfig().agents.map((key) => AGENTS[key].id)
+  return Object.values(AGENTS).map((a) => a.id)
 }
 
 export function getDefaultAgent(): AgentType {
-  return AGENTS[getDeploymentConfig().defaultAgent].id
+  return AGENTS.docs.id
 }
 
 export function isAgentAllowed(agentId: AgentType): boolean {
@@ -159,5 +122,5 @@ export function getAgentShortDisplayName(agentId: AgentType): string {
 // =============================================================================
 
 export function isAuthRequired(): boolean {
-  return getDeploymentConfig().requiresAuth
+  return false
 }
