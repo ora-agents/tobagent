@@ -38,6 +38,7 @@ import {
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { shareRun, readRun } from "../../api/langsmith"
 import { getDefaultModel, type ModelOption } from "../../config/deployment-config"
+import type { AgentProfile } from "../../types/agent-profiles"
 
 // ============================================================================
 // Constants
@@ -115,6 +116,8 @@ interface UseStreamHandlerProps {
   threadId: string
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   agentConfig?: AgentConfig
+  /** Custom agent profile to use instead of (or alongside) the built-in agents. */
+  agentProfile?: AgentProfile | null
   shouldInterruptRef?: React.MutableRefObject<boolean>
   userId?: string | null
   userEmail?: string | null
@@ -158,7 +161,7 @@ interface UseStreamHandlerReturn {
  *   client: langGraphClient,
  *   threadId: "thread-123",
  *   setMessages: setMessages,
- *   agentConfig: { model: "google_genai:gemini-3.1-flash-lite-preview", agentType: "docs_agent" }
+ *   agentConfig: { model: "openai:gpt-4o", agentType: "generic_agent" }
  * })
  *
  * await processStream("What is LangChain?", "msg-456")
@@ -169,6 +172,7 @@ export function useStreamHandler({
   threadId,
   setMessages,
   agentConfig,
+  agentProfile,
   shouldInterruptRef,
   userId,
   userEmail,
@@ -418,7 +422,8 @@ export function useStreamHandler({
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
 
-      const agentType = agentConfig?.agentType ?? "docs_agent"
+      const isCustomProfile = !!agentProfile
+      const agentType = "generic_agent"
       const repos = agentConfig?.repos ?? []
 
       // Trace metadata for LangSmith observability
@@ -430,16 +435,23 @@ export function useStreamHandler({
         graph: agentType,
       }
 
+      // Build configurable dict
+      const configurableBase: Record<string, unknown> = { model }
+      if (isCustomProfile && agentProfile) {
+        configurableBase.system_prompt = agentProfile.systemPrompt
+        configurableBase.enabled_tools = agentProfile.enabledTools
+        configurableBase.agent_id = agentProfile.id
+      } else if (repos.length > 0) {
+        configurableBase.repos = repos
+      }
+
       const streamResponse = client.runs.stream(threadId, agentType, {
         input,
         config: {
           recursion_limit: recursionLimit,
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
-          configurable: {
-            model: model,
-            ...(repos.length > 0 && { repos }),
-          },
+          configurable: configurableBase,
         } as any,
         streamMode: ["values", "updates", "messages"],
         streamSubgraphs: true,
@@ -865,7 +877,7 @@ export function useStreamHandler({
     }
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, fetchUsageMetadata, generateShareLink, userId, userEmail, userName])
+  }, [client, threadId, setMessages, agentConfig, agentProfile, fetchUsageMetadata, generateShareLink, userId, userEmail, userName])
 
   return { processStream }
 }

@@ -14,6 +14,7 @@ import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
 import type { AgentConfig } from "@/components/layout/agent-settings"
+import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
 import {
   INPUT_TOO_LONG_MESSAGE,
@@ -52,6 +53,8 @@ interface ChatInterfaceProps {
   onThreadNotFound?: () => void
   agentConfig?: AgentConfig
   onAgentConfigChange?: (config: AgentConfig) => void
+  /** Custom agent profile; when set, the generic_agent graph is used instead. */
+  agentProfile?: AgentProfile | null
   isNewThread?: boolean
   customTitle?: string | null
   /** Pre-fill or auto-send a message. Use with autoSend to control behavior. */
@@ -77,6 +80,7 @@ export function ChatInterface({
   customTitle,
   agentConfig,
   onAgentConfigChange,
+  agentProfile,
   isNewThread = false,
   autoSend = false,
   onInitialMessageSent,
@@ -245,6 +249,7 @@ export function ChatInterface({
     threadId,
     setMessages,
     agentConfig,
+    agentProfile,
     shouldInterruptRef,
     userId,
     userEmail,

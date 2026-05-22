@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
+import { AgentProfilesDialog } from "@/components/layout/agent-profiles-dialog"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
@@ -13,22 +14,33 @@ import type { AgentConfig } from "@/components/layout/agent-settings"
 import { generateQuickTitle, generateThreadTitle } from "@/lib/utils/string"
 import {
   fetchAvailableModels,
-  getAllowedAgents,
   getDefaultModel,
   getDefaultAgent,
   CONFIG_STORAGE,
   type ModelOption,
-  type AgentType,
 } from "@/lib/config/deployment-config"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
+import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 
 function DashboardContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [showAgentProfilesDialog, setShowAgentProfilesDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+
+  // Agent profiles (custom configurable agents)
+  const {
+    profiles: agentProfiles,
+    selectedId: selectedAgentProfileId,
+    selectedProfile: selectedAgentProfile,
+    setSelectedId: setSelectedAgentProfileId,
+    createProfile: createAgentProfile,
+    updateProfile: updateAgentProfile,
+    deleteProfile: deleteAgentProfile,
+  } = useAgentProfiles()
 
   // Track newly created threads that haven't been initialized in backend yet
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -311,18 +323,6 @@ function DashboardContent() {
     setForceShowTooltip(prev => prev + 1)
   }
 
-  // Cycle to next agent
-  const handleCycleAgent = () => {
-    const agents = getAllowedAgents()
-    const currentIndex = agents.indexOf(agentConfig.agentType as AgentType)
-    const nextIndex = (currentIndex + 1) % agents.length
-    const nextAgent = agents[nextIndex]
-    setAgentConfig({ ...agentConfig, agentType: nextAgent })
-
-    // Trigger the existing tooltip to show
-    setForceShowTooltip(prev => prev + 1)
-  }
-
   // Keyboard shortcuts
   useKeyboardShortcuts([
     {
@@ -370,15 +370,6 @@ function DashboardContent() {
       },
       handler: handleCycleModel,
     },
-    {
-      shortcut: {
-        key: 'k',
-        metaKey: true,
-        description: 'Switch agent',
-        category: 'Model & Agent',
-      },
-      handler: handleCycleAgent,
-    },
   ])
 
   return (
@@ -386,6 +377,16 @@ function DashboardContent() {
       <KeyboardShortcutsDialog
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
+      />
+      <AgentProfilesDialog
+        open={showAgentProfilesDialog}
+        onOpenChange={setShowAgentProfilesDialog}
+        profiles={agentProfiles}
+        selectedId={selectedAgentProfileId}
+        onSelect={setSelectedAgentProfileId}
+        onCreate={createAgentProfile}
+        onUpdate={updateAgentProfile}
+        onDelete={deleteAgentProfile}
       />
       <div className="flex h-screen bg-background">
         <Sidebar
@@ -408,6 +409,8 @@ function DashboardContent() {
           forceShowTooltip={forceShowTooltip}
           showSettingsDialog={showSettingsDialog}
           onSettingsDialogChange={setShowSettingsDialog}
+          selectedAgentProfile={selectedAgentProfile}
+          onOpenAgentProfiles={() => setShowAgentProfilesDialog(true)}
         />
         {threadId && (
           <ChatInterface
@@ -418,6 +421,7 @@ function DashboardContent() {
             onThreadNotFound={handleThreadNotFound}
             agentConfig={agentConfig}
             onAgentConfigChange={setAgentConfig}
+            agentProfile={selectedAgentProfile}
             isNewThread={newThreads.has(threadId)}
             initialMessage={initialPrompt}
             autoSend={!!initialPrompt}
