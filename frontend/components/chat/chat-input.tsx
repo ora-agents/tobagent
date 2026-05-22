@@ -136,11 +136,11 @@ export function ChatInput({
             {/* Multi-layered input container */}
             <div className="relative">
               {/* High-contrast glow layer for visibility */}
-              <div className="absolute -inset-1 bg-primary/8 rounded-2xl opacity-70 group-hover:opacity-90 group-focus-within:opacity-100 transition-opacity duration-300 shadow-2xl" />
+              <div className="absolute -inset-1 bg-primary/8 rounded-2xl opacity-70 group-hover:opacity-90 group-focus-within:opacity-100 transition-opacity duration-300" />
 
               {/* Main input container with enhanced contrast */}
               <div
-                className={`relative bg-card/95 backdrop-blur-sm border-2 rounded-xl shadow-2xl transition-all duration-300 group-hover:shadow-3xl group-hover:bg-card/98 group-focus-within:shadow-3xl group-focus-within:bg-white/5 group-focus-within:ring-2 group-focus-within:ring-primary/20 ${
+                className={`relative bg-card/95 backdrop-blur-sm border-2 rounded-xl transition-all duration-300 group-hover:bg-card/98 group-focus-within:bg-white/5 group-focus-within:ring-2 group-focus-within:ring-primary/20 ${
                   isDragging
                     ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
                     : 'border-border/50 group-hover:border-primary/60 group-focus-within:border-primary/70'

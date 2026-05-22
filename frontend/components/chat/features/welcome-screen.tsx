@@ -111,20 +111,6 @@ export function WelcomeScreen({
       <div className="w-full max-w-3xl -mt-10 sm:-mt-20">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="mb-6 flex justify-center">
-            <svg
-              width="48"
-              height="48"
-              viewBox="0 0 48 48"
-              fill="none"
-              aria-hidden="true"
-            >
-              <line x1="24" y1="4" x2="24" y2="44" stroke="#cc785c" strokeWidth="3.5" strokeLinecap="round" />
-              <line x1="4" y1="24" x2="44" y2="24" stroke="#cc785c" strokeWidth="3.5" strokeLinecap="round" />
-              <line x1="9.5" y1="9.5" x2="38.5" y2="38.5" stroke="#cc785c" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="38.5" y1="9.5" x2="9.5" y2="38.5" stroke="#cc785c" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-          </div>
           <h2
             className="text-3xl sm:text-5xl font-normal text-foreground mb-2"
             style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.5px" }}
@@ -153,10 +139,10 @@ export function WelcomeScreen({
         {/* Centered Input Container */}
         <div className="relative group">
           <div
-            className={`relative bg-card border-2 rounded-2xl shadow-2xl transition-all duration-300 border-primary/60 ring-1 ring-primary/20 ${
+            className={`relative bg-background border-2 rounded-2xl transition-all duration-300 border-primary/60 group-focus-within:border-primary/90 group-focus-within:ring-2 group-focus-within:ring-primary/20 ${
               isDragging
-                ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
-                : 'group-hover:border-primary/80 group-focus-within:border-primary/90 group-focus-within:ring-2 group-focus-within:ring-primary/30'
+                ? 'border-primary bg-primary/5'
+                : 'group-hover:border-primary/80'
             }`}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
@@ -259,7 +245,7 @@ export function WelcomeScreen({
           {agentConfig && onAgentConfigChange && availableModels.length > 0 && (
             <div className="flex justify-start mt-2 px-2">
               <Select value={agentConfig.model} onValueChange={handleModelChange}>
-                <SelectTrigger className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 px-2 gap-1 w-auto">
+                <SelectTrigger className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 px-2 gap-1 w-auto shadow-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
