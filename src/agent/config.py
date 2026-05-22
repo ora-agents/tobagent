@@ -98,6 +98,10 @@ model_fallback_middleware = ModelFallbackMiddleware(DEFAULT_MODEL.id)
 __all__ = [
     "DEFAULT_MODEL",
     "ModelConfig",
+    "OPENAI_COMPATIBLE_BASE_URL",
+    "OPENAI_COMPATIBLE_API_KEY",
+    "_DEFAULT_MODEL_NAME",
+    "_base_model",
     "configurable_model",
     "model_retry_middleware",
     "tool_retry_middleware",

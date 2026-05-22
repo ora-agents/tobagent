@@ -140,11 +140,11 @@ interface AgentConfig {
 }
 
 export const AGENTS = {
-  docs: {
-    id: "docs_agent",
-    name: "Docs Agent",
-    shortName: "Docs Agent",
-    description: "Documentation search and Q&A",
+  generic: {
+    id: "generic_agent",
+    name: "Generic Agent",
+    shortName: "Generic Agent",
+    description: "General purpose AI assistant",
   },
 } as const satisfies Record<string, AgentConfig>
 
@@ -160,7 +160,7 @@ export function getAllowedAgents(): AgentType[] {
 }
 
 export function getDefaultAgent(): AgentType {
-  return AGENTS.docs.id
+  return AGENTS.generic.id
 }
 
 export function isAgentAllowed(agentId: AgentType): boolean {
