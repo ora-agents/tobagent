@@ -26,10 +26,10 @@ const CODE_COLORS = {
   inlineBackground: 'oklch(0.22 0 0)',
   inlineBorder: 'oklch(0.32 0 0)',
 
-  // Primary theme colors
-  primary: '#7FC8FF',      // Blue - used for properties, operators, tags
-  primaryLight: '#99D3FF',  // Light blue - strings, attributes
-  primaryDark: '#B2DEFF',  // Lighter blue - keywords, built-ins
+  // Primary theme colors (warm coral palette)
+  primary: '#e8c9b8',      // Warm cream — properties, operators, tags
+  primaryLight: '#f0dbd0',  // Light warm — strings, attributes
+  primaryDark: '#cc9a80',  // Coral mid — keywords, built-ins
 
   // Accent colors
   blue: '#60a5fa',         // Functions
@@ -310,10 +310,6 @@ export const MessageItem = memo(function MessageItem({
         {...props}
         target="_blank"
         rel="noopener noreferrer"
-        style={{
-          color: CODE_COLORS.primary,
-          textDecorationColor: CODE_COLORS.primary
-        }}
       >
         {children}
       </a>
@@ -328,17 +324,11 @@ export const MessageItem = memo(function MessageItem({
       // Check if it's inline code: single backticks or no newlines
       const isInlineCode = inline === true || (!className && !codeString.includes('\n'))
 
-      // Inline code (single backticks) - Slack-style highlighting
+      // Inline code (single backticks) — theme-aware via .prose code CSS
       if (isInlineCode) {
         return (
           <code
-            className="px-1.5 py-0.5 text-[13px] font-mono"
-            style={{
-              backgroundColor: CODE_COLORS.inlineBackground,
-              color: CODE_COLORS.primary,
-              border: `1px solid ${CODE_COLORS.inlineBorder}`,
-              borderRadius: '5px',
-            }}
+            className="px-1.5 py-0.5 text-[13px] font-mono rounded-[5px]"
             {...props}
           >
             {children}
@@ -620,7 +610,7 @@ export const MessageItem = memo(function MessageItem({
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 text-xs font-medium transition-colors ml-1"
-                        style={{ color: '#7FC8FF', textDecorationColor: '#7FC8FF' }}
+                        style={{ color: '#cc785c', textDecorationColor: '#cc785c' }}
                       >
                         View trace
                         <ExternalLink className="h-2.5 w-2.5" />

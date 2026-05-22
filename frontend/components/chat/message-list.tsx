@@ -410,7 +410,7 @@ export const MessageList = memo(function MessageList({
           onClick={scrollToBottom}
           className="scroll-button fixed bottom-32 right-4 sm:right-8 p-3 rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform z-50"
           style={{
-            background: '#7FC8FF',
+            background: '#cc785c',
             color: 'white',
           }}
           aria-label="Scroll to bottom"
