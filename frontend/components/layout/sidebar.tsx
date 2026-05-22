@@ -1,20 +1,19 @@
 "use client"
 
 import { useState, useMemo, memo, useCallback } from "react"
-import { Trash2, PanelLeftClose, PanelLeft, BookOpen, Search, X, MessageSquare } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Thread } from "@/lib/hooks/threads"
-import Image from "next/image"
+import { useT, useI18n } from "@/lib/i18n"
 
-// Add custom scrollbar styles - overlay scrollbar that doesn't affect layout
 const scrollbarStyles = `
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
   }
   .custom-scrollbar:hover {
-    scrollbar-color: var(--langchain-blue, #7FC8FF) transparent;
+    scrollbar-color: rgba(204, 120, 92, 0.4) transparent;
   }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -27,10 +26,10 @@ const scrollbarStyles = `
     border-radius: 3px;
   }
   .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: var(--langchain-blue, #7FC8FF);
+    background: rgba(204, 120, 92, 0.4);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--langchain-blue, #99D3FF);
+    background: rgba(204, 120, 92, 0.6);
   }
 `
 
@@ -44,13 +43,22 @@ interface SidebarProps {
   isLoading?: boolean
 }
 
-function getRelativeTime(date: Date): string {
+function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
   const diffDays = Math.floor(diffMs / 86400000)
 
+  if (lang === "zh") {
+    if (diffMins < 1) return "刚刚"
+    if (diffMins < 60) return `${diffMins} 分钟前`
+    if (diffHours < 24) return `${diffHours} 小时前`
+    if (diffDays === 1) return "昨天"
+    if (diffDays < 7) return `${diffDays} 天前`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} 周前`
+    return `${Math.floor(diffDays / 30)} 个月前`
+  }
   if (diffMins < 1) return "Just now"
   if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
   if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
@@ -101,6 +109,8 @@ export const Sidebar = memo(function Sidebar({
   onDeleteThread,
   isLoading = false,
 }: SidebarProps) {
+  const t = useT()
+  const { locale } = useI18n()
   const [searchQuery, setSearchQuery] = useState('')
 
   // Filter threads based on search query
@@ -151,14 +161,15 @@ export const Sidebar = memo(function Sidebar({
                 key={thread.thread_id}
                 className={`group flex items-center gap-3 px-3 py-2.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer shadow-depth-xs ${
                   thread.thread_id === currentThreadId
-                    ? "bg-[#7FC8FF]/15 text-sidebar-foreground shadow-depth-sm border border-[#7FC8FF]/40"                    : "text-sidebar-foreground"
+                    ? "bg-primary/15 text-sidebar-foreground border border-primary/30"
+                    : "text-sidebar-foreground"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
               >
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{title}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    {getRelativeTime(threadDate)}
+                    {getRelativeTime(threadDate, locale)}
                   </div>
                 </div>
                 <button
@@ -198,7 +209,7 @@ export const Sidebar = memo(function Sidebar({
               <PanelLeftClose className="w-5 h-5" />
             </Button>
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Threads
+              {t.threads}
             </span>
           </div>
         </div>
@@ -211,7 +222,7 @@ export const Sidebar = memo(function Sidebar({
           </div>
           <Input
             type="text"
-            placeholder="Search threads..."
+            placeholder={t.searchThreads}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm border-border/40 focus:border-primary/60 focus:bg-background/90 focus:shadow-sm transition-all duration-200 shadow-sm hover:shadow-md hover:bg-background/90 rounded-lg"
@@ -233,80 +244,29 @@ export const Sidebar = memo(function Sidebar({
         {isLoading ? (
           <div className="px-6 py-8 text-center">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs text-muted-foreground">Loading conversations...</p>
+            <p className="text-xs text-muted-foreground">{t.loadingConversations}</p>
           </div>
         ) : searchQuery && filteredThreads.length === 0 ? (
           <div className="px-6 py-8 text-center text-sm text-muted-foreground bg-gradient-to-br from-card/10 via-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
-            <div className="font-medium mb-1">No results found</div>
-            <div className="text-xs">Try a different search term</div>
+            <div className="font-medium mb-1">{t.noResultsFound}</div>
+            <div className="text-xs">{t.tryDifferentSearch}</div>
           </div>
         ) : filteredThreads.length === 0 ? (
           <div className="px-6 py-8 text-center text-sm text-muted-foreground bg-gradient-to-br from-card/10 via-card/5 to-transparent rounded-lg mx-3 shadow-depth-xs">
-            <div className="font-medium mb-1">No conversations yet</div>
-            <div className="text-xs">Start chatting to see your threads here!</div>
+            <div className="font-medium mb-1">{t.noConversationsYet}</div>
+            <div className="text-xs">{t.startChatting}</div>
           </div>
         ) : (
           <>
-            {renderThreadGroup(today, "Today")}
-            {renderThreadGroup(yesterday, "Yesterday")}
-            {renderThreadGroup(last7Days, "Previous 7 Days")}
-            {renderThreadGroup(older, "Older")}
+            {renderThreadGroup(today, t.today)}
+            {renderThreadGroup(yesterday, t.yesterday)}
+            {renderThreadGroup(last7Days, t.previous7Days)}
+            {renderThreadGroup(older, t.older)}
           </>
         )}
       </nav>
 
-      <div className="bg-gradient-to-t from-sidebar-accent/10 via-sidebar-accent/5 to-transparent pt-2 pb-0 space-y-0">
-        <a
-          href="https://smith.langchain.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
-        >
-          <div className="h-6 w-6 flex items-center justify-center shrink-0">
-            <Image
-              src="/assets/images/Assistant Icon.png"
-              alt="LangSmith"
-              width={24}
-              height={24}
-              className="object-contain"
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">LangSmith</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">Monitoring & Tracing</div>
-          </div>
-        </a>
-
-        <a
-          href="https://forum.langchain.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
-        >
-          <div className="h-6 w-6 rounded-full bg-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
-            <MessageSquare className="w-3 h-3 text-sidebar-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">Community Forum</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">Join the Discussion</div>
-          </div>
-        </a>
-
-        <a
-          href="https://docs.langchain.com/oss/python/langchain/overview"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 text-sm text-sidebar-foreground transition-all duration-300 ease-out hover:bg-sidebar-accent/10 group"
-        >
-          <div className="h-6 w-6 rounded-full bg-sidebar-primary/20 flex items-center justify-center shadow-sm shrink-0">
-            <BookOpen className="w-3 h-3 text-sidebar-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium leading-tight transition-colors duration-300 group-hover:text-sidebar-primary/90">Documentation</div>
-            <div className="text-[10px] text-muted-foreground leading-tight transition-colors duration-300 group-hover:text-muted-foreground/80">LangChain Docs</div>
-          </div>
-        </a>
-
+      <div className="pt-2 pb-0">
         <UserProfileSection />
       </div>
     </aside>

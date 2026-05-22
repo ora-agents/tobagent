@@ -27,18 +27,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  getAllowedModels,
+  fetchAvailableModels,
   getAllowedAgents,
   getDefaultModel,
   getDefaultAgent,
   getModelDisplayName,
   getAgentDisplayName,
   getAgentShortDisplayName,
-  isModelAllowed,
   isAgentAllowed,
   type ModelOption,
   type AgentType,
 } from "@/lib/config/deployment-config"
+import { useT } from "@/lib/i18n"
 
 /** Available codebase repositories organized by category */
 export const CODEBASE_REPOS = {
@@ -98,11 +98,20 @@ interface AgentSettingsProps {
 }
 
 export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceShowTooltip, open, onOpenChange }: AgentSettingsProps) {
+  const t = useT()
   const [recursionLimitInput, setRecursionLimitInput] = useState((config.recursionLimit ?? 100).toString())
   const [tooltipOpen, setTooltipOpen] = useState(false)
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
 
-  // Get allowed options based on deployment environment
-  const allowedModels = getAllowedModels()
+  // Fetch models from OpenAI-compatible API on mount
+  useEffect(() => {
+    fetchAvailableModels().then((models) => {
+      setAvailableModels(models)
+      setModelsLoading(false)
+    })
+  }, [])
+
   const allowedAgents = getAllowedAgents()
 
   // Force show tooltip when forceShowTooltip changes
@@ -119,31 +128,28 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     setRecursionLimitInput((config.recursionLimit ?? 100).toString())
   }, [config.recursionLimit])
 
-  // Validate config on mount - if saved config is not allowed in current deployment, reset to defaults
-  // If persisted settings drift from the current public config, reset them.
+  // Validate agent type on mount; model is validated lazily after models are fetched
   useEffect(() => {
-    let needsUpdate = false
-    const updates: Partial<AgentConfig> = {}
-
-    if (!isModelAllowed(config.model as ModelOption)) {
-      const defaultModel = getDefaultModel()
-      console.warn(`Model ${config.model} not allowed in current deployment. Resetting to ${defaultModel}`)
-      updates.model = defaultModel
-      needsUpdate = true
-    }
-
     if (!isAgentAllowed(config.agentType)) {
       const defaultAgent = getDefaultAgent()
-      console.warn(`Agent ${config.agentType} not allowed in current deployment. Resetting to ${defaultAgent}`)
-      updates.agentType = defaultAgent
-      needsUpdate = true
-    }
-
-    if (needsUpdate) {
-      onConfigChange({ ...config, ...updates })
+      console.warn(`Agent ${config.agentType} not allowed. Resetting to ${defaultAgent}`)
+      onConfigChange({ ...config, agentType: defaultAgent })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run on mount to validate initial config
+  }, [])
+
+  // Once models are loaded, ensure the persisted model is in the list
+  useEffect(() => {
+    if (modelsLoading || availableModels.length === 0) return
+    if (!availableModels.includes(config.model as ModelOption)) {
+      const defaultModel = getDefaultModel() || availableModels[0]
+      if (defaultModel) {
+        console.warn(`Model ${config.model} not available. Resetting to ${defaultModel}`)
+        onConfigChange({ ...config, model: defaultModel })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelsLoading, availableModels])
 
   const handleAgentTypeChange = useCallback((agentType: AgentType) => {
     onConfigChange({ ...config, agentType })
@@ -197,7 +203,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
               <Button
                 variant="ghost"
                 size="sm"
-                className="hover:bg-[var(--langchain-blue)]/10 hover:text-[var(--langchain-blue)]"
+                className="hover:bg-primary/10 hover:text-primary"
               >
                 <Settings className="w-4 h-4" />
               </Button>
@@ -205,25 +211,25 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
             <div className="space-y-1 text-xs">
-              <div><span className="font-semibold">Agent:</span> {getAgentShortDisplayName(config.agentType)}</div>
-              <div><span className="font-semibold">Model:</span> {getModelDisplayName(config.model as ModelOption)}</div>
-              <div><span className="font-semibold">Recursion Limit:</span> {config.recursionLimit ?? 100}</div>
+              <div><span className="font-semibold">{t.agent}:</span> {getAgentShortDisplayName(config.agentType)}</div>
+              <div><span className="font-semibold">{t.model}:</span> {getModelDisplayName(config.model as ModelOption)}</div>
+              <div><span className="font-semibold">{t.recursionLimitLabel}:</span> {config.recursionLimit ?? 100}</div>
             </div>
           </TooltipContent>
         </Tooltip>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Agent Settings</DialogTitle>
+          <DialogTitle>{t.agentSettings}</DialogTitle>
           <DialogDescription>
-            Configure the agent type, AI model, and recursion limit.
+            {t.configureAgent}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="agent-type">Agent Type</Label>
+            <Label htmlFor="agent-type">{t.agentType}</Label>
             <Select value={config.agentType} onValueChange={handleAgentTypeChange}>
               <SelectTrigger id="agent-type">
-                <SelectValue placeholder="Select agent type" />
+                <SelectValue placeholder={t.selectAgentType} />
               </SelectTrigger>
               <SelectContent>
                 {allowedAgents.map((agentId) => (
@@ -234,7 +240,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              More agent types coming soon!
+              {t.moreAgentTypesComing}
             </p>
           </div>
           {showRepoSelector && (
@@ -302,13 +308,13 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
             </div>
           )}
           <div className="grid gap-2">
-            <Label htmlFor="model">Model</Label>
-            <Select value={config.model} onValueChange={handleModelChange}>
+            <Label htmlFor="model">{t.model}</Label>
+            <Select value={config.model} onValueChange={handleModelChange} disabled={modelsLoading}>
               <SelectTrigger id="model">
-                <SelectValue placeholder="Select a model" />
+                <SelectValue placeholder={modelsLoading ? t.loadingModels : t.selectModel} />
               </SelectTrigger>
               <SelectContent>
-                {allowedModels.map((modelId) => (
+                {availableModels.map((modelId) => (
                   <SelectItem key={modelId} value={modelId}>
                     {getModelDisplayName(modelId)}
                   </SelectItem>
@@ -317,7 +323,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
             </Select>
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="recursion-limit">Recursion Limit</Label>
+            <Label htmlFor="recursion-limit">{t.recursionLimit}</Label>
             <Input
               id="recursion-limit"
               type="text"
@@ -327,7 +333,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
               onChange={(e) => handleRecursionLimitChange(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Maximum number of iterations the agent can perform (default: 100)
+              {t.recursionLimitDesc}
             </p>
           </div>
         </div>
@@ -340,7 +346,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
               onClick={onShowShortcuts}
             >
               <Keyboard className="w-4 h-4" />
-              View Keyboard Shortcuts
+              {t.viewKeyboardShortcuts}
             </Button>
           </div>
         )}

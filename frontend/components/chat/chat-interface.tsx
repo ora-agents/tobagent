@@ -16,11 +16,9 @@ import { ChatInput } from "./chat-input"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
 import {
-  IMAGE_UNSUPPORTED_MODEL_MESSAGE,
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
-import { MODELS } from "@/lib/config/deployment-config"
 
 // Enhanced scrollbar styles with smooth transitions
 const scrollbarStyles = `
@@ -35,15 +33,15 @@ const scrollbarStyles = `
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #7FC8FF;
+    background: rgba(204, 120, 92, 0.4);
     border-radius: 3px;
     transition: background 0.2s ease;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #7FC8FF;
+    background: rgba(204, 120, 92, 0.6);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:active {
-    background: #7FC8FF;
+    background: rgba(204, 120, 92, 0.8);
   }
 `
 
@@ -109,7 +107,7 @@ export function ChatInterface({
     setUploadError,
   } = useFileUpload({
     getInputLength: () => inputLengthRef.current,
-    disableImageUploads: agentConfig?.model === MODELS["glm-5"].id,
+    disableImageUploads: false,
   })
   const attachedTextLength = attachedFiles.reduce((total, file) => {
     if (file.mimeType?.startsWith('image/')) return total
@@ -687,14 +685,6 @@ export function ChatInterface({
     }
 
     if (!userId || !client) {
-      return
-    }
-
-    if (
-      agentConfig?.model === MODELS["glm-5"].id &&
-      attachedFiles.some((file) => file.mimeType?.startsWith('image/'))
-    ) {
-      setUploadError(IMAGE_UNSUPPORTED_MODEL_MESSAGE)
       return
     }
 

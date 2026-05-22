@@ -11,6 +11,7 @@ import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
+import { useT } from "@/lib/i18n"
 
 interface ChatInputProps {
   input: string
@@ -81,6 +82,7 @@ export function ChatInput({
   voiceError,
   queuedMessages = [],
 }: ChatInputProps) {
+  const t = useT()
   return (
     <div className="relative">
       {/* Enhanced visibility layer */}
@@ -122,7 +124,7 @@ export function ChatInput({
                     >
                       <circle cx="12" cy="12" r="10" />
                     </svg>
-                    <span className="text-xs font-medium">Queued</span>
+                    <span className="text-xs font-medium">{t.queued}</span>
                   </div>
                   <span className="text-foreground/80 truncate">{msg.content}</span>
                 </div>
@@ -149,7 +151,7 @@ export function ChatInput({
               >
                 {isDragging && (
                   <div className="absolute inset-0 bg-primary/10 rounded-xl flex items-center justify-center z-20 pointer-events-none">
-                    <div className="text-primary font-medium">Drop files here</div>
+                    <div className="text-primary font-medium">{t.dropFilesHere}</div>
                   </div>
                 )}
                 <div className="flex items-end gap-2 px-3 py-1.5">
@@ -172,7 +174,7 @@ export function ChatInput({
                       disabled={isLoading || !userId}
                       className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                       type="button"
-                      title="Attach files (images, code, logs)"
+                      title={t.attachFiles}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -200,10 +202,10 @@ export function ChatInput({
                     maxLength={MAX_INPUT_CHARS}
                     placeholder={
                       !userId
-                        ? "Initializing..."
+                        ? t.initializing
                         : isLoading
-                          ? "Type your next message..."
-                          : "Ask me anything about LangChain..."
+                          ? t.typeNextMessage
+                          : t.askAnything
                     }
                     className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                     disabled={!userId}
@@ -232,10 +234,10 @@ export function ChatInput({
                         ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                       `}
                       type="button"
-                      title={isStopping ? "Stopping..." : "Stop generating"}
+                      title={isStopping ? t.stopping : t.stop}
                     >
                       <span className="text-xs font-medium">
-                        {isStopping ? 'Stopping...' : 'Stop'}
+                        {isStopping ? t.stopping : t.stop}
                       </span>
                     </Button>
                   )}
@@ -253,9 +255,9 @@ export function ChatInput({
           {/* Simple help text - hidden on mobile */}
           <div className="hidden sm:flex items-center justify-between mt-1 px-2">
             <p className="text-[11px] text-muted-foreground/60">
-              <kbd className="px-1 py-0.5 bg-muted/50 rounded text-[10px] font-medium text-foreground/70">Enter</kbd> to send
+              <kbd className="px-1 py-0.5 bg-muted/50 rounded text-[10px] font-medium text-foreground/70">Enter</kbd> {t.enterToSend}
               <span className="mx-1">•</span>
-              <kbd className="px-1 py-0.5 bg-muted/50 rounded text-[10px] font-medium text-foreground/70">Shift+Enter</kbd> new line
+              <kbd className="px-1 py-0.5 bg-muted/50 rounded text-[10px] font-medium text-foreground/70">Shift+Enter</kbd> {t.shiftEnterNewLine}
             </p>
           </div>
         </div>

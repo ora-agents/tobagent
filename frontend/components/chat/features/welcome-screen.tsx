@@ -1,14 +1,6 @@
-/**
- * Welcome Screen Component
- *
- * Displays a centered welcome screen for new chats with the LangChain logo,
- * animated text, and a centered input box.
- */
-
 "use client"
 
-import React from "react"
-import Image from "next/image"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -24,10 +16,11 @@ import type { ImageAttachment } from "@/lib/types"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
 import {
-  getAllowedModels,
+  fetchAvailableModels,
   getModelDisplayName,
   type ModelOption,
 } from "@/lib/config/deployment-config"
+import { useT } from "@/lib/i18n"
 
 interface WelcomeScreenProps {
   input: string
@@ -100,7 +93,12 @@ export function WelcomeScreen({
   agentConfig,
   onAgentConfigChange,
 }: WelcomeScreenProps) {
-  const allowedModels = getAllowedModels()
+  const t = useT()
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+
+  useEffect(() => {
+    fetchAvailableModels().then(setAvailableModels)
+  }, [])
 
   const handleModelChange = (model: string) => {
     if (agentConfig && onAgentConfigChange) {
@@ -114,16 +112,24 @@ export function WelcomeScreen({
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mb-6 flex justify-center">
-            <Image
-              src="/assets/images/LangChain_Symbol_LightBlue.svg"
-              alt="LangChain"
-              width={68}
-              height={68}
-              priority
-            />
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 48 48"
+              fill="none"
+              aria-hidden="true"
+            >
+              <line x1="24" y1="4" x2="24" y2="44" stroke="#cc785c" strokeWidth="3.5" strokeLinecap="round" />
+              <line x1="4" y1="24" x2="44" y2="24" stroke="#cc785c" strokeWidth="3.5" strokeLinecap="round" />
+              <line x1="9.5" y1="9.5" x2="38.5" y2="38.5" stroke="#cc785c" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="38.5" y1="9.5" x2="9.5" y2="38.5" stroke="#cc785c" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
           </div>
-          <h2 className="text-2xl sm:text-4xl font-semibold text-white mb-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-            What can I help with?
+          <h2
+            className="text-3xl sm:text-5xl font-normal text-foreground mb-2"
+            style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.5px" }}
+          >
+            {t.whatCanIHelpWith}
           </h2>
         </div>
 
@@ -158,7 +164,7 @@ export function WelcomeScreen({
           >
             {isDragging && (
               <div className="absolute inset-0 bg-primary/10 rounded-2xl flex items-center justify-center z-20 pointer-events-none">
-                <div className="text-primary font-medium">Drop files here</div>
+                <div className="text-primary font-medium">{t.dropFilesHere}</div>
               </div>
             )}
             <div className="flex items-end gap-2 px-4 py-3">
@@ -179,7 +185,7 @@ export function WelcomeScreen({
                   disabled={isLoading || !userId}
                   className="group h-10 w-10 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                   type="button"
-                  title="Attach files (images, code, logs)"
+                  title={t.attachFiles}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -205,7 +211,7 @@ export function WelcomeScreen({
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
-                placeholder={userId ? "Ask me anything about LangChain..." : "Initializing..."}
+                placeholder={userId ? t.askAnything : t.initializing}
                 className="relative z-10 min-h-[48px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-3 text-base leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                 disabled={isLoading || !userId}
                 rows={1}
@@ -233,10 +239,10 @@ export function WelcomeScreen({
                     ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                   `}
                   type="button"
-                  title={isStopping ? "Stopping..." : "Stop generating"}
+                  title={isStopping ? t.stopping : t.stop}
                 >
                   <span className="text-sm font-medium">
-                    {isStopping ? 'Stopping...' : 'Stop'}
+                    {isStopping ? t.stopping : t.stop}
                   </span>
                 </Button>
               )}
@@ -250,14 +256,14 @@ export function WelcomeScreen({
           )}
 
           {/* Model selector dropdown - positioned underneath chatbox in bottom left */}
-          {agentConfig && onAgentConfigChange && (
+          {agentConfig && onAgentConfigChange && availableModels.length > 0 && (
             <div className="flex justify-start mt-2 px-2">
               <Select value={agentConfig.model} onValueChange={handleModelChange}>
                 <SelectTrigger className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 px-2 gap-1 w-auto">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {allowedModels.map((model) => (
+                  {availableModels.map((model) => (
                     <SelectItem key={model} value={model}>
                       {getModelDisplayName(model as ModelOption)}
                     </SelectItem>

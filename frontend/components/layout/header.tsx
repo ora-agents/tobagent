@@ -1,8 +1,10 @@
 "use client"
 
-import { ChevronDown, Settings } from "lucide-react"
-import Image from "next/image"
+import { useState, useEffect } from "react"
+import { Settings, Sun, Moon } from "lucide-react"
+import { useTheme } from "next-themes"
 import { AgentSettings, type AgentConfig } from "./agent-settings"
+import { useT } from "@/lib/i18n"
 
 interface HeaderProps {
   showToolCalls?: boolean
@@ -17,22 +19,44 @@ interface HeaderProps {
 }
 
 export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, agentConfig, onAgentConfigChange, onShowShortcuts, forceShowTooltip, showSettingsDialog, onSettingsDialogChange }: HeaderProps) {
+  const t = useT()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
   return (
-    <header className="border-b border-border/60 bg-background h-16 flex items-center">
+    <header className="border-b border-border bg-background h-16 flex items-center">
       <div className="flex items-center justify-between w-full px-4 sm:px-6">
-        <div className="flex items-center">
-          <Image
-            src="/assets/images/ChatLangChain-logo.svg"
-            alt="Chat LangChain"
-            width={200}
-            height={32}
-            className="object-contain"
-            style={{ width: "200px", height: "32px" }}
-            priority
-          />
+        {/* Wordmark */}
+        <div className="flex items-center gap-2">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 18 18"
+            fill="none"
+            aria-hidden="true"
+          >
+            {/* 4-spoke radial spike mark */}
+            <line x1="9" y1="1" x2="9" y2="17" stroke="#cc785c" strokeWidth="2" strokeLinecap="round" />
+            <line x1="1" y1="9" x2="17" y2="9" stroke="#cc785c" strokeWidth="2" strokeLinecap="round" />
+            <line x1="3.2" y1="3.2" x2="14.8" y2="14.8" stroke="#cc785c" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="14.8" y1="3.2" x2="3.2" y2="14.8" stroke="#cc785c" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span
+            className="text-xl font-medium tracking-tight text-foreground"
+            style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.3px" }}
+          >
+            Chat
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            aria-label="Toggle theme"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            {mounted && resolvedTheme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           {agentConfig && onAgentConfigChange && (
             <AgentSettings
               config={agentConfig}
@@ -45,7 +69,7 @@ export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, ag
           )}
           <button
             onClick={onNewChat}
-            className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-primary/10 to-primary/5 hover:from-primary/20 hover:to-primary/10 border border-primary/20 hover:border-primary/40 rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200 hover:scale-105 hover:shadow-lg"
+            className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -61,7 +85,7 @@ export function Header({ showToolCalls = false, onToggleToolCalls, onNewChat, ag
             >
               <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
             </svg>
-            <span className="hidden sm:inline">New Chat</span>
+            <span className="hidden sm:inline">{t.newChat}</span>
           </button>
         </div>
       </div>
