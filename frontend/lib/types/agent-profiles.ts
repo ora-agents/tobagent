@@ -28,6 +28,9 @@ export interface AgentProfile {
   systemPrompt: string
   /** Enabled built-in tool IDs. */
   enabledTools: BuiltinToolId[]
+  knowledgeBaseIds?: string[]
+  skillIds?: string[]
+  mcpIds?: string[]
   createdAt: string
   updatedAt: string
 }

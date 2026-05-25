@@ -25,7 +25,7 @@ import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 
 function DashboardContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge">("chat")
+  const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp">("chat")
   const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
@@ -440,7 +440,7 @@ function DashboardContent() {
           </>
         ) : (
           <ManagementDashboard
-            initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : "knowledge"}
+            initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
             onBackToChat={() => setCurrentView("chat")}
             agentProfiles={agentProfiles}
             selectedAgentProfileId={selectedAgentProfileId}

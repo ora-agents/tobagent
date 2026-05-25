@@ -1,24 +1,7 @@
-"use client"
-
 import { useState, useCallback, useEffect } from "react"
-import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
-import { AGENT_PROFILES_STORAGE_KEY, SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
-
-function loadProfiles(): AgentProfile[] {
-  if (typeof window === "undefined") return []
-  try {
-    const raw = localStorage.getItem(AGENT_PROFILES_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function saveProfiles(profiles: AgentProfile[]) {
-  try {
-    localStorage.setItem(AGENT_PROFILES_STORAGE_KEY, JSON.stringify(profiles))
-  } catch { /* noop */ }
-}
+import type { AgentProfile } from "@/lib/types/agent-profiles"
+import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
+import { LANGGRAPH_API_URL } from "../../constants/api"
 
 function loadSelectedId(): string | null {
   if (typeof window === "undefined") return null
@@ -36,20 +19,30 @@ function saveSelectedId(id: string | null) {
 }
 
 export function useAgentProfiles() {
-  const [profiles, setProfilesState] = useState<AgentProfile[]>([])
+  const [profiles, setProfiles] = useState<AgentProfile[]>([])
   const [selectedId, setSelectedIdState] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
-  // Load from localStorage on mount
+  // 1. Fetch all profiles from PostgreSQL on mount
   useEffect(() => {
-    setProfilesState(loadProfiles())
     setSelectedIdState(loadSelectedId())
     setMounted(true)
-  }, [])
 
-  const setProfiles = useCallback((next: AgentProfile[]) => {
-    setProfilesState(next)
-    saveProfiles(next)
+    if (!LANGGRAPH_API_URL) return
+
+    async function fetchProfiles() {
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles`)
+        if (resp.ok) {
+          const data = await resp.json()
+          setProfiles(data)
+        }
+      } catch (err) {
+        console.error("Failed to load agent profiles from PostgreSQL", err)
+      }
+    }
+
+    fetchProfiles()
   }, [])
 
   const setSelectedId = useCallback((id: string | null) => {
@@ -57,36 +50,79 @@ export function useAgentProfiles() {
     saveSelectedId(id)
   }, [])
 
-  const createProfile = useCallback((
+  const createProfile = useCallback(async (
     data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">
-  ): AgentProfile => {
+  ): Promise<AgentProfile | null> => {
+    if (!LANGGRAPH_API_URL) return null
     const now = new Date().toISOString()
-    const profile: AgentProfile = {
+    const newProfile: AgentProfile = {
       ...data,
       id: crypto.randomUUID(),
       createdAt: now,
       updatedAt: now,
     }
-    setProfiles([...loadProfiles(), profile])
-    return profile
-  }, [setProfiles])
 
-  const updateProfile = useCallback((id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => {
-    const current = loadProfiles()
-    const updated = current.map(p =>
-      p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p
-    )
-    setProfiles(updated)
-  }, [setProfiles])
-
-  const deleteProfile = useCallback((id: string) => {
-    const current = loadProfiles()
-    setProfiles(current.filter(p => p.id !== id))
-    if (loadSelectedId() === id) {
-      saveSelectedId(null)
-      setSelectedIdState(null)
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProfile),
+      })
+      if (resp.ok) {
+        const saved = await resp.json()
+        setProfiles(prev => [...prev, saved])
+        return saved
+      }
+    } catch (err) {
+      console.error("Failed to persist new agent profile to PostgreSQL", err)
     }
-  }, [setProfiles])
+    return null
+  }, [])
+
+  const updateProfile = useCallback(async (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => {
+    if (!LANGGRAPH_API_URL) return
+    const target = profiles.find(p => p.id === id)
+    if (!target) return
+
+    const updatedProfile: AgentProfile = {
+      ...target,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedProfile),
+      })
+      if (resp.ok) {
+        const saved = await resp.json()
+        setProfiles(prev => prev.map(p => p.id === id ? saved : p))
+      }
+    } catch (err) {
+      console.error(`Failed to update agent profile ${id} in PostgreSQL`, err)
+    }
+  }, [profiles])
+
+  const deleteProfile = useCallback(async (id: string) => {
+    if (!LANGGRAPH_API_URL) return
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
+        method: "DELETE",
+      })
+      if (resp.ok) {
+        setProfiles(prev => prev.filter(p => p.id !== id))
+        if (loadSelectedId() === id) {
+          saveSelectedId(null)
+          setSelectedIdState(null)
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to delete agent profile ${id} from PostgreSQL`, err)
+    }
+  }, [])
 
   const selectedProfile = profiles.find(p => p.id === selectedId) ?? null
 
