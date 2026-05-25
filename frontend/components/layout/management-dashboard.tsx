@@ -168,6 +168,25 @@ If needed, use:
 - \`scripts/process.py\`
 `
 
+function parseSkillFrontmatter(content: string) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  let name = ""
+  let description = ""
+  
+  if (match) {
+    const yamlContent = match[1]
+    const nameMatch = yamlContent.match(/^name:\s*(.+)$/m)
+    const descMatch = yamlContent.match(/^description:\s*(.+)$/m)
+    if (nameMatch) name = nameMatch[1].trim().replace(/^['"]|['"]$/g, '')
+    if (descMatch) description = descMatch[1].trim().replace(/^['"]|['"]$/g, '')
+  }
+  
+  return {
+    name: name || "Untitled Skill",
+    description: description || "No description provided."
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Knowledge Base Types & Storage
 // ---------------------------------------------------------------------------
@@ -362,14 +381,15 @@ export function ManagementDashboard({
   }
 
   const handleSaveSkill = async () => {
-    if (!skillForm.name.trim() || !LANGGRAPH_API_URL) return
+    if (!LANGGRAPH_API_URL) return
 
+    const { name: parsedName, description: parsedDesc } = parseSkillFrontmatter(skillForm.content)
     const now = new Date().toISOString()
     if (isCreatingSkill) {
       const newSkill: Skill = {
         id: crypto.randomUUID(),
-        name: skillForm.name.trim(),
-        description: skillForm.description.trim(),
+        name: parsedName,
+        description: parsedDesc,
         content: skillForm.content,
         createdAt: now,
         updatedAt: now
@@ -395,8 +415,8 @@ export function ManagementDashboard({
       
       const updatedSkill: Skill = {
         ...target,
-        name: skillForm.name.trim(),
-        description: skillForm.description.trim(),
+        name: parsedName,
+        description: parsedDesc,
         content: skillForm.content,
         updatedAt: now
       }
@@ -1179,7 +1199,7 @@ export function ManagementDashboard({
                       <div className="flex items-center gap-2">
                         <Button
                           onClick={handleSaveSkill}
-                          disabled={!skillForm.name.trim()}
+                          disabled={!skillForm.content.trim()}
                           className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
@@ -1197,27 +1217,8 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="skill-name">{t.skillName}</Label>
-                        <Input
-                          id="skill-name"
-                          value={skillForm.name}
-                          onChange={e => setSkillForm({ ...skillForm, name: e.target.value })}
-                          placeholder="my-awesome-skill"
-                          className="bg-background border-border/80 rounded-lg"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="skill-desc">{t.skillDesc}</Label>
-                        <Input
-                          id="skill-desc"
-                          value={skillForm.description}
-                          onChange={e => setSkillForm({ ...skillForm, description: e.target.value })}
-                          placeholder="What tasks does this skill accomplish?"
-                          className="bg-background border-border/80 rounded-lg"
-                        />
-                      </div>
+                    <div className="p-3.5 bg-primary/5 rounded-lg border border-primary/10 text-xs text-primary/80 leading-relaxed">
+                      💡 <strong>提示</strong>：技能名称与描述已实现<strong>零冗余设计</strong>。您只需在下方技能内容的 YAML Frontmatter（<code>name</code> 与 <code>description</code>）中进行定义，系统在保存时会自动提取。
                     </div>
 
                     <div className="space-y-1.5">
