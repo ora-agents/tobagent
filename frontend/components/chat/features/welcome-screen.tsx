@@ -113,7 +113,7 @@ export function WelcomeScreen({
         <div className="text-center mb-8">
           <h2
             className="text-3xl sm:text-5xl font-normal text-foreground mb-2"
-            style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.5px" }}
+            style={{ fontFamily: "var(--font-display), 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif", letterSpacing: "-0.02em" }}
           >
             {t.whatCanIHelpWith}
           </h2>

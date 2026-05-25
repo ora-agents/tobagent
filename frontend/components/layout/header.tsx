@@ -48,8 +48,8 @@ export function Header({
           title="Switch or manage agents"
         >
           <span
-            className="text-xl font-medium tracking-tight text-foreground"
-            style={{ fontFamily: "var(--font-cormorant, Georgia, serif)", letterSpacing: "-0.3px" }}
+            className="text-xl font-sans font-medium tracking-tight text-foreground"
+            style={{ letterSpacing: "-0.015em" }}
           >
             {agentLabel}
           </span>
