@@ -36,14 +36,46 @@ async def dynamic_config_middleware(request, handler):
     overrides = {}
 
     # Dynamic system prompt
-    if getattr(ctx, "system_prompt", None):
-        overrides["system_message"] = SystemMessage(content=ctx.system_prompt)
+    system_prompt = getattr(ctx, "system_prompt", "")
+    agent_id = getattr(ctx, "agent_id", None)
+
+    if agent_id and agent_id != "default":
+        try:
+            from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
+            db = SessionLocal()
+            try:
+                agent_profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == agent_id).first()
+                if agent_profile and agent_profile.skill_ids:
+                    skills = db.query(SkillTable).filter(SkillTable.id.in_(agent_profile.skill_ids)).all()
+                    if skills:
+                        skills_instructions = (
+                            "\n\nYou have access to the following custom skills. "
+                            "If the user's request matches any of these skills' goals or descriptions, "
+                            "you MUST call the `read_skill` tool with the specific skill name to read "
+                            "and follow its complete instructions, constraints, and workflow.\n"
+                            "Available skills:\n"
+                        )
+                        for s in skills:
+                            skills_instructions += f"- Name: {s.name} | Description: {s.description or 'No description'}\n"
+                        
+                        system_prompt += skills_instructions
+            except Exception as inner_e:
+                logger.error(f"Error querying skills for agent {agent_id} in middleware: {inner_e}")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error(f"Failed to import/initialize db for agent {agent_id} skills check: {e}")
+
+    if system_prompt:
+        overrides["system_message"] = SystemMessage(content=system_prompt)
 
     # Tool filtering: only keep tools whose names appear in enabled_tools
     enabled = getattr(ctx, "enabled_tools", None)
     filtered = list(request.tools)
     if enabled is not None:
         tool_set = set(enabled)
+        # Always allow read_skill tool so agents can dynamically query custom skills
+        tool_set.add("read_skill")
         filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]
 
     # Dynamic MCP tools injection
