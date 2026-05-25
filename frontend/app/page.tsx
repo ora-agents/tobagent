@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { AgentProfilesDialog } from "@/components/layout/agent-profiles-dialog"
+import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
@@ -24,6 +25,7 @@ import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 
 function DashboardContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge">("chat")
   const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
@@ -107,6 +109,9 @@ function DashboardContent() {
   // Create a new thread
   const handleNewChat = () => {
     const newThreadId = crypto.randomUUID()
+
+    // Switch back to chat view
+    setCurrentView("chat")
 
     // Mark this thread as new (doesn't exist in backend yet)
     setNewThreads(prev => new Set(prev).add(newThreadId))
@@ -397,35 +402,52 @@ function DashboardContent() {
           onSelectThread={handleSelectThread}
           onDeleteThread={handleDeleteThread}
           isLoading={threadsLoading}
+          currentView={currentView}
+          onViewChange={setCurrentView}
         />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header
-          showToolCalls={showToolCalls}
-          onToggleToolCalls={() => setShowToolCalls(!showToolCalls)}
-          onNewChat={handleNewChat}
-          agentConfig={agentConfig}
-          onAgentConfigChange={setAgentConfig}
-          onShowShortcuts={() => setShowShortcutsDialog(true)}
-          forceShowTooltip={forceShowTooltip}
-          showSettingsDialog={showSettingsDialog}
-          onSettingsDialogChange={setShowSettingsDialog}
-          selectedAgentProfile={selectedAgentProfile}
-          onOpenAgentProfiles={() => setShowAgentProfilesDialog(true)}
-        />
-        {threadId && (
-          <ChatInterface
-            key={threadId}
-            showToolCalls={showToolCalls}
-            threadId={threadId}
-            onThreadUpdate={handleThreadUpdate}
-            onThreadNotFound={handleThreadNotFound}
-            agentConfig={agentConfig}
-            onAgentConfigChange={setAgentConfig}
-            agentProfile={selectedAgentProfile}
-            isNewThread={newThreads.has(threadId)}
-            initialMessage={initialPrompt}
-            autoSend={!!initialPrompt}
-            onInitialMessageSent={() => setInitialPrompt(null)}
+        {currentView === "chat" ? (
+          <>
+            <Header
+              showToolCalls={showToolCalls}
+              onToggleToolCalls={() => setShowToolCalls(!showToolCalls)}
+              onNewChat={handleNewChat}
+              agentConfig={agentConfig}
+              onAgentConfigChange={setAgentConfig}
+              onShowShortcuts={() => setShowShortcutsDialog(true)}
+              forceShowTooltip={forceShowTooltip}
+              showSettingsDialog={showSettingsDialog}
+              onSettingsDialogChange={setShowSettingsDialog}
+              selectedAgentProfile={selectedAgentProfile}
+              onOpenAgentProfiles={() => setShowAgentProfilesDialog(true)}
+            />
+            {threadId && (
+              <ChatInterface
+                key={threadId}
+                showToolCalls={showToolCalls}
+                threadId={threadId}
+                onThreadUpdate={handleThreadUpdate}
+                onThreadNotFound={handleThreadNotFound}
+                agentConfig={agentConfig}
+                onAgentConfigChange={setAgentConfig}
+                agentProfile={selectedAgentProfile}
+                isNewThread={newThreads.has(threadId)}
+                initialMessage={initialPrompt}
+                autoSend={!!initialPrompt}
+                onInitialMessageSent={() => setInitialPrompt(null)}
+              />
+            )}
+          </>
+        ) : (
+          <ManagementDashboard
+            initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : "knowledge"}
+            onBackToChat={() => setCurrentView("chat")}
+            agentProfiles={agentProfiles}
+            selectedAgentProfileId={selectedAgentProfileId}
+            setSelectedAgentProfileId={setSelectedAgentProfileId}
+            createAgentProfile={createAgentProfile}
+            updateAgentProfile={updateAgentProfile}
+            deleteAgentProfile={deleteAgentProfile}
           />
         )}
       </div>
