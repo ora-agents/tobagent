@@ -8,6 +8,8 @@ const zh = {
   // Header
   newChat: "新对话",
   chat: "Chat",
+  lightMode: "浅色模式",
+  darkMode: "深色模式",
 
   // Sidebar
   threads: "对话记录",
@@ -124,6 +126,8 @@ const en = {
   // Header
   newChat: "New Chat",
   chat: "Chat",
+  lightMode: "Light Mode",
+  darkMode: "Dark Mode",
 
   // Sidebar
   threads: "Threads",

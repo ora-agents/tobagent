@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo, memo, useCallback } from "react"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database } from "lucide-react"
+import { useState, useMemo, memo, useCallback, useEffect } from "react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Thread } from "@/lib/hooks/threads"
 import { useT, useI18n } from "@/lib/i18n"
+import { useTheme } from "next-themes"
 
 const scrollbarStyles = `
   .custom-scrollbar {
@@ -115,6 +116,10 @@ export const Sidebar = memo(function Sidebar({
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const [searchQuery, setSearchQuery] = useState('')
 
   // Filter threads based on search query
@@ -236,6 +241,13 @@ export const Sidebar = memo(function Sidebar({
           >
             <Database className="w-5 h-5" />
           </button>
+          <button
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+          >
+            {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
         </div>
       </aside>
     )
@@ -250,9 +262,6 @@ export const Sidebar = memo(function Sidebar({
             <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
               <PanelLeftClose className="w-5 h-5" />
             </Button>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {t.threads}
-            </span>
           </div>
         </div>
 
@@ -342,6 +351,19 @@ export const Sidebar = memo(function Sidebar({
         >
           <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.knowledgeBase}</span>
+        </button>
+        <button
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+        >
+          {mounted && resolvedTheme === "dark" ? (
+            <Sun className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          ) : (
+            <Moon className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          )}
+          <span className="truncate">
+            {mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+          </span>
         </button>
       </div>
 

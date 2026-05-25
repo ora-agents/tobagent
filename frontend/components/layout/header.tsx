@@ -1,9 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Sun, Moon, ChevronDown } from "lucide-react"
-import { useTheme } from "next-themes"
-import { AgentSettings, type AgentConfig } from "./agent-settings"
+import { ChevronDown } from "lucide-react"
+import { type AgentConfig } from "./agent-settings"
 import { useT } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 
@@ -37,9 +35,6 @@ export function Header({
   onOpenAgentProfiles,
 }: HeaderProps) {
   const t = useT()
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
 
   const agentLabel = selectedAgentProfile?.name ?? "Default"
 
@@ -62,23 +57,6 @@ export function Header({
         </button>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            aria-label="Toggle theme"
-            className="inline-flex items-center justify-center w-8 h-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            {mounted && resolvedTheme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-          {agentConfig && onAgentConfigChange && (
-            <AgentSettings
-              config={agentConfig}
-              onConfigChange={onAgentConfigChange}
-              onShowShortcuts={onShowShortcuts}
-              forceShowTooltip={forceShowTooltip}
-              open={showSettingsDialog}
-              onOpenChange={onSettingsDialogChange}
-            />
-          )}
           <button
             onClick={onNewChat}
             className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200"
