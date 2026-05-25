@@ -25,6 +25,7 @@ from src.middleware.dynamic_config_middleware import dynamic_config_middleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.fetch_tool import fetch
 from src.tools.rag_tool import RagSearchTool
+from src.tools.skill_tool import ReadSkillTool
 from src.tools.websearch_tool import websearch
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class GenericAgentContext(BaseModel):
         description="System prompt to use for this session.",
     )
     enabled_tools: list[str] = Field(
-        default_factory=lambda: ["rag_search", "websearch", "fetch"],
+        default_factory=lambda: ["rag_search", "websearch", "fetch", "read_skill"],
         description="Names of tools the agent may call.",
     )
     agent_id: str = Field(
@@ -65,7 +66,8 @@ class GenericAgentContext(BaseModel):
 # ---------------------------------------------------------------------------
 
 _rag_tool = RagSearchTool()
-_all_tools = [_rag_tool, websearch, fetch]
+_read_skill_tool = ReadSkillTool()
+_all_tools = [_rag_tool, websearch, fetch, _read_skill_tool]
 logger.info(f"Generic agent tools: {[t.name for t in _all_tools]}")
 
 # ---------------------------------------------------------------------------

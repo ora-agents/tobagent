@@ -12,6 +12,8 @@ Note on why model override must happen here (not via ConfigurableField):
   the configurable wrapper. Overriding request.model in middleware runs *before*
   bind_tools is called, so the correct model is used from the start.
 """
+import logging
+
 from langchain.agents.middleware import wrap_model_call
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
@@ -19,8 +21,9 @@ from langchain_openai import ChatOpenAI
 from src.agent.config import (
     OPENAI_COMPATIBLE_API_KEY,
     OPENAI_COMPATIBLE_BASE_URL,
-    _base_model,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @wrap_model_call
@@ -38,11 +41,25 @@ async def dynamic_config_middleware(request, handler):
 
     # Tool filtering: only keep tools whose names appear in enabled_tools
     enabled = getattr(ctx, "enabled_tools", None)
+    filtered = list(request.tools)
     if enabled is not None:
         tool_set = set(enabled)
-        filtered = [t for t in request.tools if getattr(t, "name", "") in tool_set]
-        if filtered:
-            overrides["tools"] = filtered
+        filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]
+
+    # Dynamic MCP tools injection
+    agent_id = getattr(ctx, "agent_id", None)
+    if agent_id and agent_id != "default":
+        try:
+            from src.utils.mcp import McpPoolManager
+            mcp_tools = await McpPoolManager.get_tools_for_agent(agent_id)
+            if mcp_tools:
+                # Add all MCP tools to filtered list so they are bound to the model
+                filtered.extend(mcp_tools)
+        except Exception as e:
+            logger.error(f"Failed to dynamically load MCP tools for agent {agent_id}: {e}")
+
+    if filtered != list(request.tools):
+        overrides["tools"] = filtered
 
     # Model override: create a fresh ChatOpenAI with the requested model name.
     # We must set request.model here rather than relying on ConfigurableField because

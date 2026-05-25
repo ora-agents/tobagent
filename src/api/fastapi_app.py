@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import string
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -39,12 +40,57 @@ def _get_cors_origins() -> list[str]:
     additional = os.getenv("ALLOWED_ORIGINS", "")
     if additional:
         origins.extend([o.strip() for o in additional.split(",") if o.strip()])
-    return origins
+    
+    # Also support CORS_ALLOW_ORIGINS which is commonly used by LangGraph
+    cors_additional = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if cors_additional:
+        origins.extend([o.strip() for o in cors_additional.split(",") if o.strip()])
+        
+    return list(set(origins))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        from src.utils.db import Base, engine
+        Base.metadata.create_all(bind=engine)
+        logger.info("SQLAlchemy tables verified/created successfully on startup.")
+
+        # Check and add skill_ids / mcp_ids columns if they don't exist
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Try to add skill_ids column
+            try:
+                conn.execute(text("ALTER TABLE agent_profiles ADD COLUMN skill_ids JSON"))
+                conn.commit()
+                logger.info("Added skill_ids column to agent_profiles table successfully.")
+            except Exception:
+                pass
+
+            # Try to add mcp_ids column
+            try:
+                conn.execute(text("ALTER TABLE agent_profiles ADD COLUMN mcp_ids JSON"))
+                conn.commit()
+                logger.info("Added mcp_ids column to agent_profiles table successfully.")
+            except Exception:
+                pass
+
+            # Try to add headers column to mcp_servers
+            try:
+                conn.execute(text("ALTER TABLE mcp_servers ADD COLUMN headers JSON"))
+                conn.commit()
+                logger.info("Added headers column to mcp_servers table successfully.")
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Failed to initialize database tables: {e}")
+    yield
 
 
 app = FastAPI(
     title="Chat LangChain API Server",
     description="Public Chat LangChain support endpoints",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -62,8 +108,8 @@ class TitleGenerationRequest(BaseModel):
     """Request model for title generation."""
 
     userMessage: str
-    assistantResponse: Optional[str] = None
-    maxLength: Optional[int] = 60
+    assistantResponse: str | None = None
+    maxLength: int | None = 60
 
 
 class TitleGenerationResponse(BaseModel):
@@ -104,6 +150,75 @@ async def generate_conversation_title(request: TitleGenerationRequest):
 
 
 
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from src.utils.db import (
+    AgentProfileTable,
+    ClientProfileTable,
+    KnowledgeBaseTable,
+    McpServerTable,
+    SkillTable,
+    get_db,
+)
+
+# ---------------------------------------------------------------------------
+# Pydantic Schemas for persistence
+# ---------------------------------------------------------------------------
+
+class ClientProfileSchema(BaseModel):
+    id: str
+    label: str | None = None
+    avatarColor: str | None = None
+
+
+class AgentProfileSchema(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    systemPrompt: str | None = None
+    enabledTools: list[str] = []
+    knowledgeBaseIds: list[str] = []
+    skillIds: list[str] = []
+    mcpIds: list[str] = []
+    createdAt: str
+    updatedAt: str
+
+
+class McpServerSchema(BaseModel):
+    id: str
+    name: str
+    type: str  # "sse"
+    url: str | None = None
+    headers: dict[str, str] = {}
+    createdAt: str
+    updatedAt: str
+
+
+class SkillSchema(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    content: str
+    createdAt: str
+    updatedAt: str
+
+
+class KBFileSchema(BaseModel):
+    name: str
+    size: int
+    uploadedAt: str
+
+
+class KnowledgeBaseSchema(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    files: list[KBFileSchema] = []
+    createdAt: str
+    updatedAt: str
+
+
 class AgentRAGStatusResponse(BaseModel):
     """RAG knowledge base status for an agent."""
 
@@ -111,12 +226,490 @@ class AgentRAGStatusResponse(BaseModel):
     document_count: int
 
 
+# ---------------------------------------------------------------------------
+# Client Profile CRUD
+# ---------------------------------------------------------------------------
+
+@app.get("/api/client-profiles/{id}", response_model=Optional[ClientProfileSchema])
+async def get_client_profile(id: str, db: Session = Depends(get_db)):
+    profile = db.query(ClientProfileTable).filter(ClientProfileTable.id == id).first()
+    if not profile:
+        return None
+    return ClientProfileSchema(
+        id=profile.id,
+        label=profile.label,
+        avatarColor=profile.avatar_color,
+    )
+
+
+@app.post("/api/client-profiles", response_model=ClientProfileSchema)
+async def upsert_client_profile(profile_data: ClientProfileSchema, db: Session = Depends(get_db)):
+    from datetime import datetime
+    profile = db.query(ClientProfileTable).filter(ClientProfileTable.id == profile_data.id).first()
+    if profile:
+        profile.label = profile_data.label
+        profile.avatar_color = profile_data.avatarColor
+    else:
+        profile = ClientProfileTable(
+            id=profile_data.id,
+            label=profile_data.label,
+            avatar_color=profile_data.avatarColor,
+            created_at=datetime.utcnow().isoformat(),
+        )
+        db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    return ClientProfileSchema(
+        id=profile.id,
+        label=profile.label,
+        avatarColor=profile.avatar_color,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent Profile CRUD
+# ---------------------------------------------------------------------------
+
+@app.get("/api/agent-profiles", response_model=list[AgentProfileSchema])
+async def get_agent_profiles(db: Session = Depends(get_db)):
+    profiles = db.query(AgentProfileTable).all()
+    return [
+        AgentProfileSchema(
+            id=p.id,
+            name=p.name,
+            description=p.description,
+            systemPrompt=p.system_prompt,
+            enabledTools=p.enabled_tools or [],
+            knowledgeBaseIds=p.knowledge_base_ids or [],
+            skillIds=p.skill_ids or [],
+            mcpIds=p.mcp_ids or [],
+            createdAt=p.created_at,
+            updatedAt=p.updated_at,
+        )
+        for p in profiles
+    ]
+
+
+@app.post("/api/agent-profiles", response_model=AgentProfileSchema)
+async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = Depends(get_db)):
+    # Check duplicate
+    existing = db.query(AgentProfileTable).filter(AgentProfileTable.id == profile_data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Agent profile already exists")
+    
+    new_profile = AgentProfileTable(
+        id=profile_data.id,
+        name=profile_data.name,
+        description=profile_data.description,
+        system_prompt=profile_data.systemPrompt,
+        enabled_tools=profile_data.enabledTools,
+        knowledge_base_ids=profile_data.knowledgeBaseIds,
+        skill_ids=profile_data.skillIds,
+        mcp_ids=profile_data.mcpIds,
+        created_at=profile_data.createdAt,
+        updated_at=profile_data.updatedAt,
+    )
+    db.add(new_profile)
+    db.commit()
+    db.refresh(new_profile)
+    return AgentProfileSchema(
+        id=new_profile.id,
+        name=new_profile.name,
+        description=new_profile.description,
+        systemPrompt=new_profile.system_prompt,
+        enabledTools=new_profile.enabled_tools or [],
+        knowledgeBaseIds=new_profile.knowledge_base_ids or [],
+        skillIds=new_profile.skill_ids or [],
+        mcpIds=new_profile.mcp_ids or [],
+        createdAt=new_profile.created_at,
+        updatedAt=new_profile.updated_at,
+    )
+
+
+@app.put("/api/agent-profiles/{id}", response_model=AgentProfileSchema)
+async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Session = Depends(get_db)):
+    profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+    
+    profile.name = profile_data.name
+    profile.description = profile_data.description
+    profile.system_prompt = profile_data.systemPrompt
+    profile.enabled_tools = profile_data.enabledTools
+    profile.knowledge_base_ids = profile_data.knowledgeBaseIds
+    profile.skill_ids = profile_data.skillIds
+    profile.mcp_ids = profile_data.mcpIds
+    profile.updated_at = profile_data.updatedAt
+    
+    db.commit()
+    db.refresh(profile)
+    return AgentProfileSchema(
+        id=profile.id,
+        name=profile.name,
+        description=profile.description,
+        systemPrompt=profile.system_prompt,
+        enabledTools=profile.enabled_tools or [],
+        knowledgeBaseIds=profile.knowledge_base_ids or [],
+        skillIds=profile.skill_ids or [],
+        mcpIds=profile.mcp_ids or [],
+        createdAt=profile.created_at,
+        updatedAt=profile.updated_at,
+    )
+
+
+@app.delete("/api/agent-profiles/{id}")
+async def delete_agent_profile(id: str, db: Session = Depends(get_db)):
+    profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+    db.delete(profile)
+    db.commit()
+    return {"status": "success", "message": f"Agent profile {id} deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Skill CRUD
+# ---------------------------------------------------------------------------
+
+@app.get("/api/skills", response_model=list[SkillSchema])
+async def get_skills(db: Session = Depends(get_db)):
+    skills = db.query(SkillTable).all()
+    return [
+        SkillSchema(
+            id=s.id,
+            name=s.name,
+            description=s.description,
+            content=s.content,
+            createdAt=s.created_at,
+            updatedAt=s.updated_at,
+        )
+        for s in skills
+    ]
+
+
+@app.post("/api/skills", response_model=SkillSchema)
+async def create_skill(skill_data: SkillSchema, db: Session = Depends(get_db)):
+    existing = db.query(SkillTable).filter(SkillTable.id == skill_data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Skill already exists")
+    
+    new_skill = SkillTable(
+        id=skill_data.id,
+        name=skill_data.name,
+        description=skill_data.description,
+        content=skill_data.content,
+        created_at=skill_data.createdAt,
+        updated_at=skill_data.updatedAt,
+    )
+    db.add(new_skill)
+    db.commit()
+    db.refresh(new_skill)
+    return SkillSchema(
+        id=new_skill.id,
+        name=new_skill.name,
+        description=new_skill.description,
+        content=new_skill.content,
+        createdAt=new_skill.created_at,
+        updatedAt=new_skill.updated_at,
+    )
+
+
+@app.put("/api/skills/{id}", response_model=SkillSchema)
+async def update_skill(id: str, skill_data: SkillSchema, db: Session = Depends(get_db)):
+    skill = db.query(SkillTable).filter(SkillTable.id == id).first()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    
+    skill.name = skill_data.name
+    skill.description = skill_data.description
+    skill.content = skill_data.content
+    skill.updated_at = skill_data.updatedAt
+    
+    db.commit()
+    db.refresh(skill)
+    return SkillSchema(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        content=skill.content,
+        createdAt=skill.created_at,
+        updatedAt=skill.updated_at,
+    )
+
+
+@app.delete("/api/skills/{id}")
+async def delete_skill(id: str, db: Session = Depends(get_db)):
+    skill = db.query(SkillTable).filter(SkillTable.id == id).first()
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    db.delete(skill)
+    db.commit()
+    return {"status": "success", "message": f"Skill {id} deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Knowledge Base CRUD & Upload
+# ---------------------------------------------------------------------------
+
+@app.get("/api/knowledge-bases", response_model=list[KnowledgeBaseSchema])
+async def get_knowledge_bases(db: Session = Depends(get_db)):
+    kbs = db.query(KnowledgeBaseTable).all()
+    return [
+        KnowledgeBaseSchema(
+            id=k.id,
+            name=k.name,
+            description=k.description,
+            files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in k.files or []],
+            createdAt=k.created_at,
+            updatedAt=k.updated_at,
+        )
+        for k in kbs
+    ]
+
+
+@app.post("/api/knowledge-bases", response_model=KnowledgeBaseSchema)
+async def create_knowledge_base(kb_data: KnowledgeBaseSchema, db: Session = Depends(get_db)):
+    existing = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Knowledge Base already exists")
+    
+    # Map Pydantic files models to raw JSON dict list
+    db_files = [{"name": f.name, "size": f.size, "uploadedAt": f.uploadedAt} for f in kb_data.files]
+    new_kb = KnowledgeBaseTable(
+        id=kb_data.id,
+        name=kb_data.name,
+        description=kb_data.description,
+        files=db_files,
+        created_at=kb_data.createdAt,
+        updated_at=kb_data.updatedAt,
+    )
+    db.add(new_kb)
+    db.commit()
+    db.refresh(new_kb)
+    return KnowledgeBaseSchema(
+        id=new_kb.id,
+        name=new_kb.name,
+        description=new_kb.description,
+        files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in new_kb.files or []],
+        createdAt=new_kb.created_at,
+        updatedAt=new_kb.updated_at,
+    )
+
+
+@app.put("/api/knowledge-bases/{id}", response_model=KnowledgeBaseSchema)
+async def update_knowledge_base(id: str, kb_data: KnowledgeBaseSchema, db: Session = Depends(get_db)):
+    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == id).first()
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge Base not found")
+    
+    db_files = [{"name": f.name, "size": f.size, "uploadedAt": f.uploadedAt} for f in kb_data.files]
+    kb.name = kb_data.name
+    kb.description = kb_data.description
+    kb.files = db_files
+    kb.updated_at = kb_data.updatedAt
+    
+    db.commit()
+    db.refresh(kb)
+    return KnowledgeBaseSchema(
+        id=kb.id,
+        name=kb.name,
+        description=kb.description,
+        files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in kb.files or []],
+        createdAt=kb.created_at,
+        updatedAt=kb.updated_at,
+    )
+
+
+@app.delete("/api/knowledge-bases/{id}")
+async def delete_knowledge_base(id: str, db: Session = Depends(get_db)):
+    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == id).first()
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge Base not found")
+    
+    # Try to drop/delete matching table in LanceDB if it exists
+    try:
+        from src.tools.rag_tool import _get_db, _table_name
+        lancedb_instance = _get_db()
+        tname = _table_name(id)
+        if tname in lancedb_instance.table_names():
+            lancedb_instance.drop_table(tname)
+            logger.info(f"Dropped LanceDB table '{tname}' for Knowledge Base {id}")
+    except Exception as e:
+        logger.error(f"Failed to drop LanceDB table for KB {id}: {e}")
+
+    db.delete(kb)
+    db.commit()
+    return {"status": "success", "message": f"Knowledge base {id} and associated LanceDB table deleted"}
+
+
+@app.post("/api/knowledge-bases/{kb_id}/upload")
+async def upload_kb_document(
+    kb_id: str,
+    file: UploadFile = File(...),
+    chunk_size: int = Form(default=512),
+    chunk_overlap: int = Form(default=64),
+    db: Session = Depends(get_db),
+):
+    """Upload document directly to a shared knowledge base (RAG).
+    
+    Extracts text, splits into chunks, embeds and saves to LanceDB.
+    Also records file metadata under the KB in PostgreSQL.
+    """
+    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_id).first()
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge Base not found")
+
+    try:
+        import asyncio
+        import pathlib
+        import tempfile
+        from datetime import datetime
+
+        from langchain_community.document_loaders import PyPDFLoader
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+        content_type = file.content_type or ""
+        raw = await file.read()
+        file_size = len(raw)
+
+        if content_type == "application/pdf" or (file.filename or "").lower().endswith(".pdf"):
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(raw)
+                tmp_path = tmp.name
+            try:
+                # 使用 asyncio.to_thread 避免 PyPDFLoader 内部 os.getcwd() 阻塞事件循环
+                def _load_pdf():
+                    loader = PyPDFLoader(tmp_path)
+                    return loader.load()
+
+                docs = await asyncio.to_thread(_load_pdf)
+                full_text = "\n\n".join(d.page_content for d in docs)
+            finally:
+                pathlib.Path(tmp_path).unlink(missing_ok=True)
+        else:
+            full_text = raw.decode("utf-8", errors="replace")
+
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+        chunks = splitter.split_text(full_text)
+        if not chunks:
+            raise HTTPException(status_code=400, detail="No content extracted from file.")
+
+        # Ingest into LanceDB named after the KB
+        # 使用 asyncio.to_thread 避免 ingest_documents 内部 lancedb.connect()/os.getcwd() 阻塞事件循环
+        from src.tools.rag_tool import ingest_documents
+        _filename = file.filename
+        n = await asyncio.to_thread(
+            ingest_documents,
+            kb_id,
+            chunks,
+            [_filename or "upload"] * len(chunks),
+        )
+
+        # Update file list in PostgreSQL
+        files_list = list(kb.files or [])
+        # Check if already present and replace, or append new one
+        exists = False
+        for f in files_list:
+            if f["name"] == file.filename:
+                f["size"] = file_size
+                f["uploadedAt"] = datetime.utcnow().isoformat() + "Z"
+                exists = True
+                break
+        if not exists:
+            files_list.append({
+                "name": file.filename or "unknown",
+                "size": file_size,
+                "uploadedAt": datetime.utcnow().isoformat() + "Z",
+            })
+        
+        kb.files = files_list
+        kb.updated_at = datetime.utcnow().isoformat() + "Z"
+        db.commit()
+        db.refresh(kb)
+
+        return {
+            "kb_id": kb_id,
+            "chunks_ingested": n,
+            "filename": file.filename,
+            "knowledge_base": KnowledgeBaseSchema(
+                id=kb.id,
+                name=kb.name,
+                description=kb.description,
+                files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in kb.files or []],
+                createdAt=kb.created_at,
+                updatedAt=kb.updated_at,
+            )
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"KB upload failed for KB {kb_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/knowledge-bases/{kb_id}/files/{filename}")
+async def delete_kb_file(
+    kb_id: str,
+    filename: str,
+    db: Session = Depends(get_db)
+):
+    """Delete a file from the Knowledge Base.
+    
+    Removes vector data from LanceDB and deletes metadata from PostgreSQL.
+    """
+    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_id).first()
+    if not kb:
+        raise HTTPException(status_code=404, detail="Knowledge Base not found")
+
+    try:
+        from datetime import datetime
+
+        from src.tools.rag_tool import delete_documents
+
+        # 1. Delete from LanceDB
+        delete_documents(agent_id=kb_id, source=filename)
+
+        # 2. Update PostgreSQL files JSON
+        files_list = list(kb.files or [])
+        updated_files = [f for f in files_list if f["name"] != filename]
+        
+        kb.files = updated_files
+        kb.updated_at = datetime.utcnow().isoformat() + "Z"
+        db.commit()
+        db.refresh(kb)
+
+        return {
+            "status": "success",
+            "kb_id": kb_id,
+            "filename": filename,
+            "knowledge_base": KnowledgeBaseSchema(
+                id=kb.id,
+                name=kb.name,
+                description=kb.description,
+                files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in kb.files or []],
+                createdAt=kb.created_at,
+                updatedAt=kb.updated_at,
+            )
+        }
+    except Exception as e:
+        logger.error(f"Failed to delete file '{filename}' from KB {kb_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Legacy agent RAG upload and statuses for backward compatibility
+# ---------------------------------------------------------------------------
+
 @app.post("/agents/{agent_id}/upload")
 async def upload_document(
     agent_id: str,
     file: UploadFile = File(...),
-    chunk_size: int = Form(default=1000),
-    chunk_overlap: int = Form(default=200),
+    chunk_size: int = Form(default=512),
+    chunk_overlap: int = Form(default=64),
 ):
     """Upload a document to the agent's RAG knowledge base.
 
@@ -124,21 +717,28 @@ async def upload_document(
     Splits into chunks, embeds, and stores in LanceDB.
     """
     try:
+        import asyncio
+        import pathlib
+        import tempfile
+
         from langchain_community.document_loaders import PyPDFLoader
         from langchain_text_splitters import RecursiveCharacterTextSplitter
-        import tempfile, pathlib
 
         content_type = file.content_type or ""
         raw = await file.read()
 
-        if content_type == "application/pdf" or file.filename.lower().endswith(".pdf"):
+        if content_type == "application/pdf" or (file.filename or "").lower().endswith(".pdf"):
             # Save to temp file and use PyPDFLoader
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
                 tmp.write(raw)
                 tmp_path = tmp.name
             try:
-                loader = PyPDFLoader(tmp_path)
-                docs = loader.load()
+                # 使用 asyncio.to_thread 避免 PyPDFLoader 内部 os.getcwd() 阻塞事件循环
+                def _load_pdf():
+                    loader = PyPDFLoader(tmp_path)
+                    return loader.load()
+
+                docs = await asyncio.to_thread(_load_pdf)
                 full_text = "\n\n".join(d.page_content for d in docs)
             finally:
                 pathlib.Path(tmp_path).unlink(missing_ok=True)
@@ -154,11 +754,14 @@ async def upload_document(
         if not chunks:
             raise HTTPException(status_code=400, detail="No content extracted from file.")
 
+        # 使用 asyncio.to_thread 避免 ingest_documents 内部 lancedb.connect()/os.getcwd() 阻塞事件循环
         from src.tools.rag_tool import ingest_documents
-        n = ingest_documents(
-            agent_id=agent_id,
-            texts=chunks,
-            sources=[file.filename or "upload"] * len(chunks),
+        _filename = file.filename
+        n = await asyncio.to_thread(
+            ingest_documents,
+            agent_id,
+            chunks,
+            [_filename or "upload"] * len(chunks),
         )
         return {"agent_id": agent_id, "chunks_ingested": n, "filename": file.filename}
 
@@ -172,17 +775,135 @@ async def upload_document(
 @app.get("/agents/{agent_id}/rag-status", response_model=AgentRAGStatusResponse)
 async def rag_status(agent_id: str):
     """Return the number of documents in the agent's RAG knowledge base."""
-    try:
+    import asyncio
+
+    def _get_count() -> int:
         from src.tools.rag_tool import _get_db, _table_name
         db = _get_db()
         tname = _table_name(agent_id)
         if tname not in db.table_names():
-            return AgentRAGStatusResponse(agent_id=agent_id, document_count=0)
+            return 0
         table = db.open_table(tname)
-        return AgentRAGStatusResponse(agent_id=agent_id, document_count=table.count_rows())
+        return table.count_rows()
+
+    try:
+        # 使用 asyncio.to_thread 避免 lancedb.connect()/os.getcwd() 阻塞事件循环
+        count = await asyncio.to_thread(_get_count)
+        return AgentRAGStatusResponse(agent_id=agent_id, document_count=count)
     except Exception as e:
         logger.error(f"RAG status failed for agent {agent_id}: {e}")
         return AgentRAGStatusResponse(agent_id=agent_id, document_count=0)
+
+
+# ---------------------------------------------------------------------------
+# MCP Server CRUD
+# ---------------------------------------------------------------------------
+
+@app.get("/api/mcp-servers", response_model=list[McpServerSchema])
+async def get_mcp_servers(db: Session = Depends(get_db)):
+    servers = db.query(McpServerTable).all()
+    return [
+        McpServerSchema(
+            id=s.id,
+            name=s.name,
+            type=s.type,
+            url=s.url,
+            headers=s.headers or {},
+            createdAt=s.created_at,
+            updatedAt=s.updated_at,
+        )
+        for s in servers
+    ]
+
+
+@app.post("/api/mcp-servers", response_model=McpServerSchema)
+async def create_mcp_server(server_data: McpServerSchema, db: Session = Depends(get_db)):
+    # Check duplicate
+    existing = db.query(McpServerTable).filter(McpServerTable.id == server_data.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="MCP Server already exists")
+    
+    new_server = McpServerTable(
+        id=server_data.id,
+        name=server_data.name,
+        type=server_data.type,
+        url=server_data.url,
+        headers=server_data.headers,
+        created_at=server_data.createdAt,
+        updated_at=server_data.updatedAt,
+    )
+    db.add(new_server)
+    db.commit()
+    db.refresh(new_server)
+    
+    # Clear pool cache on updates to trigger reloading
+    try:
+        from src.utils.mcp import McpPoolManager
+        McpPoolManager.clear_cache()
+    except Exception:
+        pass
+        
+    return McpServerSchema(
+        id=new_server.id,
+        name=new_server.name,
+        type=new_server.type,
+        url=new_server.url,
+        headers=new_server.headers or {},
+        createdAt=new_server.created_at,
+        updatedAt=new_server.updated_at,
+    )
+
+
+@app.put("/api/mcp-servers/{id}", response_model=McpServerSchema)
+async def update_mcp_server(id: str, server_data: McpServerSchema, db: Session = Depends(get_db)):
+    server = db.query(McpServerTable).filter(McpServerTable.id == id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="MCP Server not found")
+    
+    server.name = server_data.name
+    server.type = server_data.type
+    server.url = server_data.url
+    server.headers = server_data.headers
+    server.updated_at = server_data.updatedAt
+    
+    db.commit()
+    db.refresh(server)
+    
+    # Clear pool cache on updates to trigger reloading
+    try:
+        from src.utils.mcp import McpPoolManager
+        McpPoolManager.clear_cache()
+    except Exception:
+        pass
+
+    return McpServerSchema(
+        id=server.id,
+        name=server.name,
+        type=server.type,
+        url=server.url,
+        headers=server.headers or {},
+        createdAt=server.created_at,
+        updatedAt=server.updated_at,
+    )
+
+
+@app.delete("/api/mcp-servers/{id}")
+async def delete_mcp_server(id: str, db: Session = Depends(get_db)):
+    server = db.query(McpServerTable).filter(McpServerTable.id == id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="MCP Server not found")
+    
+    db.delete(server)
+    db.commit()
+    
+    # Clear pool cache on updates to trigger reloading
+    try:
+        from src.utils.mcp import McpPoolManager
+        McpPoolManager.clear_cache()
+    except Exception:
+        pass
+
+    return {"status": "success", "message": f"MCP Server {id} deleted"}
 
 
 @app.get("/")
@@ -197,5 +918,9 @@ async def root():
             "langsmith": "/langsmith",
             "agent_upload": "/agents/{agent_id}/upload",
             "agent_rag_status": "/agents/{agent_id}/rag-status",
+            "agent_profiles": "/api/agent-profiles",
+            "skills": "/api/skills",
+            "knowledge_bases": "/api/knowledge-bases",
+            "mcp_servers": "/api/mcp-servers",
         },
     }
