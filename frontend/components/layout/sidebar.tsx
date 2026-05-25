@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Thread } from "@/lib/hooks/threads"
@@ -43,7 +43,7 @@ interface SidebarProps {
   onDeleteThread: (threadId: string) => void
   isLoading?: boolean
   currentView?: string
-  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge") => void
+  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "mcp") => void
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -242,6 +242,17 @@ export const Sidebar = memo(function Sidebar({
             <Database className="w-5 h-5" />
           </button>
           <button
+            onClick={() => onViewChange?.("mcp")}
+            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+              currentView === "mcp"
+                ? "bg-primary/15 text-primary border-primary/20"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            }`}
+            title="MCP Servers"
+          >
+            <Cpu className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
             title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
@@ -351,6 +362,17 @@ export const Sidebar = memo(function Sidebar({
         >
           <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.knowledgeBase}</span>
+        </button>
+        <button
+          onClick={() => onViewChange?.("mcp")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+            currentView === "mcp"
+              ? "bg-primary/15 text-primary border-primary/20 font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+          }`}
+        >
+          <Cpu className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+          <span className="truncate">MCP Servers</span>
         </button>
         <button
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}

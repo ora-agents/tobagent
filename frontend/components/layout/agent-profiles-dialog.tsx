@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { Bot, Plus, Pencil, Trash2, Check, X, Upload, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import {
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import type { KnowledgeBase, Skill, McpServer } from "./management-dashboard"
 
 // ---------------------------------------------------------------------------
 // Form state for creating / editing a profile
@@ -26,6 +27,9 @@ interface FormState {
   description: string
   systemPrompt: string
   enabledTools: BuiltinToolId[]
+  knowledgeBaseIds: string[]
+  skillIds: string[]
+  mcpIds: string[]
 }
 
 const DEFAULT_FORM: FormState = {
@@ -33,6 +37,9 @@ const DEFAULT_FORM: FormState = {
   description: "",
   systemPrompt: "You are a helpful assistant.",
   enabledTools: ["rag_search", "websearch", "fetch"],
+  knowledgeBaseIds: [],
+  skillIds: [],
+  mcpIds: [],
 }
 
 // ---------------------------------------------------------------------------
@@ -111,9 +118,20 @@ interface ProfileFormProps {
   onSave: (data: FormState) => void
   onCancel: () => void
   agentId?: string  // present when editing an existing agent
+  knowledgeBases?: KnowledgeBase[]
+  skills?: Skill[]
+  mcpServers?: McpServer[]
 }
 
-function ProfileForm({ initial = DEFAULT_FORM, onSave, onCancel, agentId }: ProfileFormProps) {
+function ProfileForm({
+  initial = DEFAULT_FORM,
+  onSave,
+  onCancel,
+  agentId,
+  knowledgeBases = [],
+  skills = [],
+  mcpServers = []
+}: ProfileFormProps) {
   const [form, setForm] = useState<FormState>(initial)
 
   const toggleTool = (id: BuiltinToolId) => {
@@ -185,12 +203,118 @@ function ProfileForm({ initial = DEFAULT_FORM, onSave, onCancel, agentId }: Prof
         </div>
       </div>
 
-      {agentId && form.enabledTools.includes("rag_search") && (
-        <div className="space-y-1.5">
-          <Label>Knowledge Base</Label>
-          <RagUploadButton agentId={agentId} />
+      {form.enabledTools.includes("rag_search") && (
+        <div className="space-y-3 pt-2 border-t border-border">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Exclusive Knowledge Base</Label>
+            {agentId ? (
+              <RagUploadButton agentId={agentId} />
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Please save the agent first to upload exclusive documents.</p>
+            )}
+          </div>
+          
+          {knowledgeBases && knowledgeBases.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linked Shared Knowledge Bases</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+                {knowledgeBases.map((kb) => {
+                  const linked = form.knowledgeBaseIds?.includes(kb.id)
+                  return (
+                    <label
+                      key={kb.id}
+                      className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:bg-accent/40 cursor-pointer transition-colors"
+                      onClick={() => {
+                        const nextIds = linked
+                          ? (form.knowledgeBaseIds || []).filter(id => id !== kb.id)
+                          : [...(form.knowledgeBaseIds || []), kb.id];
+                        setForm(prev => ({ ...prev, knowledgeBaseIds: nextIds }))
+                      }}
+                    >
+                      <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                        linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                      }`}>
+                        {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate">{kb.name}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} files</div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {skills && skills.length > 0 && (
+        <div className="space-y-1.5 pt-2 border-t border-border">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link Custom Skills</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+            {skills.map((sk) => {
+              const linked = form.skillIds?.includes(sk.id)
+              return (
+                <label
+                  key={sk.id}
+                  className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:bg-accent/40 cursor-pointer transition-colors"
+                  onClick={() => {
+                    const nextIds = linked
+                      ? (form.skillIds || []).filter(id => id !== sk.id)
+                      : [...(form.skillIds || []), sk.id];
+                    setForm(prev => ({ ...prev, skillIds: nextIds }))
+                  }}
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                    linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                  }`}>
+                    {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">{sk.name}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{sk.description || "No description"}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {mcpServers && mcpServers.length > 0 && (
+        <div className="space-y-1.5 pt-2 border-t border-border">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link MCP Servers</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+            {mcpServers.map((mcp) => {
+              const linked = form.mcpIds?.includes(mcp.id)
+              return (
+                <label
+                  key={mcp.id}
+                  className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:bg-accent/40 cursor-pointer transition-colors"
+                  onClick={() => {
+                    const nextIds = linked
+                      ? (form.mcpIds || []).filter(id => id !== mcp.id)
+                      : [...(form.mcpIds || []), mcp.id];
+                    setForm(prev => ({ ...prev, mcpIds: nextIds }))
+                  }}
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                    linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                  }`}>
+                    {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">{mcp.name}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{mcp.type.toUpperCase()} | {mcp.url}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
 
       <div className="flex items-center gap-2 pt-2">
         <Button
@@ -227,6 +351,9 @@ interface AgentProfilesDialogProps {
   onCreate: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => void
   onUpdate: (id: string, data: Partial<AgentProfile>) => void
   onDelete: (id: string) => void
+  knowledgeBases?: KnowledgeBase[]
+  skills?: Skill[]
+  mcpServers?: McpServer[]
 }
 
 export function AgentProfilesDialog({
@@ -238,9 +365,35 @@ export function AgentProfilesDialog({
   onCreate,
   onUpdate,
   onDelete,
+  knowledgeBases: initialKnowledgeBases = [],
+  skills: initialSkills = [],
+  mcpServers: initialMcpServers = [],
 }: AgentProfilesDialogProps) {
   const [view, setView] = useState<View>({ kind: "list" })
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>(initialKnowledgeBases)
+  const [skills, setSkills] = useState<Skill[]>(initialSkills)
+  const [mcpServers, setMcpServers] = useState<McpServer[]>(initialMcpServers)
+
+  // Auto-fetch shared KBs, skills, and MCPs when dialog is opened
+  useEffect(() => {
+    if (open && LANGGRAPH_API_URL) {
+      fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setKnowledgeBases(data))
+        .catch(err => console.error("Failed to fetch KBs in AgentProfilesDialog", err))
+
+      fetch(`${LANGGRAPH_API_URL}/api/skills`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setSkills(data))
+        .catch(err => console.error("Failed to fetch Skills in AgentProfilesDialog", err))
+
+      fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`)
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setMcpServers(data))
+        .catch(err => console.error("Failed to fetch MCPs in AgentProfilesDialog", err))
+    }
+  }, [open])
 
   const handleCreate = useCallback((data: FormState) => {
     onCreate({
@@ -248,7 +401,8 @@ export function AgentProfilesDialog({
       description: data.description.trim(),
       systemPrompt: data.systemPrompt,
       enabledTools: data.enabledTools,
-    })
+      knowledgeBaseIds: data.knowledgeBaseIds,
+    } as any)
     setView({ kind: "list" })
   }, [onCreate])
 
@@ -258,7 +412,8 @@ export function AgentProfilesDialog({
       description: data.description.trim(),
       systemPrompt: data.systemPrompt,
       enabledTools: data.enabledTools,
-    })
+      knowledgeBaseIds: data.knowledgeBaseIds,
+    } as any)
     setView({ kind: "list" })
   }, [onUpdate])
 
@@ -400,6 +555,9 @@ export function AgentProfilesDialog({
             <ProfileForm
               onSave={handleCreate}
               onCancel={() => setView({ kind: "list" })}
+              knowledgeBases={knowledgeBases}
+              skills={skills}
+              mcpServers={mcpServers}
             />
           )}
 
@@ -410,10 +568,16 @@ export function AgentProfilesDialog({
                 description: view.profile.description,
                 systemPrompt: view.profile.systemPrompt,
                 enabledTools: view.profile.enabledTools,
+                knowledgeBaseIds: (view.profile as any).knowledgeBaseIds || [],
+                skillIds: (view.profile as any).skillIds || [],
+                mcpIds: (view.profile as any).mcpIds || [],
               }}
               onSave={data => handleUpdate(view.profile.id, data)}
               onCancel={() => setView({ kind: "list" })}
               agentId={view.profile.id}
+              knowledgeBases={knowledgeBases}
+              skills={skills}
+              mcpServers={mcpServers}
             />
           )}
         </div>

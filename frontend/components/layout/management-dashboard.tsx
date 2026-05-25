@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useRef } from "react"
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   Wrench,
   Bot,
@@ -17,7 +18,8 @@ import {
   Code2,
   PlusCircle,
   HelpCircle,
-  File
+  File,
+  Cpu
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -186,17 +188,27 @@ export interface KnowledgeBase {
 
 const KB_STORAGE_KEY = "knowledge-bases"
 
+export interface McpServer {
+  id: string
+  name: string
+  type: "sse"
+  url?: string
+  headers: Record<string, string>
+  createdAt: string
+  updatedAt: string
+}
+
 // ---------------------------------------------------------------------------
 // Properties Interface
 // ---------------------------------------------------------------------------
 interface ManagementDashboardProps {
-  initialTab: "skills" | "agents" | "knowledge"
+  initialTab: "skills" | "agents" | "knowledge" | "mcp"
   onBackToChat: () => void
   // Agent Profiles bindings
   agentProfiles: AgentProfile[]
   selectedAgentProfileId: string | null
   setSelectedAgentProfileId: (id: string | null) => void
-  createAgentProfile: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => AgentProfile
+  createAgentProfile: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => Promise<AgentProfile | null>
   updateAgentProfile: (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => void
   deleteAgentProfile: (id: string) => void
 }
@@ -212,7 +224,7 @@ export function ManagementDashboard({
   deleteAgentProfile
 }: ManagementDashboardProps) {
   const t = useT()
-  const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge">(initialTab)
+  const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "mcp">(initialTab)
 
   // ---------------------------------------------------------------------------
   // Local States
@@ -231,12 +243,34 @@ export function ManagementDashboard({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
 
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+  const [selectedMcpId, setSelectedMcpId] = useState<string | null>(null)
+  const [isEditingMcp, setIsEditingMcp] = useState(false)
+  const [isCreatingMcp, setIsCreatingMcp] = useState(false)
+  const [mcpForm, setMcpForm] = useState({
+    name: "",
+    type: "sse" as "sse",
+    url: "",
+    headers: "{}"
+  })
+
   const [agentForm, setAgentForm] = useState<{
     name: string
     description: string
     systemPrompt: string
     enabledTools: BuiltinToolId[]
-  }>({ name: "", description: "", systemPrompt: "", enabledTools: [] })
+    knowledgeBaseIds: string[]
+    skillIds: string[]
+    mcpIds: string[]
+  }>({
+    name: "",
+    description: "",
+    systemPrompt: "",
+    enabledTools: [],
+    knowledgeBaseIds: [],
+    skillIds: [],
+    mcpIds: []
+  })
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
@@ -244,46 +278,56 @@ export function ManagementDashboard({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   // ---------------------------------------------------------------------------
-  // Load local data on Mount
+  // Load local data on Mount via Backend API
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedSkills = localStorage.getItem(SKILLS_STORAGE_KEY)
-      if (savedSkills) {
-        try {
-          const parsed = JSON.parse(savedSkills)
-          setSkills(parsed)
-          if (parsed.length > 0) setSelectedSkillId(parsed[0].id)
-        } catch { /* noop */ }
+    if (!LANGGRAPH_API_URL) return
+
+    async function loadData() {
+      // 1. Fetch Skills
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`)
+        if (resp.ok) {
+          const data = await resp.json()
+          setSkills(data)
+          if (data.length > 0) setSelectedSkillId(data[0].id)
+        }
+      } catch (err) {
+        console.error("Failed to load skills from database", err)
       }
 
-      const savedKBs = localStorage.getItem(KB_STORAGE_KEY)
-      if (savedKBs) {
-        try {
-          const parsed = JSON.parse(savedKBs)
-          setKnowledgeBases(parsed)
-          if (parsed.length > 0) setSelectedKBId(parsed[0].id)
-        } catch { /* noop */ }
+      // 2. Fetch Knowledge Bases
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`)
+        if (resp.ok) {
+          const data = await resp.json()
+          setKnowledgeBases(data)
+          if (data.length > 0) setSelectedKBId(data[0].id)
+        }
+      } catch (err) {
+        console.error("Failed to load knowledge bases from database", err)
+      }
+
+      // 3. Fetch MCP Servers
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`)
+        if (resp.ok) {
+          const data = await resp.json()
+          setMcpServers(data)
+          if (data.length > 0) setSelectedMcpId(data[0].id)
+        }
+      } catch (err) {
+        console.error("Failed to load MCP servers from database", err)
       }
     }
+
+    loadData()
   }, [])
 
   // Sync to activeTab change from props
   useEffect(() => {
     setActiveTab(initialTab)
   }, [initialTab])
-
-  // Save Skills
-  const saveSkillsToLocalStorage = (newSkills: Skill[]) => {
-    setSkills(newSkills)
-    localStorage.setItem(SKILLS_STORAGE_KEY, JSON.stringify(newSkills))
-  }
-
-  // Save Knowledge Bases
-  const saveKBsToLocalStorage = (newKBs: KnowledgeBase[]) => {
-    setKnowledgeBases(newKBs)
-    localStorage.setItem(KB_STORAGE_KEY, JSON.stringify(newKBs))
-  }
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -317,8 +361,8 @@ export function ManagementDashboard({
     setDeleteConfirmId(null)
   }
 
-  const handleSaveSkill = () => {
-    if (!skillForm.name.trim()) return
+  const handleSaveSkill = async () => {
+    if (!skillForm.name.trim() || !LANGGRAPH_API_URL) return
 
     const now = new Date().toISOString()
     if (isCreatingSkill) {
@@ -330,35 +374,69 @@ export function ManagementDashboard({
         createdAt: now,
         updatedAt: now
       }
-      const updated = [...skills, newSkill]
-      saveSkillsToLocalStorage(updated)
-      setSelectedSkillId(newSkill.id)
-      setIsCreatingSkill(false)
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newSkill),
+        })
+        if (resp.ok) {
+          const saved = await resp.json()
+          setSkills(prev => [...prev, saved])
+          setSelectedSkillId(saved.id)
+          setIsCreatingSkill(false)
+        }
+      } catch (err) {
+        console.error("Failed to persist skill to database", err)
+      }
     } else if (isEditingSkill && selectedSkillId) {
-      const updated = skills.map(sk =>
-        sk.id === selectedSkillId
-          ? {
-              ...sk,
-              name: skillForm.name.trim(),
-              description: skillForm.description.trim(),
-              content: skillForm.content,
-              updatedAt: now
-            }
-          : sk
-      )
-      saveSkillsToLocalStorage(updated)
-      setIsEditingSkill(false)
+      const target = skills.find(sk => sk.id === selectedSkillId)
+      if (!target) return
+      
+      const updatedSkill: Skill = {
+        ...target,
+        name: skillForm.name.trim(),
+        description: skillForm.description.trim(),
+        content: skillForm.content,
+        updatedAt: now
+      }
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills/${selectedSkillId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedSkill),
+        })
+        if (resp.ok) {
+          const saved = await resp.json()
+          setSkills(prev => prev.map(sk => sk.id === selectedSkillId ? saved : sk))
+          setIsEditingSkill(false)
+        }
+      } catch (err) {
+        console.error("Failed to update skill in database", err)
+      }
     }
   }
 
-  const handleDeleteSkill = (id: string) => {
-    const updated = skills.filter(sk => sk.id !== id)
-    saveSkillsToLocalStorage(updated)
-    setDeleteConfirmId(null)
-    if (updated.length > 0) {
-      setSelectedSkillId(updated[0].id)
-    } else {
-      setSelectedSkillId(null)
+  const handleDeleteSkill = async (id: string) => {
+    if (!LANGGRAPH_API_URL) return
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills/${id}`, {
+        method: "DELETE",
+      })
+      if (resp.ok) {
+        setSkills(prev => {
+          const updated = prev.filter(sk => sk.id !== id)
+          if (updated.length > 0) {
+            setSelectedSkillId(updated[0].id)
+          } else {
+            setSelectedSkillId(null)
+          }
+          return updated
+        })
+        setDeleteConfirmId(null)
+      }
+    } catch (err) {
+      console.error("Failed to delete skill from database", err)
     }
   }
 
@@ -379,7 +457,10 @@ export function ManagementDashboard({
       name: "",
       description: "",
       systemPrompt: "You are a helpful assistant.",
-      enabledTools: ["rag_search", "websearch", "fetch"]
+      enabledTools: ["rag_search", "websearch", "fetch"],
+      knowledgeBaseIds: [],
+      skillIds: [],
+      mcpIds: []
     })
     setDeleteConfirmId(null)
   }
@@ -391,7 +472,10 @@ export function ManagementDashboard({
       name: profile.name,
       description: profile.description,
       systemPrompt: profile.systemPrompt,
-      enabledTools: profile.enabledTools
+      enabledTools: profile.enabledTools,
+      knowledgeBaseIds: profile.knowledgeBaseIds || [],
+      skillIds: profile.skillIds || [],
+      mcpIds: profile.mcpIds || []
     })
     setDeleteConfirmId(null)
   }
@@ -399,22 +483,25 @@ export function ManagementDashboard({
   const handleSaveAgent = () => {
     if (!agentForm.name.trim()) return
 
+    const profileData = {
+      name: agentForm.name.trim(),
+      description: agentForm.description.trim(),
+      systemPrompt: agentForm.systemPrompt,
+      enabledTools: agentForm.enabledTools,
+      knowledgeBaseIds: agentForm.knowledgeBaseIds,
+      skillIds: agentForm.skillIds,
+      mcpIds: agentForm.mcpIds
+    }
+
     if (isCreatingAgent) {
-      const created = createAgentProfile({
-        name: agentForm.name.trim(),
-        description: agentForm.description.trim(),
-        systemPrompt: agentForm.systemPrompt,
-        enabledTools: agentForm.enabledTools
+      createAgentProfile(profileData as any).then(created => {
+        if (created) {
+          setSelectedAgentId(created.id)
+        }
+        setIsCreatingAgent(false)
       })
-      setSelectedAgentId(created.id)
-      setIsCreatingAgent(false)
     } else if (isEditingAgent && selectedAgentId) {
-      updateAgentProfile(selectedAgentId, {
-        name: agentForm.name.trim(),
-        description: agentForm.description.trim(),
-        systemPrompt: agentForm.systemPrompt,
-        enabledTools: agentForm.enabledTools
-      })
+      updateAgentProfile(selectedAgentId, profileData)
       setIsEditingAgent(false)
     }
   }
@@ -433,6 +520,137 @@ export function ManagementDashboard({
         : [...prev.enabledTools, toolId]
       return { ...prev, enabledTools: nextTools }
     })
+  }
+
+  // ---------------------------------------------------------------------------
+  // MCP Actions
+  // ---------------------------------------------------------------------------
+  const handleSelectMcp = (id: string) => {
+    setSelectedMcpId(id)
+    setIsEditingMcp(false)
+    setIsCreatingMcp(false)
+    setDeleteConfirmId(null)
+  }
+
+  const handleStartCreateMcp = () => {
+    setIsCreatingMcp(true)
+    setIsEditingMcp(false)
+    setMcpForm({
+      name: "",
+      type: "sse",
+      url: "http://localhost:8000/mcp",
+      headers: "{\n  \"Authorization\": \"Bearer token\"\n}"
+    })
+    setDeleteConfirmId(null)
+  }
+
+  const handleStartEditMcp = (mcp: McpServer) => {
+    setIsEditingMcp(true)
+    setIsCreatingMcp(false)
+    setMcpForm({
+      name: mcp.name,
+      type: mcp.type,
+      url: mcp.url || "",
+      headers: JSON.stringify(mcp.headers || {}, null, 2)
+    })
+    setDeleteConfirmId(null)
+  }
+
+  const handleSaveMcp = async () => {
+    if (!mcpForm.name.trim() || !LANGGRAPH_API_URL) return
+
+    // Parse headers
+    let parsedHeaders = {}
+    try {
+      if (mcpForm.headers.trim()) {
+        parsedHeaders = JSON.parse(mcpForm.headers)
+      }
+    } catch (e) {
+      alert("Invalid JSON format for Custom Headers")
+      return
+    }
+
+    const now = new Date().toISOString()
+
+    if (isCreatingMcp) {
+      const newMcp: Omit<McpServer, "createdAt" | "updatedAt"> = {
+        id: crypto.randomUUID(),
+        name: mcpForm.name.trim(),
+        type: mcpForm.type,
+        url: mcpForm.url.trim() || undefined,
+        headers: parsedHeaders
+      }
+
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...newMcp,
+            createdAt: now,
+            updatedAt: now
+          })
+        })
+        if (resp.ok) {
+          const saved = await resp.json()
+          setMcpServers(prev => [...prev, saved])
+          setSelectedMcpId(saved.id)
+          setIsCreatingMcp(false)
+        }
+      } catch (err) {
+        console.error("Failed to create MCP server in database", err)
+      }
+    } else if (isEditingMcp && selectedMcpId) {
+      const target = mcpServers.find(m => m.id === selectedMcpId)
+      if (!target) return
+
+      const updatedMcp = {
+        ...target,
+        name: mcpForm.name.trim(),
+        type: mcpForm.type,
+        url: mcpForm.url.trim() || undefined,
+        headers: parsedHeaders,
+        updatedAt: now
+      }
+
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${selectedMcpId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedMcp)
+        })
+        if (resp.ok) {
+          const saved = await resp.json()
+          setMcpServers(prev => prev.map(m => m.id === selectedMcpId ? saved : m))
+          setIsEditingMcp(false)
+        }
+      } catch (err) {
+        console.error("Failed to update MCP server in database", err)
+      }
+    }
+  }
+
+  const handleDeleteMcp = async (id: string) => {
+    if (!LANGGRAPH_API_URL) return
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${id}`, {
+        method: "DELETE"
+      })
+      if (resp.ok) {
+        setMcpServers(prev => {
+          const updated = prev.filter(m => m.id !== id)
+          if (updated.length > 0) {
+            setSelectedMcpId(updated[0].id)
+          } else {
+            setSelectedMcpId(null)
+          }
+          return updated
+        })
+        setDeleteConfirmId(null)
+      }
+    } catch (err) {
+      console.error("Failed to delete MCP server from database", err)
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -459,8 +677,8 @@ export function ManagementDashboard({
     setDeleteConfirmId(null)
   }
 
-  const handleSaveKB = () => {
-    if (!kbForm.name.trim()) return
+  const handleSaveKB = async () => {
+    if (!kbForm.name.trim() || !LANGGRAPH_API_URL) return
 
     const now = new Date().toISOString()
     if (isCreatingKB) {
@@ -472,34 +690,68 @@ export function ManagementDashboard({
         createdAt: now,
         updatedAt: now
       }
-      const updated = [...knowledgeBases, newKB]
-      saveKBsToLocalStorage(updated)
-      setSelectedKBId(newKB.id)
-      setIsCreatingKB(false)
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newKB),
+        })
+        if (resp.ok) {
+          const saved = await resp.json()
+          setKnowledgeBases(prev => [...prev, saved])
+          setSelectedKBId(saved.id)
+          setIsCreatingKB(false)
+        }
+      } catch (err) {
+        console.error("Failed to create knowledge base in database", err)
+      }
     } else if (isEditingKB && selectedKBId) {
-      const updated = knowledgeBases.map(kb =>
-        kb.id === selectedKBId
-          ? {
-              ...kb,
-              name: kbForm.name.trim(),
-              description: kbForm.description.trim(),
-              updatedAt: now
-            }
-          : kb
-      )
-      saveKBsToLocalStorage(updated)
-      setIsEditingKB(false)
+      const target = knowledgeBases.find(kb => kb.id === selectedKBId)
+      if (!target) return
+
+      const updatedKB: KnowledgeBase = {
+        ...target,
+        name: kbForm.name.trim(),
+        description: kbForm.description.trim(),
+        updatedAt: now
+      }
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updatedKB),
+        })
+        if (resp.ok) {
+          const saved = await resp.json()
+          setKnowledgeBases(prev => prev.map(kb => kb.id === selectedKBId ? saved : kb))
+          setIsEditingKB(false)
+        }
+      } catch (err) {
+        console.error("Failed to update knowledge base in database", err)
+      }
     }
   }
 
-  const handleDeleteKB = (id: string) => {
-    const updated = knowledgeBases.filter(kb => kb.id !== id)
-    saveKBsToLocalStorage(updated)
-    setDeleteConfirmId(null)
-    if (updated.length > 0) {
-      setSelectedKBId(updated[0].id)
-    } else {
-      setSelectedKBId(null)
+  const handleDeleteKB = async (id: string) => {
+    if (!LANGGRAPH_API_URL) return
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${id}`, {
+        method: "DELETE",
+      })
+      if (resp.ok) {
+        setKnowledgeBases(prev => {
+          const updated = prev.filter(kb => kb.id !== id)
+          if (updated.length > 0) {
+            setSelectedKBId(updated[0].id)
+          } else {
+            setSelectedKBId(null)
+          }
+          return updated
+        })
+        setDeleteConfirmId(null)
+      }
+    } catch (err) {
+      console.error("Failed to delete knowledge base from database", err)
     }
   }
 
@@ -507,49 +759,51 @@ export function ManagementDashboard({
     fileInputRef.current?.click()
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedKBId) return
+    if (!file || !selectedKBId || !LANGGRAPH_API_URL) return
 
     setUploadingFile(true)
-    setTimeout(() => {
-      const updated = knowledgeBases.map(kb => {
-        if (kb.id === selectedKBId) {
-          const fileExists = kb.files.some(f => f.name === file.name)
-          if (fileExists) return kb
-
-          const newFile: KBFile = {
-            name: file.name,
-            size: file.size,
-            uploadedAt: new Date().toISOString()
-          }
-          return {
-            ...kb,
-            files: [...kb.files, newFile],
-            updatedAt: new Date().toISOString()
-          }
-        }
-        return kb
+    const form = new FormData()
+    form.append("file", file)
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/upload`, {
+        method: "POST",
+        body: form,
       })
-      saveKBsToLocalStorage(updated)
+      if (resp.ok) {
+        const data = await resp.json()
+        const updatedKB = data.knowledge_base
+        setKnowledgeBases(prev => prev.map(kb => kb.id === selectedKBId ? updatedKB : kb))
+      } else {
+        const errText = await resp.text()
+        console.error("File upload failed:", errText)
+      }
+    } catch (err) {
+      console.error("Failed to upload document", err)
+    } finally {
       setUploadingFile(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
-    }, 800)
+    }
   }
 
-  const handleDeleteKBFile = (fileName: string) => {
-    if (!selectedKBId) return
-    const updated = knowledgeBases.map(kb => {
-      if (kb.id === selectedKBId) {
-        return {
-          ...kb,
-          files: kb.files.filter(f => f.name !== fileName),
-          updatedAt: new Date().toISOString()
-        }
+  const handleDeleteKBFile = async (fileName: string) => {
+    if (!selectedKBId || !LANGGRAPH_API_URL) return
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/files/${encodeURIComponent(fileName)}`, {
+        method: "DELETE",
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        const updatedKB = data.knowledge_base
+        setKnowledgeBases(prev => prev.map(kb => kb.id === selectedKBId ? updatedKB : kb))
+      } else {
+        const errText = await resp.text()
+        console.error("File deletion failed:", errText)
       }
-      return kb
-    })
-    saveKBsToLocalStorage(updated)
+    } catch (err) {
+      console.error("Failed to delete document", err)
+    }
   }
 
   // Format Helper
@@ -566,6 +820,7 @@ export function ManagementDashboard({
   const selectedSkill = skills.find(sk => sk.id === selectedSkillId) || null
   const selectedAgent = selectedAgentId === null ? null : (agentProfiles.find(p => p.id === selectedAgentId) || null)
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
+  const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
@@ -597,6 +852,231 @@ export function ManagementDashboard({
       <div className="flex-1 flex overflow-hidden">
         {/* Content Detail View */}
         <main className="flex-1 flex overflow-hidden bg-background">
+          {/* ========================================== */}
+          {/* MCP TAB PANEL                              */}
+          {/* ========================================== */}
+          {activeTab === "mcp" && (
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left MCP Server List */}
+              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+                <div className="p-4 border-b border-border/40 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
+                    MCP SERVERS
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleStartCreateMcp}
+                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none cursor-pointer"
+                    title="Add MCP Server"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {mcpServers.map(mcp => (
+                    <div
+                      key={mcp.id}
+                      onClick={() => handleSelectMcp(mcp.id)}
+                      className={`group relative flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                        selectedMcpId === mcp.id
+                          ? "border-primary/30 bg-primary/10 text-foreground animate-pulse-subtle"
+                          : "border-transparent hover:bg-muted/30 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">{mcp.name}</div>
+                        <div className="text-xs text-muted-foreground/80 mt-0.5 uppercase tracking-wider font-mono">
+                          {mcp.type}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                        {deleteConfirmId === mcp.id ? (
+                          <>
+                            <button
+                              onClick={() => handleDeleteMcp(mcp.id)}
+                              className="p-1 rounded text-destructive hover:bg-destructive/10"
+                              title="Confirm delete"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="p-1 rounded text-muted-foreground hover:bg-muted"
+                              title="Cancel"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleStartEditMcp(mcp)}
+                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                              title="Edit"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(mcp.id)}
+                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {mcpServers.length === 0 && (
+                    <div className="p-4 text-center text-xs text-muted-foreground italic">
+                      No MCP servers defined yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right MCP Details / Form */}
+              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+                {isCreatingMcp || isEditingMcp ? (
+                  <div className="max-w-2xl space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                      <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
+                        <Cpu className="w-5 h-5 text-primary" />
+                        {isCreatingMcp ? "Add MCP Server" : "Edit MCP Server"}
+                      </h2>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={handleSaveMcp}
+                          disabled={!mcpForm.name.trim()}
+                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setIsEditingMcp(false)
+                            setIsCreatingMcp(false)
+                          }}
+                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="mcp-name">Server Name</Label>
+                          <Input
+                            id="mcp-name"
+                            value={mcpForm.name}
+                            onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })}
+                            placeholder="e.g. Weather SSE Server"
+                            className="bg-background border-border/80 rounded-lg"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="mcp-type">Transport Type</Label>
+                          <Input
+                            id="mcp-type"
+                            value="SSE (Server-Sent Events)"
+                            disabled
+                            className="bg-muted border-border/40 rounded-lg text-muted-foreground select-none cursor-not-allowed"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="mcp-url">SSE Server URL</Label>
+                        <Input
+                          id="mcp-url"
+                          value={mcpForm.url}
+                          onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })}
+                          placeholder="e.g. http://localhost:8000/mcp"
+                          className="bg-background border-border/80 rounded-lg font-mono text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="mcp-headers">Custom Headers (JSON Format)</Label>
+                        <Textarea
+                          id="mcp-headers"
+                          value={mcpForm.headers}
+                          onChange={e => setMcpForm({ ...mcpForm, headers: e.target.value })}
+                          placeholder='e.g. {&#10;  "Authorization": "Bearer YOUR_TOKEN"&#10;}'
+                          rows={6}
+                          className="resize-none bg-background border-border/80 rounded-lg text-xs font-mono"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          Specify any headers needed for authentication or request validation. Must be a valid JSON object.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : selectedMcpId !== null && selectedMcp ? (
+                  <div className="max-w-2xl space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                      <div>
+                        <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                          <Cpu className="w-6 h-6 text-primary" />
+                          {selectedMcp.name}
+                        </h2>
+                        <div className="text-xs font-mono uppercase tracking-wider bg-muted text-muted-foreground px-2 py-0.5 rounded w-max mt-2">
+                          SSE Transport
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleStartEditMcp(selectedMcp)}
+                          className="gap-1.5 rounded-lg border border-border/60 hover:bg-primary/10 hover:text-primary transition-all cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit Server
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="border border-border/50 rounded-xl p-4 bg-background/50 space-y-4">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground font-semibold">SSE Server URL</div>
+                        <div className="text-sm font-mono bg-muted/30 p-2.5 rounded-lg border border-border/40 break-all select-all">
+                          {selectedMcp.url}
+                        </div>
+                      </div>
+
+                      {Object.keys(selectedMcp.headers || {}).length > 0 ? (
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground font-semibold">Custom Headers</div>
+                          <pre className="text-xs font-mono bg-muted/30 p-2.5 rounded-lg border border-border/40 overflow-x-auto">
+                            {JSON.stringify(selectedMcp.headers, null, 2)}
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground font-semibold">Custom Headers</div>
+                          <div className="text-xs italic text-muted-foreground bg-muted/20 p-2.5 rounded-lg border border-border/40">
+                            No custom headers configured.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground italic">
+                    Select or create an MCP Server to get started
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ========================================== */}
           {/* SKILLS TAB PANEL                           */}
           {/* ========================================== */}
@@ -1017,6 +1497,105 @@ export function ManagementDashboard({
                         })}
                       </div>
                     </div>
+
+                    {agentForm.enabledTools.includes("rag_search") && knowledgeBases.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border/40">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linked Shared Knowledge Bases</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {knowledgeBases.map((kb) => {
+                            const linked = agentForm.knowledgeBaseIds.includes(kb.id)
+                            return (
+                              <div
+                                key={kb.id}
+                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  const nextIds = linked
+                                    ? agentForm.knowledgeBaseIds.filter(id => id !== kb.id)
+                                    : [...agentForm.knowledgeBaseIds, kb.id]
+                                  setAgentForm({ ...agentForm, knowledgeBaseIds: nextIds })
+                                }}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                }`}>
+                                  {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium truncate">{kb.name}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} files</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {skills.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border/40">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link Custom Skills</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {skills.map((sk) => {
+                            const linked = agentForm.skillIds.includes(sk.id)
+                            return (
+                              <div
+                                key={sk.id}
+                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  const nextIds = linked
+                                    ? agentForm.skillIds.filter(id => id !== sk.id)
+                                    : [...agentForm.skillIds, sk.id]
+                                  setAgentForm({ ...agentForm, skillIds: nextIds })
+                                }}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                }`}>
+                                  {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium truncate">{sk.name}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{sk.description || "No description"}</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {mcpServers.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border/40">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link MCP Servers</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {mcpServers.map((mcp) => {
+                            const linked = agentForm.mcpIds.includes(mcp.id)
+                            return (
+                              <div
+                                key={mcp.id}
+                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  const nextIds = linked
+                                    ? agentForm.mcpIds.filter(id => id !== mcp.id)
+                                    : [...agentForm.mcpIds, mcp.id]
+                                  setAgentForm({ ...agentForm, mcpIds: nextIds })
+                                }}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                }`}>
+                                  {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium truncate">{mcp.name}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{mcp.type.toUpperCase()} | {mcp.url}</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
 
 
                   </div>
