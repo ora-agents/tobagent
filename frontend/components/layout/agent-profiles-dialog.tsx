@@ -93,11 +93,11 @@ function RagUploadButton({ agentId }: { agentId: string }) {
           <Upload className="w-3.5 h-3.5" />
           {uploading ? "Uploading…" : "Upload Document"}
         </Button>
-        <span className="text-xs text-muted-foreground">PDF, TXT, MD</span>
+        <span className="text-xs text-muted-foreground">PDF, DOCX, TXT, MD, CSV</span>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.txt,.md,.markdown"
+          accept=".pdf,.docx,.txt,.md,.markdown,.csv"
           className="hidden"
           onChange={handleUpload}
         />

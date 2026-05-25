@@ -1936,7 +1936,7 @@ export function ManagementDashboard({
                           <input
                             ref={fileInputRef}
                             type="file"
-                            accept=".pdf,.txt,.md,.markdown"
+                            accept=".pdf,.docx,.txt,.md,.markdown,.csv"
                             className="hidden"
                             onChange={handleFileUpload}
                           />
