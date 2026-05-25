@@ -44,13 +44,33 @@ async def authenticate(
 
     # Extract user identity from Authorization header
     if not authorization:
-        return {"identity": "studio-user"}
+        return {"identity": "studio-user", "kind": "StudioUser"}
 
     user_id = authorization
     if authorization.lower().startswith("bearer "):
         user_id = authorization.split(" ", 1)[1]
 
-    return {"identity": user_id or "anonymous", "is_authenticated": True}
+    # Detect if the request comes from LangGraph Studio
+    is_studio = False
+    if user_id == "studio-user" or (isinstance(user_id, str) and user_id.startswith("lsv2_")):
+        is_studio = True
+    else:
+        # Check Origin and Referer headers (LangGraph Studio UI runs on smith.langchain.com)
+        origin = headers.get(b"origin") or headers.get("origin")
+        referer = headers.get(b"referer") or headers.get("referer")
+        origin_str = origin.decode() if isinstance(origin, bytes) else str(origin or "")
+        referer_str = referer.decode() if isinstance(referer, bytes) else str(referer or "")
+        if "smith.langchain.com" in origin_str or "smith.langchain.com" in referer_str:
+            is_studio = True
+
+    user_dict: Auth.types.MinimalUserDict = {
+        "identity": user_id or "anonymous",
+        "is_authenticated": True,
+    }
+    if is_studio:
+        user_dict["kind"] = "StudioUser"
+
+    return user_dict
 
 
 # Default block
@@ -128,11 +148,20 @@ async def block_modify_assistants(
     if is_studio_user(ctx.user):
         return {}
 
-    user_id = ctx.user.identity
-    metadata = value.setdefault("metadata", {})
-    metadata["user_id"] = user_id
+    # Allow regular users to read public assistants (such as the default global graph assistant)
+    # or their own assistants without enforcing user_id restriction
+    return {}
 
-    return {"user_id": user_id}
+
+@auth.on.assistants.search
+async def allow_search_assistants(
+    ctx: Auth.types.AuthContext, value: dict
+):
+    if is_studio_user(ctx.user):
+        return {}
+
+    # Allow regular users to search for assistants
+    return {}
 
 
 def validate_inputs(input: dict | None, command: dict | None) -> bool:
