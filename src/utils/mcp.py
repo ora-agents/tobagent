@@ -1,5 +1,19 @@
 import logging
 
+# Eagerly import MCP and networking modules to prevent importlib from executing synchronous
+# ScandirIterator call inside the active asyncio event loop when client.get_tools() is first called.
+try:
+    import httpx
+    import anyio
+    import anyio._backends._asyncio
+    import mcp
+    import mcp.client
+    import mcp.client.sse
+    import mcp.client.stdio
+    import langchain_mcp_adapters.client
+except ImportError:
+    pass
+
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -82,7 +96,11 @@ class McpPoolManager:
         try:
             from langchain_mcp_adapters.client import MultiServerMCPClient
             logger.info(f"Creating new MultiServerMCPClient for agent {agent_id} with configs: {list(client_config.keys())}")
-            client = MultiServerMCPClient(client_config)
+            
+            # Use asyncio.to_thread to run the synchronous instantiation (which triggers ScandirIterator)
+            # on a separate thread pool. This bypasses LangGraph's strict synchronous blocking detection.
+            import asyncio
+            client = await asyncio.to_thread(MultiServerMCPClient, client_config)
             
             # Retrieve tools (get_tools implicitly connects/initializes the client)
             tools = await client.get_tools()

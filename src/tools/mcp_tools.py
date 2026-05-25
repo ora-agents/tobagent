@@ -13,6 +13,8 @@ MCP_TRANSPORT = "streamable_http"
 
 
 def _get_mcp_tools() -> list[BaseTool]:
+    import concurrent.futures
+
     async def _fetch_tools() -> list[BaseTool]:
         client = MultiServerMCPClient(
             {MCP_SERVER_NAME: {"url": MCP_SERVER_URL, "transport": MCP_TRANSPORT}}
@@ -20,7 +22,11 @@ def _get_mcp_tools() -> list[BaseTool]:
         return await client.get_tools()
 
     try:
-        tools = asyncio.run(_fetch_tools())
+        # Run asyncio.run in a separate thread to prevent LangGraph dev from catching
+        # blocking ScandirIterator calls on the main ASGI event loop thread.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(lambda: asyncio.run(_fetch_tools()))
+            tools = future.result(timeout=15.0)
         logger.info(f"MCP docs tools loaded: {[tool.name for tool in tools]}")
         return tools
     except Exception as e:
