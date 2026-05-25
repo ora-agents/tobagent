@@ -542,6 +542,76 @@ async def delete_knowledge_base(id: str, db: Session = Depends(get_db)):
     return {"status": "success", "message": f"Knowledge base {id} and associated LanceDB table deleted"}
 
 
+def _sync_load_document(filename: str, content_type: str, raw: bytes) -> str:
+    """Synchronous helper to import loaders, write temp files, and parse.
+    
+    Runs completely in a thread pool via asyncio.to_thread to avoid blocking ASGI event loop.
+    """
+    import pathlib
+    import tempfile
+    
+    fname_lower = filename.lower()
+    
+    if content_type == "application/pdf" or fname_lower.endswith(".pdf"):
+        suffix = ".pdf"
+        from langchain_community.document_loaders import PyPDFLoader
+        loader_cls = PyPDFLoader
+        loader_kwargs = {}
+    elif (
+        content_type in (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
+        )
+        or fname_lower.endswith(".docx")
+        or fname_lower.endswith(".doc")
+    ):
+        suffix = ".docx"
+        from langchain_community.document_loaders import Docx2txtLoader
+        loader_cls = Docx2txtLoader
+        loader_kwargs = {}
+    elif fname_lower.endswith(".csv"):
+        suffix = ".csv"
+        from langchain_community.document_loaders import CSVLoader
+        loader_cls = CSVLoader
+        loader_kwargs = {}
+    else:
+        suffix = pathlib.Path(filename or "file.txt").suffix or ".txt"
+        from langchain_community.document_loaders import TextLoader
+        loader_cls = TextLoader
+        loader_kwargs = {"encoding": "utf-8"}
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(raw)
+        tmp_path = tmp.name
+        
+    try:
+        loader = loader_cls(tmp_path, **loader_kwargs)
+        docs = loader.load()
+        return "\n\n".join(d.page_content for d in docs)
+    finally:
+        pathlib.Path(tmp_path).unlink(missing_ok=True)
+
+
+async def _load_document_content(file: UploadFile, raw: bytes) -> str:
+    """Helper to parse uploaded document using LangChain document loaders."""
+    import asyncio
+    
+    filename = file.filename or "unknown"
+    content_type = file.content_type or ""
+    
+    try:
+        return await asyncio.to_thread(_sync_load_document, filename, content_type, raw)
+    except Exception as e:
+        logger.error(f"Error loading document {filename} using LangChain: {e}")
+        from fastapi import HTTPException
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(
+            status_code=400,
+            detail=f"无法解析文件 {filename}: {str(e)}"
+        )
+
+
 @app.post("/api/knowledge-bases/{kb_id}/upload")
 async def upload_kb_document(
     kb_id: str,
@@ -560,34 +630,13 @@ async def upload_kb_document(
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
 
     try:
-        import asyncio
-        import pathlib
-        import tempfile
         from datetime import datetime
-
-        from langchain_community.document_loaders import PyPDFLoader
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        content_type = file.content_type or ""
         raw = await file.read()
         file_size = len(raw)
 
-        if content_type == "application/pdf" or (file.filename or "").lower().endswith(".pdf"):
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                tmp.write(raw)
-                tmp_path = tmp.name
-            try:
-                # 使用 asyncio.to_thread 避免 PyPDFLoader 内部 os.getcwd() 阻塞事件循环
-                def _load_pdf():
-                    loader = PyPDFLoader(tmp_path)
-                    return loader.load()
-
-                docs = await asyncio.to_thread(_load_pdf)
-                full_text = "\n\n".join(d.page_content for d in docs)
-            finally:
-                pathlib.Path(tmp_path).unlink(missing_ok=True)
-        else:
-            full_text = raw.decode("utf-8", errors="replace")
+        full_text = await _load_document_content(file, raw)
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -597,12 +646,10 @@ async def upload_kb_document(
         if not chunks:
             raise HTTPException(status_code=400, detail="No content extracted from file.")
 
-        # Ingest into LanceDB named after the KB
-        # 使用 asyncio.to_thread 避免 ingest_documents 内部 lancedb.connect()/os.getcwd() 阻塞事件循环
-        from src.tools.rag_tool import ingest_documents
+        # 直接 await 原生 async 版本，无需 asyncio.to_thread
+        from src.tools.rag_tool import ingest_documents_async
         _filename = file.filename
-        n = await asyncio.to_thread(
-            ingest_documents,
+        n = await ingest_documents_async(
             kb_id,
             chunks,
             [_filename or "upload"] * len(chunks),
@@ -668,10 +715,10 @@ async def delete_kb_file(
     try:
         from datetime import datetime
 
-        from src.tools.rag_tool import delete_documents
+        from src.tools.rag_tool import delete_documents_async
 
-        # 1. Delete from LanceDB
-        delete_documents(agent_id=kb_id, source=filename)
+        # 1. Delete from LanceDB (async native)
+        await delete_documents_async(agent_id=kb_id, source=filename)
 
         # 2. Update PostgreSQL files JSON
         files_list = list(kb.files or [])
@@ -717,34 +764,10 @@ async def upload_document(
     Splits into chunks, embeds, and stores in LanceDB.
     """
     try:
-        import asyncio
-        import pathlib
-        import tempfile
-
-        from langchain_community.document_loaders import PyPDFLoader
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-        content_type = file.content_type or ""
         raw = await file.read()
-
-        if content_type == "application/pdf" or (file.filename or "").lower().endswith(".pdf"):
-            # Save to temp file and use PyPDFLoader
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-                tmp.write(raw)
-                tmp_path = tmp.name
-            try:
-                # 使用 asyncio.to_thread 避免 PyPDFLoader 内部 os.getcwd() 阻塞事件循环
-                def _load_pdf():
-                    loader = PyPDFLoader(tmp_path)
-                    return loader.load()
-
-                docs = await asyncio.to_thread(_load_pdf)
-                full_text = "\n\n".join(d.page_content for d in docs)
-            finally:
-                pathlib.Path(tmp_path).unlink(missing_ok=True)
-        else:
-            # Treat as text / markdown
-            full_text = raw.decode("utf-8", errors="replace")
+        full_text = await _load_document_content(file, raw)
 
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -754,11 +777,10 @@ async def upload_document(
         if not chunks:
             raise HTTPException(status_code=400, detail="No content extracted from file.")
 
-        # 使用 asyncio.to_thread 避免 ingest_documents 内部 lancedb.connect()/os.getcwd() 阻塞事件循环
-        from src.tools.rag_tool import ingest_documents
+        # 直接 await 原生 async 版本，无需 asyncio.to_thread
+        from src.tools.rag_tool import ingest_documents_async
         _filename = file.filename
-        n = await asyncio.to_thread(
-            ingest_documents,
+        n = await ingest_documents_async(
             agent_id,
             chunks,
             [_filename or "upload"] * len(chunks),

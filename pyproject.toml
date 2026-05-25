@@ -30,6 +30,7 @@ dependencies = [
     "pypdf>=5.0.0",
     "sqlalchemy>=2.0.49",
     "psycopg[binary]>=3.3.4",
+    "docx2txt>=0.9",
 ]
 
 
