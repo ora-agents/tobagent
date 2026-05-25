@@ -854,7 +854,6 @@ export function ManagementDashboard({
                     <div className="font-semibold text-sm flex items-center gap-1.5">
                       <Bot className="w-3.5 h-3.5 text-primary" />
                       Default Agent
-                      {selectedAgentId === null && <Check className="w-3.5 h-3.5 text-primary ml-auto flex-shrink-0" />}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 truncate">
                       LangChain documentation assistant
@@ -875,7 +874,6 @@ export function ManagementDashboard({
                       <div className="font-semibold text-sm flex items-center gap-1.5 truncate pr-16">
                         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
                         {profile.name}
-                        {selectedAgentId === profile.id && <Check className="w-3.5 h-3.5 text-primary ml-auto flex-shrink-0" />}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate pr-8">
                         {profile.description || "No description provided"}
