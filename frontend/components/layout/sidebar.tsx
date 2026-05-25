@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, memo, useCallback } from "react"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Thread } from "@/lib/hooks/threads"
@@ -41,6 +41,8 @@ interface SidebarProps {
   onSelectThread: (threadId: string) => void
   onDeleteThread: (threadId: string) => void
   isLoading?: boolean
+  currentView?: string
+  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge") => void
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -108,6 +110,8 @@ export const Sidebar = memo(function Sidebar({
   onSelectThread,
   onDeleteThread,
   isLoading = false,
+  currentView = "chat",
+  onViewChange,
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -132,7 +136,8 @@ export const Sidebar = memo(function Sidebar({
   // Memoize event handlers to prevent unnecessary re-renders
   const handleSelectThread = useCallback((threadId: string) => {
     onSelectThread(threadId)
-  }, [onSelectThread])
+    onViewChange?.("chat")
+  }, [onSelectThread, onViewChange])
 
   const handleDeleteThread = useCallback((threadId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -189,11 +194,48 @@ export const Sidebar = memo(function Sidebar({
   // Early return for collapsed state (after all hooks)
   if (isCollapsed) {
     return (
-      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col shadow-depth-sm">
+      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col justify-between shadow-depth-sm h-screen">
         <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
           <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
             <PanelLeft className="w-5 h-5" />
           </Button>
+        </div>
+
+        {/* Collapsed bottom shortcuts */}
+        <div className="flex flex-col items-center gap-3.5 pb-6">
+          <button
+            onClick={() => onViewChange?.("skills")}
+            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+              currentView === "skills"
+                ? "bg-primary/15 text-primary border-primary/20"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            }`}
+            title={t.skills}
+          >
+            <Wrench className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => onViewChange?.("agents")}
+            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+              currentView === "agents"
+                ? "bg-primary/15 text-primary border-primary/20"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            }`}
+            title={t.agents}
+          >
+            <Bot className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => onViewChange?.("knowledge")}
+            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+              currentView === "knowledge"
+                ? "bg-primary/15 text-primary border-primary/20"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            }`}
+            title={t.knowledgeBase}
+          >
+            <Database className="w-5 h-5" />
+          </button>
         </div>
       </aside>
     )
@@ -265,6 +307,43 @@ export const Sidebar = memo(function Sidebar({
           </>
         )}
       </nav>
+
+      {/* Bottom Management Navigation */}
+      <div className="px-3 py-2 border-t border-border/40 bg-gradient-to-b from-transparent to-sidebar-accent/10 flex flex-col gap-1 flex-shrink-0">
+        <button
+          onClick={() => onViewChange?.("skills")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+            currentView === "skills"
+              ? "bg-primary/15 text-primary border-primary/20 font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+          }`}
+        >
+          <Wrench className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+          <span className="truncate">{t.skills}</span>
+        </button>
+        <button
+          onClick={() => onViewChange?.("agents")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+            currentView === "agents"
+              ? "bg-primary/15 text-primary border-primary/20 font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+          }`}
+        >
+          <Bot className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+          <span className="truncate">{t.agents}</span>
+        </button>
+        <button
+          onClick={() => onViewChange?.("knowledge")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+            currentView === "knowledge"
+              ? "bg-primary/15 text-primary border-primary/20 font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+          }`}
+        >
+          <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+          <span className="truncate">{t.knowledgeBase}</span>
+        </button>
+      </div>
 
       <div className="pt-2 pb-0">
         <UserProfileSection />
