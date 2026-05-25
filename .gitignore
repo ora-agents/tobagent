@@ -180,3 +180,5 @@ frontend/tsconfig.tsbuildinfo
 # The private repos need to be in GitHub so LangGraph Cloud can clone them
 
 todo
+
+lancedb_data
