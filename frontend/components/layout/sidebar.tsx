@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Thread } from "@/lib/hooks/threads"
 import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
+import { useAuth } from "@/components/providers/auth-provider"
+import { AuthDialog } from "./auth-dialog"
 
 const scrollbarStyles = `
   .custom-scrollbar {
@@ -99,8 +101,78 @@ function groupThreads(threads: Thread[]) {
   return { today, yesterday, last7Days, older }
 }
 
-const UserProfileSection = memo(function UserProfileSection() {
-  return null
+interface UserProfileSectionProps {
+  isCollapsed: boolean
+  onOpenAuth: () => void
+}
+
+const UserProfileSection = memo(function UserProfileSection({
+  isCollapsed,
+  onOpenAuth,
+}: UserProfileSectionProps) {
+  const { user, logout } = useAuth()
+
+  if (!user) {
+    if (isCollapsed) {
+      return (
+        <button
+          onClick={onOpenAuth}
+          className="p-2.5 rounded-lg border border-transparent text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground transition-all duration-200 cursor-pointer"
+          title="Sign In"
+        >
+          <User className="w-5 h-5" />
+        </button>
+      )
+    }
+    return (
+      <button
+        onClick={onOpenAuth}
+        className="flex items-center justify-center gap-2 px-3 py-2 text-sm w-full font-medium rounded-lg text-primary bg-primary/10 border border-primary/20 hover:bg-primary hover:text-primary-foreground shadow-depth-xs hover:shadow-depth-hover transition-all duration-200 cursor-pointer"
+      >
+        <LogIn className="w-4 h-4" />
+        <span>Sign In</span>
+      </button>
+    )
+  }
+
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col items-center">
+        <button
+          onClick={logout}
+          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm hover:opacity-80 transition-all duration-200 cursor-pointer"
+          style={{ backgroundColor: user.avatarColor || '#cc785c' }}
+          title={`Log out (${user.username})`}
+        >
+          {user.username.charAt(0).toUpperCase()}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/15 border border-border/40 gap-3 group/profile">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div 
+          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm flex-shrink-0"
+          style={{ backgroundColor: user.avatarColor || '#cc785c' }}
+        >
+          {user.username.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold truncate text-foreground">{user.username}</span>
+          <span className="text-[10px] text-muted-foreground truncate">{user.email || 'No email'}</span>
+        </div>
+      </div>
+      <button
+        onClick={logout}
+        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-200 cursor-pointer"
+        title="Sign Out"
+      >
+        <LogOut className="w-4 h-4" />
+      </button>
+    </div>
+  )
 })
 
 export const Sidebar = memo(function Sidebar({
@@ -121,6 +193,7 @@ export const Sidebar = memo(function Sidebar({
   useEffect(() => setMounted(true), [])
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [isAuthOpen, setIsAuthOpen] = useState(false)
 
   // Filter threads based on search query
   const filteredThreads = useMemo(() => {
@@ -265,6 +338,10 @@ export const Sidebar = memo(function Sidebar({
           >
             {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
+          
+          <div className="w-8 border-t border-border/40 my-1 flex-shrink-0" />
+          
+          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} />
         </div>
       </aside>
     )
@@ -405,9 +482,11 @@ export const Sidebar = memo(function Sidebar({
         </button>
       </div>
 
-      <div className="pt-2 pb-0">
-        <UserProfileSection />
+      <div className="pt-2 pb-3 px-3">
+        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} />
       </div>
+      
+      <AuthDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
     </aside>
     </>
   )

@@ -1,18 +1,13 @@
 /**
  * User ID Management Hook
  *
- * Public Chat LangChain uses an anonymous browser UUID persisted in localStorage.
+ * Public Chat LangChain uses an anonymous browser UUID persisted in localStorage,
+ * or the active logged-in user ID from the AuthProvider.
  */
 
 'use client'
 
-import { useState, useEffect } from 'react'
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const USER_ID_KEY = 'langgraph-user-id'
+import { useAuth } from '@/components/providers/auth-provider'
 
 // ============================================================================
 // Hook Implementation
@@ -21,7 +16,7 @@ const USER_ID_KEY = 'langgraph-user-id'
 /**
  * Get user ID for thread management.
  *
- * Returns a browser UUID used to filter threads on the LangGraph backend.
+ * Returns either the logged-in user's ID or a browser UUID used to filter threads on the LangGraph backend.
  *
  * @returns The user's unique ID, or null while loading
  *
@@ -31,25 +26,6 @@ const USER_ID_KEY = 'langgraph-user-id'
  * return <ChatInterface userId={userId} />
  */
 export function useUserId(): string | null {
-  const [userId, setUserId] = useState<string | null>(null)
-
-  useEffect(() => {
-    // Skip during SSR
-    if (typeof window === 'undefined') return
-
-    let id = localStorage.getItem(USER_ID_KEY)
-
-    if (!id) {
-      // Generate new ID using crypto.randomUUID()
-      id = `user-${crypto.randomUUID()}`
-      localStorage.setItem(USER_ID_KEY, id)
-      console.info('Generated new browser user ID:', id)
-    } else {
-      console.info('Loaded existing browser user ID:', id)
-    }
-
-    setUserId(id)
-  }, [])
-
+  const { userId } = useAuth()
   return userId
 }

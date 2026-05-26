@@ -5,6 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 import { SegmentProvider } from "@/components/providers/segment-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { AuthProvider } from "@/components/providers/auth-provider";
 import { I18nProvider } from "@/lib/i18n";
 
 const inter = Inter({
@@ -67,11 +68,13 @@ analytics.page();
       >
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <I18nProvider>
-            <SegmentProvider>
-              <NuqsAdapter>
-                {children}
-              </NuqsAdapter>
-            </SegmentProvider>
+            <AuthProvider>
+              <SegmentProvider>
+                <NuqsAdapter>
+                  {children}
+                </NuqsAdapter>
+              </SegmentProvider>
+            </AuthProvider>
           </I18nProvider>
         </ThemeProvider>
       </body>
