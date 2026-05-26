@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { Bot, Plus, Pencil, Trash2, Check, X, Upload, ChevronLeft } from "lucide-react"
+import { Bot, Plus, Pencil, Trash2, Check, X, Upload, ChevronLeft, Wrench, BookOpen, Zap, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -31,6 +31,7 @@ interface FormState {
   knowledgeBaseIds: string[]
   skillIds: string[]
   mcpIds: string[]
+  agentIds: string[]
 }
 
 const DEFAULT_FORM: FormState = {
@@ -41,6 +42,7 @@ const DEFAULT_FORM: FormState = {
   knowledgeBaseIds: [],
   skillIds: [],
   mcpIds: [],
+  agentIds: [],
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +129,7 @@ interface ProfileFormProps {
   knowledgeBases?: KnowledgeBase[]
   skills?: Skill[]
   mcpServers?: McpServer[]
+  allProfiles?: AgentProfile[]
 }
 
 function ProfileForm({
@@ -136,10 +139,13 @@ function ProfileForm({
   agentId,
   knowledgeBases = [],
   skills = [],
-  mcpServers = []
+  mcpServers = [],
+  allProfiles = []
 }: ProfileFormProps) {
   const t = useT()
+  const { locale } = useI18n()
   const [form, setForm] = useState<FormState>(initial)
+  const availableAgents = allProfiles.filter(p => p.id !== agentId)
 
   const toggleTool = (id: BuiltinToolId) => {
     setForm(prev => ({
@@ -322,6 +328,41 @@ function ProfileForm({
         </div>
       )}
 
+      {availableAgents && availableAgents.length > 0 && (
+        <div className="space-y-1.5 pt-2 border-t border-border">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {locale === "zh" ? "关联其他智能体 (多智能体协同)" : "Link Other Agents (Multi-Agent)"}
+          </Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
+            {availableAgents.map((agent) => {
+              const linked = form.agentIds?.includes(agent.id)
+              return (
+                <label
+                  key={agent.id}
+                  className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card hover:bg-accent/40 cursor-pointer transition-colors"
+                  onClick={() => {
+                    const nextIds = linked
+                      ? (form.agentIds || []).filter(id => id !== agent.id)
+                      : [...(form.agentIds || []), agent.id];
+                    setForm(prev => ({ ...prev, agentIds: nextIds }))
+                  }}
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                    linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                  }`}>
+                    {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">{agent.name}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{agent.description || (locale === "zh" ? "无描述" : "No description")}</div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
 
       <div className="flex items-center gap-2 pt-2">
         <Button
@@ -355,7 +396,7 @@ interface AgentProfilesDialogProps {
   profiles: AgentProfile[]
   selectedId: string | null
   onSelect: (id: string | null) => void
-  onCreate: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => void
+  onCreate: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => Promise<AgentProfile | null> | void
   onUpdate: (id: string, data: Partial<AgentProfile>) => void
   onDelete: (id: string) => void
   knowledgeBases?: KnowledgeBase[]
@@ -405,15 +446,28 @@ export function AgentProfilesDialog({
   }, [open])
 
   const handleCreate = useCallback((data: FormState) => {
-    onCreate({
+    const res = onCreate({
       name: data.name.trim(),
       description: data.description.trim(),
       systemPrompt: data.systemPrompt,
       enabledTools: data.enabledTools,
       knowledgeBaseIds: data.knowledgeBaseIds,
+      skillIds: data.skillIds,
+      mcpIds: data.mcpIds,
+      agentIds: data.agentIds,
     } as any)
-    setView({ kind: "list" })
-  }, [onCreate])
+
+    if (res && typeof res.then === "function") {
+      res.then((created) => {
+        if (created) {
+          onSelect(created.id)
+          handleOpenChange(false)
+        }
+      })
+    } else {
+      setView({ kind: "list" })
+    }
+  }, [onCreate, onSelect])
 
   const handleUpdate = useCallback((id: string, data: FormState) => {
     onUpdate(id, {
@@ -422,9 +476,15 @@ export function AgentProfilesDialog({
       systemPrompt: data.systemPrompt,
       enabledTools: data.enabledTools,
       knowledgeBaseIds: data.knowledgeBaseIds,
+      skillIds: data.skillIds,
+      mcpIds: data.mcpIds,
+      agentIds: data.agentIds,
     } as any)
-    setView({ kind: "list" })
-  }, [onUpdate])
+    
+    // Auto-select updated agent and close the dialog
+    onSelect(id)
+    handleOpenChange(false)
+  }, [onUpdate, onSelect])
 
   const handleDelete = useCallback((id: string) => {
     onDelete(id)
@@ -502,12 +562,37 @@ export function AgentProfilesDialog({
                     {profile.description && (
                       <div className="text-xs text-muted-foreground mt-0.5 truncate">{profile.description}</div>
                     )}
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {profile.enabledTools.map(t => (
-                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                          {t}
+                    <div className="flex gap-1 mt-2 flex-wrap">
+                      {profile.enabledTools && profile.enabledTools.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/15 flex items-center gap-0.5" title={profile.enabledTools.join(", ")}>
+                          <Wrench className="w-2.5 h-2.5" />
+                          {profile.enabledTools.length} {locale === "zh" ? "工具" : "Tools"}
                         </span>
-                      ))}
+                      )}
+                      {profile.knowledgeBaseIds && profile.knowledgeBaseIds.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/15 flex items-center gap-0.5">
+                          <BookOpen className="w-2.5 h-2.5" />
+                          {profile.knowledgeBaseIds.length} {locale === "zh" ? "知识库" : "KBs"}
+                        </span>
+                      )}
+                      {profile.skillIds && profile.skillIds.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-purple-500/10 text-purple-500 dark:text-purple-400 border border-purple-500/15 flex items-center gap-0.5">
+                          <Zap className="w-2.5 h-2.5" />
+                          {profile.skillIds.length} {locale === "zh" ? "技能" : "Skills"}
+                        </span>
+                      )}
+                      {profile.mcpIds && profile.mcpIds.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/15 flex items-center gap-0.5">
+                          <Cpu className="w-2.5 h-2.5" />
+                          {profile.mcpIds.length} MCP
+                        </span>
+                      )}
+                      {(profile as any).agentIds && (profile as any).agentIds.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/15 flex items-center gap-0.5">
+                          <Bot className="w-2.5 h-2.5" />
+                          {(profile as any).agentIds.length} {locale === "zh" ? "协同" : "Agents"}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -569,6 +654,7 @@ export function AgentProfilesDialog({
               knowledgeBases={knowledgeBases}
               skills={skills}
               mcpServers={mcpServers}
+              allProfiles={profiles}
             />
           )}
 
@@ -582,6 +668,7 @@ export function AgentProfilesDialog({
                 knowledgeBaseIds: (view.profile as any).knowledgeBaseIds || [],
                 skillIds: (view.profile as any).skillIds || [],
                 mcpIds: (view.profile as any).mcpIds || [],
+                agentIds: (view.profile as any).agentIds || [],
               }}
               onSave={data => handleUpdate(view.profile.id, data)}
               onCancel={() => setView({ kind: "list" })}
@@ -589,6 +676,7 @@ export function AgentProfilesDialog({
               knowledgeBases={knowledgeBases}
               skills={skills}
               mcpServers={mcpServers}
+              allProfiles={profiles}
             />
           )}
         </div>

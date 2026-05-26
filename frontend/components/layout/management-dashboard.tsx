@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useT } from "@/lib/i18n"
+import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 
@@ -243,6 +243,7 @@ export function ManagementDashboard({
   deleteAgentProfile
 }: ManagementDashboardProps) {
   const t = useT()
+  const { locale } = useI18n()
   const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "mcp">(initialTab)
 
   // ---------------------------------------------------------------------------
@@ -281,6 +282,7 @@ export function ManagementDashboard({
     knowledgeBaseIds: string[]
     skillIds: string[]
     mcpIds: string[]
+    agentIds: string[]
   }>({
     name: "",
     description: "",
@@ -288,11 +290,14 @@ export function ManagementDashboard({
     enabledTools: [],
     knowledgeBaseIds: [],
     skillIds: [],
-    mcpIds: []
+    mcpIds: [],
+    agentIds: []
   })
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
+  // Guard: prevents the selectedAgentProfileId useEffect from re-entering edit mode right after a save
+  const isSavingRef = useRef(false)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
@@ -351,6 +356,12 @@ export function ManagementDashboard({
   // Sync selectedAgentId with selectedAgentProfileId from props when tab is agents
   useEffect(() => {
     if (activeTab === "agents") {
+      // If we just finished a save, skip re-entering edit mode so the user can navigate away
+      if (isSavingRef.current) {
+        isSavingRef.current = false
+        return
+      }
+
       setSelectedAgentId(selectedAgentProfileId)
       
       // Auto-enter editing mode if a custom agent is selected to jump straight to its config form!
@@ -366,7 +377,8 @@ export function ManagementDashboard({
             enabledTools: selectedProfile.enabledTools,
             knowledgeBaseIds: selectedProfile.knowledgeBaseIds || [],
             skillIds: selectedProfile.skillIds || [],
-            mcpIds: selectedProfile.mcpIds || []
+            mcpIds: selectedProfile.mcpIds || [],
+            agentIds: (selectedProfile as any).agentIds || []
           })
         }
       } else {
@@ -398,6 +410,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditSkill = (skill: Skill) => {
+    setSelectedSkillId(skill.id)
     setIsEditingSkill(true)
     setIsCreatingSkill(false)
     setSkillForm({
@@ -508,12 +521,14 @@ export function ManagementDashboard({
       enabledTools: ["rag_search", "websearch", "fetch"],
       knowledgeBaseIds: [],
       skillIds: [],
-      mcpIds: []
+      mcpIds: [],
+      agentIds: []
     })
     setDeleteConfirmId(null)
   }
 
   const handleStartEditAgent = (profile: AgentProfile) => {
+    setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
     setIsCreatingAgent(false)
     setAgentForm({
@@ -523,7 +538,8 @@ export function ManagementDashboard({
       enabledTools: profile.enabledTools,
       knowledgeBaseIds: profile.knowledgeBaseIds || [],
       skillIds: profile.skillIds || [],
-      mcpIds: profile.mcpIds || []
+      mcpIds: profile.mcpIds || [],
+      agentIds: (profile as any).agentIds || []
     })
     setDeleteConfirmId(null)
   }
@@ -538,19 +554,30 @@ export function ManagementDashboard({
       enabledTools: agentForm.enabledTools,
       knowledgeBaseIds: agentForm.knowledgeBaseIds,
       skillIds: agentForm.skillIds,
-      mcpIds: agentForm.mcpIds
+      mcpIds: agentForm.mcpIds,
+      agentIds: agentForm.agentIds
     }
 
     if (isCreatingAgent) {
       createAgentProfile(profileData as any).then(created => {
         if (created) {
           setSelectedAgentId(created.id)
+          // Mark saving so the useEffect won't re-enter edit mode
+          isSavingRef.current = true
+          // Automatically set the newly created agent as active and return to chat
+          setSelectedAgentProfileId(created.id)
         }
         setIsCreatingAgent(false)
+        onBackToChat()
       })
     } else if (isEditingAgent && selectedAgentId) {
       updateAgentProfile(selectedAgentId, profileData)
+      // Mark saving so the useEffect won't re-enter edit mode
+      isSavingRef.current = true
+      // Automatically set the edited agent as active and return to chat
+      setSelectedAgentProfileId(selectedAgentId)
       setIsEditingAgent(false)
+      onBackToChat()
     }
   }
 
@@ -593,6 +620,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditMcp = (mcp: McpServer) => {
+    setSelectedMcpId(mcp.id)
     setIsEditingMcp(true)
     setIsCreatingMcp(false)
     setMcpForm({
@@ -719,6 +747,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditKB = (kb: KnowledgeBase) => {
+    setSelectedKBId(kb.id)
     setIsEditingKB(true)
     setIsCreatingKB(false)
     setKbForm({ name: kb.name, description: kb.description })
@@ -926,7 +955,7 @@ export function ManagementDashboard({
                     <div
                       key={mcp.id}
                       onClick={() => handleSelectMcp(mcp.id)}
-                      className={`group relative flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                      className={`group relative flex items-center gap-3 p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
                         selectedMcpId === mcp.id
                           ? "border-primary/30 bg-primary/10 text-foreground animate-pulse-subtle"
                           : "border-transparent hover:bg-muted/30 text-muted-foreground hover:text-foreground"
@@ -939,7 +968,14 @@ export function ManagementDashboard({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                      <div
+                        className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                          deleteConfirmId === mcp.id
+                            ? "opacity-100 pointer-events-auto"
+                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                        }`}
+                        onClick={e => e.stopPropagation()}
+                      >
                         {deleteConfirmId === mcp.id ? (
                           <>
                             <button
@@ -1157,20 +1193,24 @@ export function ManagementDashboard({
                       <div
                         key={skill.id}
                         onClick={() => handleSelectSkill(skill.id)}
-                        className={`group relative p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                        className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
                           selectedSkillId === skill.id
                             ? "border-primary/60 bg-primary/5 shadow-depth-xs"
                             : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
                         }`}
                       >
-                        <div className="font-semibold text-sm truncate pr-16">{skill.name}</div>
-                        <div className="text-xs text-muted-foreground mt-1 truncate pr-8">
+                        <div className="font-semibold text-sm truncate">{skill.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1 truncate">
                           {skill.description || t.noDescriptionProvided}
                         </div>
 
                         {/* List Actions */}
                         <div
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                            deleteConfirmId === skill.id
+                              ? "opacity-100 pointer-events-auto"
+                              : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                          }`}
                           onClick={e => e.stopPropagation()}
                         >
                           {deleteConfirmId === skill.id ? (
@@ -1374,23 +1414,61 @@ export function ManagementDashboard({
                     <div
                       key={profile.id}
                       onClick={() => handleSelectAgent(profile.id)}
-                      className={`group relative p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                      className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
                         selectedAgentId === profile.id
                           ? "border-primary/60 bg-primary/5 shadow-depth-xs"
                           : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
                       }`}
                     >
-                      <div className="font-semibold text-sm flex items-center gap-1.5 truncate pr-16">
+                      <div className="font-semibold text-sm flex items-center gap-1.5 truncate">
                         <Bot className="w-3.5 h-3.5 text-muted-foreground" />
                         {profile.name}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1 truncate pr-8">
+                      <div className="text-xs text-muted-foreground mt-1 truncate">
                         {profile.description || t.noDescriptionProvided}
+                      </div>
+
+                      {/* Visual indicators for resources */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {profile.enabledTools && profile.enabledTools.length > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/15 flex items-center gap-0.5" title={profile.enabledTools.join(", ")}>
+                            <Wrench className="w-2.5 h-2.5" />
+                            {profile.enabledTools.length} {locale === "zh" ? "工具" : "Tools"}
+                          </span>
+                        )}
+                        {profile.knowledgeBaseIds && profile.knowledgeBaseIds.length > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/15 flex items-center gap-0.5">
+                            <BookOpen className="w-2.5 h-2.5" />
+                            {profile.knowledgeBaseIds.length} {locale === "zh" ? "知识库" : "KBs"}
+                          </span>
+                        )}
+                        {profile.skillIds && profile.skillIds.length > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-purple-500/10 text-purple-500 dark:text-purple-400 border border-purple-500/15 flex items-center gap-0.5">
+                            <Cpu className="w-2.5 h-2.5" />
+                            {profile.skillIds.length} {locale === "zh" ? "技能" : "Skills"}
+                          </span>
+                        )}
+                        {profile.mcpIds && profile.mcpIds.length > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/15 flex items-center gap-0.5">
+                            <Cpu className="w-2.5 h-2.5" />
+                            {profile.mcpIds.length} MCP
+                          </span>
+                        )}
+                        {(profile as any).agentIds && (profile as any).agentIds.length > 0 && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/15 flex items-center gap-0.5">
+                            <Bot className="w-2.5 h-2.5" />
+                            {(profile as any).agentIds.length} {locale === "zh" ? "协同" : "Agents"}
+                          </span>
+                        )}
                       </div>
 
                       {/* List Actions */}
                       <div
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                          deleteConfirmId === profile.id
+                            ? "opacity-100 pointer-events-auto"
+                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                        }`}
                         onClick={e => e.stopPropagation()}
                       >
                         {deleteConfirmId === profile.id ? (
@@ -1626,6 +1704,43 @@ export function ManagementDashboard({
                       </div>
                     )}
 
+                    {agentProfiles.filter(p => p.id !== selectedAgentId).length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border/40">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {locale === "zh" ? "关联其他智能体 (多智能体协同)" : "Link Other Agents (Multi-Agent)"}
+                        </Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {agentProfiles
+                            .filter(p => p.id !== selectedAgentId)
+                            .map((agent) => {
+                              const linked = agentForm.agentIds?.includes(agent.id)
+                              return (
+                                <div
+                                  key={agent.id}
+                                  className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                  onClick={() => {
+                                    const nextIds = linked
+                                      ? (agentForm.agentIds || []).filter(id => id !== agent.id)
+                                      : [...(agentForm.agentIds || []), agent.id]
+                                    setAgentForm({ ...agentForm, agentIds: nextIds })
+                                  }}
+                                >
+                                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                    linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                  }`}>
+                                    {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-medium truncate">{agent.name}</div>
+                                    <div className="text-[10px] text-muted-foreground truncate">{agent.description || (locale === "zh" ? "无描述" : "No description")}</div>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                        </div>
+                      </div>
+                    )}
+
 
                   </div>
                 ) : selectedAgentId !== null && selectedAgent ? (
@@ -1666,7 +1781,7 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="space-y-4 mt-6">
+                    <div className="space-y-6 mt-6">
                       <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden">
                         <div className="px-4 py-2 border-b border-border/30 bg-muted/20">
                           <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
@@ -1710,6 +1825,101 @@ export function ManagementDashboard({
                             )
                           })}
                         </div>
+                      </div>
+
+                      {/* Linked Resources Grid */}
+                      <div className="space-y-4 pt-4 border-t border-border/40">
+                        {/* Linked Knowledge Bases */}
+                        {selectedAgent.knowledgeBaseIds && selectedAgent.knowledgeBaseIds.length > 0 && (
+                          <div className="space-y-2">
+                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+                              {locale === "zh" ? "已关联的知识库" : "Linked Knowledge Bases"}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {knowledgeBases
+                                .filter(kb => selectedAgent.knowledgeBaseIds?.includes(kb.id))
+                                .map(kb => (
+                                  <div key={kb.id} className="p-2.5 border border-blue-500/20 bg-blue-500/5 rounded-xl flex items-center gap-2.5">
+                                    <BookOpen className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-semibold text-foreground truncate">{kb.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} {t.filesLabel}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Linked Custom Skills */}
+                        {selectedAgent.skillIds && selectedAgent.skillIds.length > 0 && (
+                          <div className="space-y-2">
+                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <Cpu className="w-3.5 h-3.5 text-purple-500" />
+                              {locale === "zh" ? "已关联的自定义技能" : "Linked Custom Skills"}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {skills
+                                .filter(sk => selectedAgent.skillIds?.includes(sk.id))
+                                .map(sk => (
+                                  <div key={sk.id} className="p-2.5 border border-purple-500/20 bg-purple-500/5 rounded-xl flex items-center gap-2.5">
+                                    <Cpu className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-semibold text-foreground truncate">{sk.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{sk.description || (locale === "zh" ? "无描述" : "No description")}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Linked MCP Servers */}
+                        {selectedAgent.mcpIds && selectedAgent.mcpIds.length > 0 && (
+                          <div className="space-y-2">
+                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <Wrench className="w-3.5 h-3.5 text-emerald-500" />
+                              {locale === "zh" ? "已关联的 MCP 服务" : "Linked MCP Servers"}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {mcpServers
+                                .filter(mcp => selectedAgent.mcpIds?.includes(mcp.id))
+                                .map(mcp => (
+                                  <div key={mcp.id} className="p-2.5 border border-emerald-500/20 bg-emerald-500/5 rounded-xl flex items-center gap-2.5">
+                                    <Wrench className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-semibold text-foreground truncate">{mcp.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{mcp.type.toUpperCase()} | {mcp.url}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Linked Other Agents */}
+                        {selectedAgent.agentIds && selectedAgent.agentIds.length > 0 && (
+                          <div className="space-y-2">
+                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <Bot className="w-3.5 h-3.5 text-rose-500" />
+                              {locale === "zh" ? "已关联的协同智能体" : "Linked Collaborative Agents"}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {agentProfiles
+                                .filter(p => selectedAgent.agentIds?.includes(p.id))
+                                .map(p => (
+                                  <div key={p.id} className="p-2.5 border border-rose-500/20 bg-rose-500/5 rounded-xl flex items-center gap-2.5">
+                                    <Bot className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-semibold text-foreground truncate">{p.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{p.description || (locale === "zh" ? "无描述" : "No description")}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1805,21 +2015,25 @@ export function ManagementDashboard({
                       <div
                         key={kb.id}
                         onClick={() => handleSelectKB(kb.id)}
-                        className={`group relative p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                        className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
                           selectedKBId === kb.id
                             ? "border-primary/60 bg-primary/5 shadow-depth-xs"
                             : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
                         }`}
                       >
-                        <div className="font-semibold text-sm truncate pr-16">{kb.name}</div>
-                        <div className="text-xs text-muted-foreground mt-1 truncate pr-8 flex items-center gap-1">
+                        <div className="font-semibold text-sm truncate">{kb.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1 truncate flex items-center gap-1">
                           <FileText className="w-3 h-3 flex-shrink-0 text-muted-foreground/75" />
                           {kb.files.length} {kb.files.length === 1 ? t.file.toLowerCase() : t.filesLabel}
                         </div>
 
                         {/* List Actions */}
                         <div
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                            deleteConfirmId === kb.id
+                              ? "opacity-100 pointer-events-auto"
+                              : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                          }`}
                           onClick={e => e.stopPropagation()}
                         >
                           {deleteConfirmId === kb.id ? (

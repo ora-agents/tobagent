@@ -31,6 +31,7 @@ export interface AgentProfile {
   knowledgeBaseIds?: string[]
   skillIds?: string[]
   mcpIds?: string[]
+  agentIds?: string[]
   createdAt: string
   updatedAt: string
 }
