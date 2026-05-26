@@ -163,24 +163,20 @@ export const Sidebar = memo(function Sidebar({
         <h3 className="px-3 text-xs font-semibold text-sidebar-accent-foreground uppercase tracking-wider mb-2 shadow-inset-light">{label}</h3>
         <div className="space-y-2">
           {groupThreads.map((thread) => {
-            const threadDate = new Date(thread.updated_at || thread.created_at)
             const title = thread.metadata?.title || "New conversation"
 
             return (
               <div
                 key={thread.thread_id}
-                className={`group flex items-center gap-3 px-3 py-2.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer shadow-depth-xs ${
+                className={`group flex items-center gap-3 px-3 py-2.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer shadow-depth-xs border ${
                   thread.thread_id === currentThreadId
-                    ? "bg-primary/15 text-sidebar-foreground border border-primary/30"
-                    : "text-sidebar-foreground"
+                    ? "bg-primary/15 text-sidebar-foreground border-primary/30"
+                    : "text-sidebar-foreground border-transparent"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
               >
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{title}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {getRelativeTime(threadDate, locale)}
-                  </div>
                 </div>
                 <button
                   onClick={(e) => handleDeleteThread(thread.thread_id, e)}
