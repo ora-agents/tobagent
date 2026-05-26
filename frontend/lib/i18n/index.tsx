@@ -120,6 +120,7 @@ const zh = {
   kbManager: "知识库管理",
   kbFiles: "关联文档",
   management: "管理中心",
+  backend: "后台管理",
 
   // Common & General
   untitled: "无标题",
@@ -346,6 +347,7 @@ const en = {
   kbManager: "Knowledge Base Manager",
   kbFiles: "Related Documents",
   management: "Management Center",
+  backend: "Backend",
 
   // Common & General
   untitled: "Untitled",
