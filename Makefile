@@ -1,21 +1,24 @@
 .PHONY: dev dev-frontend dev-backend dev-local install install-frontend install-backend
 
+# Add standard Node.js and Bun paths to PATH for Windows/Git Bash users
+export PATH := $(PATH):/c/Program Files/nodejs:$(HOME)/.bun/bin
+
 # Run both frontend and backend concurrently
 dev:
 	@trap 'kill 0' SIGINT; \
-	$(MAKE) dev-backend & \
-	$(MAKE) dev-frontend & \
+	"$(MAKE)" dev-backend & \
+	"$(MAKE)" dev-frontend & \
 	wait
 
 # Frontend only (connects to remote LangGraph API)
 dev-frontend:
-	cd frontend && bun run dev
+	cd frontend && (command -v bun >/dev/null 2>&1 && bun run dev || npm run dev)
 
 # Frontend pointing to local backend
 dev-local:
 	@trap 'kill 0' SIGINT; \
-	$(MAKE) dev-backend & \
-	cd frontend && bun run dev:local & \
+	"$(MAKE)" dev-backend & \
+	cd frontend && (command -v bun >/dev/null 2>&1 && bun run dev:local || npm run dev:local) & \
 	wait
 
 # Backend only (LangGraph dev server)
@@ -26,7 +29,7 @@ dev-backend:
 install: install-frontend install-backend
 
 install-frontend:
-	cd frontend && bun install
+	cd frontend && (command -v bun >/dev/null 2>&1 && bun install || npm install)
 
 install-backend:
 	uv sync
