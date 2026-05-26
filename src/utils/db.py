@@ -57,6 +57,10 @@ class UserTable(Base):
     password_hash = Column(String(255), nullable=False)
     email = Column(String(255), nullable=True)
     avatar_color = Column(String(50), nullable=True)
+    # User's general preferences / instructions injected into agent system prompt
+    preferences = Column(Text, nullable=True)
+    # When true, agent is instructed to ask before executing dangerous actions
+    safety_enabled = Column(String(10), nullable=True, default="false")
     created_at = Column(String(50), nullable=False)
 
 
@@ -77,6 +81,8 @@ class AgentProfileTable(Base):
     skill_ids = Column(JSON, nullable=True, default=list)
     # mcp_ids is a JSON list of linked MCP servers, e.g., ["mcp_1", "mcp_2"]
     mcp_ids = Column(JSON, nullable=True, default=list)
+    # agent_ids is a JSON list of linked other agents, e.g., ["agent_1", "agent_2"]
+    agent_ids = Column(JSON, nullable=True, default=list)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 

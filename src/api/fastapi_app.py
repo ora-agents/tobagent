@@ -9,7 +9,7 @@ from typing import Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.api.langsmith_routes import router as langsmith_router
 
@@ -56,32 +56,32 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("SQLAlchemy tables verified/created successfully on startup.")
 
-        # Check and add skill_ids / mcp_ids columns if they don't exist
+        # Add missing columns using IF NOT EXISTS (PostgreSQL 9.6+).
+        # This avoids transaction-poisoning: a failed ALTER TABLE in PostgreSQL
+        # aborts the whole transaction, but IF NOT EXISTS always succeeds (no-op
+        # when the column already exists), keeping the transaction valid.
         from sqlalchemy import text
+
+        _migrations = [
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS skill_ids JSON",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS mcp_ids JSON",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS agent_ids JSON",
+            "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS headers JSON",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences TEXT",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS safety_enabled VARCHAR(10) DEFAULT 'false'",
+        ]
+
         with engine.connect() as conn:
-            # Try to add skill_ids column
-            try:
-                conn.execute(text("ALTER TABLE agent_profiles ADD COLUMN skill_ids JSON"))
-                conn.commit()
-                logger.info("Added skill_ids column to agent_profiles table successfully.")
-            except Exception:
-                pass
+            for ddl in _migrations:
+                try:
+                    conn.execute(text(ddl))
+                    logger.info(f"Migration OK: {ddl}")
+                except Exception as e:
+                    logger.warning(f"Migration skipped: {ddl} — {e}")
+            conn.commit()
 
-            # Try to add mcp_ids column
-            try:
-                conn.execute(text("ALTER TABLE agent_profiles ADD COLUMN mcp_ids JSON"))
-                conn.commit()
-                logger.info("Added mcp_ids column to agent_profiles table successfully.")
-            except Exception:
-                pass
+        logger.info("Database schema migration completed.")
 
-            # Try to add headers column to mcp_servers
-            try:
-                conn.execute(text("ALTER TABLE mcp_servers ADD COLUMN headers JSON"))
-                conn.commit()
-                logger.info("Added headers column to mcp_servers table successfully.")
-            except Exception:
-                pass
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
     yield
@@ -184,11 +184,22 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
+class UserUpdateRequest(BaseModel):
+    model_config = {"populate_by_name": True}
+
+    username: str | None = None
+    email: str | None = None
+    preferences: str | None = None
+    safety_enabled: bool | None = Field(default=None, alias="safetyEnabled")
+
+
 class UserResponse(BaseModel):
     id: str
     username: str
     email: str | None = None
     avatarColor: str | None = None
+    preferences: str | None = None
+    safetyEnabled: bool = False
     createdAt: str
 
 
@@ -202,6 +213,7 @@ class AgentProfileSchema(BaseModel):
     knowledgeBaseIds: list[str] = []
     skillIds: list[str] = []
     mcpIds: list[str] = []
+    agentIds: list[str] = []
     createdAt: str
     updatedAt: str
 
@@ -322,6 +334,8 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
         username=user.username,
         email=user.email,
         avatarColor=user.avatar_color,
+        preferences=getattr(user, 'preferences', None),
+        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
         createdAt=user.created_at,
     )
 
@@ -331,12 +345,14 @@ async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserTable).filter(UserTable.username == req.username).first()
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid username or password")
-    
+
     return UserResponse(
         id=user.id,
         username=user.username,
         email=user.email,
         avatarColor=user.avatar_color,
+        preferences=getattr(user, 'preferences', None),
+        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
         createdAt=user.created_at,
     )
 
@@ -351,6 +367,45 @@ async def get_user_profile(user_id: str, db: Session = Depends(get_db)):
         username=user.username,
         email=user.email,
         avatarColor=user.avatar_color,
+        preferences=getattr(user, 'preferences', None),
+        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
+        createdAt=user.created_at,
+    )
+
+
+@app.put("/api/auth/users/{user_id}", response_model=UserResponse)
+async def update_user_profile(user_id: str, req: UserUpdateRequest, db: Session = Depends(get_db)):
+    user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Check username uniqueness if changing
+    if req.username is not None and req.username != user.username:
+        existing = db.query(UserTable).filter(
+            UserTable.username == req.username,
+            UserTable.id != user_id,
+        ).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        user.username = req.username
+
+    if req.email is not None:
+        user.email = req.email
+    if req.preferences is not None:
+        user.preferences = req.preferences
+    if req.safety_enabled is not None:
+        user.safety_enabled = "true" if req.safety_enabled else "false"
+
+    db.commit()
+    db.refresh(user)
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        avatarColor=user.avatar_color,
+        preferences=getattr(user, 'preferences', None),
+        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
         createdAt=user.created_at,
     )
 
@@ -412,6 +467,7 @@ async def get_agent_profiles(db: Session = Depends(get_db)):
             knowledgeBaseIds=p.knowledge_base_ids or [],
             skillIds=p.skill_ids or [],
             mcpIds=p.mcp_ids or [],
+            agentIds=p.agent_ids or [],
             createdAt=p.created_at,
             updatedAt=p.updated_at,
         )
@@ -435,6 +491,7 @@ async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = D
         knowledge_base_ids=profile_data.knowledgeBaseIds,
         skill_ids=profile_data.skillIds,
         mcp_ids=profile_data.mcpIds,
+        agent_ids=profile_data.agentIds,
         created_at=profile_data.createdAt,
         updated_at=profile_data.updatedAt,
     )
@@ -450,6 +507,7 @@ async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = D
         knowledgeBaseIds=new_profile.knowledge_base_ids or [],
         skillIds=new_profile.skill_ids or [],
         mcpIds=new_profile.mcp_ids or [],
+        agentIds=new_profile.agent_ids or [],
         createdAt=new_profile.created_at,
         updatedAt=new_profile.updated_at,
     )
@@ -468,6 +526,7 @@ async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Se
     profile.knowledge_base_ids = profile_data.knowledgeBaseIds
     profile.skill_ids = profile_data.skillIds
     profile.mcp_ids = profile_data.mcpIds
+    profile.agent_ids = profile_data.agentIds
     profile.updated_at = profile_data.updatedAt
     
     db.commit()
@@ -481,6 +540,7 @@ async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Se
         knowledgeBaseIds=profile.knowledge_base_ids or [],
         skillIds=profile.skill_ids or [],
         mcpIds=profile.mcp_ids or [],
+        agentIds=profile.agent_ids or [],
         createdAt=profile.created_at,
         updatedAt=profile.updated_at,
     )
