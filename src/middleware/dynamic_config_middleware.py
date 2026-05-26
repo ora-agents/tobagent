@@ -51,13 +51,16 @@ async def dynamic_config_middleware(request, handler):
                     if skills:
                         skills_instructions = (
                             "\n\nYou have access to the following custom skills. "
-                            "If the user's request matches any of these skills' goals or descriptions, "
-                            "you MUST call the `read_skill` tool with the specific skill name to read "
-                            "and follow its complete instructions, constraints, and workflow.\n"
-                            "Available skills:\n"
+                            "The full details and instructions of these skills are provided below. "
+                            "You MUST follow their instructions, constraints, and workflows when the user's request matches their scope.\n"
+                            "Linked Skills:\n"
                         )
                         for s in skills:
-                            skills_instructions += f"- Name: {s.name} | Description: {s.description or 'No description'}\n"
+                            skills_instructions += (
+                                f"\n--- SKILL: {s.name} ---\n"
+                                f"{s.content.strip()}\n"
+                                f"--- END OF SKILL: {s.name} ---\n"
+                            )
                         
                         system_prompt += skills_instructions
             except Exception as inner_e:
