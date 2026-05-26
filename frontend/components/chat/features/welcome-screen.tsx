@@ -3,13 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { FilePreviewGrid } from "./file-preview-grid"
 import { VoiceInputButton } from "./voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
@@ -22,7 +16,6 @@ import {
   type ModelOption,
 } from "@/lib/config/deployment-config"
 import { useT, useI18n } from "@/lib/i18n"
-import { ChevronDown } from "lucide-react"
 
 interface WelcomeScreenProps {
   input: string
@@ -60,7 +53,8 @@ interface WelcomeScreenProps {
   agentConfig?: AgentConfig
   onAgentConfigChange?: (config: AgentConfig) => void
   agentProfile?: AgentProfile | null
-  onOpenAgentProfiles?: () => void
+  agentProfiles?: AgentProfile[]
+  onAgentProfileChange?: (id: string | null) => void
 }
 
 /**
@@ -97,7 +91,8 @@ export function WelcomeScreen({
   agentConfig,
   onAgentConfigChange,
   agentProfile,
-  onOpenAgentProfiles,
+  agentProfiles,
+  onAgentProfileChange,
 }: WelcomeScreenProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -253,43 +248,42 @@ export function WelcomeScreen({
             </div>
           )}
 
-          {/* Model & Agent selectors - positioned underneath chatbox in bottom left */}
-          <div className="flex flex-wrap gap-2 justify-start mt-2 px-2 h-8 items-center text-xs text-muted-foreground">
-            {/* Model selector dropdown */}
+          {/* Model & Agent Comboboxes - positioned underneath chatbox in bottom left */}
+          <div className="flex flex-wrap gap-3 justify-start mt-2 px-2 h-8 items-center">
+            {/* Model Combobox */}
             {agentConfig && onAgentConfigChange && (
               <div className="flex items-center">
                 {availableModels === null ? (
                   <div className="h-8 w-36 rounded-md bg-muted/40 animate-pulse" />
                 ) : availableModels.length > 0 ? (
-                  <Select value={agentConfig.model} onValueChange={handleModelChange}>
-                    <SelectTrigger className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 px-2 gap-1 w-auto shadow-none font-medium flex items-center text-foreground">
-                      <span className="text-muted-foreground mr-1">{locale === "zh" ? "模型：" : "Model: "}</span>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableModels.map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {getModelDisplayName(model as ModelOption)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={availableModels.map((m) => ({ value: m, label: getModelDisplayName(m as ModelOption) }))}
+                    value={agentConfig.model}
+                    onValueChange={handleModelChange}
+                    prefix={locale === "zh" ? "模型：" : "Model: "}
+                    placeholder={locale === "zh" ? "选择模型..." : "Select model..."}
+                    searchPlaceholder={locale === "zh" ? "搜索模型..." : "Search model..."}
+                    emptyText={locale === "zh" ? "未找到该模型" : "No model found."}
+                  />
                 ) : null}
               </div>
             )}
 
-            {/* Agent selector button */}
-            {onOpenAgentProfiles && (
-              <div className="flex items-center border-l border-border/40 pl-2">
-                <button
-                  type="button"
-                  onClick={onOpenAgentProfiles}
-                  className="h-8 text-sm border-0 bg-transparent hover:bg-muted/50 px-2 gap-1 rounded-md transition-colors font-medium flex items-center text-foreground"
-                >
-                  <span className="text-muted-foreground mr-1">{locale === "zh" ? "智能体：" : "Agent: "}</span>
-                  <span>{agentProfile?.name ?? (locale === "zh" ? "默认系统智能体" : "Default")}</span>
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground mt-0.5" />
-                </button>
+            {/* Agent Combobox */}
+            {agentProfiles && onAgentProfileChange && (
+              <div className="flex items-center border-l border-border/40 pl-3">
+                <Combobox
+                  options={[
+                    { value: "default", label: locale === "zh" ? "默认系统智能体" : "Default" },
+                    ...agentProfiles.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                  value={agentProfile?.id ?? "default"}
+                  onValueChange={(val) => onAgentProfileChange(val === "default" ? null : val)}
+                  prefix={locale === "zh" ? "智能体：" : "Agent: "}
+                  placeholder={locale === "zh" ? "选择智能体..." : "Select agent..."}
+                  searchPlaceholder={locale === "zh" ? "搜索智能体..." : "Search agent..."}
+                  emptyText={locale === "zh" ? "未找到该智能体" : "No agent found."}
+                />
               </div>
             )}
           </div>

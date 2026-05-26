@@ -421,7 +421,7 @@ function DashboardContent() {
               showSettingsDialog={showSettingsDialog}
               onSettingsDialogChange={setShowSettingsDialog}
               selectedAgentProfile={selectedAgentProfile}
-              onOpenAgentProfiles={() => setShowAgentProfilesDialog(true)}
+              onOpenAgentSettings={() => setCurrentView("agents")}
             />
             {threadId && (
               <ChatInterface
@@ -433,7 +433,8 @@ function DashboardContent() {
                 agentConfig={agentConfig}
                 onAgentConfigChange={setAgentConfig}
                 agentProfile={selectedAgentProfile}
-                onOpenAgentProfiles={() => setShowAgentProfilesDialog(true)}
+                agentProfiles={agentProfiles}
+                onAgentProfileChange={setSelectedAgentProfileId}
                 isNewThread={newThreads.has(threadId)}
                 initialMessage={initialPrompt}
                 autoSend={!!initialPrompt}
