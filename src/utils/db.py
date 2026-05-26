@@ -48,6 +48,19 @@ class ClientProfileTable(Base):
     created_at = Column(String(50), nullable=True)
 
 
+class UserTable(Base):
+    """User account credentials and information."""
+    __tablename__ = "users"
+
+    id = Column(String(255), primary_key=True, index=True)
+    username = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=True)
+    avatar_color = Column(String(50), nullable=True)
+    created_at = Column(String(50), nullable=False)
+
+
+
 class AgentProfileTable(Base):
     """Configurable Agent Profiles."""
     __tablename__ = "agent_profiles"

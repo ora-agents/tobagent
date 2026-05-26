@@ -159,6 +159,7 @@ from src.utils.db import (
     KnowledgeBaseTable,
     McpServerTable,
     SkillTable,
+    UserTable,
     get_db,
 )
 
@@ -170,6 +171,26 @@ class ClientProfileSchema(BaseModel):
     id: str
     label: str | None = None
     avatarColor: str | None = None
+
+
+class UserRegisterRequest(BaseModel):
+    username: str
+    password: str
+    email: str | None = None
+
+
+class UserLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    username: str
+    email: str | None = None
+    avatarColor: str | None = None
+    createdAt: str
+
 
 
 class AgentProfileSchema(BaseModel):
@@ -224,6 +245,114 @@ class AgentRAGStatusResponse(BaseModel):
 
     agent_id: str
     document_count: int
+
+
+# ---------------------------------------------------------------------------
+# User Authentication Helpers & Routes
+# ---------------------------------------------------------------------------
+
+import secrets
+import hashlib
+import uuid
+from datetime import datetime
+
+AVATAR_COLORS = [
+    "#cc785c", # Coral
+    "#a9583e", # Dark Coral
+    "#2e5b82", # Blue
+    "#347a5c", # Green
+    "#8e562c", # Brown
+    "#6b4c9a", # Purple
+    "#cc5c8a", # Rose
+    "#cc995c", # Sandy Gold
+]
+
+def hash_password(password: str) -> str:
+    # 16-byte random salt
+    salt = secrets.token_hex(16)
+    # 100k iterations PBKDF2 HMAC SHA-256
+    pwd_hash = hashlib.pbkdf2_hmac(
+        'sha256', 
+        password.encode('utf-8'), 
+        salt.encode('utf-8'), 
+        100000
+    ).hex()
+    return f"{salt}:{pwd_hash}"
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    try:
+        salt, pwd_hash = hashed_password.split(':')
+        compare_hash = hashlib.pbkdf2_hmac(
+            'sha256', 
+            password.encode('utf-8'), 
+            salt.encode('utf-8'), 
+            100000
+        ).hex()
+        return pwd_hash == compare_hash
+    except Exception:
+        return False
+
+
+@app.post("/api/auth/register", response_model=UserResponse)
+async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
+    # Check if username already exists
+    existing_user = db.query(UserTable).filter(UserTable.username == req.username).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    # Generate UUID and a random nice avatar color
+    user_id = f"user-{uuid.uuid4()}"
+    avatar_color = secrets.choice(AVATAR_COLORS)
+    hashed_pwd = hash_password(req.password)
+    
+    user = UserTable(
+        id=user_id,
+        username=req.username,
+        password_hash=hashed_pwd,
+        email=req.email,
+        avatar_color=avatar_color,
+        created_at=datetime.utcnow().isoformat(),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        avatarColor=user.avatar_color,
+        createdAt=user.created_at,
+    )
+
+
+@app.post("/api/auth/login", response_model=UserResponse)
+async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
+    user = db.query(UserTable).filter(UserTable.username == req.username).first()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        avatarColor=user.avatar_color,
+        createdAt=user.created_at,
+    )
+
+
+@app.get("/api/auth/users/{user_id}", response_model=UserResponse)
+async def get_user_profile(user_id: str, db: Session = Depends(get_db)):
+    user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        avatarColor=user.avatar_color,
+        createdAt=user.created_at,
+    )
 
 
 # ---------------------------------------------------------------------------
