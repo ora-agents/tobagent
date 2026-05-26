@@ -55,9 +55,21 @@ class GenericAgentContext(BaseModel):
         default="default",
         description="Unique agent ID; used to namespace the RAG knowledge base.",
     )
+    agent_ids: list[str] = Field(
+        default_factory=list,
+        description="List of other agent IDs linked to this agent.",
+    )
     model: str = Field(
         default="",
         description="Model name to use; overrides the default when non-empty.",
+    )
+    user_preferences: str = Field(
+        default="",
+        description="User's general preferences injected into the system prompt.",
+    )
+    safety_enabled: bool = Field(
+        default=False,
+        description="When true, agent must confirm before executing dangerous actions.",
     )
 
 
