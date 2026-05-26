@@ -6,6 +6,7 @@
  */
 
 import { Button } from "@/components/ui/button"
+import { useT } from "@/lib/i18n"
 
 interface VoiceInputButtonProps {
   isListening: boolean
@@ -20,6 +21,7 @@ export function VoiceInputButton({
   onClick,
   size = "sm",
 }: VoiceInputButtonProps) {
+  const t = useT()
   const dimensions = size === "sm" ? "h-9 w-9" : "h-10 w-10"
   const iconSize = size === "sm" ? "w-4 h-4" : "w-4.5 h-4.5"
 
@@ -38,7 +40,7 @@ export function VoiceInputButton({
         }
       `}
       type="button"
-      title={isListening ? "Stop listening" : "Voice input"}
+      title={isListening ? t.stopListening : t.voiceInput}
     >
       {isListening ? (
         <StopIcon className={iconSize} />

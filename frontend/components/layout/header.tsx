@@ -2,7 +2,7 @@
 
 import { ChevronDown } from "lucide-react"
 import { type AgentConfig } from "./agent-settings"
-import { useT } from "@/lib/i18n"
+import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 
 interface HeaderProps {
@@ -35,8 +35,10 @@ export function Header({
   onOpenAgentProfiles,
 }: HeaderProps) {
   const t = useT()
+  const { locale } = useI18n()
 
-  const agentLabel = selectedAgentProfile?.name ?? "Default"
+  const agentPrefix = locale === "zh" ? "智能体：" : "Agent: "
+  const agentLabel = `${agentPrefix}${selectedAgentProfile?.name ?? (locale === "zh" ? "默认系统智能体" : "Default")}`
 
   return (
     <header className="border-b border-border bg-background h-16 flex items-center">
@@ -44,16 +46,16 @@ export function Header({
         {/* Agent name / wordmark — click to open agent selector */}
         <button
           onClick={onOpenAgentProfiles}
-          className="flex items-center gap-1 group hover:opacity-80 transition-opacity"
+          className="flex items-center gap-1.5 group hover:opacity-80 transition-opacity"
           title="Switch or manage agents"
         >
           <span
-            className="text-xl font-sans font-medium tracking-tight text-foreground"
-            style={{ letterSpacing: "-0.015em" }}
+            className="text-base font-sans font-semibold tracking-tight text-foreground"
+            style={{ letterSpacing: "-0.01em" }}
           >
             {agentLabel}
           </span>
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors mt-0.5" />
+          <ChevronDown className="w-4 h-4 text-muted-foreground/80 group-hover:text-foreground transition-colors mt-0.5" />
         </button>
 
         <div className="flex items-center gap-3">

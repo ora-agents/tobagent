@@ -20,6 +20,7 @@ import {
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
+import { useT } from "@/lib/i18n"
 
 // Enhanced scrollbar styles with smooth transitions
 const scrollbarStyles = `
@@ -63,6 +64,7 @@ interface ChatInterfaceProps {
   autoSend?: boolean
   /** Called after auto-send completes (use to clear URL params, etc.) */
   onInitialMessageSent?: () => void
+  onOpenAgentProfiles?: () => void
 }
 
 interface QueuedMessage {
@@ -84,7 +86,9 @@ export function ChatInterface({
   isNewThread = false,
   autoSend = false,
   onInitialMessageSent,
+  onOpenAgentProfiles,
 }: ChatInterfaceProps) {
+  const t = useT()
   // ============================================================================
   // State Management
   // ============================================================================
@@ -751,13 +755,13 @@ export function ChatInterface({
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messagesUpToLastUser.find((m) => m.role === "user")
-        const title = customTitle || (firstUserMsg ? truncate(firstUserMsg.content, 60) : "New conversation")
+        const title = customTitle || (firstUserMsg ? truncate(firstUserMsg.content, 60) : t.newConversation)
         const messageCount = messagesUpToLastUser.length + 1
         onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
       console.error("Error regenerating:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to regenerate response"}`)
+      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : t.failedToRegenerate}`)
       errorMessage.role = "assistant"
       setMessages((prev) => [...prev, errorMessage])
     } finally {
@@ -790,13 +794,13 @@ export function ChatInterface({
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messagesUpToEdit.find((m) => m.role === "user") || updatedMessage
-        const title = customTitle || truncate(firstUserMsg.content, 60) || "New conversation"
+        const title = customTitle || truncate(firstUserMsg.content, 60) || t.newConversation
         const messageCount = messagesUpToEdit.length + 2
         onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
       console.error("Error rerunning from edit:", error)
-      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : "Failed to rerun from edit"}`)
+      const errorMessage = createUserMessage(`Error: ${error instanceof Error ? error.message : t.failedToRerunFromEdit}`)
       errorMessage.role = "assistant"
       setMessages((prev) => [...prev, errorMessage])
     } finally {
@@ -922,6 +926,8 @@ export function ChatInterface({
             voiceError={voiceError}
             agentConfig={agentConfig}
             onAgentConfigChange={onAgentConfigChange}
+            agentProfile={agentProfile}
+            onOpenAgentProfiles={onOpenAgentProfiles}
           />
         ) : (
           <ChatInput

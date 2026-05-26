@@ -22,8 +22,10 @@ import {
 } from "@/lib/config/deployment-config"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
+import { useT } from "@/lib/i18n"
 
 function DashboardContent() {
+  const t = useT()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp">("chat")
   const [showToolCalls, setShowToolCalls] = useState(false)
@@ -124,7 +126,7 @@ function DashboardContent() {
         updated_at: new Date().toISOString(),
         metadata: {
           user_id: userId,
-          title: "Untitled",
+          title: t.untitled,
           lastMessage: "",
           client: resolveClientProfile(clientProfile),
         },
@@ -168,7 +170,7 @@ function DashboardContent() {
         updated_at: new Date().toISOString(),
         metadata: {
           user_id: userId,
-          title: "Untitled",
+          title: t.untitled,
           lastMessage: "",
           client: resolveClientProfile(clientProfile),
         },
@@ -201,7 +203,7 @@ function DashboardContent() {
 
     // Check if this thread already exists
     const existingThread = threads.find(t => t.thread_id === threadId)
-    const isUntitledThread = existingThread?.metadata?.title === "Untitled"
+    const isUntitledThread = existingThread?.metadata?.title === "Untitled" || existingThread?.metadata?.title === t.untitled
     const shouldGenerateAITitle = !existingThread || // First message (thread doesn't exist)
                                   isUntitledThread || // First real message (was "Untitled")
                                   (messageCount && messageCount > 1 && messageCount % 5 === 0) // Every 5 messages after
@@ -217,7 +219,7 @@ function DashboardContent() {
           updated_at: new Date().toISOString(),
           metadata: {
             user_id: userId,
-            title: "Untitled",
+            title: t.untitled,
             lastMessage,
             client: resolvedClient,
           },
@@ -431,6 +433,7 @@ function DashboardContent() {
                 agentConfig={agentConfig}
                 onAgentConfigChange={setAgentConfig}
                 agentProfile={selectedAgentProfile}
+                onOpenAgentProfiles={() => setShowAgentProfilesDialog(true)}
                 isNewThread={newThreads.has(threadId)}
                 initialMessage={initialPrompt}
                 autoSend={!!initialPrompt}

@@ -2,6 +2,7 @@ import { memo, useMemo, useEffect, useRef, useState, useCallback } from "react"
 import type { Message } from "@/lib/types"
 import { MessageItem } from "./message-item"
 import { ArrowDown } from "lucide-react"
+import { useT } from "@/lib/i18n"
 
 interface MessageListProps {
   messages: Message[]
@@ -36,6 +37,7 @@ export const MessageList = memo(function MessageList({
   onToggleComment,
   setFeedbackComment,
 }: MessageListProps) {
+  const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const shouldAutoScrollRef = useRef(true)
@@ -413,7 +415,7 @@ export const MessageList = memo(function MessageList({
             background: '#cc785c',
             color: 'white',
           }}
-          aria-label="Scroll to bottom"
+          aria-label={t.scrollBottom}
         >
           <ArrowDown className="w-5 h-5" />
         </button>

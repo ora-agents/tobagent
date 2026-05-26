@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Checkpoint } from "@/lib/hooks/threads"
 import { formatDistanceToNow } from "date-fns"
+import { useT } from "@/lib/i18n"
 
 interface TimeTravelPanelProps {
   checkpoints: Checkpoint[]
@@ -23,6 +24,7 @@ export function TimeTravelPanel({
   isOpen,
   onClose,
 }: TimeTravelPanelProps) {
+  const t = useT()
   if (!isOpen) return null
 
   return (
@@ -32,14 +34,14 @@ export function TimeTravelPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5" />
-            <h2 className="font-semibold">Time Travel</h2>
+            <h2 className="font-semibold">{t.timeTravel}</h2>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>
             X
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          {checkpoints.length} checkpoints in conversation
+          {checkpoints.length} {t.checkpointsInConversation}
         </p>
       </div>
 
@@ -68,10 +70,10 @@ export function TimeTravelPanel({
                   <div className="flex items-center gap-2">
                     <Clock className="w-3 h-3 text-muted-foreground" />
                     <span className="text-xs font-medium">
-                      Step {checkpoint.metadata?.step ?? idx}
+                      {t.step} {checkpoint.metadata?.step ?? idx}
                     </span>
                     {isCurrent && (
-                      <span className="text-xs text-primary">● Current</span>
+                      <span className="text-xs text-primary">● {t.current}</span>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">
@@ -106,7 +108,7 @@ export function TimeTravelPanel({
                     }}
                   >
                     <History className="w-3 h-3 mr-1" />
-                    Jump Here
+                    {t.jumpHere}
                   </Button>
                   <Button
                     variant="outline"
@@ -118,7 +120,7 @@ export function TimeTravelPanel({
                     }}
                   >
                     <GitBranch className="w-3 h-3 mr-1" />
-                    Fork
+                    {t.fork}
                   </Button>
                 </div>
               </div>

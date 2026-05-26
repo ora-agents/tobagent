@@ -7,7 +7,7 @@ export type Locale = "zh" | "en"
 const zh = {
   // Header
   newChat: "新对话",
-  chat: "Chat",
+  chat: "聊天",
   lightMode: "浅色模式",
   darkMode: "深色模式",
 
@@ -120,6 +120,114 @@ const zh = {
   kbManager: "知识库管理",
   kbFiles: "关联文档",
   management: "管理中心",
+
+  // Common & General
+  untitled: "无标题",
+  loading: "加载中...",
+
+  // Voice & File Preview
+  stopListening: "停止倾听",
+  voiceInput: "语音输入",
+  file: "文件",
+  filesLabel: "个文件",
+  removeFile: "移除文件",
+
+  // Time Travel Panel
+  timeTravel: "时光旅行",
+  checkpointsInConversation: "个对话检查点",
+  step: "步骤",
+  current: "当前",
+  jumpHere: "跳转至此",
+  fork: "创建分支",
+
+  // Chat & Message Feedbacks
+  newConversation: "新对话",
+  failedToRegenerate: "生成回答失败",
+  failedToRerunFromEdit: "编辑运行失败",
+  good: "有帮助",
+  bad: "没有帮助",
+  addFeedbackPlaceholder: "为此回答添加反馈评论...",
+  selectThumbsBeforeSubmit: "提交反馈前请先选择“有帮助”或“没有帮助”",
+  tool: "工具",
+  viewArguments: "查看参数",
+  viewOutput: "查看输出",
+  subagentOutputs: "子智能体输出",
+  clickToExpand: "点击展开",
+  running: "运行中...",
+  complete: "已完成",
+  waitingForOutput: "等待输出...",
+  loadingTrace: "加载追踪中...",
+  scrollBottom: "滚动到底部",
+
+  // Agent selector & RAG upload
+  exclusiveKnowledgeBase: "专属知识库",
+  pleaseSaveAgentFirstToUpload: "请先保存智能体再上传专属文档。",
+  linkedSharedKnowledgeBases: "关联的共享知识库",
+  linkCustomSkills: "关联自定义技能",
+  linkMcpServers: "关联 MCP 服务端",
+  uploadSuccess: "上传成功",
+  uploadFailed: "上传失败",
+  noDescription: "暂无描述",
+
+  // MCP Tab Panel
+  mcpServers: "MCP 服务端",
+  addMcpServer: "添加 MCP 服务端",
+  editMcpServer: "编辑 MCP 服务端",
+  noMcpServers: "暂无已定义的 MCP 服务端。",
+  selectOrCreateMcpToStart: "选择或创建 MCP 服务端以开始。",
+  mcpType: "传输类型",
+  sseServerUrl: "SSE 服务端 URL",
+  customHeadersJson: "自定义 Header (JSON 格式)",
+  customHeaders: "自定义 Header",
+  noCustomHeaders: "未配置自定义 Header。",
+  mcpServerDescription: "指定鉴权或请求验证所需的 Header。必须是合法的 JSON 对象。",
+  editServer: "编辑服务端",
+
+  // New Management keys
+  mcpConfigureDesc: "配置与管理您的自定义资产",
+  defaultSystemAgent: "默认系统智能体",
+  defaultSystemAgentDesc: "预配置的文档助手智能体。",
+  selected: "已选择",
+  setActive: "设为活跃",
+  systemInformation: "系统信息",
+  defaultAgentDescText: "这是标准的内置 LangChain 智能体。它启用了主要知识库（RAG 搜索）、抓取（Fetch）功能和标准模型定义。",
+  defaultAgentCustomizePrompt: "点击左侧面板上的“+”图标即可自定义创建您专属的助手模型，并配备自定义提示词和专用工具。",
+  selectAgentToViewOrCreate: "选择一个智能体配置，或者创建一个新的智能体。",
+  systemInstructions: "系统指令",
+  enabledToolsTitle: "启用的工具",
+  enabled: "已启用",
+  disabled: "已禁用",
+
+  // Skills additional
+  noDescriptionProvided: "暂无描述",
+  confirmDeleteTitle: "确认删除",
+  cancelTitle: "取消",
+  editTitle: "编辑",
+  deleteTitle: "删除",
+  skillTextMarkdown: "技能 Markdown 文本",
+  selectSkillToViewOrCreate: "选择一个技能来查看，或者创建一个新的技能。",
+
+  // Knowledge Base additional
+  uploading: "上传中...",
+  noDocumentsLinked: "该知识库暂未关联任何文档。",
+  deleteDocumentTitle: "删除文档",
+  selectKbToViewOrCreate: "选择一个知识库，或者创建一个新的知识库。",
+
+  // Placeholders
+  mcpNamePlaceholder: "例如：天气 SSE 服务端",
+  mcpUrlPlaceholder: "例如：http://localhost:8000/mcp",
+  mcpHeadersPlaceholder: '例如：{\n  "Authorization": "Bearer 您的令牌"\n}',
+  skillContentPlaceholder: "添加技能规则和模板文本...",
+  agentNamePlaceholder: "自定义智能体",
+  agentDescPlaceholder: "该智能体的简短描述",
+  agentPromptPlaceholder: "您是一个得力的助手...",
+  kbNamePlaceholder: "例如：我的知识库",
+  kbDescPlaceholder: "上传文件的上下文描述",
+
+  // Agent Profiles Dialog additional
+  selectCreateOrManageAgents: "选择、创建或管理智能体配置",
+  configureNewAgent: "配置新的智能体",
+  editSelectedAgent: "编辑选定的智能体配置",
 } as const
 
 const en = {
@@ -238,6 +346,114 @@ const en = {
   kbManager: "Knowledge Base Manager",
   kbFiles: "Related Documents",
   management: "Management Center",
+
+  // Common & General
+  untitled: "Untitled",
+  loading: "Loading...",
+
+  // Voice & File Preview
+  stopListening: "Stop listening",
+  voiceInput: "Voice input",
+  file: "File",
+  filesLabel: "files",
+  removeFile: "Remove file",
+
+  // Time Travel Panel
+  timeTravel: "Time Travel",
+  checkpointsInConversation: "checkpoints in conversation",
+  step: "Step",
+  current: "Current",
+  jumpHere: "Jump Here",
+  fork: "Fork",
+
+  // Chat & Message Feedbacks
+  newConversation: "New conversation",
+  failedToRegenerate: "Failed to regenerate response",
+  failedToRerunFromEdit: "Failed to rerun from edit",
+  good: "Good",
+  bad: "Bad",
+  addFeedbackPlaceholder: "Add feedback about this response...",
+  selectThumbsBeforeSubmit: "Select thumbs up or down before submitting",
+  tool: "Tool",
+  viewArguments: "View arguments",
+  viewOutput: "View output",
+  subagentOutputs: "Subagent Outputs",
+  clickToExpand: "Click to expand",
+  running: "Running...",
+  complete: "Complete",
+  waitingForOutput: "Waiting for output...",
+  loadingTrace: "Loading Trace",
+  scrollBottom: "Scroll to bottom",
+
+  // Agent selector & RAG upload
+  exclusiveKnowledgeBase: "Exclusive Knowledge Base",
+  pleaseSaveAgentFirstToUpload: "Please save the agent first to upload exclusive documents.",
+  linkedSharedKnowledgeBases: "Linked Shared Knowledge Bases",
+  linkCustomSkills: "Link Custom Skills",
+  linkMcpServers: "Link MCP Servers",
+  uploadSuccess: "Upload success",
+  uploadFailed: "Upload failed",
+  noDescription: "No description",
+
+  // MCP Tab Panel
+  mcpServers: "MCP Servers",
+  addMcpServer: "Add MCP Server",
+  editMcpServer: "Edit MCP Server",
+  noMcpServers: "No MCP servers defined yet.",
+  selectOrCreateMcpToStart: "Select or create an MCP Server to get started",
+  mcpType: "Transport Type",
+  sseServerUrl: "SSE Server URL",
+  customHeadersJson: "Custom Headers (JSON Format)",
+  customHeaders: "Custom Headers",
+  noCustomHeaders: "No custom headers configured.",
+  mcpServerDescription: "Specify any headers needed for authentication or request validation. Must be a valid JSON object.",
+  editServer: "Edit Server",
+
+  // New Management keys
+  mcpConfigureDesc: "Configure and orchestrate your custom assets",
+  defaultSystemAgent: "Default System Agent",
+  defaultSystemAgentDesc: "The preconfigured documentation assistant helper.",
+  selected: "Selected",
+  setActive: "Set Active",
+  systemInformation: "SYSTEM INFORMATION",
+  defaultAgentDescText: "This is the standard builtin LangChain agent. It has the primary knowledge base (RAG Search), Fetch capabilities, and standard model definitions enabled.",
+  defaultAgentCustomizePrompt: "Customize it by clicking the \"+\" icon on the left panel to create your own bespoke assistant model with custom prompts and specialized tools.",
+  selectAgentToViewOrCreate: "Select an Agent configuration or create a new one.",
+  systemInstructions: "SYSTEM INSTRUCTIONS",
+  enabledToolsTitle: "ENABLED TOOLS",
+  enabled: "ENABLED",
+  disabled: "DISABLED",
+
+  // Skills additional
+  noDescriptionProvided: "No description provided",
+  confirmDeleteTitle: "Confirm delete",
+  cancelTitle: "Cancel",
+  editTitle: "Edit",
+  deleteTitle: "Delete",
+  skillTextMarkdown: "SKILL TEXT MARKDOWN",
+  selectSkillToViewOrCreate: "Select a skill to view or create a new one.",
+
+  // Knowledge Base additional
+  uploading: "Uploading...",
+  noDocumentsLinked: "No documents linked to this Knowledge Base yet.",
+  deleteDocumentTitle: "Delete Document",
+  selectKbToViewOrCreate: "Select a Knowledge Base or create a new one.",
+
+  // Placeholders
+  mcpNamePlaceholder: "e.g. Weather SSE Server",
+  mcpUrlPlaceholder: "e.g. http://localhost:8000/mcp",
+  mcpHeadersPlaceholder: 'e.g. {\n  "Authorization": "Bearer YOUR_TOKEN"\n}',
+  skillContentPlaceholder: "Add skill rules and template text...",
+  agentNamePlaceholder: "Custom Agent",
+  agentDescPlaceholder: "Short description of this agent",
+  agentPromptPlaceholder: "You are a helpful assistant...",
+  kbNamePlaceholder: "e.g. My KB Archive",
+  kbDescPlaceholder: "Context description of uploaded files",
+
+  // Agent Profiles Dialog additional
+  selectCreateOrManageAgents: "Select, create, or manage agent profiles",
+  configureNewAgent: "Configure a new agent profile",
+  editSelectedAgent: "Edit the selected agent profile",
 } as const
 
 export type Translations = { [K in keyof typeof zh]: string }

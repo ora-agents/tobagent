@@ -6,6 +6,7 @@
  */
 
 import type { ImageAttachment } from "@/lib/types"
+import { useT } from "@/lib/i18n"
 
 interface FilePreviewGridProps {
   files: ImageAttachment[]
@@ -23,8 +24,9 @@ function getFileColor(fileExt: string | undefined): string {
  * Individual file preview card component.
  */
 function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: (id: string) => void }) {
+  const t = useT()
   const isImage = file.mimeType?.startsWith('image/')
-  const fileName = file.name || "File"
+  const fileName = file.name || t.file
   const fileExt = fileName.split('.').pop()?.toLowerCase()
   const fileSizeKB = file.size ? Math.round(file.size / 1024) : 0
 
@@ -65,7 +67,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
           </span>
           <div className="flex items-center gap-1">
             <span className={`text-[10px] font-bold px-1 py-0.5 rounded bg-muted ${getFileColor(fileExt)}`}>
-              {fileExt?.toUpperCase().slice(0, 4) || 'FILE'}
+              {fileExt?.toUpperCase().slice(0, 4) || t.file.toUpperCase()}
             </span>
             {fileSizeKB > 0 && (
               <span className="text-[10px] text-muted-foreground">
@@ -85,7 +87,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
         }}
         className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all shadow-lg z-10 cursor-pointer"
         type="button"
-        title="Remove file"
+        title={t.removeFile}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

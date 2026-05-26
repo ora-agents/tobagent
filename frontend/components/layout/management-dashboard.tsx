@@ -852,7 +852,7 @@ export function ManagementDashboard({
               {t.management}
             </h1>
             <p className="text-[11px] text-muted-foreground/80 leading-none">
-              Configure and orchestrate your custom assets
+              {t.mcpConfigureDesc}
             </p>
           </div>
         </div>
@@ -881,13 +881,13 @@ export function ManagementDashboard({
               <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
-                    MCP SERVERS
+                    {t.mcpServers}
                   </span>
                   <Button
                     size="sm"
                     onClick={handleStartCreateMcp}
                     className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none cursor-pointer"
-                    title="Add MCP Server"
+                    title={t.addMcpServer}
                   >
                     <Plus className="w-4 h-4" />
                   </Button>
@@ -917,14 +917,14 @@ export function ManagementDashboard({
                             <button
                               onClick={() => handleDeleteMcp(mcp.id)}
                               className="p-1 rounded text-destructive hover:bg-destructive/10"
-                              title="Confirm delete"
+                              title={t.confirmDelete}
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setDeleteConfirmId(null)}
                               className="p-1 rounded text-muted-foreground hover:bg-muted"
-                              title="Cancel"
+                              title={t.cancel}
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -934,14 +934,14 @@ export function ManagementDashboard({
                             <button
                               onClick={() => handleStartEditMcp(mcp)}
                               className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                              title="Edit"
+                              title={t.editAgent.replace(t.agent, "").trim()}
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setDeleteConfirmId(mcp.id)}
                               className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              title="Delete"
+                              title={t.delete}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -952,7 +952,7 @@ export function ManagementDashboard({
                   ))}
                   {mcpServers.length === 0 && (
                     <div className="p-4 text-center text-xs text-muted-foreground italic">
-                      No MCP servers defined yet.
+                      {t.noMcpServers}
                     </div>
                   )}
                 </div>
@@ -965,7 +965,7 @@ export function ManagementDashboard({
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Cpu className="w-5 h-5 text-primary" />
-                        {isCreatingMcp ? "Add MCP Server" : "Edit MCP Server"}
+                        {isCreatingMcp ? t.addMcpServer : t.editMcpServer}
                       </h2>
                       <div className="flex items-center gap-2">
                         <Button
@@ -973,7 +973,7 @@ export function ManagementDashboard({
                           disabled={!mcpForm.name.trim()}
                           className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
-                          Save
+                          {t.save}
                         </Button>
                         <Button
                           variant="ghost"
@@ -983,7 +983,7 @@ export function ManagementDashboard({
                           }}
                           className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
                         >
-                          Cancel
+                          {t.cancel}
                         </Button>
                       </div>
                     </div>
@@ -991,17 +991,17 @@ export function ManagementDashboard({
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <Label htmlFor="mcp-name">Server Name</Label>
+                          <Label htmlFor="mcp-name">{t.name}</Label>
                           <Input
                             id="mcp-name"
                             value={mcpForm.name}
                             onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })}
-                            placeholder="e.g. Weather SSE Server"
+                            placeholder={t.mcpNamePlaceholder}
                             className="bg-background border-border/80 rounded-lg"
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label htmlFor="mcp-type">Transport Type</Label>
+                          <Label htmlFor="mcp-type">{t.mcpType}</Label>
                           <Input
                             id="mcp-type"
                             value="SSE (Server-Sent Events)"
@@ -1012,28 +1012,28 @@ export function ManagementDashboard({
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label htmlFor="mcp-url">SSE Server URL</Label>
+                        <Label htmlFor="mcp-url">{t.sseServerUrl}</Label>
                         <Input
                           id="mcp-url"
                           value={mcpForm.url}
                           onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })}
-                          placeholder="e.g. http://localhost:8000/mcp"
+                          placeholder={t.mcpUrlPlaceholder}
                           className="bg-background border-border/80 rounded-lg font-mono text-xs"
                         />
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label htmlFor="mcp-headers">Custom Headers (JSON Format)</Label>
+                        <Label htmlFor="mcp-headers">{t.customHeadersJson}</Label>
                         <Textarea
                           id="mcp-headers"
                           value={mcpForm.headers}
                           onChange={e => setMcpForm({ ...mcpForm, headers: e.target.value })}
-                          placeholder='e.g. {&#10;  "Authorization": "Bearer YOUR_TOKEN"&#10;}'
+                          placeholder={t.mcpHeadersPlaceholder}
                           rows={6}
                           className="resize-none bg-background border-border/80 rounded-lg text-xs font-mono"
                         />
                         <p className="text-[10px] text-muted-foreground">
-                          Specify any headers needed for authentication or request validation. Must be a valid JSON object.
+                          {t.mcpServerDescription}
                         </p>
                       </div>
                     </div>
@@ -1058,14 +1058,14 @@ export function ManagementDashboard({
                           className="gap-1.5 rounded-lg border border-border/60 hover:bg-primary/10 hover:text-primary transition-all cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          Edit Server
+                          {t.editServer}
                         </Button>
                       </div>
                     </div>
 
                     <div className="border border-border/50 rounded-xl p-4 bg-background/50 space-y-4">
                       <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground font-semibold">SSE Server URL</div>
+                        <div className="text-xs text-muted-foreground font-semibold">{t.sseServerUrl}</div>
                         <div className="text-sm font-mono bg-muted/30 p-2.5 rounded-lg border border-border/40 break-all select-all">
                           {selectedMcp.url}
                         </div>
@@ -1073,16 +1073,16 @@ export function ManagementDashboard({
 
                       {Object.keys(selectedMcp.headers || {}).length > 0 ? (
                         <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground font-semibold">Custom Headers</div>
+                          <div className="text-xs text-muted-foreground font-semibold">{t.customHeaders}</div>
                           <pre className="text-xs font-mono bg-muted/30 p-2.5 rounded-lg border border-border/40 overflow-x-auto">
                             {JSON.stringify(selectedMcp.headers, null, 2)}
                           </pre>
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground font-semibold">Custom Headers</div>
+                          <div className="text-xs text-muted-foreground font-semibold">{t.customHeaders}</div>
                           <div className="text-xs italic text-muted-foreground bg-muted/20 p-2.5 rounded-lg border border-border/40">
-                            No custom headers configured.
+                            {t.noCustomHeaders}
                           </div>
                         </div>
                       )}
@@ -1090,7 +1090,7 @@ export function ManagementDashboard({
                   </div>
                 ) : (
                   <div className="h-full flex items-center justify-center text-sm text-muted-foreground italic">
-                    Select or create an MCP Server to get started
+                    {t.selectOrCreateMcpToStart}
                   </div>
                 )}
               </div>
@@ -1137,7 +1137,7 @@ export function ManagementDashboard({
                       >
                         <div className="font-semibold text-sm truncate pr-16">{skill.name}</div>
                         <div className="text-xs text-muted-foreground mt-1 truncate pr-8">
-                          {skill.description || "No description provided"}
+                          {skill.description || t.noDescriptionProvided}
                         </div>
 
                         {/* List Actions */}
@@ -1150,14 +1150,14 @@ export function ManagementDashboard({
                               <button
                                 onClick={() => handleDeleteSkill(skill.id)}
                                 className="p-1 rounded text-destructive hover:bg-destructive/10"
-                                title="Confirm delete"
+                                title={t.confirmDeleteTitle}
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirmId(null)}
                                 className="p-1 rounded text-muted-foreground hover:bg-muted"
-                                title="Cancel"
+                                title={t.cancelTitle}
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
@@ -1167,14 +1167,14 @@ export function ManagementDashboard({
                               <button
                                 onClick={() => handleStartEditSkill(skill)}
                                 className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                                title="Edit"
+                                title={t.editTitle}
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirmId(skill.id)}
                                 className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                title="Delete"
+                                title={t.deleteTitle}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1239,7 +1239,7 @@ export function ManagementDashboard({
                         value={skillForm.content}
                         onChange={e => setSkillForm({ ...skillForm, content: e.target.value })}
                         rows={16}
-                        placeholder="Add skill rules and template text..."
+                        placeholder={t.skillContentPlaceholder}
                         className="resize-none font-mono text-xs bg-background border-border/80 leading-relaxed rounded-lg"
                       />
                     </div>
@@ -1252,7 +1252,7 @@ export function ManagementDashboard({
                       <div>
                         <h2 className="text-xl font-bold font-display">{selectedSkill.name}</h2>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {selectedSkill.description || "No description provided."}
+                          {selectedSkill.description || t.noDescriptionProvided}
                         </p>
                       </div>
                       <Button
@@ -1269,7 +1269,7 @@ export function ManagementDashboard({
                     <div className="flex-1 flex flex-col bg-background/50 border border-border/40 rounded-xl overflow-hidden shadow-inset-light mt-4">
                       <div className="px-4 py-2 border-b border-border/30 bg-muted/20 flex items-center justify-between">
                         <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
-                          SKILL TEXT MARKDOWN
+                          {t.skillTextMarkdown}
                         </span>
                         <span className="text-[10px] text-muted-foreground font-mono">
                           {new Date(selectedSkill.updatedAt).toLocaleDateString()}
@@ -1284,7 +1284,7 @@ export function ManagementDashboard({
                   <div className="flex-1 flex items-center justify-center text-center">
                     <div>
                       <Wrench className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-muted-foreground">Select a skill to view or create a new one.</p>
+                      <p className="text-sm font-medium text-muted-foreground">{t.selectSkillToViewOrCreate}</p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1334,10 +1334,10 @@ export function ManagementDashboard({
                   >
                     <div className="font-semibold text-sm flex items-center gap-1.5">
                       <Bot className="w-3.5 h-3.5 text-primary" />
-                      Default Agent
+                      {t.defaultSystemAgent}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 truncate">
-                      LangChain documentation assistant
+                      {t.defaultSystemAgentDesc}
                     </div>
                   </div>
 
@@ -1357,7 +1357,7 @@ export function ManagementDashboard({
                         {profile.name}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate pr-8">
-                        {profile.description || "No description provided"}
+                        {profile.description || t.noDescriptionProvided}
                       </div>
 
                       {/* List Actions */}
@@ -1370,14 +1370,14 @@ export function ManagementDashboard({
                             <button
                               onClick={() => handleDeleteAgent(profile.id)}
                               className="p-1 rounded text-destructive hover:bg-destructive/10"
-                              title="Confirm delete"
+                              title={t.confirmDeleteTitle}
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setDeleteConfirmId(null)}
                               className="p-1 rounded text-muted-foreground hover:bg-muted"
-                              title="Cancel"
+                              title={t.cancelTitle}
                             >
                               <X className="w-3.5 h-3.5" />
                             </button>
@@ -1387,14 +1387,14 @@ export function ManagementDashboard({
                             <button
                               onClick={() => handleStartEditAgent(profile)}
                               className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                              title="Edit"
+                              title={t.editTitle}
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setDeleteConfirmId(profile.id)}
                               className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              title="Delete"
+                              title={t.deleteTitle}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1443,7 +1443,7 @@ export function ManagementDashboard({
                           id="agent-name"
                           value={agentForm.name}
                           onChange={e => setAgentForm({ ...agentForm, name: e.target.value })}
-                          placeholder="Custom Agent"
+                          placeholder={t.agentNamePlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
                       </div>
@@ -1453,7 +1453,7 @@ export function ManagementDashboard({
                           id="agent-desc"
                           value={agentForm.description}
                           onChange={e => setAgentForm({ ...agentForm, description: e.target.value })}
-                          placeholder="Short description of this agent"
+                          placeholder={t.agentDescPlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
                       </div>
@@ -1466,7 +1466,7 @@ export function ManagementDashboard({
                         value={agentForm.systemPrompt}
                         onChange={e => setAgentForm({ ...agentForm, systemPrompt: e.target.value })}
                         rows={6}
-                        placeholder="You are a helpful assistant..."
+                        placeholder={t.agentPromptPlaceholder}
                         className="resize-none bg-background border-border/80 rounded-lg text-sm"
                       />
                     </div>
@@ -1501,7 +1501,7 @@ export function ManagementDashboard({
 
                     {agentForm.enabledTools.includes("rag_search") && knowledgeBases.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linked Shared Knowledge Bases</Label>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
                           {knowledgeBases.map((kb) => {
                             const linked = agentForm.knowledgeBaseIds.includes(kb.id)
@@ -1523,7 +1523,7 @@ export function ManagementDashboard({
                                 </span>
                                 <div className="min-w-0">
                                   <div className="text-xs font-medium truncate">{kb.name}</div>
-                                  <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} files</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} {kb.files?.length === 1 ? t.file.toLowerCase() : t.filesLabel}</div>
                                 </div>
                               </div>
                             )
@@ -1534,7 +1534,7 @@ export function ManagementDashboard({
 
                     {skills.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link Custom Skills</Label>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
                           {skills.map((sk) => {
                             const linked = agentForm.skillIds.includes(sk.id)
@@ -1556,7 +1556,7 @@ export function ManagementDashboard({
                                 </span>
                                 <div className="min-w-0">
                                   <div className="text-xs font-medium truncate">{sk.name}</div>
-                                  <div className="text-[10px] text-muted-foreground truncate">{sk.description || "No description"}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
                                 </div>
                               </div>
                             )
@@ -1567,7 +1567,7 @@ export function ManagementDashboard({
 
                     {mcpServers.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link MCP Servers</Label>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkMcpServers}</Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
                           {mcpServers.map((mcp) => {
                             const linked = agentForm.mcpIds.includes(mcp.id)
@@ -1609,7 +1609,7 @@ export function ManagementDashboard({
                           {selectedAgent.name}
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {selectedAgent.description || "No description provided."}
+                          {selectedAgent.description || t.noDescriptionProvided}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1624,7 +1624,7 @@ export function ManagementDashboard({
                           }`}
                         >
                           <Check className="w-3.5 h-3.5" />
-                          {selectedAgentProfileId === selectedAgent.id ? "Selected" : "Set Active"}
+                          {selectedAgentProfileId === selectedAgent.id ? t.selected : t.setActive}
                         </Button>
                         <Button
                           variant="outline"
@@ -1642,7 +1642,7 @@ export function ManagementDashboard({
                       <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden">
                         <div className="px-4 py-2 border-b border-border/30 bg-muted/20">
                           <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
-                            SYSTEM INSTRUCTIONS
+                            {t.systemInstructions}
                           </span>
                         </div>
                         <div className="p-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
@@ -1652,7 +1652,7 @@ export function ManagementDashboard({
 
                       <div className="space-y-2">
                         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                          ENABLED TOOLS
+                          {t.enabledToolsTitle}
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           {BUILTIN_TOOLS.map(tool => {
@@ -1676,7 +1676,7 @@ export function ManagementDashboard({
                                   </p>
                                 </div>
                                 <span className={`text-[10px] font-mono mt-3 self-start px-1.5 py-0.5 rounded font-bold ${isEnabled ? "bg-primary/15 text-primary border border-primary/20" : "bg-muted text-muted-foreground"}`}>
-                                  {isEnabled ? "ENABLED" : "DISABLED"}
+                                  {isEnabled ? t.enabled : t.disabled}
                                 </span>
                               </div>
                             )
@@ -1691,10 +1691,10 @@ export function ManagementDashboard({
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Bot className="w-6 h-6 text-primary" />
-                          Default System Agent
+                          {t.defaultSystemAgent}
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
-                          The preconfigured documentation assistant helper.
+                          {t.defaultSystemAgentDesc}
                         </p>
                       </div>
                       <Button
@@ -1708,19 +1708,19 @@ export function ManagementDashboard({
                         }`}
                       >
                         <Check className="w-3.5 h-3.5" />
-                        {selectedAgentProfileId === null ? "Selected" : "Set Active"}
+                        {selectedAgentProfileId === null ? t.selected : t.setActive}
                       </Button>
                     </div>
 
                     <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden mt-6">
                       <div className="px-4 py-2 border-b border-border/30 bg-muted/20">
                         <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
-                          SYSTEM INFORMATION
+                          {t.systemInformation}
                         </span>
                       </div>
                       <div className="p-4 text-sm text-muted-foreground leading-relaxed space-y-2">
-                        <p>This is the standard builtin LangChain agent. It has the primary knowledge base (RAG Search), Fetch capabilities, and standard model definitions enabled.</p>
-                        <p>Customize it by clicking the "+" icon on the left panel to create your own bespoke assistant model with custom prompts and specialized tools.</p>
+                        <p>{t.defaultAgentDescText}</p>
+                        <p>{t.defaultAgentCustomizePrompt}</p>
                       </div>
                     </div>
                   </div>
@@ -1728,7 +1728,7 @@ export function ManagementDashboard({
                   <div className="flex-1 flex items-center justify-center text-center">
                     <div>
                       <Bot className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-muted-foreground">Select an Agent configuration or create a new one.</p>
+                      <p className="text-sm font-medium text-muted-foreground">{t.selectAgentToViewOrCreate}</p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1786,7 +1786,7 @@ export function ManagementDashboard({
                         <div className="font-semibold text-sm truncate pr-16">{kb.name}</div>
                         <div className="text-xs text-muted-foreground mt-1 truncate pr-8 flex items-center gap-1">
                           <FileText className="w-3 h-3 flex-shrink-0 text-muted-foreground/75" />
-                          {kb.files.length} {kb.files.length === 1 ? "file" : "files"}
+                          {kb.files.length} {kb.files.length === 1 ? t.file.toLowerCase() : t.filesLabel}
                         </div>
 
                         {/* List Actions */}
@@ -1799,14 +1799,14 @@ export function ManagementDashboard({
                               <button
                                 onClick={() => handleDeleteKB(kb.id)}
                                 className="p-1 rounded text-destructive hover:bg-destructive/10"
-                                title="Confirm delete"
+                                title={t.confirmDeleteTitle}
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirmId(null)}
                                 className="p-1 rounded text-muted-foreground hover:bg-muted"
-                                title="Cancel"
+                                title={t.cancelTitle}
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
@@ -1816,14 +1816,14 @@ export function ManagementDashboard({
                               <button
                                 onClick={() => handleStartEditKB(kb)}
                                 className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                                title="Edit"
+                                title={t.editTitle}
                               >
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirmId(kb.id)}
                                 className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                title="Delete"
+                                title={t.deleteTitle}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1873,7 +1873,7 @@ export function ManagementDashboard({
                           id="kb-name"
                           value={kbForm.name}
                           onChange={e => setKbForm({ ...kbForm, name: e.target.value })}
-                          placeholder="My KB Archive"
+                          placeholder={t.kbNamePlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
                       </div>
@@ -1883,7 +1883,7 @@ export function ManagementDashboard({
                           id="kb-desc"
                           value={kbForm.description}
                           onChange={e => setKbForm({ ...kbForm, description: e.target.value })}
-                          placeholder="Context description of uploaded files"
+                          placeholder={t.kbDescPlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
                       </div>
@@ -1900,7 +1900,7 @@ export function ManagementDashboard({
                           {selectedKB.name}
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {selectedKB.description || "No description provided."}
+                          {selectedKB.description || t.noDescriptionProvided}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1932,7 +1932,7 @@ export function ManagementDashboard({
                             className="bg-primary hover:bg-primary-active text-primary-foreground gap-1.5 rounded-lg border-none"
                           >
                             <Upload className="w-4 h-4" />
-                            {uploadingFile ? "Uploading…" : t.uploadDoc}
+                            {uploadingFile ? t.uploading : t.uploadDoc}
                           </Button>
                           <input
                             ref={fileInputRef}
@@ -1949,7 +1949,7 @@ export function ManagementDashboard({
                         {selectedKB.files.length === 0 ? (
                           <div className="text-center py-8 text-xs text-muted-foreground/80 border border-dashed border-border/80 rounded-xl">
                             <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground/30 opacity-70" />
-                            No documents linked to this Knowledge Base yet.
+                            {t.noDocumentsLinked}
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1974,7 +1974,7 @@ export function ManagementDashboard({
                                 <button
                                   onClick={() => handleDeleteKBFile(file.name)}
                                   className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                  title="Delete Document"
+                                  title={t.deleteDocumentTitle}
                                 >
                                   <X className="w-4 h-4" />
                                 </button>
@@ -1989,7 +1989,7 @@ export function ManagementDashboard({
                   <div className="flex-1 flex items-center justify-center text-center">
                     <div>
                       <Database className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-muted-foreground">Select a Knowledge Base or create a new one.</p>
+                      <p className="text-sm font-medium text-muted-foreground">{t.selectKbToViewOrCreate}</p>
                       <Button
                         variant="outline"
                         size="sm"

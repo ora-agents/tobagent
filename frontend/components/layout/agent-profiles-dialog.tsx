@@ -17,6 +17,7 @@ import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import type { KnowledgeBase, Skill, McpServer } from "./management-dashboard"
+import { useT, useI18n } from "@/lib/i18n"
 
 // ---------------------------------------------------------------------------
 // Form state for creating / editing a profile
@@ -47,6 +48,7 @@ const DEFAULT_FORM: FormState = {
 // ---------------------------------------------------------------------------
 
 function RagUploadButton({ agentId }: { agentId: string }) {
+  const t = useT()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
@@ -66,10 +68,14 @@ function RagUploadButton({ agentId }: { agentId: string }) {
       })
       if (!resp.ok) {
         const text = await resp.text()
-        setResult(`Upload failed: ${text}`)
+        setResult(`${t.uploadFailed}: ${text}`)
       } else {
         const json = await resp.json()
-        setResult(`Uploaded ${json.chunks_ingested} chunks from "${file.name}"`)
+        const isZh = typeof window !== "undefined" && localStorage.getItem("locale") !== "en"
+        const successMsg = isZh
+          ? `已从 "${file.name}" 上传 ${json.chunks_ingested} 个分块`
+          : `Uploaded ${json.chunks_ingested} chunks from "${file.name}"`
+        setResult(successMsg)
       }
     } catch (err) {
       setResult(`Upload error: ${err}`)
@@ -91,7 +97,7 @@ function RagUploadButton({ agentId }: { agentId: string }) {
           disabled={uploading}
         >
           <Upload className="w-3.5 h-3.5" />
-          {uploading ? "Uploading…" : "Upload Document"}
+          {uploading ? t.uploading : t.uploadDoc}
         </Button>
         <span className="text-xs text-muted-foreground">PDF, DOCX, TXT, MD, CSV</span>
         <input
@@ -132,6 +138,7 @@ function ProfileForm({
   skills = [],
   mcpServers = []
 }: ProfileFormProps) {
+  const t = useT()
   const [form, setForm] = useState<FormState>(initial)
 
   const toggleTool = (id: BuiltinToolId) => {
@@ -146,7 +153,7 @@ function ProfileForm({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="agent-name">Name</Label>
+        <Label htmlFor="agent-name">{t.agentName}</Label>
         <Input
           id="agent-name"
           value={form.name}
@@ -156,7 +163,7 @@ function ProfileForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="agent-description">Description</Label>
+        <Label htmlFor="agent-description">{t.agentDesc}</Label>
         <Input
           id="agent-description"
           value={form.description}
@@ -166,7 +173,7 @@ function ProfileForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="agent-system-prompt">System Prompt</Label>
+        <Label htmlFor="agent-system-prompt">{t.systemPrompt}</Label>
         <Textarea
           id="agent-system-prompt"
           value={form.systemPrompt}
@@ -178,7 +185,7 @@ function ProfileForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label>Tools</Label>
+        <Label>{t.tools}</Label>
         <div className="space-y-2">
           {BUILTIN_TOOLS.map(tool => {
             const enabled = form.enabledTools.includes(tool.id)
@@ -206,17 +213,17 @@ function ProfileForm({
       {form.enabledTools.includes("rag_search") && (
         <div className="space-y-3 pt-2 border-t border-border">
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Exclusive Knowledge Base</Label>
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.exclusiveKnowledgeBase}</Label>
             {agentId ? (
               <RagUploadButton agentId={agentId} />
             ) : (
-              <p className="text-xs text-muted-foreground italic">Please save the agent first to upload exclusive documents.</p>
+              <p className="text-xs text-muted-foreground italic">{t.pleaseSaveAgentFirstToUpload}</p>
             )}
           </div>
           
           {knowledgeBases && knowledgeBases.length > 0 && (
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linked Shared Knowledge Bases</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
                 {knowledgeBases.map((kb) => {
                   const linked = form.knowledgeBaseIds?.includes(kb.id)
@@ -238,7 +245,7 @@ function ProfileForm({
                       </span>
                       <div className="min-w-0">
                         <div className="text-xs font-medium truncate">{kb.name}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} files</div>
+                        <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} {t.filesLabel}</div>
                       </div>
                     </label>
                   )
@@ -251,7 +258,7 @@ function ProfileForm({
 
       {skills && skills.length > 0 && (
         <div className="space-y-1.5 pt-2 border-t border-border">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link Custom Skills</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
             {skills.map((sk) => {
               const linked = form.skillIds?.includes(sk.id)
@@ -273,7 +280,7 @@ function ProfileForm({
                   </span>
                   <div className="min-w-0">
                     <div className="text-xs font-medium truncate">{sk.name}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{sk.description || "No description"}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
                   </div>
                 </label>
               )
@@ -284,7 +291,7 @@ function ProfileForm({
 
       {mcpServers && mcpServers.length > 0 && (
         <div className="space-y-1.5 pt-2 border-t border-border">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link MCP Servers</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkMcpServers}</Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
             {mcpServers.map((mcp) => {
               const linked = form.mcpIds?.includes(mcp.id)
@@ -323,10 +330,10 @@ function ProfileForm({
           disabled={!form.name.trim()}
           size="sm"
         >
-          Save
+          {t.save}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
+          {t.cancel}
         </Button>
       </div>
     </div>
@@ -369,6 +376,8 @@ export function AgentProfilesDialog({
   skills: initialSkills = [],
   mcpServers: initialMcpServers = [],
 }: AgentProfilesDialogProps) {
+  const t = useT()
+  const { locale } = useI18n()
   const [view, setView] = useState<View>({ kind: "list" })
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>(initialKnowledgeBases)
@@ -441,14 +450,14 @@ export function AgentProfilesDialog({
                 <ChevronLeft className="w-4 h-4" />
               </button>
             )}
-            {view.kind === "list" && "Agents"}
-            {view.kind === "create" && "New Agent"}
-            {view.kind === "edit" && "Edit Agent"}
+            {view.kind === "list" && t.agents}
+            {view.kind === "create" && t.newAgent}
+            {view.kind === "edit" && t.editAgent}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            {view.kind === "list" && "Select, create, or manage agent profiles"}
-            {view.kind === "create" && "Configure a new agent profile"}
-            {view.kind === "edit" && "Edit the selected agent profile"}
+            {view.kind === "list" && t.selectCreateOrManageAgents}
+            {view.kind === "create" && t.configureNewAgent}
+            {view.kind === "edit" && t.editSelectedAgent}
           </DialogDescription>
         </DialogHeader>
 
@@ -466,10 +475,12 @@ export function AgentProfilesDialog({
               >
                 <div className="font-medium flex items-center gap-2">
                   <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-                  Default
+                  {t.defaultSystemAgent}
                   {selectedId === null && <Check className="w-3.5 h-3.5 text-primary ml-auto" />}
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5">LangChain documentation assistant</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {t.defaultSystemAgentDesc}
+                </div>
               </button>
 
               {profiles.map(profile => (
@@ -507,14 +518,14 @@ export function AgentProfilesDialog({
                         <button
                           onClick={() => handleDelete(profile.id)}
                           className="p-1 rounded text-destructive hover:bg-destructive/10"
-                          title="Confirm delete"
+                          title={t.confirmDelete}
                         >
                           <Check className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(null)}
                           className="p-1 rounded text-muted-foreground hover:bg-muted"
-                          title="Cancel"
+                          title={t.cancel}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -524,14 +535,14 @@ export function AgentProfilesDialog({
                         <button
                           onClick={() => setView({ kind: "edit", profile })}
                           className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
-                          title="Edit"
+                          title={t.editTitle}
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(profile.id)}
                           className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          title="Delete"
+                          title={t.delete}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -546,7 +557,7 @@ export function AgentProfilesDialog({
                 className="w-full flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-border hover:border-primary/40 hover:bg-muted/20 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                New Agent
+                {t.newAgent}
               </button>
             </div>
           )}

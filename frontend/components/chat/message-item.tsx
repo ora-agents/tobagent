@@ -9,6 +9,7 @@ import { ThinkingTimer } from "./animations/thinking-timer"
 import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message } from "@/lib/types"
 import { useState, useMemo, useCallback, memo, useRef } from "react"
+import { useT } from "@/lib/i18n"
 
 // ============================================================================
 // Constants
@@ -129,6 +130,7 @@ const extractTextFromNode = (node: any): string => {
  * This prevents the copy button from flickering during streaming
  */
 const CodeBlock = memo(({ codeString, language }: { codeString: string; language: string }) => {
+  const t = useT()
   const [isCopied, setIsCopied] = useState(false)
 
   const handleCopyCode = useCallback(() => {
@@ -172,12 +174,12 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
         {isCopied ? (
           <>
             <Check className="w-3.5 h-3.5" />
-            Copied
+            {t.copied}
           </>
         ) : (
           <>
             <Copy className="w-3.5 h-3.5" />
-            Copy
+            {t.copy}
           </>
         )}
       </button>
@@ -220,6 +222,7 @@ export const MessageItem = memo(function MessageItem({
   onToggleComment,
   setFeedbackComment,
 }: MessageItemProps) {
+  const t = useT()
   const [editContent, setEditContent] = useState(message.content)
 
   const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -474,7 +477,7 @@ export const MessageItem = memo(function MessageItem({
                     <>
                       <span>{(message.thinkingDuration / 1000).toFixed(1)}s</span>
                       <span>•</span>
-                      <span>{(message.usageMetadata.total_tokens / 1000).toFixed(1)}k tokens</span>
+                      <span>{(message.usageMetadata.total_tokens / 1000).toFixed(1)}k {t.tokens}</span>
                       {message.usageMetadata.total_cost > 0 && (
                         <>
                           <span>•</span>
@@ -488,20 +491,20 @@ export const MessageItem = memo(function MessageItem({
                         className="inline-flex items-center gap-0.5 text-xs font-medium transition-colors ml-1"
                         style={{ color: '#cc785c', textDecorationColor: '#cc785c' }}
                       >
-                        View trace
+                        {t.viewTrace}
                         <ExternalLink className="h-2.5 w-2.5" />
                       </a>
                     </>
                   ) : (
                     <span className="font-sans font-medium inline-flex items-center gap-0 relative">
-                      <span className="thinking-text-base">Loading Trace</span>
+                      <span className="thinking-text-base">{t.loadingTrace}</span>
                       <span className="inline-flex thinking-text-base">
                         <span className="animate-bounce-dot" style={{ animationDelay: '1.3s' }}>.</span>
                         <span className="animate-bounce-dot" style={{ animationDelay: '1.45s' }}>.</span>
                         <span className="animate-bounce-dot" style={{ animationDelay: '1.6s' }}>.</span>
                       </span>
                       <span className="thinking-gradient-overlay" aria-hidden="true">
-                        <span>Loading Trace</span>
+                        <span>{t.loadingTrace}</span>
                         <span className="inline-flex">
                           <span className="animate-bounce-dot" style={{ animationDelay: '1.3s' }}>.</span>
                           <span className="animate-bounce-dot" style={{ animationDelay: '1.45s' }}>.</span>
@@ -531,12 +534,12 @@ export const MessageItem = memo(function MessageItem({
                     {copiedId === message.id ? (
                       <>
                         <Check className="w-3 h-3 mr-1" />
-                        Copied
+                        {t.copied}
                       </>
                     ) : (
                       <>
                         <Copy className="w-3 h-3 mr-1" />
-                        Copy
+                        {t.copy}
                       </>
                     )}
                   </Button>
@@ -550,7 +553,7 @@ export const MessageItem = memo(function MessageItem({
                       className="h-8 px-2 text-xs"
                     >
                       <RefreshCw className={`w-3 h-3 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
-                      Regenerate
+                      {t.regenerate}
                     </Button>
                   )}
                 </>
@@ -574,7 +577,7 @@ export const MessageItem = memo(function MessageItem({
                       aria-hidden="true"
                       fill={message.feedback === "positive" ? "currentColor" : "none"}
                     />
-                    Good
+                    {t.good}
                   </Button>
                   <Button
                     variant="ghost"
@@ -592,7 +595,7 @@ export const MessageItem = memo(function MessageItem({
                       aria-hidden="true"
                       fill={message.feedback === "negative" ? "currentColor" : "none"}
                     />
-                    Bad
+                    {t.bad}
                   </Button>
                   <Button
                     variant="ghost"
@@ -601,7 +604,7 @@ export const MessageItem = memo(function MessageItem({
                     className="h-8 px-2 text-xs rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
                   >
                     <MessageSquare className="w-3 h-3 mr-1" />
-                    Feedback
+                    {t.addComment}
                   </Button>
                 </>
               )}
@@ -615,7 +618,7 @@ export const MessageItem = memo(function MessageItem({
                   onChange={(e) => {
                     setFeedbackComment((prev) => ({ ...prev, [message.id]: e.target.value }))
                   }}
-                  placeholder="Add feedback about this response..."
+                  placeholder={t.addFeedbackPlaceholder}
                   className="min-h-[60px] text-xs"
                   autoFocus
                   onKeyDown={(e) => {
@@ -631,7 +634,7 @@ export const MessageItem = memo(function MessageItem({
                 />
                 {!message.feedback && (
                   <p className="text-[10px] text-muted-foreground mt-1">
-                    Select thumbs up or down before submitting
+                    {t.selectThumbsBeforeSubmit}
                   </p>
                 )}
               </div>
@@ -646,13 +649,13 @@ export const MessageItem = memo(function MessageItem({
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-semibold text-primary">
-                        Tool: {tool.name}
+                        {t.tool}: {tool.name}
                       </span>
                     </div>
                     <div className="text-xs font-mono text-muted-foreground">
                       <details>
                         <summary className="cursor-pointer hover:opacity-80">
-                          View arguments
+                          {t.viewArguments}
                         </summary>
                         <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
                           {JSON.stringify(tool.args, null, 2)}
@@ -661,7 +664,7 @@ export const MessageItem = memo(function MessageItem({
                       {tool.output && (
                         <details className="mt-2">
                           <summary className="cursor-pointer hover:opacity-80">
-                            View output
+                            {t.viewOutput}
                           </summary>
                           <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
                             {typeof tool.output === "string"
@@ -680,8 +683,8 @@ export const MessageItem = memo(function MessageItem({
               <div className="mt-3">
                 <details className="group">
                   <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                    <span>Subagent Outputs ({message.subgraphOutputs.length})</span>
-                    <span className="text-[10px] opacity-50">Click to expand</span>
+                    <span>{t.subagentOutputs} ({message.subgraphOutputs.length})</span>
+                    <span className="text-[10px] opacity-50">{t.clickToExpand}</span>
                   </summary>
                   <div className="mt-2 space-y-2">
                     {message.subgraphOutputs.map((subgraph, idx) => (
@@ -695,12 +698,12 @@ export const MessageItem = memo(function MessageItem({
                           {subgraph.isStreaming && (
                             <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                               <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                              Running...
+                              {t.running}
                             </span>
                           )}
                           {subgraph.isComplete && (
                             <span className="text-[10px] text-green-600 dark:text-green-400">
-                              Complete
+                              {t.complete}
                             </span>
                           )}
                         </summary>
@@ -712,7 +715,7 @@ export const MessageItem = memo(function MessageItem({
                           </div>
                         ) : (
                           <div className="mt-2 text-[10px] text-muted-foreground italic">
-                            Waiting for output...
+                            {t.waitingForOutput}
                           </div>
                         )}
                       </details>
