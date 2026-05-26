@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
+import { Settings } from "lucide-react"
 import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
@@ -17,8 +17,8 @@ interface HeaderProps {
   onSettingsDialogChange?: (open: boolean) => void
   /** Currently selected custom agent profile (null = default docs agent). */
   selectedAgentProfile?: AgentProfile | null
-  /** Called when user clicks the agent name to open the profiles dialog. */
-  onOpenAgentProfiles?: () => void
+  /** Callback to open agent profiles configuration dialog. */
+  onOpenAgentSettings?: () => void
 }
 
 export function Header({
@@ -32,33 +32,40 @@ export function Header({
   showSettingsDialog,
   onSettingsDialogChange,
   selectedAgentProfile,
-  onOpenAgentProfiles,
+  onOpenAgentSettings,
 }: HeaderProps) {
   const t = useT()
   const { locale } = useI18n()
 
-  const agentPrefix = locale === "zh" ? "智能体：" : "Agent: "
-  const agentLabel = `${agentPrefix}${selectedAgentProfile?.name ?? (locale === "zh" ? "默认系统智能体" : "Default")}`
+  const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "默认系统智能体" : "Default")
 
   return (
-    <header className="border-b border-border bg-background h-16 flex items-center">
+    <header className="bg-background h-16 flex items-center">
       <div className="flex items-center justify-between w-full px-4 sm:px-6">
-        {/* Agent name / wordmark — click to open agent selector */}
-        <button
-          onClick={onOpenAgentProfiles}
-          className="flex items-center gap-1.5 group hover:opacity-80 transition-opacity"
-          title="Switch or manage agents"
-        >
+        {/* Current agent name display — purely static, no prefix */}
+        <div className="flex items-center gap-1.5">
           <span
-            className="text-base font-sans font-semibold tracking-tight text-foreground"
+            className="text-base font-sans font-semibold tracking-tight text-foreground select-none"
             style={{ letterSpacing: "-0.01em" }}
           >
             {agentLabel}
           </span>
-          <ChevronDown className="w-4 h-4 text-muted-foreground/80 group-hover:text-foreground transition-colors mt-0.5" />
-        </button>
+        </div>
 
         <div className="flex items-center gap-3">
+          {/* Agent configuration button */}
+          {onOpenAgentSettings && (
+            <button
+              onClick={onOpenAgentSettings}
+              className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-muted hover:bg-muted/80 border border-border/60 hover:border-border rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200"
+              title={locale === "zh" ? "智能体设置" : "Agent Settings"}
+            >
+              <Settings className="w-4 h-4 text-muted-foreground group-hover:rotate-45 group-hover:text-foreground transition-all duration-300" />
+              <span className="hidden sm:inline">{locale === "zh" ? "智能体设置" : "Agent Settings"}</span>
+            </button>
+          )}
+
+          {/* New Chat button */}
           <button
             onClick={onNewChat}
             className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/40 rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200"

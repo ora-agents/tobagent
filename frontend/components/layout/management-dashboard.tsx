@@ -348,6 +348,34 @@ export function ManagementDashboard({
     setActiveTab(initialTab)
   }, [initialTab])
 
+  // Sync selectedAgentId with selectedAgentProfileId from props when tab is agents
+  useEffect(() => {
+    if (activeTab === "agents") {
+      setSelectedAgentId(selectedAgentProfileId)
+      
+      // Auto-enter editing mode if a custom agent is selected to jump straight to its config form!
+      if (selectedAgentProfileId) {
+        const selectedProfile = agentProfiles.find(p => p.id === selectedAgentProfileId)
+        if (selectedProfile) {
+          setIsEditingAgent(true)
+          setIsCreatingAgent(false)
+          setAgentForm({
+            name: selectedProfile.name,
+            description: selectedProfile.description,
+            systemPrompt: selectedProfile.systemPrompt,
+            enabledTools: selectedProfile.enabledTools,
+            knowledgeBaseIds: selectedProfile.knowledgeBaseIds || [],
+            skillIds: selectedProfile.skillIds || [],
+            mcpIds: selectedProfile.mcpIds || []
+          })
+        }
+      } else {
+        setIsEditingAgent(false)
+        setIsCreatingAgent(false)
+      }
+    }
+  }, [selectedAgentProfileId, activeTab, agentProfiles])
+
   // ---------------------------------------------------------------------------
   // Skills Actions
   // ---------------------------------------------------------------------------
