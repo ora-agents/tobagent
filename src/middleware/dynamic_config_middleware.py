@@ -22,6 +22,8 @@ from src.agent.config import (
     OPENAI_COMPATIBLE_API_KEY,
     OPENAI_COMPATIBLE_BASE_URL,
 )
+from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
+from src.utils.mcp import McpPoolManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,6 @@ async def dynamic_config_middleware(request, handler):
 
     if agent_id and agent_id != "default":
         try:
-            from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
             db = SessionLocal()
             try:
                 agent_profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == agent_id).first()
@@ -82,7 +83,6 @@ async def dynamic_config_middleware(request, handler):
     agent_id = getattr(ctx, "agent_id", None)
     if agent_id and agent_id != "default":
         try:
-            from src.utils.mcp import McpPoolManager
             mcp_tools = await McpPoolManager.get_tools_for_agent(agent_id)
             if mcp_tools:
                 # Add all MCP tools to filtered list so they are bound to the model
