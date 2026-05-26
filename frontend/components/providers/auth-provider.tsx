@@ -12,6 +12,8 @@ export interface User {
   username: string
   email: string | null
   avatarColor: string | null
+  preferences: string | null
+  safetyEnabled: boolean
   createdAt: string
 }
 
@@ -24,6 +26,7 @@ interface AuthContextType {
   register: (username: string, password: string, email?: string) => Promise<void>
   logout: () => void
   clearError: () => void
+  updateProfile: (data: Partial<Pick<User, 'username' | 'email' | 'preferences' | 'safetyEnabled'>>) => Promise<User>
 }
 
 // ============================================================================
@@ -151,6 +154,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.info('[Auth] Logged out successfully')
   }, [])
 
+  // 5. Update profile function
+  const updateProfile = useCallback(async (
+    data: Partial<Pick<User, 'username' | 'email' | 'preferences' | 'safetyEnabled'>>
+  ): Promise<User> => {
+    if (!user) throw new Error('Not logged in')
+    setLoading(true)
+    setError(null)
+    try {
+      console.info('[Auth] Updating profile:', user.id, data)
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+
+      if (!resp.ok) {
+        let detail = `Server error (${resp.status})`
+        try {
+          const errData = await resp.json()
+          detail = errData.detail || detail
+        } catch {
+          // Response body is not JSON (e.g., HTML error page)
+        }
+        throw new Error(detail)
+      }
+
+      const updatedUser = (await resp.json()) as User
+      setUser(updatedUser)
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser))
+      console.info('[Auth] Profile updated successfully:', updatedUser.username, updatedUser)
+      return updatedUser
+    } catch (err: any) {
+      console.error('[Auth] Profile update error:', err)
+      setError(err.message || 'An error occurred while updating profile')
+      throw err
+    } finally {
+      setLoading(false)
+    }
+  }, [user])
+
   // Compute final userId
   const userId = user ? user.id : anonymousId
 
@@ -163,6 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     register,
     logout,
     clearError,
+    updateProfile,
   }
 
   return (

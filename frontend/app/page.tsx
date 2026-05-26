@@ -437,7 +437,7 @@ function DashboardContent() {
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          threads={filteredThreads}
+          threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
           currentThreadId={threadId || ''}
           onSelectThread={handleSelectThread}
           onDeleteThread={handleDeleteThread}

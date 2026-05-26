@@ -122,6 +122,10 @@ interface UseStreamHandlerProps {
   userId?: string | null
   userEmail?: string | null
   userName?: string | null
+  /** User's general preferences injected into agent system prompt. */
+  userPreferences?: string | null
+  /** When true, agent must confirm before executing dangerous actions. */
+  safetyEnabled?: boolean
 }
 
 /**
@@ -177,6 +181,8 @@ export function useStreamHandler({
   userId,
   userEmail,
   userName,
+  userPreferences,
+  safetyEnabled,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
    * Generates a public LangSmith trace URL.
@@ -441,8 +447,17 @@ export function useStreamHandler({
         configurableBase.system_prompt = agentProfile.systemPrompt
         configurableBase.enabled_tools = agentProfile.enabledTools
         configurableBase.agent_id = agentProfile.id
+        configurableBase.agent_ids = (agentProfile as any).agentIds || []
       } else if (repos.length > 0) {
         configurableBase.repos = repos
+      }
+
+      // Always inject user preferences and safety flag
+      if (userPreferences) {
+        configurableBase.user_preferences = userPreferences
+      }
+      if (safetyEnabled) {
+        configurableBase.safety_enabled = true
       }
 
       const streamResponse = client.runs.stream(threadId, agentType, {

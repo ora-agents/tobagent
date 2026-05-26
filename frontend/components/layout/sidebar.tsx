@@ -9,6 +9,7 @@ import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AuthDialog } from "./auth-dialog"
+import { UserProfileDialog } from "./user-profile-dialog"
 
 const scrollbarStyles = `
   .custom-scrollbar {
@@ -104,13 +105,16 @@ function groupThreads(threads: Thread[]) {
 interface UserProfileSectionProps {
   isCollapsed: boolean
   onOpenAuth: () => void
+  onOpenProfile: () => void
 }
 
 const UserProfileSection = memo(function UserProfileSection({
   isCollapsed,
   onOpenAuth,
+  onOpenProfile,
 }: UserProfileSectionProps) {
   const { user, logout } = useAuth()
+  const { locale } = useI18n()
 
   if (!user) {
     if (isCollapsed) {
@@ -139,10 +143,10 @@ const UserProfileSection = memo(function UserProfileSection({
     return (
       <div className="flex flex-col items-center">
         <button
-          onClick={logout}
+          onClick={onOpenProfile}
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm hover:opacity-80 transition-all duration-200 cursor-pointer"
           style={{ backgroundColor: user.avatarColor || '#cc785c' }}
-          title={`Log out (${user.username})`}
+          title={`${user.username} (${locale === "zh" ? "设置" : "Settings"})`}
         >
           {user.username.charAt(0).toUpperCase()}
         </button>
@@ -152,8 +156,11 @@ const UserProfileSection = memo(function UserProfileSection({
 
   return (
     <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/15 border border-border/40 gap-3 group/profile">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div 
+      <button
+        onClick={onOpenProfile}
+        className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-80 transition-all duration-200 cursor-pointer text-left"
+      >
+        <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm flex-shrink-0"
           style={{ backgroundColor: user.avatarColor || '#cc785c' }}
         >
@@ -163,7 +170,7 @@ const UserProfileSection = memo(function UserProfileSection({
           <span className="text-sm font-semibold truncate text-foreground">{user.username}</span>
           <span className="text-[10px] text-muted-foreground truncate">{user.email || 'No email'}</span>
         </div>
-      </div>
+      </button>
       <button
         onClick={logout}
         className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-200 cursor-pointer"
@@ -194,6 +201,7 @@ export const Sidebar = memo(function Sidebar({
 
   const [searchQuery, setSearchQuery] = useState('')
   const [isAuthOpen, setIsAuthOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
 
   // Filter threads based on search query
   const filteredThreads = useMemo(() => {
@@ -341,7 +349,7 @@ export const Sidebar = memo(function Sidebar({
           
           <div className="w-8 border-t border-border/40 my-1 flex-shrink-0" />
           
-          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} />
+          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenProfile={() => setIsProfileOpen(true)} />
         </div>
       </aside>
     )
@@ -483,10 +491,11 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="pt-2 pb-3 px-3">
-        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} />
+        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenProfile={() => setIsProfileOpen(true)} />
       </div>
-      
+
       <AuthDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
+      <UserProfileDialog open={isProfileOpen} onOpenChange={setIsProfileOpen} />
     </aside>
     </>
   )

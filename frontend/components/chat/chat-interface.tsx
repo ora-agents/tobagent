@@ -9,6 +9,7 @@ import { createUserMessage, generateMessageId, extractTextFromContent } from "@/
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
 import { useUserId } from "@/lib/hooks/auth"
+import { useAuth } from "@/components/providers/auth-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
@@ -246,6 +247,11 @@ export function ChatInterface({
     [userId]
   )
 
+  // Get user preferences from auth context for prompt injection
+  const { user: authUser } = useAuth()
+  const userPreferences = authUser?.preferences || null
+  const safetyEnabled = authUser?.safetyEnabled || false
+
   // ============================================================================
   // Custom Hooks
   // ============================================================================
@@ -260,6 +266,8 @@ export function ChatInterface({
     userId,
     userEmail,
     userName,
+    userPreferences,
+    safetyEnabled,
   })
 
   const {
