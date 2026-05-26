@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef } from "react"
+import { Suspense, useState, useEffect, useRef, useMemo } from "react"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -106,6 +106,15 @@ function DashboardContent() {
     addOptimisticThread,
   } = useThreads(userId || undefined)
 
+  // Filter threads based on active agent
+  const filteredThreads = useMemo(() => {
+    return threads.filter((thread) => {
+      const threadAgentId = thread.metadata?.agent_id || "default";
+      const currentAgentId = selectedAgentProfileId || "default";
+      return threadAgentId === currentAgentId;
+    });
+  }, [threads, selectedAgentProfileId]);
+
   const { clientProfile } = useClientProfile()
 
   // Create a new thread
@@ -129,6 +138,7 @@ function DashboardContent() {
           title: t.untitled,
           lastMessage: "",
           client: resolveClientProfile(clientProfile),
+          agent_id: selectedAgentProfileId || "default",
         },
       })
     }
@@ -173,6 +183,7 @@ function DashboardContent() {
           title: t.untitled,
           lastMessage: "",
           client: resolveClientProfile(clientProfile),
+          agent_id: selectedAgentProfileId || "default",
         },
       })
     }
@@ -200,6 +211,7 @@ function DashboardContent() {
     }
 
     const resolvedClient = resolveClientProfile(client ?? clientProfile)
+    const agentId = selectedAgentProfileId || "default"
 
     // Check if this thread already exists
     const existingThread = threads.find(t => t.thread_id === threadId)
@@ -222,6 +234,7 @@ function DashboardContent() {
             title: t.untitled,
             lastMessage,
             client: resolvedClient,
+            agent_id: agentId,
           },
         })
       }
@@ -231,6 +244,7 @@ function DashboardContent() {
         user_id: userId,
         lastMessage,
         client: resolvedClient,
+        agent_id: agentId,
       })
 
       // Generate AI title in background - goes straight from "Untitled" to AI title
@@ -245,6 +259,7 @@ function DashboardContent() {
             title: aiTitle,
             lastMessage,
             client: resolvedClient,
+            agent_id: agentId,
           })
         }
       }).catch((error) => {
@@ -256,6 +271,7 @@ function DashboardContent() {
           title: quickTitle,
           lastMessage,
           client: resolvedClient,
+          agent_id: agentId,
         })
       })
     } else if (shouldGenerateAITitle && messageCount) {
@@ -267,6 +283,7 @@ function DashboardContent() {
         user_id: userId,
         lastMessage,
         client: resolvedClient,
+        agent_id: agentId,
       })
 
       // Generate new AI title in background
@@ -281,6 +298,7 @@ function DashboardContent() {
             title: aiTitle,
             lastMessage,
             client: resolvedClient,
+            agent_id: agentId,
           })
         }
       }).catch((error) => {
@@ -292,6 +310,7 @@ function DashboardContent() {
         user_id: userId,
         lastMessage,
         client: resolvedClient,
+        agent_id: agentId,
       })
     }
   }
@@ -317,6 +336,25 @@ function DashboardContent() {
       setThreadId(newThreadId)
     }
   }, [threadId, setThreadId, initialPrompt])
+
+  // Handle switching active thread or creating a new one when active agent changes
+  useEffect(() => {
+    if (!userId || threadsLoading) return;
+
+    // Check if the current threadId is in the filteredThreads
+    const currentThreadInFiltered = filteredThreads.some(t => t.thread_id === threadId);
+    
+    // If current thread does not belong to the selected agent:
+    if (!currentThreadInFiltered) {
+      if (filteredThreads.length > 0) {
+        // Switch to the most recent thread of the selected agent
+        setThreadId(filteredThreads[0].thread_id);
+      } else {
+        // If there are no threads for this agent, create a new chat for this agent
+        handleNewChat();
+      }
+    }
+  }, [selectedAgentProfileId, threadsLoading, filteredThreads, threadId]);
 
   // Cycle to next model
   const handleCycleModel = () => {
@@ -399,7 +437,7 @@ function DashboardContent() {
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          threads={threads}
+          threads={filteredThreads}
           currentThreadId={threadId || ''}
           onSelectThread={handleSelectThread}
           onDeleteThread={handleDeleteThread}
