@@ -83,11 +83,19 @@ class McpPoolManager:
         client_config = {}
         for s in servers:
             if s.url:
+                # ModelScope remote MCP servers utilize the Streamable HTTP protocol.
+                # Standard sse transport GET request to '/mcp' yields application/json instead of text/event-stream,
+                # causing SSEError. We dynamically switch to 'streamable_http' when ModelScope URL is detected.
+                transport = s.type or "sse"
+                if s.url and "mcp.api-inference.modelscope.net" in s.url:
+                    transport = "streamable_http"
+
                 client_config[s.name] = {
-                    "transport": "sse",
+                    "transport": transport,
                     "url": s.url,
                     "headers": s.headers or {},
                 }
+
 
         if not client_config:
             return []
