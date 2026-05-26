@@ -15,6 +15,8 @@ except ImportError:
     pass
 
 from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from src.utils.db import AgentProfileTable, McpServerTable, SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +38,6 @@ class McpPoolManager:
             return []
 
         # 1. Fetch agent profile to get linked mcp_ids
-        from src.utils.db import AgentProfileTable, McpServerTable, SessionLocal
-        
         db = SessionLocal()
         mcp_ids = []
         try:
@@ -94,16 +94,24 @@ class McpPoolManager:
 
         # 4. Create and initialize MultiServerMCPClient
         try:
-            from langchain_mcp_adapters.client import MultiServerMCPClient
             logger.info(f"Creating new MultiServerMCPClient for agent {agent_id} with configs: {list(client_config.keys())}")
             
-            # Use asyncio.to_thread to run the synchronous instantiation (which triggers ScandirIterator)
-            # on a separate thread pool. This bypasses LangGraph's strict synchronous blocking detection.
+            # Define a helper function to run both client instantiation and get_tools() 
+            # on a dedicated worker thread with an isolated event loop. This completely
+            # avoids synchronous filesystem scans (ScandirIterator) and dynamic imports
+            # from blocking the main ASGI server's event loop.
+            def _fetch_in_thread():
+                import asyncio
+                loop = asyncio.new_event_loop()
+                try:
+                    c = MultiServerMCPClient(client_config)
+                    t = loop.run_until_complete(c.get_tools())
+                    return c, t
+                finally:
+                    loop.close()
+
             import asyncio
-            client = await asyncio.to_thread(MultiServerMCPClient, client_config)
-            
-            # Retrieve tools (get_tools implicitly connects/initializes the client)
-            tools = await client.get_tools()
+            client, tools = await asyncio.to_thread(_fetch_in_thread)
             
             # Cache it
             cls._clients[agent_id] = (client, mcp_ids_tuple)
