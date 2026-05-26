@@ -8,6 +8,7 @@ import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { AgentProfilesDialog } from "@/components/layout/agent-profiles-dialog"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
+import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
@@ -27,10 +28,9 @@ import { useT } from "@/lib/i18n"
 function DashboardContent() {
   const t = useT()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp">("chat")
+  const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings">("chat")
   const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [showAgentProfilesDialog, setShowAgentProfilesDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
@@ -401,10 +401,10 @@ function DashboardContent() {
       shortcut: {
         key: 's',
         metaKey: true,
-        description: 'Toggle settings',
+        description: 'Open user settings',
         category: 'Navigation',
       },
-      handler: () => setShowSettingsDialog(!showSettingsDialog),
+      handler: () => setCurrentView(currentView === "settings" ? "chat" : "settings"),
     },
     {
       shortcut: {
@@ -456,8 +456,6 @@ function DashboardContent() {
               onAgentConfigChange={setAgentConfig}
               onShowShortcuts={() => setShowShortcutsDialog(true)}
               forceShowTooltip={forceShowTooltip}
-              showSettingsDialog={showSettingsDialog}
-              onSettingsDialogChange={setShowSettingsDialog}
               selectedAgentProfile={selectedAgentProfile}
               onOpenAgentSettings={() => setCurrentView("agents")}
             />
@@ -480,6 +478,10 @@ function DashboardContent() {
               />
             )}
           </>
+        ) : currentView === "settings" ? (
+          <UserSettingsPage
+            onBackToChat={() => setCurrentView("chat")}
+          />
         ) : (
           <ManagementDashboard
             initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}

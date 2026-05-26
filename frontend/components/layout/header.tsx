@@ -13,8 +13,6 @@ interface HeaderProps {
   onAgentConfigChange?: (config: AgentConfig) => void
   onShowShortcuts?: () => void
   forceShowTooltip?: number
-  showSettingsDialog?: boolean
-  onSettingsDialogChange?: (open: boolean) => void
   /** Currently selected custom agent profile (null = default docs agent). */
   selectedAgentProfile?: AgentProfile | null
   /** Callback to open agent profiles configuration dialog. */
@@ -29,8 +27,6 @@ export function Header({
   onAgentConfigChange,
   onShowShortcuts,
   forceShowTooltip,
-  showSettingsDialog,
-  onSettingsDialogChange,
   selectedAgentProfile,
   onOpenAgentSettings,
 }: HeaderProps) {
