@@ -186,3 +186,5 @@ lancedb_data
 chat_langchain.db
 
 docs
+
+*.pem
