@@ -5,6 +5,7 @@ import {
   resolveClientProfile,
 } from "@/lib/config/client-config"
 import { LANGGRAPH_API_URL } from "../../constants/api"
+import { generateUUID } from "@/lib/utils"
 
 // ============================================================================
 // Types
@@ -22,7 +23,7 @@ function getOrGenerateClientId(): string {
   if (typeof window === "undefined") return "ssr-dummy-client"
   let id = window.localStorage.getItem("client-identity-raw-uuid")
   if (!id) {
-    id = crypto.randomUUID()
+    id = generateUUID()
     window.localStorage.setItem("client-identity-raw-uuid", id)
   }
   return id

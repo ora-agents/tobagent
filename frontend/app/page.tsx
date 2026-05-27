@@ -14,6 +14,7 @@ import { useUserId, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import { generateQuickTitle, generateThreadTitle } from "@/lib/utils/string"
+import { generateUUID } from "@/lib/utils"
 import {
   fetchAvailableModels,
   getDefaultModel,
@@ -119,7 +120,7 @@ function DashboardContent() {
 
   // Create a new thread
   const handleNewChat = () => {
-    const newThreadId = crypto.randomUUID()
+    const newThreadId = generateUUID()
 
     // Switch back to chat view
     setCurrentView("chat")
@@ -156,7 +157,7 @@ function DashboardContent() {
     deleteThread(threadIdToDelete, () => {
       // If deleting current thread, create a new one
       if (threadIdToDelete === threadId) {
-        const newThreadId = crypto.randomUUID()
+        const newThreadId = generateUUID()
         setThreadId(newThreadId)
       }
     })
@@ -167,7 +168,7 @@ function DashboardContent() {
     console.log('Thread not accessible - creating new thread')
 
     // Always create a new thread when current thread is not accessible
-    const newThreadId = crypto.randomUUID()
+    const newThreadId = generateUUID()
 
     // Mark this thread as new (doesn't exist in backend yet)
     setNewThreads(prev => new Set(prev).add(newThreadId))
@@ -323,7 +324,7 @@ function DashboardContent() {
     const trimmedPrompt = initialPrompt?.trim()
     if (trimmedPrompt && !hasProcessedPromptRef.current) {
       hasProcessedPromptRef.current = true
-      const newThreadId = crypto.randomUUID()
+      const newThreadId = generateUUID()
       setNewThreads(prev => new Set(prev).add(newThreadId))
       setThreadId(newThreadId)
       return
@@ -331,7 +332,7 @@ function DashboardContent() {
 
     // Create a thread if none exists
     if (!threadId) {
-      const newThreadId = crypto.randomUUID()
+      const newThreadId = generateUUID()
       setNewThreads(prev => new Set(prev).add(newThreadId))
       setThreadId(newThreadId)
     }

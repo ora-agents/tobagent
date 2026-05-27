@@ -1,4 +1,5 @@
 import type { ClientProfile } from "@/lib/hooks/threads"
+import { generateUUID } from "@/lib/utils"
 
 // Constants
 const DEFAULT_AVATAR_COLOR = "#6366f1" // Indigo-500
@@ -26,11 +27,7 @@ function deriveLabel(client: Pick<ClientProfile, 'id' | 'label'>): string {
  * otherwise falls back to a random string.
  */
 function generateClientId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID()
-  }
-
-  return `client-${Math.random().toString(36).slice(2, 10)}`
+  return generateUUID()
 }
 
 /**

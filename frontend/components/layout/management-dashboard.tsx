@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
+import { generateUUID } from "@/lib/utils"
 
 // ---------------------------------------------------------------------------
 // Skills Data Types & Storage
@@ -428,7 +429,7 @@ export function ManagementDashboard({
     const now = new Date().toISOString()
     if (isCreatingSkill) {
       const newSkill: Skill = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: parsedName,
         description: parsedDesc,
         content: skillForm.content,
@@ -650,7 +651,7 @@ export function ManagementDashboard({
 
     if (isCreatingMcp) {
       const newMcp: Omit<McpServer, "createdAt" | "updatedAt"> = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: mcpForm.name.trim(),
         type: mcpForm.type,
         url: mcpForm.url.trim() || undefined,
@@ -760,7 +761,7 @@ export function ManagementDashboard({
     const now = new Date().toISOString()
     if (isCreatingKB) {
       const newKB: KnowledgeBase = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: kbForm.name.trim(),
         description: kbForm.description.trim(),
         files: [],

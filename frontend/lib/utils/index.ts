@@ -41,3 +41,6 @@ export * from "./string"
 
 // Logger
 export { logger } from "./logger"
+
+// UUID generation (secure context safe)
+export { generateUUID } from "./uuid"

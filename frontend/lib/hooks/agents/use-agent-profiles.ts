@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
+import { generateUUID } from "@/lib/utils"
 
 function loadSelectedId(): string | null {
   if (typeof window === "undefined") return null
@@ -57,7 +58,7 @@ export function useAgentProfiles() {
     const now = new Date().toISOString()
     const newProfile: AgentProfile = {
       ...data,
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       createdAt: now,
       updatedAt: now,
     }

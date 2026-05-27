@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { LANGGRAPH_API_URL } from '@/lib/constants/api'
+import { generateUUID } from '@/lib/utils'
 
 // ============================================================================
 // Types & Interfaces
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Load or generate anonymous ID
     let anonId = localStorage.getItem(ANONYMOUS_ID_KEY)
     if (!anonId) {
-      anonId = `user-${crypto.randomUUID()}`
+      anonId = `user-${generateUUID()}`
       localStorage.setItem(ANONYMOUS_ID_KEY, anonId)
       console.info('[Auth] Generated anonymous user ID:', anonId)
     } else {
