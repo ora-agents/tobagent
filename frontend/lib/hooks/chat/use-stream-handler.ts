@@ -2,15 +2,13 @@
  * Stream Handler Hook
  *
  * This hook manages the streaming of LangGraph agent responses, handling real-time
- * message updates, tool calls, thinking steps, subgraph outputs, and metadata fetching.
+ * message updates, tool calls, thinking steps, and subgraph outputs.
  *
  * Key Features:
  * - Real-time streaming of agent responses with progressive token display
  * - Tool call tracking and output capture (both regular tools and subagents)
  * - Thinking step visualization showing agent's reasoning process
  * - Subagent execution tracking with parallel execution support
- * - Usage metadata fetching from LangSmith (tokens and costs)
- * - Public share link generation with retry logic
  * - Stream interruption support
  * - SSR-safe implementation
  *
@@ -18,7 +16,6 @@
  * - Processes multiple stream modes: values, updates, messages, messages/partial
  * - Filters subgraph events to show only main agent responses
  * - Tracks execution state across streaming events
- * - Implements retry logic for LangSmith API calls (run data may not be immediately available)
  */
 
 import { useCallback } from "react"
@@ -27,7 +24,6 @@ import type {
   Message,
   ToolCall,
   SubgraphOutput,
-  UsageMetadata,
   ImageAttachment,
 } from "../../types"
 import {
@@ -36,7 +32,6 @@ import {
   updateMessageInList,
 } from "../../utils/chat"
 import type { AgentConfig } from "@/components/layout/agent-settings"
-import { shareRun, readRun } from "../../api/langsmith"
 import { getDefaultModel, type ModelOption } from "../../config/deployment-config"
 import type { AgentProfile } from "../../types/agent-profiles"
 
@@ -45,40 +40,6 @@ import type { AgentProfile } from "../../types/agent-profiles"
 // ============================================================================
 
 import { LANGGRAPH_API_URL } from "../../constants/api"
-
-/** Retry configuration for LangSmith API calls */
-const RETRY_CONFIG = {
-  maxRetries: 8, // Increased for slower LangSmith indexing
-  baseDelay: 1000, // 1 second initial delay
-  initialDelay: 1000, // Wait before first attempt to let server settle
-}
-
-/** Error patterns that indicate a retryable failure */
-const RETRYABLE_ERROR_PATTERNS = [
-  "404",
-  "Run not found",
-  "Failed to fetch",
-  "NetworkError",
-  "network",
-  "ECONNREFUSED",
-  "ETIMEDOUT",
-]
-
-/**
- * Check if an error message indicates a retryable failure.
- * Retryable errors include: 404 (run not ingested yet), network failures
- */
-function isRetryableError(errorMessage: string): boolean {
-  return RETRYABLE_ERROR_PATTERNS.some(pattern => errorMessage.includes(pattern))
-}
-
-/**
- * Calculate exponential backoff delay for retry attempt.
- * Returns delays of: 1s, 2s, 4s, 8s, 16s for attempts 0-4
- */
-function getBackoffDelay(attempt: number): number {
-  return RETRY_CONFIG.baseDelay * Math.pow(2, attempt)
-}
 
 function describeToolStep(name: string, args: Record<string, any> = {}): string {
   if (args.query && name === "search_docs_by_lang_chain") {
@@ -150,7 +111,6 @@ interface UseStreamHandlerReturn {
  * - Processing streamed chunks and updating message state
  * - Tracking tool calls and their outputs
  * - Visualizing thinking steps and subagent execution
- * - Fetching usage metadata and generating share links
  *
  * @param client - LangGraph SDK client instance
  * @param threadId - ID of the conversation thread
@@ -185,141 +145,6 @@ export function useStreamHandler({
   safetyEnabled,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
-   * Generates a public LangSmith trace URL.
-   *
-   * Implements light retry logic because run metadata may not be immediately available.
-   *
-   * @param runId - LangSmith run ID
-   * @param messageId - Message ID to update with trace URL
-   */
-  const generateShareLink = useCallback(
-    async (runId: string, messageId: string) => {
-      console.log("[TraceURL] Generating trace URL for runId:", runId, "messageId:", messageId)
-
-      try {
-        // Initial delay to let the server settle after stream completion
-        console.log("[TraceURL] Waiting 1s before first attempt...")
-        await new Promise((resolve) => setTimeout(resolve, RETRY_CONFIG.initialDelay))
-
-        for (let attempt = 0; attempt < RETRY_CONFIG.maxRetries; attempt++) {
-          if (attempt > 0) {
-            const delay = getBackoffDelay(attempt)
-            console.log(`[TraceURL] Retry attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}, waiting ${delay}ms...`)
-            await new Promise((resolve) => setTimeout(resolve, delay))
-          }
-
-          try {
-            console.log("[TraceURL] Calling shareRun API...")
-            const shareUrl = await shareRun(runId)
-
-            if (shareUrl) {
-              console.log("[TraceURL] SUCCESS! Trace URL:", shareUrl)
-              setMessages((prev) =>
-                prev.map((m) => (m.id === messageId ? { ...m, shareUrl } : m))
-              )
-              return
-            }
-          } catch (error: any) {
-            const errorMessage = error?.message || ""
-            console.log("[TraceURL] Error on attempt", attempt + 1, ":", errorMessage)
-
-            if (isRetryableError(errorMessage) && attempt < RETRY_CONFIG.maxRetries - 1) {
-              console.log("[TraceURL] Retryable error, will retry...")
-              continue
-            }
-
-            throw error
-          }
-        }
-      } catch (error: any) {
-        const errorMessage = error?.message || ""
-        // Only log unexpected errors (retryable errors are expected during normal operation)
-        if (!isRetryableError(errorMessage)) {
-          console.error("[TraceURL] Error generating trace URL:", error)
-        }
-      }
-    },
-    [setMessages]
-  )
-
-  /**
-   * Fetches usage metadata (tokens and costs) from LangSmith.
-   * Implements exponential backoff retry logic as run data may not be immediately available.
-   *
-   * @param runId - LangSmith run ID
-   * @param messageId - Message ID to update with usage metadata
-   */
-  const fetchUsageMetadata = useCallback(
-    async (runId: string, messageId: string) => {
-      console.log("[UsageMetadata] Starting fetch for runId:", runId)
-      try {
-        // Initial delay to let the server settle after stream completion
-        console.log("[UsageMetadata] Waiting 1s before first attempt...")
-        await new Promise((resolve) => setTimeout(resolve, RETRY_CONFIG.initialDelay))
-
-        for (let attempt = 0; attempt < RETRY_CONFIG.maxRetries; attempt++) {
-          if (attempt > 0) {
-            const delay = getBackoffDelay(attempt)
-            console.log(`[UsageMetadata] Retry attempt ${attempt + 1}/${RETRY_CONFIG.maxRetries}, waiting ${delay}ms...`)
-            await new Promise((resolve) => setTimeout(resolve, delay))
-          }
-
-          try {
-            console.log("[UsageMetadata] Calling readRun API...")
-            const run = await readRun(runId)
-
-            if (run) {
-              const totalTokens = run.total_tokens || 0
-              console.log("[UsageMetadata] Got run, total_tokens:", totalTokens)
-
-              // Only update if we have valid token data
-              if (totalTokens > 0) {
-                const usageMetadata: UsageMetadata = {
-                  input_tokens: run.prompt_tokens || 0,
-                  output_tokens: run.completion_tokens || 0,
-                  total_tokens: totalTokens,
-                  input_cost: (run as any).prompt_cost != null ? Number((run as any).prompt_cost) : 0,
-                  output_cost: (run as any).completion_cost != null ? Number((run as any).completion_cost) : 0,
-                  total_cost: (run as any).total_cost != null ? Number((run as any).total_cost) : 0,
-                }
-
-                console.log("[UsageMetadata] SUCCESS! Setting usage metadata:", usageMetadata)
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === messageId ? { ...m, usageMetadata } : m))
-                )
-                return
-              } else {
-                console.log("[UsageMetadata] Run has no token data yet, retrying...")
-              }
-            }
-          } catch (error: any) {
-            const errorMessage = error?.message || ""
-            console.log("[UsageMetadata] Error on attempt", attempt + 1, ":", errorMessage)
-
-            if (isRetryableError(errorMessage) && attempt < RETRY_CONFIG.maxRetries - 1) {
-              console.log("[UsageMetadata] Retryable error, will retry...")
-              continue
-            }
-
-            // Only warn for unexpected errors
-            if (!isRetryableError(errorMessage)) {
-              console.warn("Unable to fetch usage metadata from LangSmith:", errorMessage)
-            }
-            return
-          }
-        }
-        console.log("[UsageMetadata] Exhausted all retries without success")
-      } catch (error: any) {
-        const errorMessage = error?.message || ""
-        if (!isRetryableError(errorMessage)) {
-          console.error("Failed to fetch usage metadata:", error)
-        }
-      }
-    },
-    [setMessages]
-  )
-
-  /**
    * Processes the stream of agent responses.
    *
    * Main function that handles:
@@ -328,7 +153,6 @@ export function useStreamHandler({
    * - Tracking tool calls, thinking steps, and subagent outputs
    * - Updating message state in real-time
    * - Handling stream interruption
-   * - Triggering metadata and share link fetching after completion
    *
    * @param userContent - User's message content
    * @param assistantMessageId - ID for the assistant's response message
@@ -886,13 +710,10 @@ export function useStreamHandler({
     })
 
     // Fetch usage metadata and generate public share link if we have a runId
-    if (runId) {
-      fetchUsageMetadata(runId, assistantMessageId)
-      generateShareLink(runId, assistantMessageId)
-    }
+    // LangSmith tracing is handled server-side via traceMetadata; no client-side fetch needed.
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, agentProfile, fetchUsageMetadata, generateShareLink, userId, userEmail, userName])
+  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName])
 
   return { processStream }
 }

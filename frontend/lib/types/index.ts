@@ -7,7 +7,6 @@
 
 export type { Message } from "./messages"
 export type { ToolCall, SubgraphOutput } from "./tools"
-export type { UsageMetadata } from "./metadata"
 export type { ImageAttachment } from "./images"
 export type { AgentProfile, BuiltinToolId } from "./agent-profiles"
 

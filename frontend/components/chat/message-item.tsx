@@ -1,4 +1,4 @@
-import { Copy, Check, Settings, RefreshCw, ThumbsUp, ThumbsDown, MessageSquare, ExternalLink } from "lucide-react"
+import { Copy, Check, Settings, RefreshCw, ThumbsUp, ThumbsDown, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import ReactMarkdown from "react-markdown"
@@ -469,53 +469,6 @@ export const MessageItem = memo(function MessageItem({
               ) : null}
               </div>
 
-              {/* Metadata in bottom right of message box */}
-              {!message.isThinking && message.runId && (
-                <div className="flex items-center justify-end gap-2 mt-3 text-xs text-white font-mono font-medium">
-                  {/* Check if all metadata is loaded - use != null to handle 0 values */}
-                  {message.thinkingDuration && message.usageMetadata?.total_tokens && message.usageMetadata?.total_cost != null && message.shareUrl ? (
-                    <>
-                      <span>{(message.thinkingDuration / 1000).toFixed(1)}s</span>
-                      <span>•</span>
-                      <span>{(message.usageMetadata.total_tokens / 1000).toFixed(1)}k {t.tokens}</span>
-                      {message.usageMetadata.total_cost > 0 && (
-                        <>
-                          <span>•</span>
-                          <span>${message.usageMetadata.total_cost.toFixed(4)}</span>
-                        </>
-                      )}
-                      <a
-                        href={message.shareUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-0.5 text-xs font-medium transition-colors ml-1"
-                        style={{ color: '#cc785c', textDecorationColor: '#cc785c' }}
-                      >
-                        {t.viewTrace}
-                        <ExternalLink className="h-2.5 w-2.5" />
-                      </a>
-                    </>
-                  ) : (
-                    <span className="font-sans font-medium inline-flex items-center gap-0 relative">
-                      <span className="thinking-text-base">{t.loadingTrace}</span>
-                      <span className="inline-flex thinking-text-base">
-                        <span className="animate-bounce-dot" style={{ animationDelay: '1.3s' }}>.</span>
-                        <span className="animate-bounce-dot" style={{ animationDelay: '1.45s' }}>.</span>
-                        <span className="animate-bounce-dot" style={{ animationDelay: '1.6s' }}>.</span>
-                      </span>
-                      <span className="thinking-gradient-overlay" aria-hidden="true">
-                        <span>{t.loadingTrace}</span>
-                        <span className="inline-flex">
-                          <span className="animate-bounce-dot" style={{ animationDelay: '1.3s' }}>.</span>
-                          <span className="animate-bounce-dot" style={{ animationDelay: '1.45s' }}>.</span>
-                          <span className="animate-bounce-dot" style={{ animationDelay: '1.6s' }}>.</span>
-                        </span>
-                      </span>
-                    </span>
-                  )}
-                </div>
-              )}
-
             </div>
           )}
         </div>
@@ -559,7 +512,7 @@ export const MessageItem = memo(function MessageItem({
                 </>
               )}
 
-              {!message.isThinking && message.runId && (message.shareUrl || message.usageMetadata) && (
+              {!message.isThinking && message.runId && (
                 <>
                   <Button
                     variant="ghost"

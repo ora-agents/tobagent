@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ClientProfile } from "@/lib/hooks"
 import { Client } from "@langchain/langgraph-sdk"
-import { readRun, shareRun } from "@/lib/api/langsmith"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
@@ -404,8 +403,6 @@ export function ChatInterface({
               toolCalls: msg.tool_calls,
               runId: msg.run_id,
               thinkingDuration: msg.response_metadata?.thinking_duration,
-              usageMetadata: msg.usage_metadata,
-              shareUrl: msg.response_metadata?.share_url,
               // Preserve images/attachments
               images: msg.images,
             }
@@ -426,22 +423,22 @@ export function ChatInterface({
 
         // Only set messages if we're still on the same thread (prevent race conditions)
         if (currentThreadId === threadId) {
-          // Merge with existing messages to preserve client-side metadata (shareUrl, usageMetadata, thinkingDuration)
-          // This prevents race conditions where generateShareLink() updates get overwritten by history reload
+          // Merge with existing messages to preserve client-side metadata (thinkingDuration)
+          // This prevents race conditions where history reload overwrites locally-computed metadata
           setMessages(prev => {
             // Build lookup maps by message ID, runId, and content hash (for matching when IDs differ)
             // Client-generated IDs differ from backend IDs, and backend doesn't always have runId
             const existingById = new Map(
-              prev.map(m => [m.id, { shareUrl: m.shareUrl, usageMetadata: m.usageMetadata, thinkingDuration: m.thinkingDuration, runId: m.runId }])
+              prev.map(m => [m.id, { thinkingDuration: m.thinkingDuration, runId: m.runId }])
             )
             const existingByRunId = new Map(
-              prev.filter(m => m.runId).map(m => [m.runId!, { shareUrl: m.shareUrl, usageMetadata: m.usageMetadata, thinkingDuration: m.thinkingDuration, runId: m.runId }])
+              prev.filter(m => m.runId).map(m => [m.runId!, { thinkingDuration: m.thinkingDuration, runId: m.runId }])
             )
             // Match by role + content prefix (first 100 chars) as fallback when IDs don't match
             const existingByContent = new Map(
               prev.filter(m => m.role === 'assistant').map(m => [
                 `${m.role}:${m.content.slice(0, 100)}`,
-                { shareUrl: m.shareUrl, usageMetadata: m.usageMetadata, thinkingDuration: m.thinkingDuration, runId: m.runId }
+                { thinkingDuration: m.thinkingDuration, runId: m.runId }
               ])
             )
 
@@ -458,8 +455,6 @@ export function ChatInterface({
                   ...msg,
                   // Preserve runId from existing if backend doesn't have it
                   runId: msg.runId || existing.runId,
-                  shareUrl: msg.shareUrl || existing.shareUrl,
-                  usageMetadata: msg.usageMetadata || existing.usageMetadata,
                   thinkingDuration: msg.thinkingDuration || existing.thinkingDuration,
                 }
               }
@@ -470,87 +465,6 @@ export function ChatInterface({
         } else {
           console.log(`Discarding messages for ${currentThreadId} - now on ${threadId}`)
           return
-        }
-
-        // Fetch metadata from LangSmith for messages that have runIds but missing metadata
-        // Use Promise.all to batch all updates and prevent race conditions
-        const messagesNeedingMetadata = convertedMessages.filter(
-          (msg): msg is Message & { runId: string } =>
-            !!msg.runId && msg.role === 'assistant' && (!msg.usageMetadata || !msg.shareUrl)
-        )
-
-        if (messagesNeedingMetadata.length > 0) {
-          const metadataUpdates = await Promise.all(
-            messagesNeedingMetadata.map(async (msg) => {
-              try {
-                console.log(`Fetching metadata from LangSmith for message ${msg.id} with runId ${msg.runId}`)
-
-                let usageMetadata = msg.usageMetadata
-                let thinkingDuration = msg.thinkingDuration
-                let shareUrl = msg.shareUrl
-
-                if (!msg.usageMetadata) {
-                  const run = await readRun(msg.runId)
-
-                  if (run) {
-                    usageMetadata = {
-                      input_tokens: run.prompt_tokens || 0,
-                      output_tokens: run.completion_tokens || 0,
-                      total_tokens: run.total_tokens || 0,
-                      input_cost: (run as any).prompt_cost || 0,
-                      output_cost: (run as any).completion_cost || 0,
-                      total_cost: (run as any).total_cost || 0,
-                    }
-
-                    thinkingDuration = run.end_time && run.start_time
-                      ? new Date(run.end_time).getTime() - new Date(run.start_time).getTime()
-                      : undefined
-                  }
-                }
-
-                if (!msg.shareUrl) {
-                  try {
-                    shareUrl = await shareRun(msg.runId)
-                  } catch {
-                    // Share URL might not exist yet, that's ok
-                  }
-                }
-
-                if (!usageMetadata && !thinkingDuration && !shareUrl) {
-                  return null
-                }
-
-                return {
-                  messageId: msg.id,
-                  usageMetadata,
-                  thinkingDuration,
-                  shareUrl,
-                }
-              } catch (error) {
-                console.log(`Could not fetch metadata for run ${msg.runId}:`, error)
-                return null
-              }
-            })
-          )
-
-          // Apply all metadata updates in a single state update
-          // Check thread ID again to prevent race conditions
-          if (currentThreadId === threadId) {
-            const validUpdates = metadataUpdates.filter((u): u is NonNullable<typeof u> => u !== null)
-            if (validUpdates.length > 0) {
-              setMessages(prev => prev.map(m => {
-                const update = validUpdates.find(u => u.messageId === m.id)
-                return update
-                  ? {
-                      ...m,
-                      usageMetadata: update.usageMetadata || m.usageMetadata,
-                      thinkingDuration: update.thinkingDuration || m.thinkingDuration,
-                      shareUrl: update.shareUrl || m.shareUrl,
-                    }
-                  : m
-              }))
-            }
-          }
         }
       } catch (error) {
         console.error("Unexpected error loading thread history:", error)

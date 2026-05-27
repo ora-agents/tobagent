@@ -105,38 +105,3 @@ export async function deleteFeedback(feedbackId: string): Promise<void> {
   await handleApiResponse(response)
 }
 
-/**
- * Read run details from LangSmith
- */
-export async function readRun(runId: string): Promise<any> {
-  const url = `${getLangSmithApiUrl()}/runs/${encodeURIComponent(runId)}`
-  
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: getAuthHeaders(),
-    })
-
-    return handleApiResponse(response)
-  } catch (error: any) {
-    logger.error(`[LangSmith] Failed to fetch run ${runId}`, error)
-    throw new Error(`Failed to fetch run: ${error.message || "Network error"}`)
-  }
-}
-
-/**
- * Generate a public trace URL for a LangSmith run.
- */
-export async function shareRun(runId: string): Promise<string> {
-  const response = await fetch(
-    `${getLangSmithApiUrl()}/runs/${encodeURIComponent(runId)}/share`,
-    {
-      method: "POST",
-      headers: getAuthHeaders(),
-    }
-  )
-
-  const data = await handleApiResponse<{ shareUrl: string }>(response)
-  return data.shareUrl
-}
-

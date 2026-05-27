@@ -6,7 +6,6 @@
 
 import type { ToolCall } from "./tools"
 import type { SubgraphOutput } from "./tools"
-import type { UsageMetadata } from "./metadata"
 import type { ImageAttachment } from "./images"
 
 /**
@@ -35,8 +34,6 @@ export interface Message {
 
   // LangSmith tracing
   runId?: string
-  shareUrl?: string // Public LangSmith trace share URL
-  usageMetadata?: UsageMetadata
 
   // User feedback
   feedback?: "positive" | "negative" | null

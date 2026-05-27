@@ -64,7 +64,6 @@ const zh = {
   addComment: "添加评论",
   submitComment: "提交",
   cancel: "取消",
-  viewTrace: "查看追踪",
   thinking: "思考中...",
   tokens: "令牌",
   cost: "费用",
@@ -157,7 +156,6 @@ const zh = {
   running: "运行中...",
   complete: "已完成",
   waitingForOutput: "等待输出...",
-  loadingTrace: "加载追踪中...",
   scrollBottom: "滚动到底部",
 
   // Agent selector & RAG upload
@@ -291,7 +289,6 @@ const en = {
   addComment: "Add comment",
   submitComment: "Submit",
   cancel: "Cancel",
-  viewTrace: "View trace",
   thinking: "Thinking...",
   tokens: "tokens",
   cost: "cost",
@@ -384,7 +381,6 @@ const en = {
   running: "Running...",
   complete: "Complete",
   waitingForOutput: "Waiting for output...",
-  loadingTrace: "Loading Trace",
   scrollBottom: "Scroll to bottom",
 
   // Agent selector & RAG upload
