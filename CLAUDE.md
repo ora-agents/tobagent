@@ -56,7 +56,7 @@ The backend runs as two coordinated services defined in `langgraph.json`:
 - `generic_agent` (`src/agent/generic_agent.py`) — The primary production agent. Configured per-request via `config["configurable"]` with system prompt, enabled tools, model, agent_id, etc. Uses `context_schema=GenericAgentContext` for typed runtime config.
 - `docs_agent` (`src/agent/docs_graph.py`) — A specialized LangChain documentation assistant. Pulls its system prompt from LangSmith Prompt Hub (or local file with `USE_LOCAL_PROMPTS=true`).
 
-**Shared config** lives in `src/agent/config.py` — initializes the OpenAI-compatible `ChatOpenAI` model, middleware stack, and env var reading. A single set of `NEXT_PUBLIC_OPENAI_*` env vars serves both the frontend and backend.
+**Shared config** lives in `src/agent/config.py` — initializes the OpenAI-compatible `ChatOpenAI` model, middleware stack, and env var reading. `NEXT_PUBLIC_OPENAI_BASE_URL` / `API_KEY` are backend-only; the frontend fetches the model list via the FastAPI `/api/models` proxy (the key stays server-side).
 
 **Middleware stack** (applied to agents via `langchain.agents`):
 - `SummarizationMiddleware` — auto-summarizes context at 130k tokens
@@ -96,7 +96,8 @@ Communicates with the backend via the LangGraph SDK (`@langchain/langgraph-sdk`)
 ## Environment Variables
 
 See `.env.example` for the full list. Key points:
-- `NEXT_PUBLIC_OPENAI_BASE_URL`, `NEXT_PUBLIC_OPENAI_API_KEY`, `NEXT_PUBLIC_OPENAI_DEFAULT_MODEL` — single set of vars for both frontend and backend. Supports any OpenAI-compatible endpoint (OpenAI, Ollama, OpenRouter, vLLM, DashScope).
+- `NEXT_PUBLIC_OPENAI_BASE_URL`, `NEXT_PUBLIC_OPENAI_API_KEY` — backend-only. The FastAPI sidecar proxies `/api/models` so the API key never reaches the browser. Supports any OpenAI-compatible endpoint (OpenAI, Ollama, OpenRouter, vLLM, DashScope).
+- `NEXT_PUBLIC_OPENAI_DEFAULT_MODEL` — used by both frontend (fallback) and backend.
 - `DATABASE_URL` — PostgreSQL connection string. Falls back to SQLite if unset.
 - `LANCEDB_PATH` — Where LanceDB vector stores live (default `/tmp/lancedb_agents`).
 - `OPENAI_EMBEDDING_MODEL` — Embedding model name (default `text-embedding-v4`, 1024 dims).
