@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
+import type { VoiceState } from "@/lib/voice/types"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
 import { useT } from "@/lib/i18n"
 
@@ -40,7 +41,7 @@ interface ChatInputProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement>
 
   // Voice input
-  isVoiceListening?: boolean
+  voiceState?: VoiceState
   isVoiceSupported?: boolean
   onVoiceToggle?: () => void
   voiceError?: string | null
@@ -76,7 +77,7 @@ export function ChatInput({
   fileInputRef,
   onFileSelect,
   textareaRef,
-  isVoiceListening,
+  voiceState = "idle",
   isVoiceSupported,
   onVoiceToggle,
   voiceError,
@@ -214,7 +215,8 @@ export function ChatInput({
 
                   {isVoiceSupported && onVoiceToggle && (
                     <VoiceInputButton
-                      isListening={isVoiceListening ?? false}
+                      voiceState={voiceState}
+                      isSupported={isVoiceSupported}
                       disabled={!userId}
                       onClick={onVoiceToggle}
                       size="sm"

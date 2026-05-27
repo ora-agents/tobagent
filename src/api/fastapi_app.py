@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from src.api.langsmith_routes import router as langsmith_router
+from src.api.voice_proxy import voice_router
 
 load_dotenv()
 
@@ -96,13 +97,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_get_cors_origins(),
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(langsmith_router)
+app.include_router(voice_router)
 
 
 class TitleGenerationRequest(BaseModel):
@@ -1177,5 +1179,7 @@ async def root():
             "knowledge_bases": "/api/knowledge-bases",
             "mcp_servers": "/api/mcp-servers",
             "models": "/api/models",
+            "voice_asr": "/ws/voice/asr",
+            "voice_tts": "/ws/voice/tts",
         },
     }

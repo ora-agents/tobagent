@@ -7,6 +7,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { FilePreviewGrid } from "./file-preview-grid"
 import { VoiceInputButton } from "./voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
+import type { VoiceState } from "@/lib/voice/types"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
@@ -44,7 +45,7 @@ interface WelcomeScreenProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement>
 
   // Voice input
-  isVoiceListening?: boolean
+  voiceState?: VoiceState
   isVoiceSupported?: boolean
   onVoiceToggle?: () => void
   voiceError?: string | null
@@ -84,7 +85,7 @@ export function WelcomeScreen({
   fileInputRef,
   onFileSelect,
   textareaRef,
-  isVoiceListening,
+  voiceState = "idle",
   isVoiceSupported,
   onVoiceToggle,
   voiceError,
@@ -211,7 +212,8 @@ export function WelcomeScreen({
 
               {isVoiceSupported && onVoiceToggle && (
                 <VoiceInputButton
-                  isListening={isVoiceListening ?? false}
+                  voiceState={voiceState}
+                  isSupported={isVoiceSupported}
                   disabled={!userId}
                   onClick={onVoiceToggle}
                   size="sm"

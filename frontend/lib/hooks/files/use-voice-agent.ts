@@ -1,0 +1,497 @@
+/**
+ * Voice Agent Hook
+ *
+ * Orchestrates the complete voice agent experience:
+ * - Cloud ASR for speech recognition (via WebSocket proxy)
+ * - Cloud TTS for agent reply playback (via WebSocket proxy)
+ * - State machine: idle -> listening -> processing -> speaking -> loop
+ * - Interruption: user can speak during TTS to interrupt the agent
+ * - Auto-send: ASR final transcript is sent automatically
+ * - Timeout: returns to idle after 30s of inactivity
+ *
+ * In this iteration (no KWS), voice mode is entered by clicking the
+ * microphone button. KWS wake word support will be added in Phase 3.
+ */
+
+import { useState, useCallback, useRef, useEffect } from "react"
+import { AsrClient } from "@/lib/voice/asr-client"
+import { TtsClient } from "@/lib/voice/tts-client"
+import { TtsPlayer } from "@/lib/voice/tts-player"
+import { pcmBufferToBase64 } from "@/lib/voice/utils/audio"
+import type { VoiceState } from "@/lib/voice/types"
+import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface UseVoiceAgentOptions {
+  /** Send a text message to the agent */
+  onSendMessage: (text: string) => void
+  /** Interrupt the current agent response */
+  onInterrupt: () => void
+}
+
+export interface UseVoiceAgentReturn {
+  /** Current voice state machine state */
+  voiceState: VoiceState
+  /** Whether the browser supports voice features */
+  isSupported: boolean
+  /** Whether ASR WebSocket is connected */
+  asrConnected: boolean
+  /** Whether TTS WebSocket is connected */
+  ttsConnected: boolean
+  /** Current interim transcript (real-time ASR display) */
+  currentTranscript: string
+  /** Whether TTS audio is currently playing */
+  isSpeaking: boolean
+  /** Error message, if any */
+  error: string | null
+
+  /** Enter voice mode (start listening) */
+  enterVoiceMode: () => void
+  /** Exit voice mode (stop everything, return to idle) */
+  exitVoiceMode: () => void
+  /** Toggle voice mode */
+  toggleVoiceMode: () => void
+
+  /**
+   * Feed a text chunk to TTS for streaming synthesis.
+   * Call this as agent response tokens arrive.
+   */
+  feedTtsChunk: (text: string) => void
+
+  /**
+   * Signal that the agent stream has ended.
+   * Finalizes TTS synthesis.
+   */
+  onAgentStreamEnd: () => void
+}
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Path to AudioWorklet processor (served from public/) */
+const WORKLET_PATH = "/voice/audio-processor.worklet.js"
+
+// ============================================================================
+// Hook
+// ============================================================================
+
+export function useVoiceAgent({
+  onSendMessage,
+  onInterrupt,
+}: UseVoiceAgentOptions): UseVoiceAgentReturn {
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle")
+  const [asrConnected, setAsrConnected] = useState(false)
+  const [ttsConnected, setTtsConnected] = useState(false)
+  const [currentTranscript, setCurrentTranscript] = useState("")
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Start as false to match SSR; detect support after hydration to avoid mismatch
+  const [isSupported, setIsSupported] = useState(false)
+  useEffect(() => {
+    setIsSupported(
+      !!(
+        window.AudioContext &&
+        navigator.mediaDevices &&
+        window.WebSocket
+      )
+    )
+  }, [])
+
+  // Refs for clients and audio resources
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const asrClientRef = useRef<AsrClient | null>(null)
+  const ttsClientRef = useRef<TtsClient | null>(null)
+  const ttsPlayerRef = useRef<TtsPlayer | null>(null)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Refs for callbacks to avoid stale closures
+  const onSendMessageRef = useRef(onSendMessage)
+  const onInterruptRef = useRef(onInterrupt)
+  useEffect(() => {
+    onSendMessageRef.current = onSendMessage
+    onInterruptRef.current = onInterrupt
+  }, [onSendMessage, onInterrupt])
+
+  // Track voice state in ref for use in callbacks
+  const voiceStateRef = useRef<VoiceState>(voiceState)
+  useEffect(() => {
+    voiceStateRef.current = voiceState
+  }, [voiceState])
+
+  // Whether we're currently in an active voice session (TTS has been started for current reply)
+  const ttsActiveRef = useRef(false)
+
+  /** Reset the idle timeout timer */
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current)
+    }
+    idleTimerRef.current = setTimeout(() => {
+      // Only timeout if we're in listening or speaking state
+      if (
+        voiceStateRef.current === "listening" ||
+        voiceStateRef.current === "speaking"
+      ) {
+        exitVoiceModeInternal()
+      }
+    }, VOICE_IDLE_TIMEOUT_MS)
+  }, [])
+
+  /** Stop the idle timer */
+  const stopIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = null
+    }
+  }, [])
+
+  /** Internal exit function (used by timeout and explicit exit) */
+  const exitVoiceModeInternal = useCallback(() => {
+    stopIdleTimer()
+
+    // Stop and disconnect ASR
+    if (asrClientRef.current) {
+      asrClientRef.current.disconnect()
+      asrClientRef.current = null
+    }
+    setAsrConnected(false)
+
+    // Stop and disconnect TTS
+    if (ttsClientRef.current) {
+      ttsClientRef.current.disconnect()
+      ttsClientRef.current = null
+    }
+    setTtsConnected(false)
+    ttsActiveRef.current = false
+
+    // Stop TTS playback
+    if (ttsPlayerRef.current) {
+      ttsPlayerRef.current.stop()
+      ttsPlayerRef.current.dispose()
+      ttsPlayerRef.current = null
+    }
+    setIsSpeaking(false)
+
+    // Stop audio capture
+    if (workletNodeRef.current) {
+      workletNodeRef.current.port.postMessage({ type: "stop" })
+      workletNodeRef.current.disconnect()
+      workletNodeRef.current = null
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((t) => t.stop())
+      mediaStreamRef.current = null
+    }
+
+    setCurrentTranscript("")
+    setVoiceState("idle")
+  }, [stopIdleTimer])
+
+  /** Interrupt TTS and agent response when user speaks during playback */
+  const interruptAndListen = useCallback(() => {
+    // Stop TTS playback
+    if (ttsPlayerRef.current) {
+      ttsPlayerRef.current.stop()
+      ttsPlayerRef.current.dispose()
+      ttsPlayerRef.current = null
+    }
+    setIsSpeaking(false)
+
+    // Disconnect TTS client
+    if (ttsClientRef.current) {
+      ttsClientRef.current.disconnect()
+      ttsClientRef.current = null
+    }
+    setTtsConnected(false)
+    ttsActiveRef.current = false
+
+    // Signal interrupt to the agent
+    onInterruptRef.current()
+
+    // Enter listening state for new speech
+    setVoiceState("listening")
+    resetIdleTimer()
+  }, [resetIdleTimer])
+
+  /** Start voice mode: set up audio capture and ASR */
+  const enterVoiceMode = useCallback(async () => {
+    if (voiceState !== "idle" || !isSupported) return
+
+    setError(null)
+
+    try {
+      // 1. Get microphone
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+      mediaStreamRef.current = stream
+
+      // 2. Create AudioContext
+      const audioContext = new AudioContext()
+      audioContextRef.current = audioContext
+
+      // 3. Load AudioWorklet
+      await audioContext.audioWorklet.addModule(WORKLET_PATH)
+
+      // 4. Create worklet node
+      const workletNode = new AudioWorkletNode(
+        audioContext,
+        "audio-processor",
+      )
+      workletNodeRef.current = workletNode
+
+      // 5. Create TTS player
+      const ttsPlayer = new TtsPlayer({
+        onPlaybackStart: () => setIsSpeaking(true),
+        onPlaybackEnd: () => {
+          setIsSpeaking(false)
+          // After TTS finishes, go back to listening for continued conversation
+          if (voiceStateRef.current === "speaking") {
+            setVoiceState("listening")
+            resetIdleTimer()
+          }
+        },
+      })
+      ttsPlayerRef.current = ttsPlayer
+
+      // 6. Create ASR client with callbacks
+      const asrClient = new AsrClient({
+        onConnected: () => {
+          setAsrConnected(true)
+          setVoiceState("listening")
+          resetIdleTimer()
+        },
+        onDisconnected: () => {
+          setAsrConnected(false)
+        },
+        onSpeechStarted: () => {
+          resetIdleTimer()
+          // If agent is speaking/processing, interrupt
+          if (
+            voiceStateRef.current === "speaking" ||
+            voiceStateRef.current === "processing"
+          ) {
+            interruptAndListen()
+          }
+        },
+        onSpeechEnded: () => {
+          // Server VAD detected end of speech
+        },
+        onTranscript: (text, isFinal) => {
+          if (isFinal) {
+            setCurrentTranscript("")
+            // Filter noise (very short results)
+            if (text.trim().length < 2) return
+
+            // If agent is still responding, interrupt first
+            if (
+              voiceStateRef.current === "speaking" ||
+              voiceStateRef.current === "processing"
+            ) {
+              // Stop TTS
+              if (ttsPlayerRef.current) {
+                ttsPlayerRef.current.stop()
+                ttsPlayerRef.current.dispose()
+                ttsPlayerRef.current = null
+              }
+              setIsSpeaking(false)
+              if (ttsClientRef.current) {
+                ttsClientRef.current.disconnect()
+                ttsClientRef.current = null
+              }
+              setTtsConnected(false)
+              ttsActiveRef.current = false
+              onInterruptRef.current()
+            }
+
+            // Send the message
+            onSendMessageRef.current(text)
+            setVoiceState("processing")
+            stopIdleTimer()
+          } else {
+            setCurrentTranscript(text)
+            resetIdleTimer()
+          }
+        },
+        onError: (errMsg) => {
+          setError(errMsg)
+          exitVoiceModeInternal()
+        },
+      })
+      asrClientRef.current = asrClient
+
+      // 7. Connect ASR WebSocket
+      await asrClient.connect()
+
+      // 8. Wire audio: mic -> worklet -> main thread -> ASR
+      const source = audioContext.createMediaStreamSource(stream)
+      source.connect(workletNode)
+
+      workletNode.port.onmessage = (event: MessageEvent) => {
+        if (
+          event.data.type === "audio" &&
+          asrClientRef.current?.isConnected
+        ) {
+          const base64 = pcmBufferToBase64(event.data.buffer)
+          asrClientRef.current.sendAudio(base64)
+        }
+      }
+
+      // 9. Start processing
+      workletNode.port.postMessage({ type: "start" })
+    } catch (err) {
+      const msg =
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Microphone access denied."
+          : err instanceof Error
+            ? err.message
+            : "Failed to start voice mode"
+      setError(msg)
+      exitVoiceModeInternal()
+    }
+  }, [
+    voiceState,
+    isSupported,
+    resetIdleTimer,
+    stopIdleTimer,
+    interruptAndListen,
+    exitVoiceModeInternal,
+  ])
+
+  const exitVoiceMode = useCallback(() => {
+    exitVoiceModeInternal()
+  }, [exitVoiceModeInternal])
+
+  const toggleVoiceMode = useCallback(() => {
+    if (voiceState === "idle") {
+      enterVoiceMode()
+    } else {
+      exitVoiceMode()
+    }
+  }, [voiceState, enterVoiceMode, exitVoiceMode])
+
+  /**
+   * Feed a text chunk to TTS for streaming synthesis.
+   * Called as agent response tokens arrive from the stream handler.
+   */
+  const feedTtsChunk = useCallback(async (text: string) => {
+    // Only feed TTS when in processing or speaking state
+    if (
+      voiceStateRef.current !== "processing" &&
+      voiceStateRef.current !== "speaking"
+    )
+      return
+
+    // Lazily connect TTS on first chunk
+    if (!ttsClientRef.current || !ttsClientRef.current.isConnected) {
+      const ttsClient = new TtsClient({
+        onAudioChunk: (pcmBase64) => {
+          // Initialize player if needed
+          if (!ttsPlayerRef.current) {
+            const player = new TtsPlayer({
+              onPlaybackStart: () => {
+                setIsSpeaking(true)
+                setVoiceState("speaking")
+              },
+              onPlaybackEnd: () => {
+                setIsSpeaking(false)
+                if (voiceStateRef.current === "speaking") {
+                  setVoiceState("listening")
+                  resetIdleTimer()
+                }
+              },
+            })
+            ttsPlayerRef.current = player
+          }
+          ttsPlayerRef.current?.init().then(() => {
+            ttsPlayerRef.current?.enqueueAudio(pcmBase64)
+          })
+        },
+        onDone: () => {
+          // Current response synthesis done
+        },
+        onFinished: () => {
+          ttsActiveRef.current = false
+        },
+        onError: (errMsg) => {
+          console.error("TTS error:", errMsg)
+          ttsActiveRef.current = false
+        },
+        onConnected: () => {
+          setTtsConnected(true)
+        },
+        onDisconnected: () => {
+          setTtsConnected(false)
+        },
+      })
+      ttsClientRef.current = ttsClient
+
+      try {
+        await ttsClient.connect()
+        ttsActiveRef.current = true
+      } catch (err) {
+        console.error("Failed to connect TTS:", err)
+        return
+      }
+    }
+
+    ttsClientRef.current.appendText(text)
+  }, [resetIdleTimer])
+
+  /**
+   * Called when the agent stream ends.
+   * Finalizes TTS synthesis so remaining text is spoken.
+   */
+  const onAgentStreamEnd = useCallback(() => {
+    if (ttsClientRef.current?.isConnected && ttsActiveRef.current) {
+      ttsClientRef.current.finish()
+    }
+    // If we were in processing state and no TTS was used, go back to listening
+    if (
+      voiceStateRef.current === "processing" &&
+      !ttsActiveRef.current
+    ) {
+      setVoiceState("listening")
+      resetIdleTimer()
+    }
+  }, [resetIdleTimer])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      exitVoiceModeInternal()
+    }
+  }, [exitVoiceModeInternal])
+
+  return {
+    voiceState,
+    isSupported,
+    asrConnected,
+    ttsConnected,
+    currentTranscript,
+    isSpeaking,
+    error,
+    enterVoiceMode,
+    exitVoiceMode,
+    toggleVoiceMode,
+    feedTtsChunk,
+    onAgentStreamEnd,
+  }
+}

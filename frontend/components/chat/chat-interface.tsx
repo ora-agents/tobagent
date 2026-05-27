@@ -9,10 +9,12 @@ import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useChatState } from "@/lib/hooks/chat"
 import { useUserId } from "@/lib/hooks/auth"
 import { useAuth } from "@/components/providers/auth-provider"
-import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
+import { useFileUpload } from "@/lib/hooks/files"
+import { useVoiceAgent } from "@/lib/hooks/files/use-voice-agent"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
+import { VoiceModeOverlay } from "./features/voice-mode-overlay"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
@@ -131,9 +133,6 @@ export function ChatInterface({
   const isProcessingQueueRef = useRef(false)
   const [queuedMessagesDisplay, setQueuedMessagesDisplay] = useState<{ content: string; id: string }[]>([])
 
-  // Track the "base" input text (before voice input started + finalized transcripts)
-  const baseInputRef = useRef(uiState.input)
-
   const setLimitedInput = useCallback((value: string) => {
     const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLengthRef.current)
     if (value.length > maxInputLength) {
@@ -146,52 +145,24 @@ export function ChatInterface({
     setInput(value)
   }, [setInput])
 
-  // Voice input - append transcribed text to current input
-  const {
-    isListening: isVoiceListening,
-    isSupported: isVoiceSupported,
-    error: voiceError,
-    interimTranscript,
-    toggleListening: handleVoiceToggle,
-  } = useVoiceInput({
-    onTranscript: (text) => {
-      // When final transcript comes in, add it to the base and update input
-      const newBase = baseInputRef.current ? `${baseInputRef.current} ${text}` : text
-      const maxInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
-      const cappedBase = newBase.slice(0, maxInputLength)
-      baseInputRef.current = cappedBase
-      if (newBase.length > maxInputLength) {
-        setInputError(INPUT_TOO_LONG_MESSAGE)
-      }
-      setInput(cappedBase)
+  // Voice input - use cloud-based voice agent with ASR/TTS
+  // Use refs so we can reference handleSend/handleStop defined later
+  const handleSendRef = useRef<() => void>(() => {})
+  const handleStopRef = useRef<() => void>(() => {})
+
+  const voiceAgent = useVoiceAgent({
+    onSendMessage: (text) => {
+      // Set the input and trigger send
+      setInput(text)
+      // Use setTimeout to let state update first, then send
+      setTimeout(() => {
+        handleSendRef.current()
+      }, 0)
+    },
+    onInterrupt: () => {
+      handleStopRef.current()
     },
   })
-
-  // Update base input ref when user types manually (not from voice)
-  useEffect(() => {
-    // Only update base if we're not listening or interim hasn't changed
-    // This prevents overwriting during voice input
-    if (!isVoiceListening && !interimTranscript) {
-      baseInputRef.current = uiState.input
-    }
-  }, [uiState.input, isVoiceListening, interimTranscript])
-
-  // Combine base input with interim transcript for display
-  const displayInput = isVoiceListening && interimTranscript
-    ? (baseInputRef.current ? `${baseInputRef.current} ${interimTranscript}` : interimTranscript)
-    : uiState.input
-  const maxDisplayInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
-  const cappedDisplayInput = displayInput.slice(0, maxDisplayInputLength)
-  inputLengthRef.current = cappedDisplayInput.length
-
-  // Custom toggle that captures current input as base when starting
-  const toggleVoiceListening = useCallback(() => {
-    if (!isVoiceListening) {
-      // Starting - capture current input as base
-      baseInputRef.current = uiState.input
-    }
-    handleVoiceToggle()
-  }, [isVoiceListening, uiState.input, handleVoiceToggle])
 
   // ============================================================================
   // Refs
@@ -267,6 +238,8 @@ export function ChatInterface({
     userName,
     userPreferences,
     safetyEnabled,
+    onTextChunk: voiceAgent.feedTtsChunk,
+    onStreamEnd: voiceAgent.onAgentStreamEnd,
   })
 
   // ============================================================================
@@ -649,6 +622,14 @@ export function ChatInterface({
     shouldInterruptRef.current = true
   }, [uiDispatch])
 
+  // Keep voice agent refs in sync with actual handlers
+  useEffect(() => {
+    handleSendRef.current = handleSend
+  }, [handleSend])
+  useEffect(() => {
+    handleStopRef.current = handleStop
+  }, [handleStop])
+
   const handleRegenerate = useCallback(async () => {
     if (uiState.isLoading || uiState.isRegenerating) return
 
@@ -782,6 +763,11 @@ export function ChatInterface({
   // Check if this is a new chat (no messages yet)
   const isNewChat = messages.length === 0 && !uiState.isLoadingThread
 
+  // Display input with length cap (voice interim transcript shown in overlay, not in input)
+  const maxDisplayInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
+  const cappedDisplayInput = uiState.input.slice(0, maxDisplayInputLength)
+  inputLengthRef.current = cappedDisplayInput.length
+
   // ============================================================================
   // Render
   // ============================================================================
@@ -798,6 +784,14 @@ export function ChatInterface({
           onCopy={handleCopy}
           onRegenerate={handleRegenerate}
           onEditAndRerun={handleEditAndRerun}
+        />
+
+        {/* Voice mode overlay when active */}
+        <VoiceModeOverlay
+          voiceState={voiceAgent.voiceState}
+          currentTranscript={voiceAgent.currentTranscript}
+          isSpeaking={voiceAgent.isSpeaking}
+          onExit={voiceAgent.exitVoiceMode}
         />
 
         {isNewChat ? (
@@ -824,10 +818,10 @@ export function ChatInterface({
             fileInputRef={fileInputRef}
             onFileSelect={handleFileSelect}
             textareaRef={textareaRef}
-            isVoiceListening={isVoiceListening}
-            isVoiceSupported={isVoiceSupported}
-            onVoiceToggle={toggleVoiceListening}
-            voiceError={voiceError}
+            voiceState={voiceAgent.voiceState}
+            isVoiceSupported={voiceAgent.isSupported}
+            onVoiceToggle={voiceAgent.toggleVoiceMode}
+            voiceError={voiceAgent.error}
             agentConfig={agentConfig}
             onAgentConfigChange={onAgentConfigChange}
             agentProfile={agentProfile}
@@ -858,10 +852,10 @@ export function ChatInterface({
             fileInputRef={fileInputRef}
             onFileSelect={handleFileSelect}
             textareaRef={textareaRef}
-            isVoiceListening={isVoiceListening}
-            isVoiceSupported={isVoiceSupported}
-            onVoiceToggle={toggleVoiceListening}
-            voiceError={voiceError}
+            voiceState={voiceAgent.voiceState}
+            isVoiceSupported={voiceAgent.isSupported}
+            onVoiceToggle={voiceAgent.toggleVoiceMode}
+            voiceError={voiceAgent.error}
             queuedMessages={queuedMessagesDisplay}
           />
         )}

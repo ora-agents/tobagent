@@ -33,6 +33,7 @@ dependencies = [
     "docx2txt>=0.9",
     "langgraph-api>=0.8.7",
     "langgraph-cli[inmem]>=0.4.26",
+    "websockets>=12.0",
 ]
 
 

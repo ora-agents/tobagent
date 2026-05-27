@@ -87,6 +87,13 @@ interface UseStreamHandlerProps {
   userPreferences?: string | null
   /** When true, agent must confirm before executing dangerous actions. */
   safetyEnabled?: boolean
+  /**
+   * Called with each new text chunk as it streams in (delta, not accumulated).
+   * Used by voice agent to feed text to TTS in real-time.
+   */
+  onTextChunk?: (delta: string) => void
+  /** Called when the stream completes (after all chunks). */
+  onStreamEnd?: () => void
 }
 
 /**
@@ -143,6 +150,8 @@ export function useStreamHandler({
   userName,
   userPreferences,
   safetyEnabled,
+  onTextChunk,
+  onStreamEnd,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
    * Processes the stream of agent responses.
@@ -624,9 +633,15 @@ export function useStreamHandler({
           // Only update if we have content and no pending tool calls (check array length)
           const hasPendingToolCalls = aiChunk.tool_calls && Array.isArray(aiChunk.tool_calls) && aiChunk.tool_calls.length > 0
           if (streamedContent && !hasPendingToolCalls) {
-            // Accumulate the streamed content
+            // Compute text delta for TTS streaming
+            const delta = streamedContent.slice(assistantContent.length)
             assistantContent = streamedContent
             hasSeenNewResponse = true // Mark that we've seen new content
+
+            // Notify TTS with the new text delta
+            if (delta && onTextChunk) {
+              onTextChunk(delta)
+            }
 
             setMessages((prev) => {
               const baseMessage: Message = {
@@ -712,8 +727,11 @@ export function useStreamHandler({
     // Fetch usage metadata and generate public share link if we have a runId
     // LangSmith tracing is handled server-side via traceMetadata; no client-side fetch needed.
 
+    // Notify stream end (used by voice agent to finalize TTS)
+    onStreamEnd?.()
+
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName])
+  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName, onTextChunk, onStreamEnd])
 
   return { processStream }
 }
