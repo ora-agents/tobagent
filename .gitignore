@@ -187,4 +187,8 @@ chat_langchain.db
 
 docs
 
+# TTS model files (unused, replaced by DashScope cloud TTS)
+frontend/public/vits-melo-tts-zh_en/
+frontend/public/sherpa-onnx-wasm-simd-1.13.2-sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/
+
 *.pem
