@@ -6,6 +6,7 @@ import string
 from contextlib import asynccontextmanager
 from typing import Optional
 
+import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -1117,6 +1118,48 @@ async def delete_mcp_server(id: str, db: Session = Depends(get_db)):
     return {"status": "success", "message": f"MCP Server {id} deleted"}
 
 
+# ---------------------------------------------------------------------------
+# Model listing proxy (keeps API keys server-side)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/models")
+async def list_models():
+    """Proxy to the OpenAI-compatible /models endpoint.
+
+    Reads OPENAI base URL and API key from server-side env vars so that
+    the frontend never sees the API key.
+    """
+    base_url = (
+        os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()
+        or os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()
+    )
+    api_key = (
+        os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()
+        or os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()
+        or os.getenv("OPENAI_API_KEY", "").strip()
+    )
+
+    if not base_url:
+        raise HTTPException(status_code=503, detail="OPENAI_BASE_URL is not configured on the server")
+
+    url = f"{base_url.rstrip('/')}/models"
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Upstream /models returned {e.response.status_code}: {e.response.text[:200]}")
+        raise HTTPException(status_code=e.response.status_code, detail="Upstream model list request failed")
+    except Exception as e:
+        logger.error(f"Failed to proxy /models: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to reach model API: {e}")
+
+
 @app.get("/")
 async def root():
     """Root endpoint."""
@@ -1133,5 +1176,6 @@ async def root():
             "skills": "/api/skills",
             "knowledge_bases": "/api/knowledge-bases",
             "mcp_servers": "/api/mcp-servers",
+            "models": "/api/models",
         },
     }
