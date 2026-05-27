@@ -6,7 +6,7 @@ import { Client } from "@langchain/langgraph-sdk"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
-import { useStreamHandler, useFeedback, useChatState } from "@/lib/hooks/chat"
+import { useStreamHandler, useChatState } from "@/lib/hooks/chat"
 import { useUserId } from "@/lib/hooks/auth"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useFileUpload, useVoiceInput } from "@/lib/hooks/files"
@@ -267,19 +267,6 @@ export function ChatInterface({
     userName,
     userPreferences,
     safetyEnabled,
-  })
-
-  const {
-    feedbackComment,
-    showCommentInput,
-    handleFeedback,
-    handleSubmitComment,
-    handleCancelComment,
-    handleToggleComment,
-    setFeedbackComment,
-  } = useFeedback({
-    messages,
-    setMessages,
   })
 
   // ============================================================================
@@ -811,13 +798,6 @@ export function ChatInterface({
           onCopy={handleCopy}
           onRegenerate={handleRegenerate}
           onEditAndRerun={handleEditAndRerun}
-          feedbackComment={feedbackComment}
-          showCommentInput={showCommentInput}
-          onFeedback={handleFeedback}
-          onSubmitComment={handleSubmitComment}
-          onCancelComment={handleCancelComment}
-          onToggleComment={handleToggleComment}
-          setFeedbackComment={setFeedbackComment}
         />
 
         {isNewChat ? (

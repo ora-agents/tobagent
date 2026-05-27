@@ -12,13 +12,6 @@ interface MessageListProps {
   onCopy: (content: string, messageId: string) => void
   onRegenerate: () => void
   onEditAndRerun?: (messageId: string, newContent: string) => void
-  feedbackComment: { [messageId: string]: string }
-  showCommentInput: string | null
-  onFeedback: (messageId: string, feedbackType: "positive" | "negative", comment?: string) => void
-  onSubmitComment: (messageId: string) => void
-  onCancelComment: (messageId: string) => void
-  onToggleComment: (messageId: string) => void
-  setFeedbackComment: React.Dispatch<React.SetStateAction<{ [messageId: string]: string }>>
 }
 
 export const MessageList = memo(function MessageList({
@@ -29,13 +22,6 @@ export const MessageList = memo(function MessageList({
   onCopy,
   onRegenerate,
   onEditAndRerun,
-  feedbackComment,
-  showCommentInput,
-  onFeedback,
-  onSubmitComment,
-  onCancelComment,
-  onToggleComment,
-  setFeedbackComment,
 }: MessageListProps) {
   const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -393,13 +379,6 @@ export const MessageList = memo(function MessageList({
                 onCopy={onCopy}
                 onRegenerate={onRegenerate}
                 onEditAndRerun={onEditAndRerun}
-                feedbackComment={feedbackComment}
-                showCommentInput={showCommentInput}
-                onFeedback={onFeedback}
-                onSubmitComment={onSubmitComment}
-                onCancelComment={onCancelComment}
-                onToggleComment={onToggleComment}
-                setFeedbackComment={setFeedbackComment}
               />
             </div>
             )

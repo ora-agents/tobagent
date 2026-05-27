@@ -10,7 +10,7 @@ import type { ImageAttachment } from "./images"
 
 /**
  * Represents a chat message from either user or assistant.
- * Contains metadata for streaming, tool calls, feedback, and tracing.
+ * Contains metadata for streaming, tool calls, and tracing.
  */
 export interface Message {
   // Core properties
@@ -34,11 +34,6 @@ export interface Message {
 
   // LangSmith tracing
   runId?: string
-
-  // User feedback
-  feedback?: "positive" | "negative" | null
-  feedbackId?: string
-  feedbackComment?: string
 
   // Interruption tracking
   wasInterrupted?: boolean

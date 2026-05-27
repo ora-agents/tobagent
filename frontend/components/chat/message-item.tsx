@@ -1,4 +1,4 @@
-import { Copy, Check, Settings, RefreshCw, ThumbsUp, ThumbsDown, MessageSquare } from "lucide-react"
+import { Copy, Check, Settings, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import ReactMarkdown from "react-markdown"
@@ -196,13 +196,6 @@ interface MessageItemProps {
   onCopy: (content: string, messageId: string) => void
   onRegenerate: () => void
   onEditAndRerun?: (messageId: string, newContent: string) => void
-  feedbackComment: { [messageId: string]: string }
-  showCommentInput: string | null
-  onFeedback: (messageId: string, feedbackType: "positive" | "negative", comment?: string) => void
-  onSubmitComment: (messageId: string) => void
-  onCancelComment: (messageId: string) => void
-  onToggleComment: (messageId: string) => void
-  setFeedbackComment: React.Dispatch<React.SetStateAction<{ [messageId: string]: string }>>
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -214,13 +207,6 @@ export const MessageItem = memo(function MessageItem({
   onCopy,
   onRegenerate,
   onEditAndRerun,
-  feedbackComment,
-  showCommentInput,
-  onFeedback,
-  onSubmitComment,
-  onCancelComment,
-  onToggleComment,
-  setFeedbackComment,
 }: MessageItemProps) {
   const t = useT()
   const [editContent, setEditContent] = useState(message.content)
@@ -512,86 +498,7 @@ export const MessageItem = memo(function MessageItem({
                 </>
               )}
 
-              {!message.isThinking && message.runId && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onFeedback(message.id, "positive", feedbackComment[message.id])}
-                    aria-pressed={message.feedback === "positive"}
-                    className={`h-8 px-2 text-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
-                      message.feedback === "positive"
-                        ? "text-white"
-                        : "text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
-                    }`}
-                  >
-                    <ThumbsUp
-                      className="w-3 h-3 mr-1 transition-transform duration-150"
-                      aria-hidden="true"
-                      fill={message.feedback === "positive" ? "currentColor" : "none"}
-                    />
-                    {t.good}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onFeedback(message.id, "negative", feedbackComment[message.id])}
-                    aria-pressed={message.feedback === "negative"}
-                    className={`h-8 px-2 text-xs rounded-md transition-all duration-150 ease-out active:scale-95 bg-transparent ${
-                      message.feedback === "negative"
-                        ? "text-white"
-                        : "text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
-                    }`}
-                  >
-                    <ThumbsDown
-                      className="w-3 h-3 mr-1 transition-transform duration-150"
-                      aria-hidden="true"
-                      fill={message.feedback === "negative" ? "currentColor" : "none"}
-                    />
-                    {t.bad}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onToggleComment(message.id)}
-                    className="h-8 px-2 text-xs rounded-md transition-colors duration-150 ease-out text-muted-foreground hover:text-black dark:text-white/70 dark:hover:text-black"
-                  >
-                    <MessageSquare className="w-3 h-3 mr-1" />
-                    {t.addComment}
-                  </Button>
-                </>
-              )}
-
             </div>
-
-            {showCommentInput === message.id && (
-              <div className="mt-2 w-full">
-                <Textarea
-                  value={feedbackComment[message.id] || ""}
-                  onChange={(e) => {
-                    setFeedbackComment((prev) => ({ ...prev, [message.id]: e.target.value }))
-                  }}
-                  placeholder={t.addFeedbackPlaceholder}
-                  className="min-h-[60px] text-xs"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault()
-                      if (feedbackComment[message.id]?.trim() && message.feedback) {
-                        onSubmitComment(message.id)
-                      }
-                    } else if (e.key === "Escape") {
-                      onCancelComment(message.id)
-                    }
-                  }}
-                />
-                {!message.feedback && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {t.selectThumbsBeforeSubmit}
-                  </p>
-                )}
-              </div>
-            )}
 
             {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
               <div className="mt-3 space-y-2">
@@ -690,41 +597,27 @@ export const MessageItem = memo(function MessageItem({
   if (prevProps.message !== nextProps.message) {
     return false
   }
-  
+
   // copiedId changed - only re-render if it affects this message
-  const copiedIdAffectsThis = 
+  const copiedIdAffectsThis =
     prevProps.copiedId !== nextProps.copiedId &&
     (prevProps.copiedId === prevProps.message.id || nextProps.copiedId === nextProps.message.id)
-  
-  // showCommentInput changed - only re-render if it affects this message  
-  const commentInputAffectsThis =
-    prevProps.showCommentInput !== nextProps.showCommentInput &&
-    (prevProps.showCommentInput === prevProps.message.id || nextProps.showCommentInput === nextProps.message.id)
-  
-  // feedbackComment changed for THIS message
-  const feedbackCommentChanged = 
-    prevProps.feedbackComment[prevProps.message.id] !== nextProps.feedbackComment[nextProps.message.id]
-  
+
   // Other props that affect rendering
   const otherPropsChanged =
     prevProps.showToolCalls !== nextProps.showToolCalls ||
     prevProps.isRegenerating !== nextProps.isRegenerating ||
     prevProps.isLastAssistant !== nextProps.isLastAssistant
-  
+
   // Re-render if any relevant prop changed
-  if (copiedIdAffectsThis || commentInputAffectsThis || feedbackCommentChanged || otherPropsChanged) {
+  if (copiedIdAffectsThis || otherPropsChanged) {
     return false
   }
-  
+
   // Function references - if they changed, we need to re-render (shouldn't happen with useCallback)
   const functionsChanged =
     prevProps.onCopy !== nextProps.onCopy ||
-    prevProps.onRegenerate !== nextProps.onRegenerate ||
-    prevProps.onFeedback !== nextProps.onFeedback ||
-    prevProps.onSubmitComment !== nextProps.onSubmitComment ||
-    prevProps.onCancelComment !== nextProps.onCancelComment ||
-    prevProps.onToggleComment !== nextProps.onToggleComment ||
-    prevProps.setFeedbackComment !== nextProps.setFeedbackComment
+    prevProps.onRegenerate !== nextProps.onRegenerate
   
   if (functionsChanged) {
     return false

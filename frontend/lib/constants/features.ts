@@ -21,5 +21,3 @@ export const STORAGE_KEYS = {
   DRAFT_PREFIX: "draft-",
 } as const
 
-export const FEEDBACK_KEY = "ux.thumb_vote" as const
-
