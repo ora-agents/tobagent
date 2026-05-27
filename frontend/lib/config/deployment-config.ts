@@ -1,10 +1,12 @@
 /**
  * Public Chat Configuration
  *
- * Uses a single OpenAI-compatible API endpoint for model listing and selection.
- * Set NEXT_PUBLIC_OPENAI_BASE_URL, NEXT_PUBLIC_OPENAI_API_KEY, and
- * NEXT_PUBLIC_OPENAI_DEFAULT_MODEL in the environment.
+ * Model listing is proxied through the FastAPI backend (/api/models) so that
+ * the API key stays server-side. Only NEXT_PUBLIC_OPENAI_DEFAULT_MODEL is
+ * needed on the frontend (as a fallback when the backend is unreachable).
  */
+
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 // =============================================================================
 // Config Storage
@@ -18,11 +20,9 @@ export const CONFIG_STORAGE = {
 } as const
 
 // =============================================================================
-// OpenAI-compatible endpoint
+// OpenAI-compatible endpoint (frontend only needs the default model name)
 // =============================================================================
 
-export const OPENAI_BASE_URL = process.env.NEXT_PUBLIC_OPENAI_BASE_URL || ""
-export const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY || ""
 export const OPENAI_DEFAULT_MODEL = process.env.NEXT_PUBLIC_OPENAI_DEFAULT_MODEL || ""
 
 export type ModelOption = string  // plain model ID, e.g. "gpt-4o" or "llama3.2"
@@ -69,15 +69,11 @@ export function clearModelsCache(): void {
 }
 
 /**
- * Fetch all available models from the OpenAI-compatible /models endpoint.
+ * Fetch all available models from the backend proxy (/api/models).
+ * The backend forwards to the OpenAI-compatible API, keeping the key server-side.
  * Results are cached in memory (page lifetime) and localStorage (1 hour TTL).
  */
 export async function fetchAvailableModels(): Promise<ModelOption[]> {
-  if (!OPENAI_BASE_URL) {
-    console.warn("NEXT_PUBLIC_OPENAI_BASE_URL is not set; cannot fetch models")
-    return OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : []
-  }
-
   // Layer A: memory cache
   if (memoryCache && memoryCache.expiresAt > Date.now()) {
     return memoryCache.models
@@ -91,13 +87,10 @@ export async function fetchAvailableModels(): Promise<ModelOption[]> {
   }
 
   try {
-    const url = `${OPENAI_BASE_URL.replace(/\/$/, "")}/models`
-    const headers: Record<string, string> = { "Content-Type": "application/json" }
-    if (OPENAI_API_KEY) {
-      headers["Authorization"] = `Bearer ${OPENAI_API_KEY}`
-    }
-
-    const response = await fetch(url, { headers })
+    const url = `${LANGGRAPH_API_URL.replace(/\/$/, "")}/api/models`
+    const response = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+    })
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
     }
@@ -115,7 +108,7 @@ export async function fetchAvailableModels(): Promise<ModelOption[]> {
 
     return result
   } catch (e) {
-    console.error("Failed to fetch models from OpenAI-compatible API:", e)
+    console.error("Failed to fetch models from backend proxy:", e)
     return OPENAI_DEFAULT_MODEL ? [OPENAI_DEFAULT_MODEL] : []
   }
 }
