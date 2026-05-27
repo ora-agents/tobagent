@@ -12,7 +12,7 @@ dev:
 
 # Frontend only (connects to remote LangGraph API)
 dev-frontend:
-	cd frontend && (command -v bun >/dev/null 2>&1 && bun run dev || npm run dev)
+	cd frontend && (command -v bun >/dev/null 2>&1 && bun run dev -- -H 0.0.0.0 || npm run dev -- -H 0.0.0.0)
 
 # Frontend pointing to local backend
 dev-local:
@@ -23,7 +23,7 @@ dev-local:
 
 # Backend only (LangGraph dev server)
 dev-backend:
-	uv run langgraph dev --no-browser --allow-blocking
+	uv run langgraph dev --no-browser --allow-blocking --host 0.0.0.0
 
 # Install all dependencies
 install: install-frontend install-backend

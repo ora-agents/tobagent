@@ -12,10 +12,19 @@
  * the existing Chat-LangChain-Frontend Vercel deployment.
  */
 function getLangGraphApiUrl(): string {
-  const url =
+  let url =
     process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
-    process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL ||
-    (process.env.NODE_ENV === "development" ? "http://127.0.0.1:2024" : undefined)
+    process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL
+
+  if (!url && process.env.NODE_ENV === "development") {
+    if (typeof window !== "undefined") {
+      // In the browser, dynamically route to the host IP/domain we are accessing it from
+      url = `http://${window.location.hostname}:2024`
+    } else {
+      // On the server side (SSR), local loopback is fine
+      url = "http://127.0.0.1:2024"
+    }
+  }
 
   if (!url) {
     throw new Error(

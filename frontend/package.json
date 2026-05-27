@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:local": "cross-env NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2024 next dev",
+    "dev:local": "next dev -H 0.0.0.0",
     "dev:remote": "next dev -p 3001",
     "build": "next build",
     "start": "next start",

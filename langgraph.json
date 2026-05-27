@@ -8,23 +8,9 @@
   "http": {
     "app": "./src/api/server.py:app",
     "cors": {
-      "allow_origins": [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "https://smith.langchain.com",
-        "https://chat.langchain.com",
-        "https://support.langchain.com",
-        "https://reference.langchain.com",
-        "https://chat-lang-chain-v2.vercel.app",
-        "https://chat-langchain-alpha.vercel.app",
-        "https://public-chat-langchain-test.vercel.app",
-        "https://public-chat-langchain-test-b5cwr3ocz-langchain.vercel.app"
-      ],
+      "allow_origins": ["*"],
       "allow_methods": ["*"],
-      "allow_headers": ["*"],
-      "allow_credentials": true
+      "allow_headers": ["*"]
     }
   },
   "image_distro": "wolfi",
