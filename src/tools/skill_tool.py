@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Type
 
 from langchain_core.tools import BaseTool
@@ -96,5 +97,4 @@ class ReadSkillTool(BaseTool):
             db.close()
 
     async def _arun(self, skill_name: str = "", **kwargs) -> str:
-        # Fallback to synchronous run
-        return self._run(skill_name, **kwargs)
+        return await asyncio.to_thread(self._run, skill_name, **kwargs)
