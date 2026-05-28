@@ -14,7 +14,7 @@ import { useVoiceAgent } from "@/lib/hooks/files/use-voice-agent"
 import { MessageList } from "./message-list"
 import { WelcomeScreen } from "./features/welcome-screen"
 import { ChatInput } from "./chat-input"
-import { VoiceModeOverlay } from "./features/voice-mode-overlay"
+import { VoiceMiniPanel } from "./features/voice-mini-panel"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
@@ -786,10 +786,9 @@ export function ChatInterface({
           onEditAndRerun={handleEditAndRerun}
         />
 
-        {/* Voice mode overlay when active */}
-        <VoiceModeOverlay
+        {/* Voice mini panel (floats above input when active) */}
+        <VoiceMiniPanel
           voiceState={voiceAgent.voiceState}
-          currentTranscript={voiceAgent.currentTranscript}
           isSpeaking={voiceAgent.isSpeaking}
           onExit={voiceAgent.exitVoiceMode}
         />
