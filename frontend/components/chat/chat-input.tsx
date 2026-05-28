@@ -7,6 +7,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { LoaderCircle, Plus, Square } from "lucide-react"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
@@ -136,15 +137,14 @@ export function ChatInput({
           <div className="relative group">
             {/* Multi-layered input container */}
             <div className="relative">
-              {/* High-contrast glow layer for visibility */}
-              <div className="absolute -inset-1 bg-primary/8 rounded-2xl opacity-70 group-hover:opacity-90 group-focus-within:opacity-100 transition-opacity duration-300" />
+              <div className="absolute -inset-0.5 bg-primary/5 rounded-xl opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
 
               {/* Main input container with enhanced contrast */}
               <div
-                className={`relative bg-card/95 backdrop-blur-sm border-2 rounded-xl transition-all duration-300 group-hover:bg-card/98 group-focus-within:bg-white/5 group-focus-within:ring-2 group-focus-within:ring-primary/20 ${
+                className={`relative bg-background/95 backdrop-blur-sm border rounded-xl transition-all duration-300 group-hover:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
                   isDragging
-                    ? 'border-primary bg-primary/5 ring-2 ring-primary/30'
-                    : 'border-border/50 group-hover:border-primary/60 group-focus-within:border-primary/70'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/25'
+                    : 'border-border/70 group-hover:border-primary/50 group-focus-within:border-primary/65'
                 }`}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -177,19 +177,7 @@ export function ChatInput({
                       type="button"
                       title={t.attachFiles}
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="w-4.5 h-4.5"
-                      >
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                      </svg>
+                      <Plus className="w-4.5 h-4.5" strokeWidth={2.5} />
                     </Button>
                   )}
 
@@ -224,6 +212,13 @@ export function ChatInput({
                   )}
 
                   {isLoading && (
+                    <div className="hidden sm:flex h-9 items-center gap-1.5 mb-0.5 px-2.5 rounded-full bg-muted/70 text-[11px] font-medium text-muted-foreground border border-border/60 flex-shrink-0">
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <span>{t.running}</span>
+                    </div>
+                  )}
+
+                  {isLoading && (
                     <Button
                       onClick={onStop}
                       variant="ghost"
@@ -238,6 +233,7 @@ export function ChatInput({
                       type="button"
                       title={isStopping ? t.stopping : t.stop}
                     >
+                      <Square className="w-3 h-3 fill-current" />
                       <span className="text-xs font-medium">
                         {isStopping ? t.stopping : t.stop}
                       </span>

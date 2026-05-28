@@ -124,6 +124,35 @@
   }
 }
 
+@keyframes loading-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.loading-placeholder::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(204, 120, 92, 0.14),
+    transparent
+  );
+  animation: loading-shimmer 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-placeholder::after {
+    animation: none;
+  }
+}
+
 
 /* ============================================================
    Markdown prose — light defaults, dark overrides

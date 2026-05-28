@@ -328,9 +328,14 @@ export const MessageItem = memo(function MessageItem({
         >
           {/* Thinking indicator - only for assistant messages */}
           {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0)) && (
-            <details open className="mb-3 text-xs">
-              <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-                {message.isThinking && <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
+            <details open className="mb-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs">
+              <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors marker:text-muted-foreground">
+                {message.isThinking && (
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-primary/35 animate-ping" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                  </span>
+                )}
                 <span>
                   {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Agent steps</span>} ({message.thinkingSteps?.length || 0})
                 </span>
@@ -342,10 +347,10 @@ export const MessageItem = memo(function MessageItem({
                 />
               </summary>
               {message.thinkingSteps && message.thinkingSteps.length > 0 && (
-                <div className="mt-2 pl-4 space-y-1 text-muted-foreground font-mono text-[11px]">
+                <div className="mt-2 pl-4 space-y-1.5 text-muted-foreground font-mono text-[11px]">
                   {message.thinkingSteps.map((step, idx) => (
                     <div key={`${message.id}-step-${idx}`} className="flex items-start gap-2">
-                      <span className="text-primary opacity-50">{(idx + 1).toString().padStart(2, '0')}</span>
+                      <span className="text-primary/70">{(idx + 1).toString().padStart(2, '0')}</span>
                       <span>{step}</span>
                     </div>
                   ))}

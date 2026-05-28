@@ -25,6 +25,20 @@ import {
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { useT } from "@/lib/i18n"
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
+
+function DashboardFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background px-6">
+      <div className="w-full max-w-md rounded-xl border border-border/70 bg-card/70 p-5">
+        <div className="mb-4 h-2 w-10 rounded-full bg-primary/70" />
+        <LoadingPlaceholder className="mb-3 h-5 w-40" label="Loading dashboard" />
+        <LoadingPlaceholder className="mb-2 h-3 w-full" />
+        <LoadingPlaceholder className="h-3 w-3/4" />
+      </div>
+    </div>
+  )
+}
 
 function DashboardContent() {
   const t = useT()
@@ -503,14 +517,7 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<DashboardFallback />}>
       <DashboardContent />
     </Suspense>
   )
