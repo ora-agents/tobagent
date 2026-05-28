@@ -134,6 +134,10 @@ export function useVoiceAgent({
 
   // Whether we're currently in an active voice session (TTS has been started for current reply)
   const ttsActiveRef = useRef(false)
+  // Whether the agent text stream has ended (no more text chunks will arrive)
+  const ttsStreamEndedRef = useRef(false)
+  // Debounce timer for onPlaybackEnd → listening transition
+  const playbackEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /** Reset the idle timeout timer */
   const resetIdleTimer = useCallback(() => {
@@ -151,6 +155,44 @@ export function useVoiceAgent({
     }, VOICE_IDLE_TIMEOUT_MS)
   }, [])
 
+  /**
+   * Cancel the pending playback-end transition.
+   * Called when new audio arrives (gap was temporary).
+   */
+  const cancelPlaybackEndTimer = useCallback(() => {
+    if (playbackEndTimerRef.current) {
+      clearTimeout(playbackEndTimerRef.current)
+      playbackEndTimerRef.current = null
+    }
+  }, [])
+
+  /**
+   * Schedule a transition from speaking → listening after a short debounce.
+   * If new audio arrives before the timer fires, it will be cancelled.
+   */
+  const schedulePlaybackEndTransition = useCallback(() => {
+    cancelPlaybackEndTimer()
+    playbackEndTimerRef.current = setTimeout(() => {
+      playbackEndTimerRef.current = null
+      // Only transition if agent stream has ended and we're still in speaking state
+      if (
+        ttsStreamEndedRef.current &&
+        voiceStateRef.current === "speaking"
+      ) {
+        setIsSpeaking(false)
+        setVoiceState("listening")
+        resetIdleTimer()
+        // Clean up TTS resources for next turn
+        if (ttsClientRef.current) {
+          ttsClientRef.current.disconnect()
+          ttsClientRef.current = null
+        }
+        setTtsConnected(false)
+        ttsActiveRef.current = false
+      }
+    }, 800) // 800ms grace period for inter-chunk gaps
+  }, [cancelPlaybackEndTimer, resetIdleTimer])
+
   /** Stop the idle timer */
   const stopIdleTimer = useCallback(() => {
     if (idleTimerRef.current) {
@@ -162,6 +204,8 @@ export function useVoiceAgent({
   /** Internal exit function (used by timeout and explicit exit) */
   const exitVoiceModeInternal = useCallback(() => {
     stopIdleTimer()
+    cancelPlaybackEndTimer()
+    ttsStreamEndedRef.current = false
 
     // Stop and disconnect ASR
     if (asrClientRef.current) {
@@ -206,10 +250,13 @@ export function useVoiceAgent({
     setCurrentTranscript("")
     onInterimTranscriptRef.current?.("")
     setVoiceState("idle")
-  }, [stopIdleTimer])
+  }, [stopIdleTimer, cancelPlaybackEndTimer])
 
   /** Interrupt TTS and agent response when user speaks during playback */
   const interruptAndListen = useCallback(() => {
+    cancelPlaybackEndTimer()
+    ttsStreamEndedRef.current = false
+
     // Stop TTS playback
     if (ttsPlayerRef.current) {
       ttsPlayerRef.current.stop()
@@ -232,7 +279,7 @@ export function useVoiceAgent({
     // Enter listening state for new speech
     setVoiceState("listening")
     resetIdleTimer()
-  }, [resetIdleTimer])
+  }, [resetIdleTimer, cancelPlaybackEndTimer])
 
   /** Start voice mode: set up audio capture and ASR */
   const enterVoiceMode = useCallback(async () => {
@@ -267,14 +314,20 @@ export function useVoiceAgent({
 
       // 5. Create TTS player
       const ttsPlayer = new TtsPlayer({
-        onPlaybackStart: () => setIsSpeaking(true),
+        onPlaybackStart: () => {
+          // New audio arrived — cancel any pending end-of-speech transition
+          cancelPlaybackEndTimer()
+          setIsSpeaking(true)
+          setVoiceState("speaking")
+        },
         onPlaybackEnd: () => {
-          setIsSpeaking(false)
-          // After TTS finishes, go back to listening for continued conversation
-          if (voiceStateRef.current === "speaking") {
-            setVoiceState("listening")
-            resetIdleTimer()
+          // Audio queue drained — but more chunks may be incoming.
+          // Only transition to listening after debounce + stream ended.
+          if (ttsStreamEndedRef.current) {
+            schedulePlaybackEndTransition()
           }
+          // If stream hasn't ended, do nothing — keep speaking state.
+          // More audio will arrive and trigger onPlaybackStart.
         },
       })
       ttsPlayerRef.current = ttsPlayer
@@ -315,6 +368,9 @@ export function useVoiceAgent({
               voiceStateRef.current === "speaking" ||
               voiceStateRef.current === "processing"
             ) {
+              cancelPlaybackEndTimer()
+              ttsStreamEndedRef.current = false
+
               // Stop TTS
               if (ttsPlayerRef.current) {
                 ttsPlayerRef.current.stop()
@@ -334,6 +390,7 @@ export function useVoiceAgent({
             // Send the message
             onSendMessageRef.current(text)
             setVoiceState("processing")
+            ttsStreamEndedRef.current = false
             stopIdleTimer()
           } else {
             setCurrentTranscript(text)
@@ -385,6 +442,8 @@ export function useVoiceAgent({
     stopIdleTimer,
     interruptAndListen,
     exitVoiceModeInternal,
+    cancelPlaybackEndTimer,
+    schedulePlaybackEndTransition,
   ])
 
   const exitVoiceMode = useCallback(() => {
@@ -430,18 +489,20 @@ export function useVoiceAgent({
       const connectPromise = (async () => {
         const ttsClient = new TtsClient({
           onAudioChunk: (pcmBase64) => {
+            // New audio arrived — cancel any pending end-of-speech transition
+            cancelPlaybackEndTimer()
+
             // Initialize player if needed
             if (!ttsPlayerRef.current) {
               const player = new TtsPlayer({
                 onPlaybackStart: () => {
+                  cancelPlaybackEndTimer()
                   setIsSpeaking(true)
                   setVoiceState("speaking")
                 },
                 onPlaybackEnd: () => {
-                  setIsSpeaking(false)
-                  if (voiceStateRef.current === "speaking") {
-                    setVoiceState("listening")
-                    resetIdleTimer()
+                  if (ttsStreamEndedRef.current) {
+                    schedulePlaybackEndTransition()
                   }
                 },
               })
@@ -456,10 +517,21 @@ export function useVoiceAgent({
           },
           onFinished: () => {
             ttsActiveRef.current = false
+            // Session ended on server side - clean up client
+            // so next turn creates a fresh connection
+            if (ttsClientRef.current) {
+              ttsClientRef.current.disconnect()
+              ttsClientRef.current = null
+            }
           },
           onError: (errMsg) => {
             console.error("TTS error:", errMsg)
             ttsActiveRef.current = false
+            // Clean up broken client
+            if (ttsClientRef.current) {
+              ttsClientRef.current.disconnect()
+              ttsClientRef.current = null
+            }
           },
           onConnected: () => {
             setTtsConnected(true)
@@ -496,21 +568,22 @@ export function useVoiceAgent({
         ttsClientRef.current?.appendText(text)
       }
     })
-  }, [resetIdleTimer])
+  }, [resetIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition])
 
   /**
    * Called when the agent stream ends.
-   * Finalizes TTS synthesis so remaining text is spoken.
+   * Marks the stream as ended so that onPlaybackEnd knows no more audio
+   * will arrive. Does NOT immediately disconnect TTS — remaining audio
+   * may still be in flight from DashScope.
    */
   const onAgentStreamEnd = useCallback(() => {
-    if (ttsClientRef.current?.isConnected && ttsActiveRef.current) {
-      ttsClientRef.current.finish()
-    }
-    // If we were in processing state and no TTS was used, go back to listening
-    if (
-      voiceStateRef.current === "processing" &&
-      !ttsActiveRef.current
-    ) {
+    ttsStreamEndedRef.current = true
+
+    if (ttsActiveRef.current) {
+      // TTS was used — let onPlaybackEnd handle the transition
+      // after all queued audio finishes playing
+    } else if (voiceStateRef.current === "processing") {
+      // No TTS was used (e.g. agent returned no text) — go back to listening
       setVoiceState("listening")
       resetIdleTimer()
     }
