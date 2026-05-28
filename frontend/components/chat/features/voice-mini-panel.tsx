@@ -21,6 +21,7 @@ const stateLabels: Record<VoiceState, string> = {
   kws: "Say wake word...",
   loading: "Loading...",
   listening: "Listening...",
+  transcribing: "Transcribing...",
   processing: "Thinking...",
   speaking: "Speaking...",
 }
@@ -30,6 +31,7 @@ const stateHints: Record<VoiceState, string> = {
   kws: "Listening for wake word...",
   loading: "Initializing voice model...",
   listening: "Speak naturally...",
+  transcribing: "Converting speech to text...",
   processing: "Processing...",
   speaking: "Speak to interrupt",
 }
@@ -61,7 +63,7 @@ export function VoiceMiniPanel({
               }
             `}
           >
-            {voiceState === "processing" || voiceState === "loading" ? (
+            {voiceState === "processing" || voiceState === "loading" || voiceState === "transcribing" ? (
               <LoadingIcon className="w-3.5 h-3.5 text-muted-foreground" />
             ) : isSpeaking ? (
               <SpeakerIcon className="w-3.5 h-3.5 text-primary" />

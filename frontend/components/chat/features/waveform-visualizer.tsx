@@ -16,7 +16,10 @@ export function WaveformVisualizer({
   voiceState,
   className = "",
 }: WaveformVisualizerProps) {
-  const isActive = voiceState === "listening" || voiceState === "speaking"
+  const isActive =
+    voiceState === "listening" ||
+    voiceState === "speaking" ||
+    voiceState === "transcribing"
 
   return (
     <div className={`flex items-center justify-center gap-1 ${className}`}>
@@ -28,7 +31,7 @@ export function WaveformVisualizer({
             ${
               voiceState === "speaking"
                 ? "bg-primary animate-pulse"
-                : voiceState === "listening"
+                : voiceState === "listening" || voiceState === "transcribing"
                   ? "bg-primary/70"
                   : "bg-muted-foreground/30"
             }

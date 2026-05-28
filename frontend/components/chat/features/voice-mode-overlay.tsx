@@ -21,6 +21,7 @@ const stateLabels: Record<VoiceState, string> = {
   kws: "Say wake word...",
   loading: "Loading voice model...",
   listening: "Listening...",
+  transcribing: "Transcribing...",
   processing: "Thinking...",
   speaking: "Speaking...",
 }
@@ -68,7 +69,7 @@ export function VoiceModeOverlay({
                 ? "bg-primary/10 ring-4 ring-primary/20 animate-pulse"
                 : voiceState === "speaking"
                   ? "bg-primary/15 ring-4 ring-primary/30"
-                  : voiceState === "processing" || voiceState === "loading"
+                  : voiceState === "processing" || voiceState === "loading" || voiceState === "transcribing"
                     ? "bg-muted/50 ring-4 ring-muted"
                     : "bg-muted/30"
             }
@@ -76,7 +77,7 @@ export function VoiceModeOverlay({
         >
           {isSpeaking ? (
             <SpeakerIcon className="w-10 h-10 text-primary" />
-          ) : voiceState === "loading" || voiceState === "processing" ? (
+          ) : voiceState === "loading" || voiceState === "processing" || voiceState === "transcribing" ? (
             <LoadingIcon className="w-10 h-10 text-muted-foreground" />
           ) : (
             <MicrophoneIcon
@@ -122,6 +123,7 @@ export function VoiceModeOverlay({
       <div className="absolute bottom-8 text-sm text-muted-foreground">
         {voiceState === "loading" && "Initializing voice recognition model..."}
         {voiceState === "listening" && "Speak naturally... say something or click to exit"}
+        {voiceState === "transcribing" && "Converting your speech to text..."}
         {voiceState === "processing" && "Processing your request..."}
         {voiceState === "speaking" && "Speak to interrupt, or click to exit"}
       </div>
