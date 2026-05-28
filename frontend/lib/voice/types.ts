@@ -8,6 +8,7 @@ export type VoiceState =
   | "kws" // Passive wake word listening (always-on)
   | "loading" // WASM model downloading / initializing
   | "listening" // ASR active, waiting for speech
+  | "transcribing" // Speech captured, ASR request in flight
   | "processing" // Message sent, waiting for agent reply
   | "speaking" // TTS reading agent reply aloud
 

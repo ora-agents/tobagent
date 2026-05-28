@@ -121,6 +121,9 @@ export function useVoiceAgent({
   const ttsClientRef = useRef<TtsClient | null>(null)
   const ttsPlayerRef = useRef<TtsPlayer | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Incremented whenever a full voice session starts or exits. Async callbacks
+  // must match the current id before mutating state.
+  const voiceSessionIdRef = useRef(0)
   // Promise tracking TTS connection in progress (prevents duplicate connections)
   const ttsConnectingRef = useRef<Promise<void> | null>(null)
   // KWS client for always-on wake word detection
@@ -149,6 +152,10 @@ export function useVoiceAgent({
   useEffect(() => {
     voiceStateRef.current = voiceState
   }, [voiceState])
+  const setVoiceStateSync = useCallback((nextState: VoiceState) => {
+    voiceStateRef.current = nextState
+    setVoiceState(nextState)
+  }, [])
 
   // Whether we're currently in an active voice session (TTS has been started for current reply)
   const ttsActiveRef = useRef(false)
@@ -166,6 +173,7 @@ export function useVoiceAgent({
       // Only timeout if we're in listening or speaking state
       if (
         voiceStateRef.current === "listening" ||
+        voiceStateRef.current === "transcribing" ||
         voiceStateRef.current === "speaking"
       ) {
         exitVoiceModeInternal()
@@ -198,7 +206,7 @@ export function useVoiceAgent({
         voiceStateRef.current === "speaking"
       ) {
         setIsSpeaking(false)
-        setVoiceState("listening")
+        setVoiceStateSync("listening")
         resetIdleTimer()
         // Clean up TTS resources for next turn
         if (ttsClientRef.current) {
@@ -209,7 +217,7 @@ export function useVoiceAgent({
         ttsActiveRef.current = false
       }
     }, 800) // 800ms grace period for inter-chunk gaps
-  }, [cancelPlaybackEndTimer, resetIdleTimer])
+  }, [cancelPlaybackEndTimer, resetIdleTimer, setVoiceStateSync])
 
   /** Stop the idle timer */
   const stopIdleTimer = useCallback(() => {
@@ -241,12 +249,12 @@ export function useVoiceAgent({
           console.warn("[KWS] Error:", err)
         },
         onConnected: () => {
-          setVoiceState("kws")
+          setVoiceStateSync("kws")
         },
         onDisconnected: () => {
           // Only reset to idle if still in kws state
           if (voiceStateRef.current === "kws") {
-            setVoiceState("idle")
+            setVoiceStateSync("idle")
           }
         },
       })
@@ -256,7 +264,7 @@ export function useVoiceAgent({
       // Mic permission denied or other failure — graceful degradation
       console.warn("[KWS] Cannot start:", err)
     }
-  }, []) // enterVoiceMode accessed via ref to avoid stale closure
+  }, [setVoiceStateSync]) // enterVoiceMode accessed via ref to avoid stale closure
 
   /** Stop KWS listening */
   const stopKwsListening = useCallback(() => {
@@ -267,7 +275,8 @@ export function useVoiceAgent({
   }, [])
 
   /** Internal exit function (used by timeout and explicit exit) */
-  const exitVoiceModeInternal = useCallback(() => {
+  const exitVoiceModeInternal = useCallback((restartKws = true) => {
+    voiceSessionIdRef.current += 1
     stopIdleTimer()
     cancelPlaybackEndTimer()
     ttsStreamEndedRef.current = false
@@ -320,14 +329,13 @@ export function useVoiceAgent({
 
     setCurrentTranscript("")
     onInterimTranscriptRef.current?.("")
+    setVoiceStateSync("idle")
 
     // Return to KWS listening if wake words configured, otherwise idle
-    if (wakeWordsRef.current.length) {
+    if (restartKws && wakeWordsRef.current.length) {
       startKwsListening()
-    } else {
-      setVoiceState("idle")
     }
-  }, [stopIdleTimer, cancelPlaybackEndTimer, startKwsListening])
+  }, [stopIdleTimer, cancelPlaybackEndTimer, startKwsListening, setVoiceStateSync])
 
   /** Interrupt TTS and agent response when user speaks during playback */
   const interruptAndListen = useCallback(() => {
@@ -354,9 +362,9 @@ export function useVoiceAgent({
     onInterruptRef.current()
 
     // Enter listening state for new speech
-    setVoiceState("listening")
+    setVoiceStateSync("listening")
     resetIdleTimer()
-  }, [resetIdleTimer, cancelPlaybackEndTimer])
+  }, [resetIdleTimer, cancelPlaybackEndTimer, setVoiceStateSync])
 
   /** Start voice mode: set up audio capture, VAD, and ASR */
   const enterVoiceMode = useCallback(async () => {
@@ -366,6 +374,10 @@ export function useVoiceAgent({
       !isSupported
     )
       return
+
+    const sessionId = voiceSessionIdRef.current + 1
+    voiceSessionIdRef.current = sessionId
+    const isCurrentSession = () => voiceSessionIdRef.current === sessionId
 
     // Stop KWS if active (free mic for voice mode)
     if (kwsClientRef.current) {
@@ -384,14 +396,26 @@ export function useVoiceAgent({
           noiseSuppression: true,
         },
       })
+      if (!isCurrentSession()) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
       mediaStreamRef.current = stream
 
       // 2. Create AudioContext
       const audioContext = new AudioContext()
+      if (!isCurrentSession()) {
+        audioContext.close().catch(() => {})
+        return
+      }
       audioContextRef.current = audioContext
 
       // 3. Load AudioWorklet
       await audioContext.audioWorklet.addModule(WORKLET_PATH)
+      if (!isCurrentSession()) {
+        audioContext.close().catch(() => {})
+        return
+      }
 
       // 4. Create worklet node
       const workletNode = new AudioWorkletNode(
@@ -403,18 +427,27 @@ export function useVoiceAgent({
       // 4b. Create ASR client (HTTP-based, no persistent connection)
       const asrClient = new AsrClient({
         onConnected: () => {
+          if (!isCurrentSession()) return
           setAsrConnected(true)
         },
         onDisconnected: () => {
+          if (!isCurrentSession()) return
           setAsrConnected(false)
         },
         onTranscript: (text, _isFinal) => {
+          if (!isCurrentSession()) return
           // ASR result received — clear transcript display
           setCurrentTranscript("")
           onInterimTranscriptRef.current?.("")
 
           // Filter noise (very short results)
-          if (text.trim().length < 2) return
+          if (text.trim().length < 2) {
+            if (voiceStateRef.current === "transcribing") {
+              setVoiceStateSync("listening")
+              resetIdleTimer()
+            }
+            return
+          }
 
           // If agent is still processing previous response, interrupt first
           if (voiceStateRef.current === "processing") {
@@ -439,15 +472,19 @@ export function useVoiceAgent({
 
           // Send the message to the agent
           onSendMessageRef.current(text)
-          setVoiceState("processing")
+          setVoiceStateSync("processing")
           ttsStreamEndedRef.current = false
           stopIdleTimer()
         },
         onError: (errMsg) => {
+          if (!isCurrentSession()) return
           setError(errMsg)
           // Don't exit voice mode on ASR error — return to listening
-          if (voiceStateRef.current === "processing") {
-            setVoiceState("listening")
+          if (
+            voiceStateRef.current === "processing" ||
+            voiceStateRef.current === "transcribing"
+          ) {
+            setVoiceStateSync("listening")
             resetIdleTimer()
           }
         },
@@ -455,11 +492,12 @@ export function useVoiceAgent({
       asrClientRef.current = asrClient
 
       // 5. Show loading state while VAD WASM initializes
-      setVoiceState("loading")
+      setVoiceStateSync("loading")
 
       // 6. Create and initialize VAD manager (lazy-loads WASM on first use)
       const vadManager = new VadManager({
         onSpeechStart: () => {
+          if (!isCurrentSession()) return
           resetIdleTimer()
           // Interrupt agent when user speaks during processing or speaking.
           // Browser echo cancellation (getUserMedia echoCancellation: true)
@@ -472,33 +510,46 @@ export function useVoiceAgent({
           }
         },
         onSpeechEnd: async (segment: SpeechSegment) => {
+          if (!isCurrentSession()) return
           // Speech segment detected — send to ASR for transcription
           if (!asrClientRef.current) return
 
           // Show that we're transcribing
+          setVoiceStateSync("transcribing")
           setCurrentTranscript("...")
           onInterimTranscriptRef.current?.("...")
 
           await asrClientRef.current.transcribeSegment(segment.pcmInt16)
+          if (isCurrentSession() && voiceStateRef.current === "transcribing") {
+            setVoiceStateSync("listening")
+            resetIdleTimer()
+          }
         },
         onError: (errMsg) => {
+          if (!isCurrentSession()) return
           console.error("[VAD]", errMsg)
           setError(errMsg)
         },
       })
 
       await vadManager.init()
+      if (!isCurrentSession()) {
+        vadManager.dispose()
+        return
+      }
       vadManagerRef.current = vadManager
 
       // 7. Create TTS player
       const ttsPlayer = new TtsPlayer({
         onPlaybackStart: () => {
+          if (!isCurrentSession()) return
           // New audio arrived — cancel any pending end-of-speech transition
           cancelPlaybackEndTimer()
           setIsSpeaking(true)
-          setVoiceState("speaking")
+          setVoiceStateSync("speaking")
         },
         onPlaybackEnd: () => {
+          if (!isCurrentSession()) return
           // Audio queue drained — but more chunks may be incoming.
           // Only transition to listening after debounce + stream ended.
           if (ttsStreamEndedRef.current) {
@@ -510,12 +561,14 @@ export function useVoiceAgent({
 
       // 8. Connect ASR client (immediate for HTTP)
       await asrClient.connect()
+      if (!isCurrentSession()) return
 
       // 9. Wire audio: mic -> worklet -> main thread -> VAD
       const source = audioContext.createMediaStreamSource(stream)
       source.connect(workletNode)
 
       workletNode.port.onmessage = (event: MessageEvent) => {
+        if (!isCurrentSession()) return
         if (event.data.type === "audio" && vadManagerRef.current) {
           const float32 = new Float32Array(event.data.float32)
           const int16 = new Int16Array(event.data.int16)
@@ -527,7 +580,8 @@ export function useVoiceAgent({
       workletNode.port.postMessage({ type: "start" })
 
       // 11. Ready — transition to listening
-      setVoiceState("listening")
+      if (!isCurrentSession()) return
+      setVoiceStateSync("listening")
       resetIdleTimer()
     } catch (err) {
       const msg =
@@ -540,7 +594,6 @@ export function useVoiceAgent({
       exitVoiceModeInternal()
     }
   }, [
-    voiceState,
     isSupported,
     resetIdleTimer,
     stopIdleTimer,
@@ -548,6 +601,7 @@ export function useVoiceAgent({
     exitVoiceModeInternal,
     cancelPlaybackEndTimer,
     schedulePlaybackEndTransition,
+    setVoiceStateSync,
   ])
 
   // Keep enterVoiceModeRef in sync with the latest enterVoiceMode
@@ -560,7 +614,7 @@ export function useVoiceAgent({
   }, [exitVoiceModeInternal])
 
   const toggleVoiceMode = useCallback(() => {
-    if (voiceState === "idle") {
+    if (voiceState === "idle" || voiceState === "kws") {
       enterVoiceMode()
     } else {
       exitVoiceMode()
@@ -572,6 +626,9 @@ export function useVoiceAgent({
    * Called as agent response tokens arrive from the stream handler.
    */
   const feedTtsChunk = useCallback((text: string) => {
+    const sessionId = voiceSessionIdRef.current
+    const isCurrentSession = () => voiceSessionIdRef.current === sessionId
+
     // Only feed TTS when in processing or speaking state
     if (
       voiceStateRef.current !== "processing" &&
@@ -598,6 +655,7 @@ export function useVoiceAgent({
       const connectPromise = (async () => {
         const ttsClient = new TtsClient({
           onAudioChunk: (pcmBase64) => {
+            if (!isCurrentSession()) return
             // New audio arrived — cancel any pending end-of-speech transition
             cancelPlaybackEndTimer()
 
@@ -605,11 +663,13 @@ export function useVoiceAgent({
             if (!ttsPlayerRef.current) {
               const player = new TtsPlayer({
                 onPlaybackStart: () => {
+                  if (!isCurrentSession()) return
                   cancelPlaybackEndTimer()
                   setIsSpeaking(true)
-                  setVoiceState("speaking")
+                  setVoiceStateSync("speaking")
                 },
                 onPlaybackEnd: () => {
+                  if (!isCurrentSession()) return
                   if (ttsStreamEndedRef.current) {
                     schedulePlaybackEndTransition()
                   }
@@ -618,6 +678,7 @@ export function useVoiceAgent({
               ttsPlayerRef.current = player
             }
             ttsPlayerRef.current?.init().then(() => {
+              if (!isCurrentSession()) return
               ttsPlayerRef.current?.enqueueAudio(pcmBase64)
             })
           },
@@ -625,6 +686,7 @@ export function useVoiceAgent({
             // Current response synthesis done
           },
           onFinished: () => {
+            if (!isCurrentSession()) return
             ttsActiveRef.current = false
             // Session ended on server side - clean up client
             // so next turn creates a fresh connection
@@ -632,20 +694,40 @@ export function useVoiceAgent({
               ttsClientRef.current.disconnect()
               ttsClientRef.current = null
             }
+            if (
+              ttsStreamEndedRef.current &&
+              voiceStateRef.current === "processing" &&
+              !ttsPlayerRef.current?.playing
+            ) {
+              setVoiceStateSync("listening")
+              resetIdleTimer()
+            }
           },
           onError: (errMsg) => {
+            if (!isCurrentSession()) return
             console.error("TTS error:", errMsg)
+            setError(errMsg)
             ttsActiveRef.current = false
             // Clean up broken client
             if (ttsClientRef.current) {
               ttsClientRef.current.disconnect()
               ttsClientRef.current = null
             }
+            if (
+              voiceStateRef.current === "processing" ||
+              voiceStateRef.current === "speaking"
+            ) {
+              setIsSpeaking(false)
+              setVoiceStateSync("listening")
+              resetIdleTimer()
+            }
           },
           onConnected: () => {
+            if (!isCurrentSession()) return
             setTtsConnected(true)
           },
           onDisconnected: () => {
+            if (!isCurrentSession()) return
             setTtsConnected(false)
           },
         })
@@ -653,6 +735,10 @@ export function useVoiceAgent({
 
         try {
           await ttsClient.connect()
+          if (!isCurrentSession()) {
+            ttsClient.disconnect()
+            throw new Error("Stale TTS session")
+          }
           ttsActiveRef.current = true
         } catch (err) {
           console.error("Failed to connect TTS:", err)
@@ -673,11 +759,11 @@ export function useVoiceAgent({
 
     // Run async connection + append (fire-and-forget)
     ensureConnected().then((connected) => {
-      if (connected) {
+      if (connected && isCurrentSession()) {
         ttsClientRef.current?.appendText(text)
       }
     })
-  }, [resetIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition])
+  }, [resetIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition, setVoiceStateSync])
 
   /**
    * Called when the agent stream ends.
@@ -686,17 +772,37 @@ export function useVoiceAgent({
    * may still be in flight from DashScope.
    */
   const onAgentStreamEnd = useCallback(() => {
+    const sessionId = voiceSessionIdRef.current
+    const isCurrentSession = () => voiceSessionIdRef.current === sessionId
     ttsStreamEndedRef.current = true
 
-    if (ttsActiveRef.current) {
+    if (ttsActiveRef.current || ttsConnectingRef.current) {
+      const finishCurrentTts = () => {
+        if (!isCurrentSession()) return
+        if (ttsClientRef.current?.isConnected) {
+          ttsClientRef.current.finish()
+        } else if (
+          voiceStateRef.current === "processing" &&
+          !ttsPlayerRef.current?.playing
+        ) {
+          setVoiceStateSync("listening")
+          resetIdleTimer()
+        }
+      }
+
+      if (ttsConnectingRef.current) {
+        ttsConnectingRef.current.then(finishCurrentTts).catch(finishCurrentTts)
+      } else {
+        finishCurrentTts()
+      }
       // TTS was used — let onPlaybackEnd handle the transition
       // after all queued audio finishes playing
     } else if (voiceStateRef.current === "processing") {
       // No TTS was used (e.g. agent returned no text) — go back to listening
-      setVoiceState("listening")
+      setVoiceStateSync("listening")
       resetIdleTimer()
     }
-  }, [resetIdleTimer])
+  }, [resetIdleTimer, setVoiceStateSync])
 
   // Auto-start KWS on page load if wake words are configured
   useEffect(() => {
@@ -713,7 +819,7 @@ export function useVoiceAgent({
   useEffect(() => {
     return () => {
       stopKwsListening()
-      exitVoiceModeInternal()
+      exitVoiceModeInternal(false)
     }
   }, [exitVoiceModeInternal, stopKwsListening])
 
