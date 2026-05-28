@@ -1179,7 +1179,7 @@ async def root():
             "knowledge_bases": "/api/knowledge-bases",
             "mcp_servers": "/api/mcp-servers",
             "models": "/api/models",
-            "voice_asr": "/ws/voice/asr",
+            "voice_asr": "/api/asr/transcribe",
             "voice_tts": "/ws/voice/tts",
         },
     }

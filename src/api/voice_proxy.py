@@ -1,26 +1,39 @@
-"""Voice WebSocket proxy for DashScope Realtime ASR/TTS APIs.
+"""Voice API endpoints for DashScope ASR/TTS integration.
 
-Frontend connects via ws://host:2024/ws/voice/asr or /ws/voice/tts.
-This proxy forwards to DashScope Realtime API while injecting the
-DASHSCOPE_API_KEY from server-side environment variables.
+REST endpoint:
+- POST /api/asr/transcribe — Transcribe audio using qwen3-asr-flash
+  (client-side VAD detects speech segments, sends complete utterances)
+
+WebSocket endpoint:
+- /ws/voice/tts — Streaming TTS proxy to DashScope Realtime API
 
 Security:
-- API key never reaches the browser.
-- Optional: add rate limiting, user auth checks for production.
+- DASHSCOPE_API_KEY stays server-side (never reaches the browser).
 """
 
 import asyncio
+import base64
 import logging
 import os
+import tempfile
+from typing import Any
 
+import dashscope  # type: ignore[import-untyped]
 import websockets
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from websockets.asyncio.client import ClientConnection
 
 logger = logging.getLogger(__name__)
 
 DASHSCOPE_WS_BASE = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 
 voice_router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _get_dashscope_key() -> str:
@@ -34,6 +47,183 @@ def _get_dashscope_key() -> str:
     return key
 
 
+# ---------------------------------------------------------------------------
+# REST ASR endpoint
+# ---------------------------------------------------------------------------
+
+
+class AsrTranscribeRequest(BaseModel):
+    """Audio data URI for transcription.
+
+    Expected format: ``data:audio/wav;base64,<base64_encoded_wav>``
+    """
+
+    audio: str
+
+
+class AsrTranscribeResponse(BaseModel):
+    """Transcription result."""
+
+    text: str
+    language: str | None = None
+    duration_seconds: float | None = None
+
+
+def _decode_data_uri(data_uri: str) -> bytes:
+    """Extract raw bytes from a ``data:`` URI.
+
+    Supports ``data:<mime>;base64,<payload>`` format.
+    """
+    if not data_uri.startswith("data:"):
+        raise ValueError("Not a valid data URI")
+    header, _, payload = data_uri.partition(",")
+    if not payload:
+        raise ValueError("Missing payload in data URI")
+    return base64.b64decode(payload)
+
+
+@voice_router.post("/api/asr/transcribe", response_model=AsrTranscribeResponse)
+async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse:
+    """Transcribe a speech segment using DashScope ``qwen3-asr-flash``.
+
+    Accepts a base64-encoded WAV audio data URI, writes it to a temporary
+    file, and calls ``dashscope.MultiModalConversation.call()``.
+    """
+    try:
+        api_key = _get_dashscope_key()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if not request.audio.startswith("data:audio/"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid audio data URI format. Expected data:audio/...;base64,...",
+        )
+
+    model = os.environ.get("ASR_MODEL", "qwen3-asr-flash")
+
+    # Decode and write to a temporary WAV file for the SDK
+    try:
+        audio_bytes = _decode_data_uri(request.audio)
+    except (ValueError, Exception) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to decode audio data URI: {exc}",
+        ) from exc
+
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".wav", delete=False, dir=tempfile.gettempdir()
+        ) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        # Call DashScope MultiModalConversation API
+        response: Any = await asyncio.to_thread(
+            dashscope.MultiModalConversation.call,
+            api_key=api_key,
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"audio": f"file://{tmp_path}"}],
+                }
+            ],
+            result_format="message",
+            asr_options={"enable_lid": True, "enable_itn": False},
+        )
+
+        # Parse response
+        return _parse_asr_response(response)
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("ASR transcription failed: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"ASR transcription failed: {exc}",
+        ) from exc
+    finally:
+        # Clean up temp file
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+def _parse_asr_response(response: Any) -> AsrTranscribeResponse:
+    """Parse the DashScope MultiModalConversation response into our model."""
+    # The SDK returns a dict-like object
+    if hasattr(response, "status_code") and response.status_code != 200:
+        error_msg = getattr(response, "message", "Unknown error")
+        raise HTTPException(
+            status_code=502,
+            detail=f"DashScope ASR error ({response.status_code}): {error_msg}",
+        )
+
+    try:
+        # Response structure: output.choices[0].message.content[0].text
+        if hasattr(response, "output"):
+            output = response.output
+        elif isinstance(response, dict):
+            output = response.get("output", {})
+        else:
+            raise RuntimeError(f"Unexpected response type: {type(response)}")
+
+        choices = output.get("choices", []) if isinstance(output, dict) else getattr(output, "choices", [])
+        if not choices:
+            raise RuntimeError("No choices in ASR response")
+
+        message = choices[0].get("message", {}) if isinstance(choices[0], dict) else getattr(choices[0], "message", {})
+        content = message.get("content", []) if isinstance(message, dict) else getattr(message, "content", [])
+
+        text = ""
+        if content:
+            first_content = content[0] if isinstance(content, list) else content
+            text = first_content.get("text", "") if isinstance(first_content, dict) else getattr(first_content, "text", "")
+
+        # Extract language from annotations if present
+        language: str | None = None
+        annotations = (
+            message.get("annotations", [])
+            if isinstance(message, dict)
+            else getattr(message, "annotations", [])
+        )
+        if annotations:
+            ann = annotations[0] if isinstance(annotations, list) else annotations
+            language = ann.get("language") if isinstance(ann, dict) else getattr(ann, "language", None)
+
+        # Extract duration from usage if present
+        duration: float | None = None
+        usage = response.get("usage", {}) if isinstance(response, dict) else getattr(response, "usage", {})
+        if isinstance(usage, dict):
+            seconds = usage.get("seconds")
+            if seconds is not None:
+                duration = float(seconds)
+        elif hasattr(usage, "seconds"):
+            duration = float(usage.seconds)
+
+        return AsrTranscribeResponse(
+            text=text.strip(),
+            language=language,
+            duration_seconds=duration,
+        )
+    except (KeyError, IndexError, TypeError, AttributeError) as exc:
+        logger.error("Failed to parse ASR response: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Unexpected ASR response format: {exc}",
+        ) from exc
+
+
+# ---------------------------------------------------------------------------
+# WebSocket TTS proxy (unchanged)
+# ---------------------------------------------------------------------------
+
+
 def _upstream_headers() -> dict[str, str]:
     """Build headers for upstream DashScope WebSocket connection."""
     return {
@@ -44,7 +234,7 @@ def _upstream_headers() -> dict[str, str]:
 
 async def _relay(
     client_ws: WebSocket,
-    upstream_ws: websockets.WebSocketClientProtocol,
+    upstream_ws: ClientConnection,
 ) -> None:
     """Bidirectional relay between client WebSocket and upstream WebSocket.
 
@@ -70,7 +260,10 @@ async def _relay(
         """Forward messages from DashScope to the browser client."""
         try:
             async for message in upstream_ws:
-                await client_ws.send_text(message)
+                if isinstance(message, str):
+                    await client_ws.send_text(message)
+                else:
+                    await client_ws.send_bytes(message)
         except WebSocketDisconnect:
             logger.debug("Client disconnected (upstream_to_client)")
         except websockets.ConnectionClosed:
@@ -85,47 +278,6 @@ async def _relay(
     )
     for task in pending:
         task.cancel()
-
-
-@voice_router.websocket("/ws/voice/asr")
-async def asr_proxy(websocket: WebSocket) -> None:
-    """ASR WebSocket proxy.
-
-    Browser -> this endpoint -> DashScope ASR API (qwen3-asr-flash-realtime).
-    Injects Authorization header with DASHSCOPE_API_KEY.
-    All JSON messages are forwarded bidirectionally (session.update,
-    input_audio_buffer.append, transcription events, etc.).
-    """
-    await websocket.accept()
-
-    asr_model = os.environ.get(
-        "ASR_MODEL", "qwen3-asr-flash-realtime-2026-02-10"
-    )
-    upstream_url = f"{DASHSCOPE_WS_BASE}?model={asr_model}"
-
-    try:
-        headers = _upstream_headers()
-    except RuntimeError as exc:
-        logger.error("ASR proxy cannot start: %s", exc)
-        await websocket.close(code=1011, reason=str(exc))
-        return
-
-    try:
-        async with websockets.connect(
-            upstream_url,
-            additional_headers=headers,
-        ) as upstream:
-            logger.info("ASR proxy connected to upstream: %s", upstream_url)
-            await _relay(websocket, upstream)
-    except websockets.InvalidStatusCode as exc:
-        logger.error("Upstream ASR rejected connection: %s", exc)
-        await websocket.close(code=1011, reason=f"Upstream error: {exc}")
-    except Exception as exc:
-        logger.error("ASR proxy error: %s", exc)
-        try:
-            await websocket.close(code=1011, reason="Internal proxy error")
-        except Exception:
-            pass
 
 
 @voice_router.websocket("/ws/voice/tts")
@@ -158,7 +310,7 @@ async def tts_proxy(websocket: WebSocket) -> None:
         ) as upstream:
             logger.info("TTS proxy connected to upstream: %s", upstream_url)
             await _relay(websocket, upstream)
-    except websockets.InvalidStatusCode as exc:
+    except websockets.InvalidStatus as exc:
         logger.error("Upstream TTS rejected connection: %s", exc)
         await websocket.close(code=1011, reason=f"Upstream error: {exc}")
     except Exception as exc:
