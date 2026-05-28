@@ -82,6 +82,41 @@ def _decode_data_uri(data_uri: str) -> bytes:
     return base64.b64decode(payload)
 
 
+def _call_dashscope_asr(
+    *,
+    api_key: str,
+    model: str,
+    audio_bytes: bytes,
+) -> Any:
+    """Run the blocking DashScope ASR request from a worker thread."""
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".wav", delete=False, dir=tempfile.gettempdir()
+        ) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        return dashscope.MultiModalConversation.call(
+            api_key=api_key,
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"audio": f"file://{tmp_path}"}],
+                }
+            ],
+            result_format="message",
+            asr_options={"enable_lid": True, "enable_itn": False},
+        )
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
 @voice_router.post("/api/asr/transcribe", response_model=AsrTranscribeResponse)
 async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse:
     """Transcribe a speech segment using DashScope ``qwen3-asr-flash``.
@@ -111,27 +146,12 @@ async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse
             detail=f"Failed to decode audio data URI: {exc}",
         ) from exc
 
-    tmp_path: str | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            suffix=".wav", delete=False, dir=tempfile.gettempdir()
-        ) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = tmp.name
-
-        # Call DashScope MultiModalConversation API
         response: Any = await asyncio.to_thread(
-            dashscope.MultiModalConversation.call,
+            _call_dashscope_asr,
             api_key=api_key,
             model=model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [{"audio": f"file://{tmp_path}"}],
-                }
-            ],
-            result_format="message",
-            asr_options={"enable_lid": True, "enable_itn": False},
+            audio_bytes=audio_bytes,
         )
 
         # Parse response
@@ -145,13 +165,6 @@ async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse
             status_code=500,
             detail=f"ASR transcription failed: {exc}",
         ) from exc
-    finally:
-        # Clean up temp file
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
 
 
 def _parse_asr_response(response: Any) -> AsrTranscribeResponse:
