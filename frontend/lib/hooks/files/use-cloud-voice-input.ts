@@ -11,7 +11,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { AsrClient } from "@/lib/voice/asr-client"
-import { VadManager, type SpeechSegment } from "@/lib/voice/vad"
+import { VadManager, preloadSherpaOnnxModule, type SpeechSegment } from "@/lib/voice/vad"
 
 // ============================================================================
 // Types
@@ -76,6 +76,12 @@ export function useCloudVoiceInput({
       )
     )
   }, [])
+
+  useEffect(() => {
+    if (isSupported) {
+      preloadSherpaOnnxModule()
+    }
+  }, [isSupported])
 
   // Refs for cleanup
   const audioContextRef = useRef<AudioContext | null>(null)

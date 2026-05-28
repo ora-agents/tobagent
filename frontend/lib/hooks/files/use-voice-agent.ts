@@ -18,7 +18,7 @@ import { useState, useCallback, useRef, useEffect } from "react"
 import { AsrClient } from "@/lib/voice/asr-client"
 import { TtsClient } from "@/lib/voice/tts-client"
 import { TtsPlayer } from "@/lib/voice/tts-player"
-import { VadManager, type SpeechSegment } from "@/lib/voice/vad"
+import { VadManager, preloadSherpaOnnxModule, type SpeechSegment } from "@/lib/voice/vad"
 import { KwsClient } from "@/lib/voice/kws/kws-client"
 import type { VoiceState } from "@/lib/voice/types"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
@@ -111,6 +111,12 @@ export function useVoiceAgent({
       )
     )
   }, [])
+
+  useEffect(() => {
+    if (isSupported) {
+      preloadSherpaOnnxModule()
+    }
+  }, [isSupported])
 
   // Refs for clients and audio resources
   const audioContextRef = useRef<AudioContext | null>(null)

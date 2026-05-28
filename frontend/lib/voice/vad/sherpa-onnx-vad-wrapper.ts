@@ -14,6 +14,7 @@ import { SHERPA_ONNX_BASE_PATH } from "../utils/constants"
 
 // Singleton promise — ensures the module is only loaded once
 let modulePromise: Promise<{ module: SherpaOnnxModule }> | null = null
+let preloadStarted = false
 
 /**
  * Shape of the sherpa-onnx Emscripten Module after initialization.
@@ -328,6 +329,7 @@ export class Vad {
 export function loadSherpaOnnxModule(): Promise<{ module: SherpaOnnxModule }> {
   if (modulePromise) return modulePromise
 
+  preloadStarted = true
   modulePromise = new Promise<{ module: SherpaOnnxModule }>((resolve, reject) => {
     const win = globalThis as unknown as Record<string, unknown>
 
@@ -353,4 +355,30 @@ export function loadSherpaOnnxModule(): Promise<{ module: SherpaOnnxModule }> {
   })
 
   return modulePromise
+}
+
+/**
+ * Warm the VAD runtime during browser idle time.
+ *
+ * This keeps the first explicit voice-mode entry from paying the full WASM
+ * download + runtime initialization cost while avoiding a hard dependency on
+ * the preload completing successfully.
+ */
+export function preloadSherpaOnnxModule(): void {
+  if (preloadStarted || typeof window === "undefined") return
+
+  preloadStarted = true
+
+  const start = () => {
+    loadSherpaOnnxModule().catch((err) => {
+      preloadStarted = false
+      console.warn("[sherpa-onnx] VAD preload failed:", err)
+    })
+  }
+
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(start, { timeout: 4000 })
+  } else {
+    globalThis.setTimeout(start, 1500)
+  }
 }
