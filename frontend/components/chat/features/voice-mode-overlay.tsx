@@ -18,6 +18,7 @@ interface VoiceModeOverlayProps {
 
 const stateLabels: Record<VoiceState, string> = {
   idle: "",
+  loading: "Loading voice model...",
   listening: "Listening...",
   processing: "Thinking...",
   speaking: "Speaking...",
@@ -66,7 +67,7 @@ export function VoiceModeOverlay({
                 ? "bg-primary/10 ring-4 ring-primary/20 animate-pulse"
                 : voiceState === "speaking"
                   ? "bg-primary/15 ring-4 ring-primary/30"
-                  : voiceState === "processing"
+                  : voiceState === "processing" || voiceState === "loading"
                     ? "bg-muted/50 ring-4 ring-muted"
                     : "bg-muted/30"
             }
@@ -74,6 +75,8 @@ export function VoiceModeOverlay({
         >
           {isSpeaking ? (
             <SpeakerIcon className="w-10 h-10 text-primary" />
+          ) : voiceState === "loading" || voiceState === "processing" ? (
+            <LoadingIcon className="w-10 h-10 text-muted-foreground" />
           ) : (
             <MicrophoneIcon
               className={`w-10 h-10 ${
@@ -116,6 +119,7 @@ export function VoiceModeOverlay({
 
       {/* Hint text */}
       <div className="absolute bottom-8 text-sm text-muted-foreground">
+        {voiceState === "loading" && "Initializing voice recognition model..."}
         {voiceState === "listening" && "Speak naturally... say something or click to exit"}
         {voiceState === "processing" && "Processing your request..."}
         {voiceState === "speaking" && "Speak to interrupt, or click to exit"}
@@ -158,6 +162,23 @@ function SpeakerIcon({ className }: { className?: string }) {
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
       <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
       <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  )
+}
+
+function LoadingIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`animate-spin ${className}`}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   )
 }

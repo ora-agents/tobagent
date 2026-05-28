@@ -41,6 +41,8 @@ export function VoiceInputButton({
     switch (voiceState) {
       case "idle":
         return t.voiceInput || "Voice input"
+      case "loading":
+        return "Loading voice model..."
       case "listening":
         return t.stopListening || "Listening... click to stop"
       case "processing":
@@ -75,7 +77,7 @@ export function VoiceInputButton({
 
       {voiceState === "speaking" ? (
         <SpeakerIcon className={iconSize} />
-      ) : voiceState === "processing" ? (
+      ) : voiceState === "processing" || voiceState === "loading" ? (
         <LoadingIcon className={iconSize} />
       ) : (
         <MicrophoneIcon className={iconSize} />

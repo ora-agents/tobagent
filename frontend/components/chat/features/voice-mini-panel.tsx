@@ -18,6 +18,7 @@ interface VoiceMiniPanelProps {
 
 const stateLabels: Record<VoiceState, string> = {
   idle: "",
+  loading: "Loading...",
   listening: "Listening...",
   processing: "Thinking...",
   speaking: "Speaking...",
@@ -25,6 +26,7 @@ const stateLabels: Record<VoiceState, string> = {
 
 const stateHints: Record<VoiceState, string> = {
   idle: "",
+  loading: "Initializing voice model...",
   listening: "Speak naturally...",
   processing: "Processing...",
   speaking: "Speak to interrupt",
@@ -56,7 +58,7 @@ export function VoiceMiniPanel({
               }
             `}
           >
-            {voiceState === "processing" ? (
+            {voiceState === "processing" || voiceState === "loading" ? (
               <LoadingIcon className="w-3.5 h-3.5 text-muted-foreground" />
             ) : isSpeaking ? (
               <SpeakerIcon className="w-3.5 h-3.5 text-primary" />
