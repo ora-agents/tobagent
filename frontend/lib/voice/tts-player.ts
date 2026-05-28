@@ -40,16 +40,22 @@ export class TtsPlayer {
     return this.isPlaying
   }
 
-  /** Initialize or resume the AudioContext */
+  /** Initialize or resume the AudioContext. Only resets scheduling if not already playing. */
   async init(): Promise<void> {
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext({ sampleRate: this.sampleRate })
+      // Fresh context - initialize scheduling
+      this.nextStartTime = this.audioCtx.currentTime
     }
     if (this.audioCtx.state === "suspended") {
       await this.audioCtx.resume()
+      // After resume, reset scheduling only if nothing is queued
+      if (!this.isPlaying) {
+        this.nextStartTime = this.audioCtx.currentTime
+      }
     }
-    // Reset scheduling state
-    this.nextStartTime = this.audioCtx.currentTime
+    // If already playing, keep existing nextStartTime so new chunks
+    // are scheduled after the current queue (no overlap).
   }
 
   /**
