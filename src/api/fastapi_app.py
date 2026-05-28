@@ -239,6 +239,7 @@ class AgentProfileSchema(BaseModel):
     skillIds: list[str] = []
     mcpIds: list[str] = []
     agentIds: list[str] = []
+    wakeWords: list[str] = []
     createdAt: str
     updatedAt: str
 
@@ -288,8 +289,8 @@ class AgentRAGStatusResponse(BaseModel):
 # User Authentication Helpers & Routes
 # ---------------------------------------------------------------------------
 
-import secrets
 import hashlib
+import secrets
 import uuid
 from datetime import datetime
 
@@ -493,6 +494,7 @@ async def get_agent_profiles(db: Session = Depends(get_db)):
             skillIds=p.skill_ids or [],
             mcpIds=p.mcp_ids or [],
             agentIds=p.agent_ids or [],
+            wakeWords=p.wake_words or [],
             createdAt=p.created_at,
             updatedAt=p.updated_at,
         )
@@ -517,6 +519,7 @@ async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = D
         skill_ids=profile_data.skillIds,
         mcp_ids=profile_data.mcpIds,
         agent_ids=profile_data.agentIds,
+        wake_words=profile_data.wakeWords,
         created_at=profile_data.createdAt,
         updated_at=profile_data.updatedAt,
     )
@@ -533,6 +536,7 @@ async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = D
         skillIds=new_profile.skill_ids or [],
         mcpIds=new_profile.mcp_ids or [],
         agentIds=new_profile.agent_ids or [],
+        wakeWords=new_profile.wake_words or [],
         createdAt=new_profile.created_at,
         updatedAt=new_profile.updated_at,
     )
@@ -543,7 +547,7 @@ async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Se
     profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
-    
+
     profile.name = profile_data.name
     profile.description = profile_data.description
     profile.system_prompt = profile_data.systemPrompt
@@ -552,6 +556,7 @@ async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Se
     profile.skill_ids = profile_data.skillIds
     profile.mcp_ids = profile_data.mcpIds
     profile.agent_ids = profile_data.agentIds
+    profile.wake_words = profile_data.wakeWords
     profile.updated_at = profile_data.updatedAt
     
     db.commit()
@@ -566,6 +571,7 @@ async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Se
         skillIds=profile.skill_ids or [],
         mcpIds=profile.mcp_ids or [],
         agentIds=profile.agent_ids or [],
+        wakeWords=profile.wake_words or [],
         createdAt=profile.created_at,
         updatedAt=profile.updated_at,
     )
@@ -845,6 +851,7 @@ async def upload_kb_document(
 
     try:
         from datetime import datetime
+
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
         raw = await file.read()
