@@ -11,6 +11,9 @@ export const TTS_SAMPLE_RATE = 24000
 /** WebSocket path for TTS proxy (appended to LANGGRAPH_API_URL) */
 export const TTS_WS_PATH = "/ws/voice/tts"
 
+/** WebSocket path for KWS (Keyword Spotting) endpoint */
+export const KWS_WS_PATH = "/ws/voice/kws"
+
 /** REST API path for ASR transcription */
 export const ASR_REST_PATH = "/api/asr/transcribe"
 

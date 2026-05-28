@@ -18,6 +18,7 @@ interface VoiceModeOverlayProps {
 
 const stateLabels: Record<VoiceState, string> = {
   idle: "",
+  kws: "Say wake word...",
   loading: "Loading voice model...",
   listening: "Listening...",
   processing: "Thinking...",

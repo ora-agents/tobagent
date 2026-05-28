@@ -183,6 +183,7 @@ export function ChatInterface({
       // Show real-time ASR transcript in the input box
       setLimitedInput(text)
     },
+    wakeWords: agentProfile?.wakeWords || [],
   })
 
   // ============================================================================

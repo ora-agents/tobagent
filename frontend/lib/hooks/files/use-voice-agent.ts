@@ -5,10 +5,11 @@
  * - Client-side VAD (sherpa-onnx / Silero VAD via WASM) for speech detection
  * - REST ASR (qwen3-asr-flash) for transcription of complete speech segments
  * - Cloud TTS for agent reply playback (via WebSocket proxy)
- * - State machine: idle -> loading -> listening -> processing -> speaking -> loop
+ * - Backend KWS (sherpa-onnx) for always-on wake word detection
+ * - State machine: idle/kws -> loading -> listening -> processing -> speaking -> loop
  * - Interruption: user can speak during TTS to interrupt the agent
  * - Auto-send: ASR final transcript is sent automatically
- * - Timeout: returns to idle after 30s of inactivity
+ * - Timeout: returns to kws (or idle) after 30s of inactivity
  *
  * The VAD WASM module (~93MB) is lazy-loaded on first voice mode entry.
  */
@@ -18,6 +19,7 @@ import { AsrClient } from "@/lib/voice/asr-client"
 import { TtsClient } from "@/lib/voice/tts-client"
 import { TtsPlayer } from "@/lib/voice/tts-player"
 import { VadManager, type SpeechSegment } from "@/lib/voice/vad"
+import { KwsClient } from "@/lib/voice/kws/kws-client"
 import type { VoiceState } from "@/lib/voice/types"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
 
@@ -32,6 +34,8 @@ interface UseVoiceAgentOptions {
   onInterrupt: () => void
   /** Called with interim ASR transcript for real-time display in input box */
   onInterimTranscript?: (text: string) => void
+  /** Wake words for always-on KWS detection (empty = KWS disabled) */
+  wakeWords?: string[]
 }
 
 export interface UseVoiceAgentReturn {
@@ -47,6 +51,8 @@ export interface UseVoiceAgentReturn {
   currentTranscript: string
   /** Whether TTS audio is currently playing */
   isSpeaking: boolean
+  /** Whether KWS is actively listening for wake words */
+  isKwsActive: boolean
   /** Error message, if any */
   error: string | null
 
@@ -85,6 +91,7 @@ export function useVoiceAgent({
   onSendMessage,
   onInterrupt,
   onInterimTranscript,
+  wakeWords = [],
 }: UseVoiceAgentOptions): UseVoiceAgentReturn {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle")
   const [asrConnected, setAsrConnected] = useState(false)
@@ -116,6 +123,16 @@ export function useVoiceAgent({
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Promise tracking TTS connection in progress (prevents duplicate connections)
   const ttsConnectingRef = useRef<Promise<void> | null>(null)
+  // KWS client for always-on wake word detection
+  const kwsClientRef = useRef<KwsClient | null>(null)
+  // Ref for wakeWords to avoid stale closures
+  const wakeWordsRef = useRef(wakeWords)
+  useEffect(() => {
+    wakeWordsRef.current = wakeWords
+  }, [wakeWords])
+
+  // Ref for enterVoiceMode to avoid stale closure in KWS callback
+  const enterVoiceModeRef = useRef<() => void>(() => {})
 
   // Refs for callbacks to avoid stale closures
   const onSendMessageRef = useRef(onSendMessage)
@@ -202,6 +219,53 @@ export function useVoiceAgent({
     }
   }, [])
 
+  /** Start KWS (Keyword Spotting) for always-on wake word detection */
+  const startKwsListening = useCallback(async () => {
+    const kw = wakeWordsRef.current
+    if (!kw.length) return
+
+    // Don't start if already active
+    if (kwsClientRef.current?.isActive) return
+
+    try {
+      const kwsClient = new KwsClient({
+        onDetection: (_keyword) => {
+          // Wake word detected — stop KWS and enter full voice mode
+          if (kwsClientRef.current) {
+            kwsClientRef.current.stop()
+            kwsClientRef.current = null
+          }
+          enterVoiceModeRef.current()
+        },
+        onError: (err) => {
+          console.warn("[KWS] Error:", err)
+        },
+        onConnected: () => {
+          setVoiceState("kws")
+        },
+        onDisconnected: () => {
+          // Only reset to idle if still in kws state
+          if (voiceStateRef.current === "kws") {
+            setVoiceState("idle")
+          }
+        },
+      })
+      kwsClientRef.current = kwsClient
+      await kwsClient.start(kw)
+    } catch (err) {
+      // Mic permission denied or other failure — graceful degradation
+      console.warn("[KWS] Cannot start:", err)
+    }
+  }, []) // enterVoiceMode accessed via ref to avoid stale closure
+
+  /** Stop KWS listening */
+  const stopKwsListening = useCallback(() => {
+    if (kwsClientRef.current) {
+      kwsClientRef.current.stop()
+      kwsClientRef.current = null
+    }
+  }, [])
+
   /** Internal exit function (used by timeout and explicit exit) */
   const exitVoiceModeInternal = useCallback(() => {
     stopIdleTimer()
@@ -256,8 +320,14 @@ export function useVoiceAgent({
 
     setCurrentTranscript("")
     onInterimTranscriptRef.current?.("")
-    setVoiceState("idle")
-  }, [stopIdleTimer, cancelPlaybackEndTimer])
+
+    // Return to KWS listening if wake words configured, otherwise idle
+    if (wakeWordsRef.current.length) {
+      startKwsListening()
+    } else {
+      setVoiceState("idle")
+    }
+  }, [stopIdleTimer, cancelPlaybackEndTimer, startKwsListening])
 
   /** Interrupt TTS and agent response when user speaks during playback */
   const interruptAndListen = useCallback(() => {
@@ -290,7 +360,18 @@ export function useVoiceAgent({
 
   /** Start voice mode: set up audio capture, VAD, and ASR */
   const enterVoiceMode = useCallback(async () => {
-    if (voiceState !== "idle" || !isSupported) return
+    // Allow entering from both idle and kws states
+    if (
+      (voiceStateRef.current !== "idle" && voiceStateRef.current !== "kws") ||
+      !isSupported
+    )
+      return
+
+    // Stop KWS if active (free mic for voice mode)
+    if (kwsClientRef.current) {
+      kwsClientRef.current.stop()
+      kwsClientRef.current = null
+    }
 
     setError(null)
 
@@ -469,6 +550,11 @@ export function useVoiceAgent({
     schedulePlaybackEndTransition,
   ])
 
+  // Keep enterVoiceModeRef in sync with the latest enterVoiceMode
+  useEffect(() => {
+    enterVoiceModeRef.current = enterVoiceMode
+  }, [enterVoiceMode])
+
   const exitVoiceMode = useCallback(() => {
     exitVoiceModeInternal()
   }, [exitVoiceModeInternal])
@@ -612,12 +698,24 @@ export function useVoiceAgent({
     }
   }, [resetIdleTimer])
 
+  // Auto-start KWS on page load if wake words are configured
+  useEffect(() => {
+    if (wakeWords.length && voiceState === "idle" && isSupported) {
+      startKwsListening()
+    }
+    return () => {
+      stopKwsListening()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wakeWords, isSupported])
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      stopKwsListening()
       exitVoiceModeInternal()
     }
-  }, [exitVoiceModeInternal])
+  }, [exitVoiceModeInternal, stopKwsListening])
 
   return {
     voiceState,
@@ -626,6 +724,7 @@ export function useVoiceAgent({
     ttsConnected,
     currentTranscript,
     isSpeaking,
+    isKwsActive: voiceState === "kws",
     error,
     enterVoiceMode,
     exitVoiceMode,

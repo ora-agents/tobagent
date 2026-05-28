@@ -5,6 +5,7 @@
 /** Voice agent state machine states */
 export type VoiceState =
   | "idle" // Not in voice mode
+  | "kws" // Passive wake word listening (always-on)
   | "loading" // WASM model downloading / initializing
   | "listening" // ASR active, waiting for speech
   | "processing" // Message sent, waiting for agent reply
