@@ -74,6 +74,16 @@ async def kws_websocket(websocket: WebSocket) -> None:
     keyword_processor = getattr(websocket.app.state, "kws_processor", None)
 
     if spotter is None:
+        loading_task = getattr(websocket.app.state, "kws_loading_task", None)
+        if loading_task and not loading_task.done():
+            logger.info("KWS WebSocket rejected: model is still loading")
+            await websocket.send_json({
+                "type": "error",
+                "message": "KWS model is still loading on server",
+            })
+            await websocket.close(code=1013, reason="KWS model is loading")
+            return
+
         logger.warning("KWS WebSocket rejected: model not loaded")
         await websocket.send_json({
             "type": "error",
