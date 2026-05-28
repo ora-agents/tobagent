@@ -51,6 +51,19 @@ const nextConfig: NextConfig = {
             key: "X-Frame-Options",
             value: "SAMEORIGIN",
           },
+          // Required for AudioWorklet + SharedArrayBuffer (self.crossOriginIsolated).
+          // Without these, worklet postMessage of Transferable buffers throws
+          // DataCloneError: "SharedArrayBuffer transfer requires self.crossOriginIsolated".
+          // Use 'credentialless' instead of 'require-corp' to avoid blocking cross-origin
+          // resources (e.g., Segment analytics) that don't send Cross-Origin-Resource-Policy headers.
+          {
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
+          },
+          {
+            key: "Cross-Origin-Embedder-Policy",
+            value: "credentialless",
+          },
         ],
       },
     ];
