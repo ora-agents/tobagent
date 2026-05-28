@@ -2,22 +2,22 @@
  * Voice Agent Hook
  *
  * Orchestrates the complete voice agent experience:
- * - Cloud ASR for speech recognition (via WebSocket proxy)
+ * - Client-side VAD (sherpa-onnx / Silero VAD via WASM) for speech detection
+ * - REST ASR (qwen3-asr-flash) for transcription of complete speech segments
  * - Cloud TTS for agent reply playback (via WebSocket proxy)
- * - State machine: idle -> listening -> processing -> speaking -> loop
+ * - State machine: idle -> loading -> listening -> processing -> speaking -> loop
  * - Interruption: user can speak during TTS to interrupt the agent
  * - Auto-send: ASR final transcript is sent automatically
  * - Timeout: returns to idle after 30s of inactivity
  *
- * In this iteration (no KWS), voice mode is entered by clicking the
- * microphone button. KWS wake word support will be added in Phase 3.
+ * The VAD WASM module (~93MB) is lazy-loaded on first voice mode entry.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { AsrClient } from "@/lib/voice/asr-client"
 import { TtsClient } from "@/lib/voice/tts-client"
 import { TtsPlayer } from "@/lib/voice/tts-player"
-import { pcmBufferToBase64 } from "@/lib/voice/utils/audio"
+import { VadManager, type SpeechSegment } from "@/lib/voice/vad"
 import type { VoiceState } from "@/lib/voice/types"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
 
@@ -39,11 +39,11 @@ export interface UseVoiceAgentReturn {
   voiceState: VoiceState
   /** Whether the browser supports voice features */
   isSupported: boolean
-  /** Whether ASR WebSocket is connected */
+  /** Whether ASR client is ready */
   asrConnected: boolean
   /** Whether TTS WebSocket is connected */
   ttsConnected: boolean
-  /** Current interim transcript (real-time ASR display) */
+  /** Current interim transcript (unused — no interim results with REST ASR) */
   currentTranscript: string
   /** Whether TTS audio is currently playing */
   isSpeaking: boolean
@@ -100,7 +100,7 @@ export function useVoiceAgent({
       !!(
         window.AudioContext &&
         navigator.mediaDevices &&
-        window.WebSocket
+        window.WebAssembly
       )
     )
   }, [])
@@ -110,6 +110,7 @@ export function useVoiceAgent({
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const asrClientRef = useRef<AsrClient | null>(null)
+  const vadManagerRef = useRef<VadManager | null>(null)
   const ttsClientRef = useRef<TtsClient | null>(null)
   const ttsPlayerRef = useRef<TtsPlayer | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -207,7 +208,13 @@ export function useVoiceAgent({
     cancelPlaybackEndTimer()
     ttsStreamEndedRef.current = false
 
-    // Stop and disconnect ASR
+    // Dispose VAD manager (frees WASM resources)
+    if (vadManagerRef.current) {
+      vadManagerRef.current.dispose()
+      vadManagerRef.current = null
+    }
+
+    // Disconnect ASR client
     if (asrClientRef.current) {
       asrClientRef.current.disconnect()
       asrClientRef.current = null
@@ -281,7 +288,7 @@ export function useVoiceAgent({
     resetIdleTimer()
   }, [resetIdleTimer, cancelPlaybackEndTimer])
 
-  /** Start voice mode: set up audio capture and ASR */
+  /** Start voice mode: set up audio capture, VAD, and ASR */
   const enterVoiceMode = useCallback(async () => {
     if (voiceState !== "idle" || !isSupported) return
 
@@ -312,7 +319,97 @@ export function useVoiceAgent({
       )
       workletNodeRef.current = workletNode
 
-      // 5. Create TTS player
+      // 4b. Create ASR client (HTTP-based, no persistent connection)
+      const asrClient = new AsrClient({
+        onConnected: () => {
+          setAsrConnected(true)
+        },
+        onDisconnected: () => {
+          setAsrConnected(false)
+        },
+        onTranscript: (text, _isFinal) => {
+          // ASR result received — clear transcript display
+          setCurrentTranscript("")
+          onInterimTranscriptRef.current?.("")
+
+          // Filter noise (very short results)
+          if (text.trim().length < 2) return
+
+          // If agent is still processing previous response, interrupt first
+          if (voiceStateRef.current === "processing") {
+            cancelPlaybackEndTimer()
+            ttsStreamEndedRef.current = false
+
+            // Stop TTS
+            if (ttsPlayerRef.current) {
+              ttsPlayerRef.current.stop()
+              ttsPlayerRef.current.dispose()
+              ttsPlayerRef.current = null
+            }
+            setIsSpeaking(false)
+            if (ttsClientRef.current) {
+              ttsClientRef.current.disconnect()
+              ttsClientRef.current = null
+            }
+            setTtsConnected(false)
+            ttsActiveRef.current = false
+            onInterruptRef.current()
+          }
+
+          // Send the message to the agent
+          onSendMessageRef.current(text)
+          setVoiceState("processing")
+          ttsStreamEndedRef.current = false
+          stopIdleTimer()
+        },
+        onError: (errMsg) => {
+          setError(errMsg)
+          // Don't exit voice mode on ASR error — return to listening
+          if (voiceStateRef.current === "processing") {
+            setVoiceState("listening")
+            resetIdleTimer()
+          }
+        },
+      })
+      asrClientRef.current = asrClient
+
+      // 5. Show loading state while VAD WASM initializes
+      setVoiceState("loading")
+
+      // 6. Create and initialize VAD manager (lazy-loads WASM on first use)
+      const vadManager = new VadManager({
+        onSpeechStart: () => {
+          resetIdleTimer()
+          // Interrupt agent when user speaks during processing or speaking.
+          // Browser echo cancellation (getUserMedia echoCancellation: true)
+          // filters TTS playback from mic input, preventing false triggers.
+          if (
+            voiceStateRef.current === "processing" ||
+            voiceStateRef.current === "speaking"
+          ) {
+            interruptAndListen()
+          }
+        },
+        onSpeechEnd: async (segment: SpeechSegment) => {
+          // Speech segment detected — send to ASR for transcription
+          if (!asrClientRef.current) return
+
+          // Show that we're transcribing
+          setCurrentTranscript("...")
+          onInterimTranscriptRef.current?.("...")
+
+          await asrClientRef.current.transcribeSegment(segment.pcmInt16)
+        },
+        onError: (errMsg) => {
+          console.error("[VAD]", errMsg)
+          setError(errMsg)
+        },
+      })
+
+      await vadManager.init()
+      vadManagerRef.current = vadManager
+
+      // 7. Create TTS player
       const ttsPlayer = new TtsPlayer({
         onPlaybackStart: () => {
           // New audio arrived — cancel any pending end-of-speech transition
@@ -326,105 +423,31 @@ export function useVoiceAgent({
           if (ttsStreamEndedRef.current) {
             schedulePlaybackEndTransition()
           }
-          // If stream hasn't ended, do nothing — keep speaking state.
-          // More audio will arrive and trigger onPlaybackStart.
         },
       })
       ttsPlayerRef.current = ttsPlayer
 
-      // 6. Create ASR client with callbacks
-      const asrClient = new AsrClient({
-        onConnected: () => {
-          setAsrConnected(true)
-          setVoiceState("listening")
-          resetIdleTimer()
-        },
-        onDisconnected: () => {
-          setAsrConnected(false)
-        },
-        onSpeechStarted: () => {
-          resetIdleTimer()
-          // If agent is speaking/processing, interrupt
-          if (
-            voiceStateRef.current === "speaking" ||
-            voiceStateRef.current === "processing"
-          ) {
-            interruptAndListen()
-          }
-        },
-        onSpeechEnded: () => {
-          // Server VAD detected end of speech
-        },
-        onTranscript: (text, isFinal) => {
-          if (isFinal) {
-            setCurrentTranscript("")
-            // Clear interim transcript from input box
-            onInterimTranscriptRef.current?.("")
-            // Filter noise (very short results)
-            if (text.trim().length < 2) return
-
-            // If agent is still responding, interrupt first
-            if (
-              voiceStateRef.current === "speaking" ||
-              voiceStateRef.current === "processing"
-            ) {
-              cancelPlaybackEndTimer()
-              ttsStreamEndedRef.current = false
-
-              // Stop TTS
-              if (ttsPlayerRef.current) {
-                ttsPlayerRef.current.stop()
-                ttsPlayerRef.current.dispose()
-                ttsPlayerRef.current = null
-              }
-              setIsSpeaking(false)
-              if (ttsClientRef.current) {
-                ttsClientRef.current.disconnect()
-                ttsClientRef.current = null
-              }
-              setTtsConnected(false)
-              ttsActiveRef.current = false
-              onInterruptRef.current()
-            }
-
-            // Send the message
-            onSendMessageRef.current(text)
-            setVoiceState("processing")
-            ttsStreamEndedRef.current = false
-            stopIdleTimer()
-          } else {
-            setCurrentTranscript(text)
-            // Pipe interim transcript to input box for real-time display
-            onInterimTranscriptRef.current?.(text)
-            resetIdleTimer()
-          }
-        },
-        onError: (errMsg) => {
-          setError(errMsg)
-          exitVoiceModeInternal()
-        },
-      })
-      asrClientRef.current = asrClient
-
-      // 7. Connect ASR WebSocket
+      // 8. Connect ASR client (immediate for HTTP)
       await asrClient.connect()
 
-      // 8. Wire audio: mic -> worklet -> main thread -> ASR
+      // 9. Wire audio: mic -> worklet -> main thread -> VAD
       const source = audioContext.createMediaStreamSource(stream)
       source.connect(workletNode)
 
       workletNode.port.onmessage = (event: MessageEvent) => {
-        if (
-          event.data.type === "audio" &&
-          asrClientRef.current?.isConnected
-        ) {
-          const base64 = pcmBufferToBase64(event.data.buffer)
-          asrClientRef.current.sendAudio(base64)
+        if (event.data.type === "audio" && vadManagerRef.current) {
+          const float32 = new Float32Array(event.data.float32)
+          const int16 = new Int16Array(event.data.int16)
+          vadManagerRef.current.processAudio(float32, int16)
         }
       }
 
-      // 9. Start processing
+      // 10. Start processing
       workletNode.port.postMessage({ type: "start" })
+
+      // 11. Ready — transition to listening
+      setVoiceState("listening")
+      resetIdleTimer()
     } catch (err) {
       const msg =
         err instanceof DOMException && err.name === "NotAllowedError"
