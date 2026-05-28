@@ -32,6 +32,7 @@ interface FormState {
   skillIds: string[]
   mcpIds: string[]
   agentIds: string[]
+  wakeWords: string[]
 }
 
 const DEFAULT_FORM: FormState = {
@@ -43,6 +44,87 @@ const DEFAULT_FORM: FormState = {
   skillIds: [],
   mcpIds: [],
   agentIds: [],
+  wakeWords: [],
+}
+
+// ---------------------------------------------------------------------------
+// Wake words editor (inline component for the profile form)
+// ---------------------------------------------------------------------------
+
+function WakeWordsEditor({
+  wakeWords,
+  onChange,
+}: {
+  wakeWords: string[]
+  onChange: (words: string[]) => void
+}) {
+  const { locale } = useI18n()
+  const [newWord, setNewWord] = useState("")
+
+  const addWord = () => {
+    const trimmed = newWord.trim()
+    if (trimmed && !wakeWords.includes(trimmed)) {
+      onChange([...wakeWords, trimmed])
+      setNewWord("")
+    }
+  }
+
+  return (
+    <div className="space-y-1.5 pt-2 border-t border-border">
+      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {locale === "zh" ? "唤醒词 (语音唤醒)" : "Wake Words (Voice Activation)"}
+      </Label>
+      <p className="text-xs text-muted-foreground">
+        {locale === "zh"
+          ? "说出唤醒词即可开始语音对话，无需点击麦克风按钮。"
+          : "Say a wake word to start voice mode without clicking the mic button."}
+      </p>
+
+      {wakeWords.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {wakeWords.map((word, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs border border-primary/20"
+            >
+              {word}
+              <button
+                type="button"
+                onClick={() => onChange(wakeWords.filter((_, i) => i !== idx))}
+                className="hover:text-destructive transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-1.5">
+        <Input
+          value={newWord}
+          onChange={(e) => setNewWord(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              addWord()
+            }
+          }}
+          placeholder={locale === "zh" ? "输入唤醒词，如：小梯小梯" : "Enter wake word, e.g. hey assistant"}
+          className="text-sm flex-1"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addWord}
+          disabled={!newWord.trim()}
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +297,12 @@ function ProfileForm({
           })}
         </div>
       </div>
+
+      {/* Wake Words (KWS) */}
+      <WakeWordsEditor
+        wakeWords={form.wakeWords}
+        onChange={(wakeWords) => setForm(prev => ({ ...prev, wakeWords }))}
+      />
 
       {form.enabledTools.includes("rag_search") && (
         <div className="space-y-3 pt-2 border-t border-border">
@@ -455,6 +543,7 @@ export function AgentProfilesDialog({
       skillIds: data.skillIds,
       mcpIds: data.mcpIds,
       agentIds: data.agentIds,
+      wakeWords: data.wakeWords,
     } as any)
 
     if (res && typeof res.then === "function") {
@@ -479,6 +568,7 @@ export function AgentProfilesDialog({
       skillIds: data.skillIds,
       mcpIds: data.mcpIds,
       agentIds: data.agentIds,
+      wakeWords: data.wakeWords,
     } as any)
     
     // Auto-select updated agent and close the dialog
@@ -669,6 +759,7 @@ export function AgentProfilesDialog({
                 skillIds: (view.profile as any).skillIds || [],
                 mcpIds: (view.profile as any).mcpIds || [],
                 agentIds: (view.profile as any).agentIds || [],
+                wakeWords: (view.profile as any).wakeWords || [],
               }}
               onSave={data => handleUpdate(view.profile.id, data)}
               onCancel={() => setView({ kind: "list" })}

@@ -32,6 +32,7 @@ export interface AgentProfile {
   skillIds?: string[]
   mcpIds?: string[]
   agentIds?: string[]
+  wakeWords?: string[]
   createdAt: string
   updatedAt: string
 }

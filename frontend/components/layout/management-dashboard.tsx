@@ -284,6 +284,7 @@ export function ManagementDashboard({
     skillIds: string[]
     mcpIds: string[]
     agentIds: string[]
+    wakeWords: string[]
   }>({
     name: "",
     description: "",
@@ -292,7 +293,8 @@ export function ManagementDashboard({
     knowledgeBaseIds: [],
     skillIds: [],
     mcpIds: [],
-    agentIds: []
+    agentIds: [],
+    wakeWords: []
   })
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
@@ -301,6 +303,7 @@ export function ManagementDashboard({
   const isSavingRef = useRef(false)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [newWakeWord, setNewWakeWord] = useState("")
 
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
@@ -379,7 +382,8 @@ export function ManagementDashboard({
             knowledgeBaseIds: selectedProfile.knowledgeBaseIds || [],
             skillIds: selectedProfile.skillIds || [],
             mcpIds: selectedProfile.mcpIds || [],
-            agentIds: (selectedProfile as any).agentIds || []
+            agentIds: (selectedProfile as any).agentIds || [],
+            wakeWords: (selectedProfile as any).wakeWords || []
           })
         }
       } else {
@@ -523,7 +527,8 @@ export function ManagementDashboard({
       knowledgeBaseIds: [],
       skillIds: [],
       mcpIds: [],
-      agentIds: []
+      agentIds: [],
+      wakeWords: []
     })
     setDeleteConfirmId(null)
   }
@@ -540,7 +545,8 @@ export function ManagementDashboard({
       knowledgeBaseIds: profile.knowledgeBaseIds || [],
       skillIds: profile.skillIds || [],
       mcpIds: profile.mcpIds || [],
-      agentIds: (profile as any).agentIds || []
+      agentIds: (profile as any).agentIds || [],
+      wakeWords: (profile as any).wakeWords || []
     })
     setDeleteConfirmId(null)
   }
@@ -556,7 +562,8 @@ export function ManagementDashboard({
       knowledgeBaseIds: agentForm.knowledgeBaseIds,
       skillIds: agentForm.skillIds,
       mcpIds: agentForm.mcpIds,
-      agentIds: agentForm.agentIds
+      agentIds: agentForm.agentIds,
+      wakeWords: agentForm.wakeWords
     }
 
     if (isCreatingAgent) {
@@ -1603,6 +1610,73 @@ export function ManagementDashboard({
                             </div>
                           )
                         })}
+                      </div>
+                    </div>
+
+                    {/* Wake Words (KWS) */}
+                    <div className="space-y-2 pt-2 border-t border-border/40">
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {locale === "zh" ? "唤醒词 (语音唤醒)" : "Wake Words (Voice Activation)"}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {locale === "zh"
+                          ? "说出唤醒词即可开始语音对话，无需点击麦克风按钮。"
+                          : "Say a wake word to start voice mode without clicking the mic button."}
+                      </p>
+                      {agentForm.wakeWords.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {agentForm.wakeWords.map((word, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs border border-primary/20"
+                            >
+                              {word}
+                              <button
+                                type="button"
+                                onClick={() => setAgentForm(prev => ({
+                                  ...prev,
+                                  wakeWords: prev.wakeWords.filter((_, i) => i !== idx)
+                                }))}
+                                className="hover:text-destructive transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-1.5">
+                        <Input
+                          value={newWakeWord}
+                          onChange={e => setNewWakeWord(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              e.preventDefault()
+                              const trimmed = newWakeWord.trim()
+                              if (trimmed && !agentForm.wakeWords.includes(trimmed)) {
+                                setAgentForm(prev => ({ ...prev, wakeWords: [...prev.wakeWords, trimmed] }))
+                                setNewWakeWord("")
+                              }
+                            }
+                          }}
+                          placeholder={locale === "zh" ? "输入唤醒词，如：小梯小梯" : "Enter wake word, e.g. hey assistant"}
+                          className="text-sm flex-1 bg-background border-border/80 rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const trimmed = newWakeWord.trim()
+                            if (trimmed && !agentForm.wakeWords.includes(trimmed)) {
+                              setAgentForm(prev => ({ ...prev, wakeWords: [...prev.wakeWords, trimmed] }))
+                              setNewWakeWord("")
+                            }
+                          }}
+                          disabled={!newWakeWord.trim()}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
 
