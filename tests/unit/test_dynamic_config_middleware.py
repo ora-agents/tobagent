@@ -4,7 +4,7 @@ from langchain_core.messages import SystemMessage
 from src.middleware.dynamic_config_middleware import dynamic_config_middleware
 
 @pytest.mark.anyio
-async def test_dynamic_config_middleware_injects_full_skill_content():
+async def test_dynamic_config_middleware_injects_skill_summary():
     # 1. Setup mock database session, agent profile, and skill
     mock_agent_profile = MagicMock()
     mock_agent_profile.id = "agent_123"
@@ -28,6 +28,8 @@ async def test_dynamic_config_middleware_injects_full_skill_content():
     mock_ctx.agent_id = "agent_123"
     mock_ctx.enabled_tools = ["rag_search"]
     mock_ctx.model = None
+    mock_ctx.user_preferences = ""
+    mock_ctx.safety_enabled = False
 
     mock_request = MagicMock()
     mock_request.runtime.context = mock_ctx
@@ -55,8 +57,8 @@ async def test_dynamic_config_middleware_injects_full_skill_content():
         assert isinstance(system_msg, SystemMessage)
         
         content = system_msg.content
-        # Assertions to ensure full skill content is injected correctly
+        # Assertions to ensure linked skills are advertised without inlining full content.
         assert "You are a helpful assistant." in content
-        assert "--- SKILL: Test Skill ---" in content
-        assert "Step 1: Do something.\nStep 2: Done." in content
-        assert "--- END OF SKILL: Test Skill ---" in content
+        assert "- **Test Skill**: A skill to test full content injection" in content
+        assert 'Use `read_skill(skill_name="<name>")`' in content
+        assert "Step 1: Do something.\nStep 2: Done." not in content
