@@ -113,6 +113,8 @@ export function useVoiceAgent({
   const ttsClientRef = useRef<TtsClient | null>(null)
   const ttsPlayerRef = useRef<TtsPlayer | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Promise tracking TTS connection in progress (prevents duplicate connections)
+  const ttsConnectingRef = useRef<Promise<void> | null>(null)
 
   // Refs for callbacks to avoid stale closures
   const onSendMessageRef = useRef(onSendMessage)
@@ -401,7 +403,7 @@ export function useVoiceAgent({
    * Feed a text chunk to TTS for streaming synthesis.
    * Called as agent response tokens arrive from the stream handler.
    */
-  const feedTtsChunk = useCallback(async (text: string) => {
+  const feedTtsChunk = useCallback((text: string) => {
     // Only feed TTS when in processing or speaking state
     if (
       voiceStateRef.current !== "processing" &&
@@ -409,60 +411,91 @@ export function useVoiceAgent({
     )
       return
 
-    // Lazily connect TTS on first chunk
-    if (!ttsClientRef.current || !ttsClientRef.current.isConnected) {
-      const ttsClient = new TtsClient({
-        onAudioChunk: (pcmBase64) => {
-          // Initialize player if needed
-          if (!ttsPlayerRef.current) {
-            const player = new TtsPlayer({
-              onPlaybackStart: () => {
-                setIsSpeaking(true)
-                setVoiceState("speaking")
-              },
-              onPlaybackEnd: () => {
-                setIsSpeaking(false)
-                if (voiceStateRef.current === "speaking") {
-                  setVoiceState("listening")
-                  resetIdleTimer()
-                }
-              },
-            })
-            ttsPlayerRef.current = player
-          }
-          ttsPlayerRef.current?.init().then(() => {
-            ttsPlayerRef.current?.enqueueAudio(pcmBase64)
-          })
-        },
-        onDone: () => {
-          // Current response synthesis done
-        },
-        onFinished: () => {
-          ttsActiveRef.current = false
-        },
-        onError: (errMsg) => {
-          console.error("TTS error:", errMsg)
-          ttsActiveRef.current = false
-        },
-        onConnected: () => {
-          setTtsConnected(true)
-        },
-        onDisconnected: () => {
-          setTtsConnected(false)
-        },
-      })
-      ttsClientRef.current = ttsClient
+    // Helper to ensure TTS client is connected (returns a promise)
+    const ensureConnected = async (): Promise<boolean> => {
+      // Already connected
+      if (ttsClientRef.current?.isConnected) return true
 
+      // Connection in progress - wait for it
+      if (ttsConnectingRef.current) {
+        try {
+          await ttsConnectingRef.current
+          return ttsClientRef.current?.isConnected ?? false
+        } catch {
+          return false
+        }
+      }
+
+      // Start new connection
+      const connectPromise = (async () => {
+        const ttsClient = new TtsClient({
+          onAudioChunk: (pcmBase64) => {
+            // Initialize player if needed
+            if (!ttsPlayerRef.current) {
+              const player = new TtsPlayer({
+                onPlaybackStart: () => {
+                  setIsSpeaking(true)
+                  setVoiceState("speaking")
+                },
+                onPlaybackEnd: () => {
+                  setIsSpeaking(false)
+                  if (voiceStateRef.current === "speaking") {
+                    setVoiceState("listening")
+                    resetIdleTimer()
+                  }
+                },
+              })
+              ttsPlayerRef.current = player
+            }
+            ttsPlayerRef.current?.init().then(() => {
+              ttsPlayerRef.current?.enqueueAudio(pcmBase64)
+            })
+          },
+          onDone: () => {
+            // Current response synthesis done
+          },
+          onFinished: () => {
+            ttsActiveRef.current = false
+          },
+          onError: (errMsg) => {
+            console.error("TTS error:", errMsg)
+            ttsActiveRef.current = false
+          },
+          onConnected: () => {
+            setTtsConnected(true)
+          },
+          onDisconnected: () => {
+            setTtsConnected(false)
+          },
+        })
+        ttsClientRef.current = ttsClient
+
+        try {
+          await ttsClient.connect()
+          ttsActiveRef.current = true
+        } catch (err) {
+          console.error("Failed to connect TTS:", err)
+          throw err
+        }
+      })()
+
+      ttsConnectingRef.current = connectPromise
       try {
-        await ttsClient.connect()
-        ttsActiveRef.current = true
-      } catch (err) {
-        console.error("Failed to connect TTS:", err)
-        return
+        await connectPromise
+        return true
+      } catch {
+        return false
+      } finally {
+        ttsConnectingRef.current = null
       }
     }
 
-    ttsClientRef.current.appendText(text)
+    // Run async connection + append (fire-and-forget)
+    ensureConnected().then((connected) => {
+      if (connected) {
+        ttsClientRef.current?.appendText(text)
+      }
+    })
   }, [resetIdleTimer])
 
   /**

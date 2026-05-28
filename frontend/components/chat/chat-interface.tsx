@@ -146,17 +146,35 @@ export function ChatInterface({
   }, [setInput])
 
   // Voice input - use cloud-based voice agent with ASR/TTS
-  // Use refs so we can reference handleSend/handleStop defined later
-  const handleSendRef = useRef<() => void>(() => {})
+  // Use ref for handleStop so the voice agent can interrupt the stream
   const handleStopRef = useRef<() => void>(() => {})
 
   const voiceAgent = useVoiceAgent({
     onSendMessage: (text) => {
-      setInput(text)
-      // Use setTimeout to let state update first, then send
-      setTimeout(() => {
-        handleSendRef.current()
-      }, 0)
+      // Send the voice transcript directly — do NOT go through setInput +
+      // setTimeout + handleSend, which is a race condition (handleSend reads
+      // uiState.input from its closure, and the state update may not have
+      // flushed yet, causing it to see an empty input and bail out).
+      const trimmed = text.trim()
+      if (!trimmed || !userId || !client) return
+
+      const userMessage = createUserMessage(trimmed)
+
+      // If agent is still responding and wasn't interrupted by voice, queue
+      if (uiState.isLoading && !voiceInterruptRef.current) {
+        messageQueueRef.current.push({
+          content: trimmed,
+          files: [],
+          userMessage,
+        })
+        setQueuedMessagesDisplay(prev => [...prev, { content: trimmed, id: userMessage.id }])
+        return
+      }
+      voiceInterruptRef.current = false
+
+      // Show message in chat and process immediately
+      setMessages((prev) => [...prev, userMessage])
+      processMessage(trimmed, [], userMessage)
     },
     onInterrupt: () => {
       handleStopRef.current()
@@ -173,6 +191,12 @@ export function ChatInterface({
 
   // Create a ref to control stream interruption
   const shouldInterruptRef = useRef(false)
+
+  // Synchronous flag set by handleStop, consumed by handleSend.
+  // Prevents voice messages from being queued when the user interrupts
+  // the agent — isLoading may still be true because FINISH_SEND fires
+  // asynchronously after the stream break.
+  const voiceInterruptRef = useRef(false)
 
   // File input ref for triggering file selection
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -598,7 +622,11 @@ export function ChatInterface({
     clearFiles()
 
     // If currently loading, queue the message (don't show in chat yet)
-    if (uiState.isLoading || uiState.isRegenerating) {
+    // Skip queue when voice interrupt is in progress (stream is being stopped)
+    const wasInterrupted = voiceInterruptRef.current
+    voiceInterruptRef.current = false
+
+    if ((uiState.isLoading || uiState.isRegenerating) && !wasInterrupted) {
       const queuedItem = {
         content: currentInput,
         files: currentFiles,
@@ -623,12 +651,10 @@ export function ChatInterface({
     console.log('User requested stop')
     uiDispatch({ type: 'SET_STOPPING', payload: true })
     shouldInterruptRef.current = true
+    voiceInterruptRef.current = true
   }, [uiDispatch])
 
-  // Keep voice agent refs in sync with actual handlers
-  useEffect(() => {
-    handleSendRef.current = handleSend
-  }, [handleSend])
+  // Keep voice agent stop ref in sync with actual handler
   useEffect(() => {
     handleStopRef.current = handleStop
   }, [handleStop])
