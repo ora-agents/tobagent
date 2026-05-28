@@ -3,9 +3,8 @@
  *
  * Runs in the AudioWorklet thread (off main thread).
  * Captures audio from MediaStream, resamples to 16kHz,
- * converts to Int16 PCM, and posts the raw ArrayBuffer
- * to the main thread for Base64 encoding (btoa is not
- * available in AudioWorklet scope).
+ * and posts both Float32 (for client-side VAD) and Int16 PCM
+ * (for ASR payload) to the main thread as Transferable ArrayBuffers.
  *
  * Registered as 'audio-processor'.
  */
@@ -32,21 +31,6 @@ function downsampleBuffer(buffer, inputSampleRate, targetSampleRate) {
   return result
 }
 
-// Float32 [-1,1] -> Int16 PCM ArrayBuffer
-function float32ToInt16Buffer(float32, sampleRate) {
-  // Resample to 16kHz if needed
-  const resampled = downsampleBuffer(float32, sampleRate, 16000)
-
-  // Float32 -> Int16
-  const int16 = new Int16Array(resampled.length)
-  for (let i = 0; i < resampled.length; i++) {
-    const s = Math.max(-1, Math.min(1, resampled[i]))
-    int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff
-  }
-
-  return int16.buffer
-}
-
 class AudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
@@ -70,11 +54,26 @@ class AudioProcessor extends AudioWorkletProcessor {
     if (input && input[0] && input[0].length > 0) {
       // Copy the channel data (it's reused by the audio engine)
       const samples = new Float32Array(input[0])
-      const buffer = float32ToInt16Buffer(samples, this.inputSampleRate)
 
-      // Send raw ArrayBuffer to main thread via Transferable
-      // Main thread will do Base64 encoding (btoa not available here)
-      this.port.postMessage({ type: "audio", buffer: buffer }, [buffer])
+      // Resample to 16kHz Float32 (for client-side VAD)
+      const resampledFloat32 = downsampleBuffer(samples, this.inputSampleRate, 16000)
+
+      // Convert Float32 to Int16 PCM (for ASR payload)
+      const int16 = new Int16Array(resampledFloat32.length)
+      for (let i = 0; i < resampledFloat32.length; i++) {
+        const s = Math.max(-1, Math.min(1, resampledFloat32[i]))
+        int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff
+      }
+
+      // Create transferable copies of both formats
+      const float32Buffer = resampledFloat32.buffer.slice(0)
+      const int16Buffer = int16.buffer.slice(0)
+
+      // Send both Float32 (for VAD) and Int16 (for ASR) to main thread
+      this.port.postMessage(
+        { type: "audio", float32: float32Buffer, int16: int16Buffer },
+        [float32Buffer, int16Buffer]
+      )
     }
 
     return true
