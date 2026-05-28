@@ -45,10 +45,16 @@ export class TtsClient {
   private ws: WebSocket | null = null
   private callbacks: TtsCallbacks
   private voice: string
+  private eventCounter: number = 0
 
   constructor(callbacks: TtsCallbacks = {}, voice?: string) {
     this.callbacks = callbacks
     this.voice = voice || DEFAULT_TTS_VOICE
+  }
+
+  /** Generate a unique event_id for client messages */
+  private nextEventId(): string {
+    return `event_${Date.now()}_${++this.eventCounter}`
   }
 
   /** Update callbacks */
@@ -82,9 +88,11 @@ export class TtsClient {
         // Configure TTS session: server_commit mode for streaming text input
         const sessionUpdate = {
           type: "session.update",
+          event_id: this.nextEventId(),
           session: {
             voice: this.voice,
-            response_format: "pcm_24000hz_mono_16bit",
+            response_format: "pcm",
+            sample_rate: 24000,
             mode: "server_commit",
           },
         }
@@ -120,21 +128,24 @@ export class TtsClient {
 
     const event = {
       type: "input_text_buffer.append",
+      event_id: this.nextEventId(),
       text: text,
     }
     this.ws!.send(JSON.stringify(event))
   }
 
   /**
-   * Submit all appended text for synthesis.
-   * Call after all text chunks have been appended.
-   * Audio chunks will arrive via onAudioChunk callback.
+   * Signal end of text input and close the session.
+   * In server_commit mode, the server synthesizes text automatically
+   * as it arrives. This sends session.finish to flush remaining text
+   * and end the session.
    */
   finish(): void {
     if (!this.isConnected) return
 
     const event = {
-      type: "response.create",
+      type: "session.finish",
+      event_id: this.nextEventId(),
     }
     this.ws!.send(JSON.stringify(event))
   }
@@ -165,6 +176,10 @@ export class TtsClient {
       case "response.audio.delta":
         // Audio chunk (Base64 PCM 24kHz 16-bit)
         this.callbacks.onAudioChunk?.(data.delta)
+        break
+
+      case "response.audio.done":
+        // Current audio segment complete
         break
 
       case "response.done":

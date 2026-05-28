@@ -64,6 +64,11 @@ export interface TtsAudioDelta {
   response_id?: string
 }
 
+export interface TtsAudioDone {
+  type: "response.audio.done"
+  response_id?: string
+}
+
 export interface TtsResponseDone {
   type: "response.done"
   response_id?: string
@@ -81,6 +86,7 @@ export interface TtsError {
 export type TtsEvent =
   | TtsSessionCreated
   | TtsAudioDelta
+  | TtsAudioDone
   | TtsResponseDone
   | TtsSessionFinished
   | TtsError
