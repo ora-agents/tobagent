@@ -4,7 +4,7 @@ import logging
 import os
 import re
 import string
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Optional
 
 import httpx
@@ -90,7 +90,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
 
-    # Initialize KWS (Keyword Spotting) model — graceful degradation if unavailable
+    app.state.kws_spotter = None
+    app.state.kws_processor = None
+    app.state.kws_loading_task = asyncio.create_task(_initialize_kws(app))
+
+    try:
+        yield
+    finally:
+        loading_task = getattr(app.state, "kws_loading_task", None)
+        if loading_task and not loading_task.done():
+            loading_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await loading_task
+
+
+async def _initialize_kws(app: FastAPI) -> None:
+    """Initialize KWS without delaying application readiness."""
     try:
         from src.api.kws_model import (
             KeywordProcessor,
@@ -106,8 +121,6 @@ async def lifespan(app: FastAPI):
         logger.warning("KWS model not available, wake word detection disabled: %s", e)
         app.state.kws_spotter = None
         app.state.kws_processor = None
-
-    yield
 
 
 app = FastAPI(
