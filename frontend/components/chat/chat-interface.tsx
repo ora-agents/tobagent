@@ -152,7 +152,6 @@ export function ChatInterface({
 
   const voiceAgent = useVoiceAgent({
     onSendMessage: (text) => {
-      // Set the input and trigger send
       setInput(text)
       // Use setTimeout to let state update first, then send
       setTimeout(() => {
@@ -161,6 +160,10 @@ export function ChatInterface({
     },
     onInterrupt: () => {
       handleStopRef.current()
+    },
+    onInterimTranscript: (text) => {
+      // Show real-time ASR transcript in the input box
+      setLimitedInput(text)
     },
   })
 

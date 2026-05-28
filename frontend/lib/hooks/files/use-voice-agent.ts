@@ -30,6 +30,8 @@ interface UseVoiceAgentOptions {
   onSendMessage: (text: string) => void
   /** Interrupt the current agent response */
   onInterrupt: () => void
+  /** Called with interim ASR transcript for real-time display in input box */
+  onInterimTranscript?: (text: string) => void
 }
 
 export interface UseVoiceAgentReturn {
@@ -82,6 +84,7 @@ const WORKLET_PATH = "/voice/audio-processor.worklet.js"
 export function useVoiceAgent({
   onSendMessage,
   onInterrupt,
+  onInterimTranscript,
 }: UseVoiceAgentOptions): UseVoiceAgentReturn {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle")
   const [asrConnected, setAsrConnected] = useState(false)
@@ -114,10 +117,12 @@ export function useVoiceAgent({
   // Refs for callbacks to avoid stale closures
   const onSendMessageRef = useRef(onSendMessage)
   const onInterruptRef = useRef(onInterrupt)
+  const onInterimTranscriptRef = useRef(onInterimTranscript)
   useEffect(() => {
     onSendMessageRef.current = onSendMessage
     onInterruptRef.current = onInterrupt
-  }, [onSendMessage, onInterrupt])
+    onInterimTranscriptRef.current = onInterimTranscript
+  }, [onSendMessage, onInterrupt, onInterimTranscript])
 
   // Track voice state in ref for use in callbacks
   const voiceStateRef = useRef<VoiceState>(voiceState)
@@ -197,6 +202,7 @@ export function useVoiceAgent({
     }
 
     setCurrentTranscript("")
+    onInterimTranscriptRef.current?.("")
     setVoiceState("idle")
   }, [stopIdleTimer])
 
@@ -297,6 +303,8 @@ export function useVoiceAgent({
         onTranscript: (text, isFinal) => {
           if (isFinal) {
             setCurrentTranscript("")
+            // Clear interim transcript from input box
+            onInterimTranscriptRef.current?.("")
             // Filter noise (very short results)
             if (text.trim().length < 2) return
 
@@ -327,6 +335,8 @@ export function useVoiceAgent({
             stopIdleTimer()
           } else {
             setCurrentTranscript(text)
+            // Pipe interim transcript to input box for real-time display
+            onInterimTranscriptRef.current?.(text)
             resetIdleTimer()
           }
         },
