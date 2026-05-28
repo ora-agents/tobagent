@@ -83,6 +83,8 @@ class AgentProfileTable(Base):
     mcp_ids = Column(JSON, nullable=True, default=list)
     # agent_ids is a JSON list of linked other agents, e.g., ["agent_1", "agent_2"]
     agent_ids = Column(JSON, nullable=True, default=list)
+    # wake_words is a JSON list of wake word strings for KWS, e.g., ["小梯小梯", "hey assistant"]
+    wake_words = Column(JSON, nullable=True, default=list)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 

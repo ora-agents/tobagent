@@ -1,4 +1,5 @@
 # FastAPI server for public Chat LangChain support endpoints
+import asyncio
 import logging
 import os
 import re
@@ -12,6 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.api.kws_router import kws_router
 from src.api.langsmith_routes import router as langsmith_router
 from src.api.voice_proxy import voice_router
 
@@ -71,6 +73,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS headers JSON",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences TEXT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS safety_enabled VARCHAR(10) DEFAULT 'false'",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS wake_words JSON",
         ]
 
         with engine.connect() as conn:
@@ -86,6 +89,24 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
+
+    # Initialize KWS (Keyword Spotting) model — graceful degradation if unavailable
+    try:
+        from src.api.kws_model import (
+            KeywordProcessor,
+            create_kws_spotter,
+            ensure_kws_model,
+        )
+
+        model_dir = await asyncio.to_thread(ensure_kws_model)
+        app.state.kws_spotter = await asyncio.to_thread(create_kws_spotter, model_dir)
+        app.state.kws_processor = KeywordProcessor(model_dir)
+        logger.info("KWS model loaded successfully")
+    except Exception as e:
+        logger.warning("KWS model not available, wake word detection disabled: %s", e)
+        app.state.kws_spotter = None
+        app.state.kws_processor = None
+
     yield
 
 
@@ -105,6 +126,7 @@ app.add_middleware(
 
 app.include_router(langsmith_router)
 app.include_router(voice_router)
+app.include_router(kws_router)
 
 
 class TitleGenerationRequest(BaseModel):
