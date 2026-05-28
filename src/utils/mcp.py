@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 # Eagerly import MCP and networking modules to prevent importlib from executing synchronous
 # ScandirIterator call inside the active asyncio event loop when client.get_tools() is first called.
@@ -21,8 +22,8 @@ from src.utils.db import AgentProfileTable, McpServerTable, SessionLocal
 logger = logging.getLogger(__name__)
 
 class McpPoolManager:
-    # A global cache to hold MultiServerMCPClient instances
-    # Key: agent_id, Value: (MultiServerMCPClient, mcp_ids_tuple)
+    # A global cache to hold fetched MCP tools.
+    # Key: agent_id, Value: (tools, mcp_ids_tuple)
     _clients = {}
 
     @classmethod
@@ -38,16 +39,7 @@ class McpPoolManager:
             return []
 
         # 1. Fetch agent profile to get linked mcp_ids
-        db = SessionLocal()
-        mcp_ids = []
-        try:
-            agent_profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == agent_id).first()
-            if agent_profile and agent_profile.mcp_ids:
-                mcp_ids = agent_profile.mcp_ids or []
-        except Exception as e:
-            logger.error(f"Failed to query AgentProfileTable for MCP in agent {agent_id}: {e}")
-        finally:
-            db.close()
+        mcp_ids = await asyncio.to_thread(cls._load_agent_mcp_ids, agent_id)
 
         if not mcp_ids:
             return []
@@ -56,24 +48,13 @@ class McpPoolManager:
         mcp_ids_tuple = tuple(sorted(mcp_ids))
         cached = cls._clients.get(agent_id)
         if cached:
-            cached_client, cached_ids = cached
+            cached_tools, cached_ids = cached
             if cached_ids == mcp_ids_tuple:
                 logger.info(f"Reusing cached MCP client for agent {agent_id}")
-                try:
-                    return await cached_client.get_tools()
-                except Exception as e:
-                    logger.error(f"Failed to fetch tools from cached MCP client for agent {agent_id}: {e}. Will recreate client.")
-                    # Fallthrough to recreate client
+                return cached_tools
 
         # 2. Query MCP server details from DB
-        db = SessionLocal()
-        servers = []
-        try:
-            servers = db.query(McpServerTable).filter(McpServerTable.id.in_(mcp_ids)).all()
-        except Exception as e:
-            logger.error(f"Failed to query McpServerTable: {e}")
-        finally:
-            db.close()
+        servers = await asyncio.to_thread(cls._load_mcp_servers, mcp_ids)
 
         if not servers:
             return []
@@ -118,13 +99,37 @@ class McpPoolManager:
                 finally:
                     loop.close()
 
-            import asyncio
-            client, tools = await asyncio.to_thread(_fetch_in_thread)
+            _client, tools = await asyncio.to_thread(_fetch_in_thread)
             
             # Cache it
-            cls._clients[agent_id] = (client, mcp_ids_tuple)
+            cls._clients[agent_id] = (tools, mcp_ids_tuple)
             logger.info(f"Successfully cached {len(tools)} MCP tools for agent {agent_id}")
             return tools
         except Exception as e:
             logger.error(f"Failed to initialize MultiServerMCPClient for agent {agent_id}: {e}")
             return []
+
+    @staticmethod
+    def _load_agent_mcp_ids(agent_id: str) -> list[str]:
+        db = SessionLocal()
+        try:
+            agent_profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == agent_id).first()
+            if agent_profile and agent_profile.mcp_ids:
+                return list(agent_profile.mcp_ids or [])
+        except Exception as e:
+            logger.error(f"Failed to query AgentProfileTable for MCP in agent {agent_id}: {e}")
+        finally:
+            db.close()
+        return []
+
+    @staticmethod
+    def _load_mcp_servers(mcp_ids: list[str]) -> list[McpServerTable]:
+        db = SessionLocal()
+        try:
+            servers = db.query(McpServerTable).filter(McpServerTable.id.in_(mcp_ids)).all()
+            return list(servers)
+        except Exception as e:
+            logger.error(f"Failed to query McpServerTable: {e}")
+        finally:
+            db.close()
+        return []
