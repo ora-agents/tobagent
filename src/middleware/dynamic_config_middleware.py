@@ -6,6 +6,7 @@ dynamic tools filtering, subagents routing/execution, and model switching.
 import logging
 import re
 import traceback
+import asyncio
 from typing import Any, Awaitable, Callable
 
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
@@ -129,6 +130,71 @@ def _make_subagent_tool(
     return call_agent
 
 
+def _load_agent_runtime_resources(agent_id: str) -> dict[str, Any]:
+    """Load agent-linked skills and subagents in a worker thread."""
+    db = None
+    try:
+        db = SessionLocal()
+        agent_profile = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id == agent_id
+        ).first()
+
+        if not agent_profile:
+            return {"found": False, "skills": [], "linked_agents": [], "linked_ids": []}
+
+        skill_rows = []
+        if agent_profile.skill_ids:
+            skill_rows = db.query(SkillTable).filter(
+                SkillTable.id.in_(agent_profile.skill_ids)
+            ).all()
+
+        skills = [
+            {
+                "name": s.name,
+                "description": s.description or "No description.",
+            }
+            for s in skill_rows
+        ]
+
+        linked_ids = list(agent_profile.agent_ids or [])
+        linked_agent_rows = []
+        if linked_ids:
+            linked_agent_rows = db.query(AgentProfileTable).filter(
+                AgentProfileTable.id.in_(linked_ids)
+            ).all()
+
+        return {
+            "found": True,
+            "skills": skills,
+            "linked_agents": [_extract_agent_data(a) for a in linked_agent_rows],
+            "linked_ids": linked_ids,
+        }
+    finally:
+        if db:
+            db.close()
+
+
+def _load_linked_agent_data(agent_id: str) -> list[dict[str, Any]]:
+    """Load linked subagent data for cold-start dynamic tool execution."""
+    db = None
+    try:
+        db = SessionLocal()
+        agent_profile = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id == agent_id
+        ).first()
+
+        if not agent_profile or not agent_profile.agent_ids:
+            return []
+
+        linked_agents = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id.in_(agent_profile.agent_ids)
+        ).all()
+        return [_extract_agent_data(a) for a in linked_agents]
+    finally:
+        if db:
+            db.close()
+
+
 class DynamicConfigMiddleware(AgentMiddleware):
     """Middleware class handling dynamic agent configurations.
 
@@ -155,52 +221,39 @@ class DynamicConfigMiddleware(AgentMiddleware):
         linked_agent_tools: list[BaseTool] = []
 
         if agent_id and agent_id != "default":
-            db = None
             try:
-                db = SessionLocal()
-                agent_profile = db.query(AgentProfileTable).filter(
-                    AgentProfileTable.id == agent_id
-                ).first()
-
-                if agent_profile:
+                resources = await asyncio.to_thread(_load_agent_runtime_resources, agent_id)
+                if resources["found"]:
                     # ---- Linked skills ----
-                    if agent_profile.skill_ids:
-                        skills = db.query(SkillTable).filter(
-                            SkillTable.id.in_(agent_profile.skill_ids)
-                        ).all()
-                        if skills:
-                            skills_instructions = (
-                                "\n\nYou have access to the following custom skills. "
-                                "Only a summary (name + description) is listed below. "
-                                "When the user's request matches a skill's scope, you MUST call the `read_skill` tool "
-                                "with the skill's name to retrieve its full content and instructions before acting on it.\n"
-                                "Linked Skills:\n"
-                            )
-                            for s in skills:
-                                skills_instructions += (
-                                    f"- **{s.name}**: {s.description or 'No description.'}\n"
-                                )
+                    skills = resources["skills"]
+                    if skills:
+                        skills_instructions = (
+                            "\n\nYou have access to the following custom skills. "
+                            "Only a summary (name + description) is listed below. "
+                            "When the user's request matches a skill's scope, you MUST call the `read_skill` tool "
+                            "with the skill's name to retrieve its full content and instructions before acting on it.\n"
+                            "Linked Skills:\n"
+                        )
+                        for s in skills:
                             skills_instructions += (
-                                "\nUse `read_skill(skill_name=\"<name>\")` to load the full details of any skill above.\n"
+                                f"- **{s['name']}**: {s['description']}\n"
                             )
-                            system_prompt += skills_instructions
+                        skills_instructions += (
+                            "\nUse `read_skill(skill_name=\"<name>\")` to load the full details of any skill above.\n"
+                        )
+                        system_prompt += skills_instructions
 
                     # ---- Linked subagents ----
-                    linked_ids = agent_profile.agent_ids
+                    linked_ids = resources["linked_ids"]
                     if linked_ids:
-                        linked_agents = db.query(AgentProfileTable).filter(
-                            AgentProfileTable.id.in_(linked_ids)
-                        ).all()
+                        agents_data = resources["linked_agents"]
 
-                        if linked_agents:
+                        if agents_data:
                             logger.info(
                                 "[DynamicConfigMiddleware] Agent '%s': found %d linked subagent(s): %s",
-                                agent_id, len(linked_agents),
-                                [a.name for a in linked_agents],
+                                agent_id, len(agents_data),
+                                [a["name"] for a in agents_data],
                             )
-
-                            # Eagerly extract ORM data BEFORE session close.
-                            agents_data = [_extract_agent_data(a) for a in linked_agents]
 
                             # Build system prompt instructions for the LLM.
                             agents_instructions = (
@@ -263,9 +316,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     "[DynamicConfigMiddleware] Failed to load resources for agent '%s': %s\n%s",
                     agent_id, e, traceback.format_exc(),
                 )
-            finally:
-                if db:
-                    db.close()
 
         # ---- User preferences injection ----
         user_preferences = getattr(ctx, "user_preferences", "") or ""
@@ -362,24 +412,14 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 "[DynamicConfigMiddleware] Tool call '%s' not in cache, loading from DB.",
                 tool_name,
             )
-            db = None
             try:
-                db = SessionLocal()
-                agent_profile = db.query(AgentProfileTable).filter(
-                    AgentProfileTable.id == agent_id
-                ).first()
-
-                if agent_profile and agent_profile.agent_ids:
-                    linked_agents = db.query(AgentProfileTable).filter(
-                        AgentProfileTable.id.in_(agent_profile.agent_ids)
-                    ).all()
-
+                linked_agents_data = await asyncio.to_thread(_load_linked_agent_data, agent_id)
+                if linked_agents_data:
                     parent_model = getattr(ctx, "model", "") or ""
                     parent_messages = list(request.state.get("messages", []))
                     tools_for_agent: dict[str, BaseTool] = {}
 
-                    for linked in linked_agents:
-                        agent_data = _extract_agent_data(linked)
+                    for agent_data in linked_agents_data:
                         clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', agent_data["name"]).lower()
                         expected_name = f"call_agent_{clean_name}_{agent_data['id'][:4]}"
 
@@ -410,9 +450,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     "[DynamicConfigMiddleware] Failed to resolve tool '%s' for agent '%s': %s\n%s",
                     tool_name, agent_id, e, traceback.format_exc(),
                 )
-            finally:
-                if db:
-                    db.close()
 
         # Fallback to standard execution path.
         return await handler(request)
