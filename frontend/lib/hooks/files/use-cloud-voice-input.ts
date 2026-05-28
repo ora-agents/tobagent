@@ -1,17 +1,17 @@
 /**
  * Cloud Voice Input Hook
  *
- * Provides speech-to-text using DashScope Realtime ASR via WebSocket proxy.
- * Captures audio via AudioWorklet, sends to backend proxy, receives
- * transcription with Server VAD (server-side voice activity detection).
+ * Provides speech-to-text using client-side VAD (sherpa-onnx) and
+ * REST ASR (qwen3-asr-flash). Captures audio via AudioWorklet,
+ * detects speech locally, and sends complete utterances to the backend
+ * for transcription.
  *
- * Replaces the Web Speech API-based useVoiceInput for better Chinese
- * recognition and consistent cross-browser behavior.
+ * Replaces the previous WebSocket-based cloud voice input.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { AsrClient } from "@/lib/voice/asr-client"
-import { pcmBufferToBase64 } from "@/lib/voice/utils/audio"
+import { VadManager, type SpeechSegment } from "@/lib/voice/vad"
 
 // ============================================================================
 // Types
@@ -20,7 +20,7 @@ import { pcmBufferToBase64 } from "@/lib/voice/utils/audio"
 interface UseCloudVoiceInputOptions {
   /** Called with finalized transcript text (auto-send candidate) */
   onTranscript: (text: string) => void
-  /** Called with interim results for real-time display */
+  /** Called with interim results for real-time display (unused with REST ASR) */
   onInterimResult?: (text: string) => void
   /** Called when VAD state changes (user starts/stops speaking) */
   onVadStateChange?: (isSpeaking: boolean) => void
@@ -31,10 +31,10 @@ export interface UseCloudVoiceInputReturn {
   isListening: boolean
   /** Whether the browser supports required APIs */
   isSupported: boolean
-  /** Whether ASR WebSocket is connected */
+  /** Whether ASR client is ready */
   isConnected: boolean
-  /** Whether connection is being established */
-  isConnecting: boolean
+  /** Whether VAD WASM is loading */
+  isLoading: boolean
   /** Current error message, if any */
   error: string | null
   /** Start listening (requests mic permission if needed) */
@@ -63,7 +63,7 @@ export function useCloudVoiceInput({
 }: UseCloudVoiceInputOptions): UseCloudVoiceInputReturn {
   const [isListening, setIsListening] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Start as false to match SSR; detect support after hydration to avoid mismatch
   const [isSupported, setIsSupported] = useState(false)
@@ -72,7 +72,7 @@ export function useCloudVoiceInput({
       !!(
         window.AudioContext &&
         navigator.mediaDevices &&
-        window.WebSocket
+        window.WebAssembly
       )
     )
   }, [])
@@ -82,8 +82,9 @@ export function useCloudVoiceInput({
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const asrClientRef = useRef<AsrClient | null>(null)
+  const vadManagerRef = useRef<VadManager | null>(null)
 
-  // Use refs for callbacks to avoid recreating AsrClient on every render
+  // Use refs for callbacks to avoid recreating clients on every render
   const onTranscriptRef = useRef(onTranscript)
   const onInterimResultRef = useRef(onInterimResult)
   const onVadStateChangeRef = useRef(onVadStateChange)
@@ -96,6 +97,12 @@ export function useCloudVoiceInput({
 
   /** Clean up all resources */
   const cleanup = useCallback(() => {
+    // Dispose VAD
+    if (vadManagerRef.current) {
+      vadManagerRef.current.dispose()
+      vadManagerRef.current = null
+    }
+
     // Disconnect worklet
     if (workletNodeRef.current) {
       workletNodeRef.current.port.postMessage({ type: "stop" })
@@ -123,17 +130,17 @@ export function useCloudVoiceInput({
 
     setIsListening(false)
     setIsConnected(false)
-    setIsConnecting(false)
+    setIsLoading(false)
   }, [])
 
   const startListening = useCallback(async () => {
-    if (isListening || isConnecting) return
+    if (isListening || isLoading) return
     if (!isSupported) {
       setError("Voice input is not supported in this browser")
       return
     }
 
-    setIsConnecting(true)
+    setIsLoading(true)
     setError(null)
 
     try {
@@ -161,55 +168,62 @@ export function useCloudVoiceInput({
       )
       workletNodeRef.current = workletNode
 
-      // 5. Create ASR client with callbacks
+      // 5. Create ASR client (HTTP-based)
       const asrClient = new AsrClient({
         onConnected: () => {
           setIsConnected(true)
-          setIsConnecting(false)
-          setIsListening(true)
         },
         onDisconnected: () => {
           setIsConnected(false)
-          setIsListening(false)
         },
-        onSpeechStarted: () => {
-          onVadStateChangeRef.current?.(true)
-        },
-        onSpeechEnded: () => {
-          onVadStateChangeRef.current?.(false)
-        },
-        onTranscript: (text, isFinal) => {
-          if (isFinal) {
-            onTranscriptRef.current?.(text)
-          } else {
-            onInterimResultRef.current?.(text)
-          }
+        onTranscript: (text, _isFinal) => {
+          onTranscriptRef.current?.(text)
         },
         onError: (errMsg) => {
           setError(errMsg)
-          cleanup()
         },
       })
       asrClientRef.current = asrClient
-
-      // 6. Connect ASR WebSocket
       await asrClient.connect()
+
+      // 6. Initialize VAD (lazy-loads WASM)
+      const vadManager = new VadManager({
+        onSpeechStart: () => {
+          onVadStateChangeRef.current?.(true)
+        },
+        onSpeechEnd: async (segment: SpeechSegment) => {
+          onVadStateChangeRef.current?.(false)
+          if (asrClientRef.current) {
+            await asrClientRef.current.transcribeSegment(segment.pcmInt16)
+          }
+        },
+        onError: (errMsg) => {
+          console.error("[VAD]", errMsg)
+          setError(errMsg)
+        },
+      })
+
+      await vadManager.init()
+      vadManagerRef.current = vadManager
 
       // 7. Wire audio pipeline: mic -> worklet -> (messages to main thread)
       const source = audioContext.createMediaStreamSource(stream)
       source.connect(workletNode)
       // Don't connect to destination (we don't want to hear ourselves)
 
-      // 8. Handle audio frames from worklet
+      // 8. Handle audio frames from worklet → feed to VAD
       workletNode.port.onmessage = (event: MessageEvent) => {
-        if (event.data.type === "audio" && asrClient.isConnected) {
-          const base64 = pcmBufferToBase64(event.data.buffer)
-          asrClient.sendAudio(base64)
+        if (event.data.type === "audio" && vadManagerRef.current) {
+          const float32 = new Float32Array(event.data.float32)
+          const int16 = new Int16Array(event.data.int16)
+          vadManagerRef.current.processAudio(float32, int16)
         }
       }
 
       // 9. Start processing
       workletNode.port.postMessage({ type: "start" })
+      setIsLoading(false)
+      setIsListening(true)
     } catch (err) {
       const msg =
         err instanceof DOMException && err.name === "NotAllowedError"
@@ -218,22 +232,22 @@ export function useCloudVoiceInput({
             ? err.message
             : "Failed to start voice input"
       setError(msg)
-      setIsConnecting(false)
+      setIsLoading(false)
       cleanup()
     }
-  }, [isListening, isConnecting, isSupported, cleanup])
+  }, [isListening, isLoading, isSupported, cleanup])
 
   const stopListening = useCallback(() => {
     cleanup()
   }, [cleanup])
 
   const toggleListening = useCallback(() => {
-    if (isListening || isConnecting) {
+    if (isListening || isLoading) {
       stopListening()
     } else {
       startListening()
     }
-  }, [isListening, isConnecting, startListening, stopListening])
+  }, [isListening, isLoading, startListening, stopListening])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -246,7 +260,7 @@ export function useCloudVoiceInput({
     isListening,
     isSupported,
     isConnected,
-    isConnecting,
+    isLoading,
     error,
     startListening,
     stopListening,

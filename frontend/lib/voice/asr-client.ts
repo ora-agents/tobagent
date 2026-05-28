@@ -1,50 +1,41 @@
 /**
- * ASR WebSocket client for DashScope Realtime API.
+ * ASR client for DashScope qwen3-asr-flash REST API.
  *
- * Connects to the FastAPI proxy endpoint which forwards to DashScope
- * with injected authentication. Uses Server VAD mode: the server
- * detects speech boundaries, the client just streams audio frames.
+ * Sends complete speech segments (detected by client-side VAD) to the
+ * backend REST endpoint for transcription. Unlike the previous WebSocket
+ * client, this does NOT stream audio continuously — each request carries
+ * a full utterance encoded as a WAV data URI.
  *
- * Connection flow:
- *   Browser -> ws://host:2024/ws/voice/asr -> FastAPI -> wss://dashscope
- *
- * Reference: docs/ali.md (ASR section)
+ * Flow:
+ *   VadManager detects speech end → AsrClient.transcribeSegment(pcmInt16)
+ *   → POST /api/asr/transcribe { audio: "data:audio/wav;base64,..." }
+ *   ← { text: "...", language: "...", duration_seconds: ... }
  */
 
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
-import {
-  ASR_WS_PATH,
-  VAD_SILENCE_DURATION_MS,
-  VAD_THRESHOLD,
-} from "./utils/constants"
-import type { AsrEvent } from "./types"
-
-/** Build WebSocket URL for ASR proxy from LANGGRAPH_API_URL */
-function getAsrWsUrl(): string {
-  // LANGGRAPH_API_URL is like http://localhost:2024 or https://...
-  const base = LANGGRAPH_API_URL.replace(/^http/, "ws")
-  return `${base}${ASR_WS_PATH}`
-}
+import { ASR_REST_PATH } from "./utils/constants"
+import { int16PcmToWavDataUri } from "./vad/audio-encoder"
 
 /** Callback interface for ASR events */
 export interface AsrCallbacks {
-  /** Server detected speech start */
-  onSpeechStarted?: () => void
-  /** Server detected speech end */
-  onSpeechEnded?: () => void
-  /** Transcription result (interim or final) */
+  /** Transcription result (always final — no interim results) */
   onTranscript?: (text: string, isFinal: boolean) => void
   /** Error occurred */
   onError?: (error: string) => void
-  /** Connection established */
+  /** Client ready (immediate for HTTP client) */
   onConnected?: () => void
-  /** Connection closed */
+  /** Client disconnected */
   onDisconnected?: () => void
 }
 
+/** Build REST URL for ASR transcription endpoint */
+function getAsrRestUrl(): string {
+  return `${LANGGRAPH_API_URL}${ASR_REST_PATH}`
+}
+
 export class AsrClient {
-  private ws: WebSocket | null = null
   private callbacks: AsrCallbacks
+  private abortController: AbortController | null = null
 
   constructor(callbacks: AsrCallbacks = {}) {
     this.callbacks = callbacks
@@ -55,129 +46,73 @@ export class AsrClient {
     this.callbacks = callbacks
   }
 
-  /** Whether the WebSocket is currently connected */
+  /** Always true — HTTP client has no persistent connection */
   get isConnected(): boolean {
-    return this.ws !== null && this.ws.readyState === WebSocket.OPEN
+    return true
   }
 
-  /**
-   * Connect to the ASR proxy and configure the session.
-   * Sends session.update with Server VAD config on connection.
-   */
+  /** No-op for HTTP client — immediately reports connected */
   async connect(): Promise<void> {
-    if (this.isConnected) return
+    this.callbacks.onConnected?.()
+  }
 
-    const url = getAsrWsUrl()
-
-    return new Promise<void>((resolve, reject) => {
-      try {
-        this.ws = new WebSocket(url)
-      } catch (err) {
-        reject(new Error(`Failed to create WebSocket: ${err}`))
-        return
-      }
-
-      this.ws.onopen = () => {
-        // Send session.update with Server VAD configuration
-        const sessionUpdate = {
-          event_id: `event_init_${Date.now()}`,
-          type: "session.update",
-          session: {
-            modalities: ["text"],
-            input_audio_format: "pcm",
-            sample_rate: 16000,
-            input_audio_transcription: {
-              language: "zh",
-            },
-            turn_detection: {
-              type: "server_vad",
-              threshold: VAD_THRESHOLD,
-              silence_duration_ms: VAD_SILENCE_DURATION_MS,
-            },
-          },
-        }
-        this.ws!.send(JSON.stringify(sessionUpdate))
-        this.callbacks.onConnected?.()
-        resolve()
-      }
-
-      this.ws.onmessage = (event: MessageEvent) => {
-        this.handleMessage(event.data)
-      }
-
-      this.ws.onerror = (event: Event) => {
-        const errorMsg = "ASR WebSocket error"
-        console.error(errorMsg, event)
-        this.callbacks.onError?.(errorMsg)
-        reject(new Error(errorMsg))
-      }
-
-      this.ws.onclose = () => {
-        this.callbacks.onDisconnected?.()
-        this.ws = null
-      }
-    })
+  /** No-op — audio is sent via transcribeSegment(), not streaming */
+  sendAudio(_pcmBase64: string): void {
+    // Intentionally empty — kept for API compatibility
   }
 
   /**
-   * Send an audio frame (Base64-encoded 16kHz PCM 16-bit).
-   * No-op if not connected.
+   * Transcribe a complete speech segment.
+   *
+   * Called by VadManager when speech ends. Encodes the Int16 PCM as a
+   * WAV data URI and POSTs it to the backend REST endpoint.
+   *
+   * @param pcmInt16 - Int16 PCM samples (16kHz, mono)
+   * @returns The transcription text, or null if empty/aborted
    */
-  sendAudio(pcmBase64: string): void {
-    if (!this.isConnected) return
+  async transcribeSegment(pcmInt16: Int16Array): Promise<string | null> {
+    // Cancel any in-flight request
+    this.abortController?.abort()
+    this.abortController = new AbortController()
 
-    const event = {
-      event_id: `event_${Date.now()}`,
-      type: "input_audio_buffer.append",
-      audio: pcmBase64,
-    }
-    this.ws!.send(JSON.stringify(event))
-  }
+    const audioDataUri = int16PcmToWavDataUri(pcmInt16, 16000)
+    const url = getAsrRestUrl()
 
-  /** Disconnect the WebSocket */
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-  }
-
-  /** Handle incoming messages from the ASR API */
-  private handleMessage(rawData: string): void {
-    let data: AsrEvent
     try {
-      data = JSON.parse(rawData)
-    } catch {
-      console.error("Failed to parse ASR message:", rawData)
-      return
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: audioDataUri }),
+        signal: this.abortController.signal,
+      })
+
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => "")
+        throw new Error(`ASR error (${response.status}): ${errBody || response.statusText}`)
+      }
+
+      const result = await response.json()
+      const text = result.text?.trim() || ""
+
+      if (text) {
+        this.callbacks.onTranscript?.(text, true)
+      }
+
+      return text || null
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return null
+      }
+      const msg = err instanceof Error ? err.message : "ASR request failed"
+      this.callbacks.onError?.(msg)
+      return null
     }
+  }
 
-    switch (data.type) {
-      case "session.created":
-        // Session initialized, ready to receive audio
-        break
-
-      case "input_audio_buffer.speech_started":
-        this.callbacks.onSpeechStarted?.()
-        break
-
-      case "input_audio_buffer.speech_stopped":
-        this.callbacks.onSpeechEnded?.()
-        break
-
-      case "conversation.item.input_audio_transcription.delta":
-        // Interim result (real-time display)
-        this.callbacks.onTranscript?.(data.delta, false)
-        break
-
-      case "conversation.item.input_audio_transcription.completed":
-        // Final result (auto-send)
-        this.callbacks.onTranscript?.(data.transcript, true)
-        break
-
-      case "error":
-        this.callbacks.onError?.(data.error?.message || "Unknown ASR error")
-        break
-    }
+  /** Cancel any in-flight transcription and clean up */
+  disconnect(): void {
+    this.abortController?.abort()
+    this.abortController = null
+    this.callbacks.onDisconnected?.()
   }
 }
