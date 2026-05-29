@@ -56,6 +56,8 @@ export class KwsClient {
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private intentionalStop = false
+  private connectGeneration = 0
+  private isStarting = false
 
   constructor(callbacks: KwsCallbacks) {
     this.callbacks = callbacks
@@ -66,22 +68,30 @@ export class KwsClient {
    * Requests microphone access, sets up AudioWorklet, and opens WebSocket.
    */
   async start(keywords: string[]): Promise<void> {
-    if (this.ws) {
-      this.stop()
-    }
+    this.stop()
 
     if (!keywords.length) return
 
     this.keywords = keywords
     this.intentionalStop = false
     this.reconnectAttempts = 0
+    this.isStarting = true
+    const generation = ++this.connectGeneration
 
-    await this._connect()
+    try {
+      await this._connect(generation)
+    } finally {
+      if (this.connectGeneration === generation) {
+        this.isStarting = false
+      }
+    }
   }
 
   /** Stop KWS listening and release all resources. */
   stop(): void {
     this.intentionalStop = true
+    this.connectGeneration++
+    this.isStarting = false
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -93,48 +103,81 @@ export class KwsClient {
 
   /** Whether the client is currently connected and streaming. */
   get isActive(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+    return (
+      this.isStarting ||
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    )
   }
 
   // ========================================================================
   // Private
   // ========================================================================
 
-  private async _connect(): Promise<void> {
+  private isCurrentGeneration(generation: number): boolean {
+    return !this.intentionalStop && this.connectGeneration === generation
+  }
+
+  private async _connect(generation: number): Promise<void> {
     try {
       // 1. Request microphone access
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
         },
       })
+      if (!this.isCurrentGeneration(generation)) {
+        mediaStream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      this.mediaStream = mediaStream
 
       // 2. Create AudioContext
-      this.audioContext = new AudioContext()
+      const audioContext = new AudioContext()
+      if (!this.isCurrentGeneration(generation)) {
+        audioContext.close().catch(() => {})
+        return
+      }
+      this.audioContext = audioContext
 
       // 3. Load AudioWorklet
-      await this.audioContext.audioWorklet.addModule(WORKLET_PATH)
+      await audioContext.audioWorklet.addModule(WORKLET_PATH)
+      if (!this.isCurrentGeneration(generation)) {
+        audioContext.close().catch(() => {})
+        this.audioContext = null
+        return
+      }
 
       // 4. Create worklet node
       this.workletNode = new AudioWorkletNode(
-        this.audioContext,
+        audioContext,
         "audio-processor",
       )
 
       // 5. Open WebSocket
       const url = getKwsWsUrl()
-      this.ws = new WebSocket(url)
+      const ws = new WebSocket(url)
+      if (!this.isCurrentGeneration(generation)) {
+        ws.close()
+        this._teardown()
+        return
+      }
+      this.ws = ws
 
-      this.ws.onopen = () => {
+      ws.onopen = () => {
+        if (!this.isCurrentGeneration(generation)) {
+          ws.close()
+          return
+        }
         // Send config message with keywords
-        this.ws!.send(
+        ws.send(
           JSON.stringify({ type: "config", keywords: this.keywords }),
         )
 
         // Wire audio: mic -> worklet -> WebSocket
-        this.sourceNode = this.audioContext!.createMediaStreamSource(
+        this.sourceNode = audioContext.createMediaStreamSource(
           this.mediaStream!,
         )
         this.sourceNode.connect(this.workletNode!)
@@ -155,7 +198,8 @@ export class KwsClient {
         this.callbacks.onConnected?.()
       }
 
-      this.ws.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (!this.isCurrentGeneration(generation)) return
         console.log("[KWS] Received message:", event.data)
         try {
           const msg = JSON.parse(event.data)
@@ -172,21 +216,22 @@ export class KwsClient {
         }
       }
 
-      this.ws.onclose = (event) => {
+      ws.onclose = (event) => {
+        const shouldReconnect = this.isCurrentGeneration(generation)
         this._teardown()
         this.callbacks.onDisconnected?.()
 
         // Auto-reconnect if not intentional and no keywords error
         if (
-          !this.intentionalStop &&
+          shouldReconnect &&
           event.code !== 1008 && // 1008 = policy violation (no keywords / config error)
           this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS
         ) {
-          this._scheduleReconnect()
+          this._scheduleReconnect(generation)
         }
       }
 
-      this.ws.onerror = () => {
+      ws.onerror = () => {
         // onclose will fire after onerror, handling cleanup and reconnect
       }
     } catch (err) {
@@ -203,14 +248,14 @@ export class KwsClient {
     }
   }
 
-  private _scheduleReconnect(): void {
+  private _scheduleReconnect(generation: number): void {
     this.reconnectAttempts++
     const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts - 1)
 
     this.reconnectTimer = setTimeout(async () => {
-      if (!this.intentionalStop) {
+      if (this.isCurrentGeneration(generation)) {
         try {
-          await this._connect()
+          await this._connect(generation)
         } catch {
           // _connect handles its own error callback
         }
