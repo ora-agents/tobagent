@@ -115,6 +115,9 @@ const zh = {
   kbManager: "知识库管理",
   kbFiles: "关联文档",
   management: "管理中心",
+  configuration: "配置",
+  expandConfiguration: "展开配置",
+  collapseConfiguration: "收起配置",
   backend: "后台管理",
 
   // Common & General
@@ -334,6 +337,9 @@ const en = {
   kbManager: "Knowledge Base Manager",
   kbFiles: "Related Documents",
   management: "Management Center",
+  configuration: "Configuration",
+  expandConfiguration: "Expand configuration",
+  collapseConfiguration: "Collapse configuration",
   backend: "Backend",
 
   // Common & General
