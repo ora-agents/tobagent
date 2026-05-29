@@ -23,7 +23,7 @@ dev-local:
 
 # Backend only (LangGraph dev server)
 dev-backend:
-	uv run langgraph dev --no-browser --host 0.0.0.0
+	uv run langgraph dev --no-browser --host 0.0.0.0 --port 2025
 
 # Install all dependencies
 install: install-frontend install-backend
