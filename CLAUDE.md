@@ -69,7 +69,6 @@ The backend runs as two coordinated services defined in `langgraph.json`:
 
 **Tools** (`src/tools/`):
 - `rag_tool.py` — LanceDB-backed RAG search. Each agent/KB gets its own LanceDB table. Uses async-native LanceDB API + OpenAI embeddings. Supports `ingest_documents_async` and `delete_documents_async`.
-- `websearch_tool.py` — Web search (Tavily)
 - `fetch_tool.py` — URL fetching
 - `skill_tool.py` — `read_skill` tool to load custom skill content from DB (always available, even when filtered)
 - `mcp_tools.py` — Dynamic MCP (Model Context Protocol) tool integration via `src/utils/mcp.py` McpPoolManager
