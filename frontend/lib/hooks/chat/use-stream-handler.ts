@@ -288,10 +288,7 @@ export function useStreamHandler({
       // Build configurable dict
       const configurableBase: Record<string, unknown> = { model }
       if (isCustomProfile && agentProfile) {
-        configurableBase.system_prompt = agentProfile.systemPrompt
-        configurableBase.enabled_tools = agentProfile.enabledTools
         configurableBase.agent_id = agentProfile.id
-        configurableBase.agent_ids = (agentProfile as any).agentIds || []
       } else if (repos.length > 0) {
         configurableBase.repos = repos
       }

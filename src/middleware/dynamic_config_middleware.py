@@ -3,10 +3,10 @@
 Intercepts model requests and tool execution to support custom system prompts,
 dynamic tools filtering, subagents routing/execution, and model switching.
 """
+import asyncio
 import logging
 import re
 import traceback
-import asyncio
 from typing import Any, Awaitable, Callable
 
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
@@ -31,14 +31,19 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     This MUST be called while the DB session is still open to avoid
     DetachedInstanceError on lazy-loaded attributes.
     """
+    system_prompt = getattr(agent_row, "system_prompt", "")
+    enabled_tools = getattr(agent_row, "enabled_tools", None)
+    agent_ids = getattr(agent_row, "agent_ids", None)
+    skill_ids = getattr(agent_row, "skill_ids", None)
+
     return {
         "id": agent_row.id,
         "name": agent_row.name,
         "description": agent_row.description or "No description.",
-        "system_prompt": agent_row.system_prompt or "",
-        "enabled_tools": list(agent_row.enabled_tools or []),
-        "agent_ids": list(agent_row.agent_ids or []),
-        "skill_ids": list(agent_row.skill_ids or []),
+        "system_prompt": system_prompt if isinstance(system_prompt, str) else "",
+        "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
+        "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
+        "skill_ids": list(skill_ids) if isinstance(skill_ids, list) else [],
     }
 
 
@@ -130,7 +135,26 @@ def _make_subagent_tool(
     return call_agent
 
 
-def _load_agent_runtime_resources(agent_id: str) -> dict[str, Any]:
+def _context_field_was_set(ctx: Any, field_name: str) -> bool:
+    """Return whether a LangGraph context field was explicitly provided."""
+    if isinstance(ctx, dict):
+        return field_name in ctx
+
+    fields_set = getattr(ctx, "model_fields_set", None)
+    if isinstance(fields_set, (set, frozenset)):
+        return field_name in fields_set
+
+    fields_set = getattr(ctx, "__fields_set__", None)
+    if isinstance(fields_set, (set, frozenset)):
+        return field_name in fields_set
+
+    return False
+
+
+def _load_agent_runtime_resources(
+    agent_id: str,
+    agent_ids_override: list[str] | None = None,
+) -> dict[str, Any]:
     """Load agent-linked skills and subagents in a worker thread."""
     db = None
     try:
@@ -140,7 +164,15 @@ def _load_agent_runtime_resources(agent_id: str) -> dict[str, Any]:
         ).first()
 
         if not agent_profile:
-            return {"found": False, "skills": [], "linked_agents": [], "linked_ids": []}
+            return {
+                "found": False,
+                "profile": None,
+                "skills": [],
+                "linked_agents": [],
+                "linked_ids": [],
+            }
+
+        profile_data = _extract_agent_data(agent_profile)
 
         skill_rows = []
         if agent_profile.skill_ids:
@@ -156,7 +188,11 @@ def _load_agent_runtime_resources(agent_id: str) -> dict[str, Any]:
             for s in skill_rows
         ]
 
-        linked_ids = list(agent_profile.agent_ids or [])
+        linked_ids = (
+            list(agent_ids_override)
+            if agent_ids_override is not None
+            else list(agent_profile.agent_ids or [])
+        )
         linked_agent_rows = []
         if linked_ids:
             linked_agent_rows = db.query(AgentProfileTable).filter(
@@ -165,6 +201,7 @@ def _load_agent_runtime_resources(agent_id: str) -> dict[str, Any]:
 
         return {
             "found": True,
+            "profile": profile_data,
             "skills": skills,
             "linked_agents": [_extract_agent_data(a) for a in linked_agent_rows],
             "linked_ids": linked_ids,
@@ -218,12 +255,27 @@ class DynamicConfigMiddleware(AgentMiddleware):
         # Dynamic system prompt
         system_prompt = getattr(ctx, "system_prompt", "")
         agent_id = getattr(ctx, "agent_id", None)
+        enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
 
         if agent_id and agent_id != "default":
             try:
-                resources = await asyncio.to_thread(_load_agent_runtime_resources, agent_id)
+                agent_ids_override = None
+                if _context_field_was_set(ctx, "agent_ids"):
+                    agent_ids_override = list(getattr(ctx, "agent_ids", []) or [])
+
+                resources = await asyncio.to_thread(
+                    _load_agent_runtime_resources,
+                    agent_id,
+                    agent_ids_override,
+                )
                 if resources["found"]:
+                    profile = resources["profile"] or {}
+                    if not _context_field_was_set(ctx, "system_prompt"):
+                        system_prompt = profile.get("system_prompt", "") or system_prompt
+                    if not _context_field_was_set(ctx, "enabled_tools"):
+                        enabled_tools = profile.get("enabled_tools", [])
+
                     # ---- Linked skills ----
                     skills = resources["skills"]
                     if skills:
@@ -346,10 +398,9 @@ class DynamicConfigMiddleware(AgentMiddleware):
             overrides["system_message"] = SystemMessage(content=system_prompt)
 
         # Tool filtering: only keep tools whose names appear in enabled_tools
-        enabled = getattr(ctx, "enabled_tools", None)
         filtered = list(request.tools)
-        if enabled is not None:
-            tool_set = set(enabled)
+        if enabled_tools is not None:
+            tool_set = set(enabled_tools)
             # Always allow read_skill so agents can dynamically query custom skills.
             tool_set.add("read_skill")
             filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]

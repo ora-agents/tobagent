@@ -1,7 +1,11 @@
-import pytest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+
+import pytest
 from langchain_core.messages import SystemMessage
+
 from src.middleware.dynamic_config_middleware import dynamic_config_middleware
+
 
 @pytest.mark.anyio
 async def test_dynamic_config_middleware_injects_skill_summary():
@@ -46,7 +50,7 @@ async def test_dynamic_config_middleware_injects_skill_summary():
     with patch("src.middleware.dynamic_config_middleware.SessionLocal", return_value=mock_db), \
          patch("src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent", return_value=[]):
         
-        result = await dynamic_config_middleware.awrap_model_call(mock_request, mock_handler)
+        await dynamic_config_middleware.awrap_model_call(mock_request, mock_handler)
 
         # Ensure request.override was called with updated system_message
         mock_request.override.assert_called_once()
@@ -62,3 +66,91 @@ async def test_dynamic_config_middleware_injects_skill_summary():
         assert "- **Test Skill**: A skill to test full content injection" in content
         assert 'Use `read_skill(skill_name="<name>")`' in content
         assert "Step 1: Do something.\nStep 2: Done." not in content
+
+
+@pytest.mark.anyio
+async def test_dynamic_config_middleware_loads_profile_defaults_from_agent_id():
+    mock_agent_profile = MagicMock()
+    mock_agent_profile.id = "agent_123"
+    mock_agent_profile.name = "Support Agent"
+    mock_agent_profile.description = "Support questions"
+    mock_agent_profile.system_prompt = "Profile prompt"
+    mock_agent_profile.enabled_tools = ["rag_search"]
+    mock_agent_profile.skill_ids = []
+    mock_agent_profile.agent_ids = []
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_agent_profile
+
+    rag_tool = SimpleNamespace(name="rag_search")
+    web_tool = SimpleNamespace(name="websearch")
+
+    mock_ctx = SimpleNamespace(
+        agent_id="agent_123",
+        system_prompt="Runtime default prompt",
+        enabled_tools=["websearch"],
+        model=None,
+        user_preferences="",
+        safety_enabled=False,
+        model_fields_set={"agent_id"},
+    )
+
+    mock_request = MagicMock()
+    mock_request.runtime.context = mock_ctx
+    mock_request.tools = [rag_tool, web_tool]
+    mock_request.override.return_value = mock_request
+
+    async def mock_handler(req):
+        return req
+
+    with patch("src.middleware.dynamic_config_middleware.SessionLocal", return_value=mock_db), \
+         patch("src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent", return_value=[]):
+        await dynamic_config_middleware.awrap_model_call(mock_request, mock_handler)
+
+    kwargs = mock_request.override.call_args[1]
+    assert kwargs["system_message"].content == "Profile prompt"
+    assert kwargs["tools"] == [rag_tool]
+
+
+@pytest.mark.anyio
+async def test_dynamic_config_middleware_request_config_overrides_profile_defaults():
+    mock_agent_profile = MagicMock()
+    mock_agent_profile.id = "agent_123"
+    mock_agent_profile.name = "Support Agent"
+    mock_agent_profile.description = "Support questions"
+    mock_agent_profile.system_prompt = "Profile prompt"
+    mock_agent_profile.enabled_tools = ["rag_search"]
+    mock_agent_profile.skill_ids = []
+    mock_agent_profile.agent_ids = []
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_agent_profile
+
+    rag_tool = SimpleNamespace(name="rag_search")
+    web_tool = SimpleNamespace(name="websearch")
+
+    mock_ctx = SimpleNamespace(
+        agent_id="agent_123",
+        system_prompt="Request prompt",
+        enabled_tools=["websearch"],
+        model=None,
+        user_preferences="",
+        safety_enabled=False,
+        model_fields_set={"agent_id", "system_prompt", "enabled_tools"},
+    )
+
+    mock_request = MagicMock()
+    mock_request.runtime.context = mock_ctx
+    mock_request.tools = [rag_tool, web_tool]
+    mock_request.override.return_value = mock_request
+
+    async def mock_handler(req):
+        return req
+
+    with patch("src.middleware.dynamic_config_middleware.SessionLocal", return_value=mock_db), \
+         patch("src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent", return_value=[]):
+        await dynamic_config_middleware.awrap_model_call(mock_request, mock_handler)
+
+    kwargs = mock_request.override.call_args[1]
+    assert kwargs["system_message"].content == "Request prompt"
+    assert kwargs["tools"] == [web_tool]
