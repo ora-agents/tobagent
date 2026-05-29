@@ -5,7 +5,7 @@ via the LangGraph configurable dict:
     {
         "model": "gpt-4o",
         "system_prompt": "You are a helpful assistant.",
-        "enabled_tools": ["rag_search", "websearch", "fetch"],
+        "enabled_tools": ["rag_search", "fetch"],
         "agent_id": "<uuid>",   # used to scope the RAG knowledge base
     }
 """
@@ -26,7 +26,6 @@ from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.fetch_tool import fetch
 from src.tools.rag_tool import RagSearchTool
 from src.tools.skill_tool import ReadSkillTool
-from src.tools.websearch_tool import websearch
 
 logger = logging.getLogger(__name__)
 logger.info("Generic agent module loaded")
@@ -48,7 +47,7 @@ class GenericAgentContext(BaseModel):
         description="System prompt to use for this session.",
     )
     enabled_tools: list[str] = Field(
-        default_factory=lambda: ["rag_search", "websearch", "fetch", "read_skill"],
+        default_factory=lambda: ["rag_search", "fetch", "read_skill"],
         description="Names of tools the agent may call.",
     )
     agent_id: str = Field(
@@ -83,7 +82,7 @@ class GenericAgentContext(BaseModel):
 
 _rag_tool = RagSearchTool()
 _read_skill_tool = ReadSkillTool()
-_all_tools = [_rag_tool, websearch, fetch, _read_skill_tool]
+_all_tools = [_rag_tool, fetch, _read_skill_tool]
 logger.info(f"Generic agent tools: {[t.name for t in _all_tools]}")
 
 # ---------------------------------------------------------------------------
