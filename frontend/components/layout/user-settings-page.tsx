@@ -200,7 +200,7 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                   />
                   <p className="text-[11px] text-muted-foreground/80">
                     {zh
-                      ? "这些信息会作为上下文注入到智能体的系统提示中，帮助智能体更好地理解您的需求和偏好。"
+                      ? "这些信息会作为上下文注入到角色的系统提示中，帮助角色更好地理解您的需求和偏好。"
                       : "This information will be injected into the agent's system prompt to help it better understand your needs and preferences."}
                   </p>
                 </div>
@@ -238,7 +238,7 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
                       {zh
-                        ? "开启后，智能体在执行任何潜在危险操作（如删除文件、发送邮件、修改系统配置等）之前，会先向您描述操作内容和潜在后果，并等待您的明确确认。"
+                        ? "开启后，角色在执行任何潜在危险操作（如删除文件、发送邮件、修改系统配置等）之前，会先向您描述操作内容和潜在后果，并等待您的明确确认。"
                         : "When enabled, the agent will describe the action and its potential consequences before executing any potentially dangerous operations (e.g., deleting files, sending emails, modifying system configs), and wait for your explicit confirmation."}
                     </div>
                   </div>
