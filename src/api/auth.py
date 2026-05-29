@@ -1,10 +1,8 @@
-# Authentication and authorization for LangGraph deployment
+"""Authenticate and authorize LangGraph deployment requests."""
 import os
 
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
-
-from src.agent.config import DEFAULT_MODEL
 
 auth = Auth()
 
@@ -13,7 +11,7 @@ MAX_MESSAGE_CHARS = 50_000
 
 
 def _get_auth_secret() -> str | None:
-    """Optional auth secret. If set, X-Auth-Key header is required on all requests."""
+    """Return optional auth secret for X-Auth-Key enforcement."""
     return os.getenv("LANGGRAPH_AUTH_SECRET")
 
 
@@ -76,6 +74,7 @@ async def authenticate(
 # Default block
 @auth.on
 async def block_all(ctx: Auth.types.AuthContext, value: dict):
+    """Reject requests without a more specific auth handler."""
     if is_studio_user(ctx.user):
         return {}
     raise Auth.exceptions.HTTPException(403, "No access permitted")
@@ -136,15 +135,17 @@ async def enrich_run_metadata(
 async def block_modify_assistants(
     ctx: Auth.types.AuthContext, value: Auth.types.AssistantsCreate
 ):
+    """Block non-Studio users from modifying assistants."""
     if is_studio_user(ctx.user):
         return {}
     raise Auth.exceptions.HTTPException(403, "Modifying assistants is not allowed")
 
 
 @auth.on.assistants.read
-async def block_modify_assistants(
+async def allow_read_assistants(
     ctx: Auth.types.AuthContext, value: Auth.types.AssistantsRead
 ):
+    """Allow regular users to read public or owned assistants."""
     if is_studio_user(ctx.user):
         return {}
 
@@ -157,6 +158,7 @@ async def block_modify_assistants(
 async def allow_search_assistants(
     ctx: Auth.types.AuthContext, value: dict
 ):
+    """Allow regular users to search assistants."""
     if is_studio_user(ctx.user):
         return {}
 
@@ -165,6 +167,7 @@ async def allow_search_assistants(
 
 
 def validate_inputs(input: dict | None, command: dict | None) -> bool:
+    """Validate and normalize run input before it reaches the graph."""
     if command:
         raise Auth.exceptions.HTTPException(422, "Command not accepted")
     if input is None:
@@ -188,34 +191,46 @@ def validate_inputs(input: dict | None, command: dict | None) -> bool:
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized messages input: {type(messages)}"
         )
-    if len(messages) != 1:
-        raise Auth.exceptions.HTTPException(
-            422, f"Only one message accepted per term. Got {len(messages)}"
-        )
-    msg = messages[0]
-    if isinstance(msg, str):
-        if not msg.strip():
+    if not messages:
+        raise Auth.exceptions.HTTPException(422, "Messages are required")
+
+    input_has_image = False
+    last_role = None
+    for index, msg in enumerate(messages):
+        if isinstance(msg, str):
+            if not msg.strip():
+                raise Auth.exceptions.HTTPException(422, "Message content is required")
+            messages[index] = msg[:MAX_MESSAGE_CHARS]
+            last_role = "user"
+            continue
+
+        if not isinstance(msg, dict):
+            raise Auth.exceptions.HTTPException(
+                422, f"Unrecognized message input: {type(msg)}"
+            )
+
+        role = msg.get("role") or msg.get("type")
+        if role not in ("user", "human", "assistant", "ai"):
+            raise Auth.exceptions.HTTPException(
+                422, f"Only user and assistant messages accepted. Got role {role}"
+            )
+
+        content = msg.get("content")
+        if content is None:
             raise Auth.exceptions.HTTPException(422, "Message content is required")
-        messages[0] = msg[:MAX_MESSAGE_CHARS]
-        return False
-    if not isinstance(msg, dict):
-        raise Auth.exceptions.HTTPException(
-            422, f"Unrecognized message input: {type(msg)}"
-        )
-    role = msg.get("role") or msg.get("type")
-    if role not in ("user", "human"):
-        raise Auth.exceptions.HTTPException(
-            422, f"Only user messages accepted. Got role {role}"
-        )
-    content = msg.get("content")
-    if content is None:
-        raise Auth.exceptions.HTTPException(422, "Message content is required")
-    if isinstance(content, str) and not content.strip():
-        raise Auth.exceptions.HTTPException(422, "Message content is required")
-    if isinstance(content, list) and not content:
-        raise Auth.exceptions.HTTPException(422, "Message content is required")
-    msg["content"] = truncate_message_content(content)
-    return content_has_image(msg["content"])
+        if isinstance(content, str) and not content.strip():
+            raise Auth.exceptions.HTTPException(422, "Message content is required")
+        if isinstance(content, list) and not content:
+            raise Auth.exceptions.HTTPException(422, "Message content is required")
+
+        msg["content"] = truncate_message_content(content)
+        input_has_image = input_has_image or content_has_image(msg["content"])
+        last_role = role
+
+    if last_role not in ("user", "human"):
+        raise Auth.exceptions.HTTPException(422, "Last message must be from user")
+
+    return input_has_image
 
 
 def truncate_message_content(content):
@@ -300,6 +315,7 @@ def validate_config(config: dict | None, *, input_has_image: bool = False):
 
 
 def cap_recursion_limit(config: dict):
+    """Cap recursion limit to the deployment maximum."""
     recursion_limit = config.get("recursion_limit")
     if recursion_limit is None:
         return
