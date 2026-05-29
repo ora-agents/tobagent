@@ -505,16 +505,6 @@ export const Sidebar = memo(function Sidebar({
               <Cpu className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
               <span className="truncate">{t.mcpServers}</span>
             </button>
-            <button
-              onClick={() => {
-                const url = process.env.NEXT_PUBLIC_ADMIN_URL || "https://admin.example.com"
-                window.open(url, "_blank", "noopener,noreferrer")
-              }}
-              className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground group"
-            >
-              <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-              <span className="truncate">{t.backend}</span>
-            </button>
           </div>
         )}
         <button
