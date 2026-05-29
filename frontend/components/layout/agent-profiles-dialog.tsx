@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
-import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
+import { BUILTIN_TOOLS, isDefaultAgentProfile } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import type { KnowledgeBase, Skill, McpServer } from "./management-dashboard"
 import { useT, useI18n } from "@/lib/i18n"
@@ -40,7 +40,7 @@ const DEFAULT_FORM: FormState = {
   name: "",
   description: "",
   systemPrompt: "You are a helpful assistant.",
-  enabledTools: ["rag_search", "websearch", "fetch"],
+  enabledTools: ["rag_search", "fetch"],
   knowledgeBaseIds: [],
   skillIds: [],
   mcpIds: [],
@@ -520,6 +520,14 @@ export function AgentProfilesDialog({
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>(initialKnowledgeBases)
   const [skills, setSkills] = useState<Skill[]>(initialSkills)
   const [mcpServers, setMcpServers] = useState<McpServer[]>(initialMcpServers)
+  const defaultProfile = useMemo(
+    () => profiles.find(isDefaultAgentProfile) || null,
+    [profiles],
+  )
+  const customProfiles = useMemo(
+    () => profiles.filter(profile => !isDefaultAgentProfile(profile)),
+    [profiles],
+  )
 
   // Auto-fetch shared KBs, skills, and MCPs when dialog is opened
   useEffect(() => {
@@ -580,9 +588,9 @@ export function AgentProfilesDialog({
     } as any)
     
     // Auto-select updated agent and close the dialog
-    onSelect(id)
+    onSelect(defaultProfile?.id === id ? null : id)
     handleOpenChange(false)
-  }, [onUpdate, onSelect])
+  }, [onUpdate, onSelect, defaultProfile])
 
   const handleDelete = useCallback((id: string) => {
     onDelete(id)
@@ -622,10 +630,10 @@ export function AgentProfilesDialog({
         <div className="flex-1 overflow-y-auto px-1 mt-2">
           {view.kind === "list" && (
             <div className="space-y-2">
-              {/* "No agent" option */}
+              {/* Editable default agent option */}
               <button
                 onClick={() => { onSelect(null); handleOpenChange(false) }}
-                className={`w-full text-left px-3 py-2.5 rounded-md border transition-colors text-sm ${
+                className={`group relative w-full text-left px-3 py-2.5 rounded-md border transition-colors text-sm ${
                   selectedId === null
                     ? "border-primary/60 bg-primary/5"
                     : "border-border hover:border-primary/30 hover:bg-muted/30"
@@ -633,15 +641,37 @@ export function AgentProfilesDialog({
               >
                 <div className="font-medium flex items-center gap-2">
                   <Bot className="w-3.5 h-3.5 text-muted-foreground" />
-                  {t.defaultSystemAgent}
+                  {defaultProfile?.name || t.defaultSystemAgent}
                   {selectedId === null && <Check className="w-3.5 h-3.5 text-primary ml-auto" />}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {t.defaultSystemAgentDesc}
+                  {defaultProfile?.description || t.defaultSystemAgentDesc}
                 </div>
+                {defaultProfile && (
+                  <div
+                    className="absolute right-3 top-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setView({ kind: "edit", profile: defaultProfile })}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          setView({ kind: "edit", profile: defaultProfile })
+                        }
+                      }}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                      title={t.editTitle}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                )}
               </button>
 
-              {profiles.map(profile => (
+              {customProfiles.map(profile => (
                 <div
                   key={profile.id}
                   className={`group relative flex items-start gap-2 px-3 py-2.5 rounded-md border transition-colors cursor-pointer ${

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
-import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
+import { isDefaultAgentProfile, SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -136,13 +136,17 @@ export function useAgentProfiles() {
     }
   }, [user])
 
-  const selectedProfile = profiles.find(p => p.id === selectedId) ?? null
+  const defaultProfile = profiles.find(isDefaultAgentProfile) ?? null
+  const selectedProfile = selectedId
+    ? profiles.find(p => p.id === selectedId) ?? null
+    : defaultProfile
 
   return {
     mounted,
     profiles,
     selectedId,
     selectedProfile,
+    defaultProfile,
     setSelectedId,
     createProfile,
     updateProfile,

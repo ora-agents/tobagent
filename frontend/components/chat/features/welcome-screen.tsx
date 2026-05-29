@@ -12,6 +12,7 @@ import type { ImageAttachment } from "@/lib/types"
 import type { VoiceState } from "@/lib/voice/types"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
+import { isDefaultAgentProfile } from "@/lib/types/agent-profiles"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
 import {
   fetchAvailableModels,
@@ -274,9 +275,11 @@ export function WelcomeScreen({
                 <Combobox
                   options={[
                     { value: "default", label: locale === "zh" ? "默认系统智能体" : "Default" },
-                    ...agentProfiles.map((p) => ({ value: p.id, label: p.name })),
+                    ...agentProfiles
+                      .filter((p) => !isDefaultAgentProfile(p))
+                      .map((p) => ({ value: p.id, label: p.name })),
                   ]}
-                  value={agentProfile?.id ?? "default"}
+                  value={agentProfile && !isDefaultAgentProfile(agentProfile) ? agentProfile.id : "default"}
                   onValueChange={(val) => onAgentProfileChange(val === "default" ? null : val)}
                   prefix={locale === "zh" ? "智能体：" : "Agent: "}
                   placeholder={locale === "zh" ? "选择智能体..." : "Select agent..."}

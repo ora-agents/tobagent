@@ -34,7 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
-import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
+import { BUILTIN_TOOLS, isDefaultAgentProfile } from "@/lib/types/agent-profiles"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
 
@@ -210,6 +210,7 @@ export interface KnowledgeBase {
   name: string
   description: string
   files: KBFile[]
+  isSystem?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -324,6 +325,15 @@ export function ManagementDashboard({
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
+  const defaultAgentProfile = useMemo(
+    () => agentProfiles.find(isDefaultAgentProfile) || null,
+    [agentProfiles],
+  )
+  const customAgentProfiles = useMemo(
+    () => agentProfiles.filter(profile => !isDefaultAgentProfile(profile)),
+    [agentProfiles],
+  )
+  const activeEditingAgentId = selectedAgentId ?? defaultAgentProfile?.id ?? null
 
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
@@ -548,7 +558,7 @@ export function ManagementDashboard({
       name: "",
       description: "",
       systemPrompt: "You are a helpful assistant.",
-      enabledTools: ["rag_search", "websearch", "fetch"],
+      enabledTools: ["rag_search", "fetch"],
       knowledgeBaseIds: [],
       skillIds: [],
       mcpIds: [],
@@ -603,12 +613,14 @@ export function ManagementDashboard({
         setIsCreatingAgent(false)
         onBackToChat()
       })
-    } else if (isEditingAgent && selectedAgentId) {
-      updateAgentProfile(selectedAgentId, profileData)
+    } else if (isEditingAgent && activeEditingAgentId) {
+      updateAgentProfile(activeEditingAgentId, profileData)
       // Mark saving so the useEffect won't re-enter edit mode
       isSavingRef.current = true
       // Automatically set the edited agent as active and return to chat
-      setSelectedAgentProfileId(selectedAgentId)
+      setSelectedAgentProfileId(
+        defaultAgentProfile?.id === activeEditingAgentId ? null : activeEditingAgentId,
+      )
       setIsEditingAgent(false)
       onBackToChat()
     }
@@ -781,6 +793,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditKB = (kb: KnowledgeBase) => {
+    if (kb.isSystem) return
     setSelectedKBId(kb.id)
     setIsEditingKB(true)
     setIsCreatingKB(false)
@@ -845,6 +858,8 @@ export function ManagementDashboard({
 
   const handleDeleteKB = async (id: string) => {
     if (!LANGGRAPH_API_URL || !authHeaders) return
+    const target = knowledgeBases.find(kb => kb.id === id)
+    if (target?.isSystem) return
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${id}`, {
         method: "DELETE",
@@ -868,12 +883,15 @@ export function ManagementDashboard({
   }
 
   const handleTriggerUpload = () => {
+    if (selectedKB?.isSystem) return
     fileInputRef.current?.click()
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !selectedKBId || !LANGGRAPH_API_URL || !authHeaders) return
+    const target = knowledgeBases.find(kb => kb.id === selectedKBId)
+    if (target?.isSystem) return
 
     setUploadingFile(true)
     const form = new FormData()
@@ -902,6 +920,8 @@ export function ManagementDashboard({
 
   const handleDeleteKBFile = async (fileName: string) => {
     if (!selectedKBId || !LANGGRAPH_API_URL || !authHeaders) return
+    const target = knowledgeBases.find(kb => kb.id === selectedKBId)
+    if (target?.isSystem) return
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/files/${encodeURIComponent(fileName)}`, {
         method: "DELETE",
@@ -932,7 +952,9 @@ export function ManagementDashboard({
 
   // Current Selections
   const selectedSkill = skills.find(sk => sk.id === selectedSkillId) || null
-  const selectedAgent = selectedAgentId === null ? null : (agentProfiles.find(p => p.id === selectedAgentId) || null)
+  const selectedAgent = selectedAgentId === null
+    ? defaultAgentProfile
+    : (agentProfiles.find(p => p.id === selectedAgentId) || null)
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
 
@@ -1465,7 +1487,7 @@ export function ManagementDashboard({
                   </div>
 
                   {/* Custom Agents */}
-                  {agentProfiles.map(profile => (
+                  {customAgentProfiles.map(profile => (
                     <div
                       key={profile.id}
                       onClick={() => handleSelectAgent(profile.id)}
@@ -1826,14 +1848,14 @@ export function ManagementDashboard({
                       </div>
                     )}
 
-                    {agentProfiles.filter(p => p.id !== selectedAgentId).length > 0 && (
+                    {agentProfiles.filter(p => p.id !== activeEditingAgentId).length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
                         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                           {locale === "zh" ? "关联其他智能体 (多智能体协同)" : "Link Other Agents (Multi-Agent)"}
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
                           {agentProfiles
-                            .filter(p => p.id !== selectedAgentId)
+                            .filter(p => p.id !== activeEditingAgentId)
                             .map((agent) => {
                               const linked = agentForm.agentIds?.includes(agent.id)
                               return (
@@ -1865,7 +1887,7 @@ export function ManagementDashboard({
 
 
                   </div>
-                ) : selectedAgentId !== null && selectedAgent ? (
+                ) : selectedAgent ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -1879,17 +1901,17 @@ export function ManagementDashboard({
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant={selectedAgentProfileId === selectedAgent.id ? "secondary" : "outline"}
+                          variant={(isDefaultAgentProfile(selectedAgent) ? selectedAgentProfileId === null : selectedAgentProfileId === selectedAgent.id) ? "secondary" : "outline"}
                           size="sm"
-                          onClick={() => setSelectedAgentProfileId(selectedAgent.id)}
+                          onClick={() => setSelectedAgentProfileId(isDefaultAgentProfile(selectedAgent) ? null : selectedAgent.id)}
                           className={`gap-1.5 rounded-lg border transition-all ${
-                            selectedAgentProfileId === selectedAgent.id
+                            (isDefaultAgentProfile(selectedAgent) ? selectedAgentProfileId === null : selectedAgentProfileId === selectedAgent.id)
                               ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
                               : "border-border hover:bg-primary/10 hover:text-primary"
                           }`}
                         >
                           <Check className="w-3.5 h-3.5" />
-                          {selectedAgentProfileId === selectedAgent.id ? t.selected : t.setActive}
+                          {(isDefaultAgentProfile(selectedAgent) ? selectedAgentProfileId === null : selectedAgentProfileId === selectedAgent.id) ? t.selected : t.setActive}
                         </Button>
                         <Button
                           variant="outline"
@@ -2143,57 +2165,66 @@ export function ManagementDashboard({
                             : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
                         }`}
                       >
-                        <div className="font-semibold text-sm truncate">{kb.name}</div>
+                        <div className="font-semibold text-sm truncate flex items-center gap-2">
+                          <span className="truncate">{kb.name}</span>
+                          {kb.isSystem && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-500 border border-blue-500/15 flex-shrink-0">
+                              {locale === "zh" ? "系统" : "System"}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground mt-1 truncate flex items-center gap-1">
                           <FileText className="w-3 h-3 flex-shrink-0 text-muted-foreground/75" />
                           {kb.files.length} {kb.files.length === 1 ? t.file.toLowerCase() : t.filesLabel}
                         </div>
 
                         {/* List Actions */}
-                        <div
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
-                            deleteConfirmId === kb.id
-                              ? "opacity-100 pointer-events-auto"
-                              : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                          }`}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {deleteConfirmId === kb.id ? (
-                            <>
-                              <button
-                                onClick={() => handleDeleteKB(kb.id)}
-                                className="p-1 rounded text-destructive hover:bg-destructive/10"
-                                title={t.confirmDeleteTitle}
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="p-1 rounded text-muted-foreground hover:bg-muted"
-                                title={t.cancelTitle}
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleStartEditKB(kb)}
-                                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                                title={t.editTitle}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(kb.id)}
-                                className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                title={t.deleteTitle}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
+                        {!kb.isSystem && (
+                          <div
+                            className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                              deleteConfirmId === kb.id
+                                ? "opacity-100 pointer-events-auto"
+                                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                            }`}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {deleteConfirmId === kb.id ? (
+                              <>
+                                <button
+                                  onClick={() => handleDeleteKB(kb.id)}
+                                  className="p-1 rounded text-destructive hover:bg-destructive/10"
+                                  title={t.confirmDeleteTitle}
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  className="p-1 rounded text-muted-foreground hover:bg-muted"
+                                  title={t.cancelTitle}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleStartEditKB(kb)}
+                                  className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                                  title={t.editTitle}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmId(kb.id)}
+                                  className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  title={t.deleteTitle}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -2268,15 +2299,17 @@ export function ManagementDashboard({
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleStartEditKB(selectedKB)}
-                          className="gap-1.5 border-border hover:bg-primary/10 hover:text-primary rounded-lg"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          {t.editKB}
-                        </Button>
+                        {!selectedKB.isSystem && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleStartEditKB(selectedKB)}
+                            className="gap-1.5 border-border hover:bg-primary/10 hover:text-primary rounded-lg"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            {t.editKB}
+                          </Button>
+                        )}
                       </div>
                     </div>
 
@@ -2288,6 +2321,7 @@ export function ManagementDashboard({
                           {t.kbFiles}
                         </h3>
 
+                        {!selectedKB.isSystem && (
                         <div>
                           <Button
                             size="sm"
@@ -2306,6 +2340,7 @@ export function ManagementDashboard({
                             onChange={handleFileUpload}
                           />
                         </div>
+                        )}
                       </div>
 
                       {/* File List */}
@@ -2335,13 +2370,15 @@ export function ManagementDashboard({
                                     </div>
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => handleDeleteKBFile(file.name)}
-                                  className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                  title={t.deleteDocumentTitle}
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
+                                {!selectedKB.isSystem && (
+                                  <button
+                                    onClick={() => handleDeleteKBFile(file.name)}
+                                    className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    title={t.deleteDocumentTitle}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             ))}
                           </div>

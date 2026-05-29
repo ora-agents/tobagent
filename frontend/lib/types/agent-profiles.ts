@@ -1,16 +1,11 @@
 /** Built-in tool identifiers for generic agents. */
-export type BuiltinToolId = "rag_search" | "websearch" | "fetch"
+export type BuiltinToolId = "rag_search" | "fetch"
 
 export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: string }[] = [
   {
     id: "rag_search",
     label: "Knowledge Base (RAG)",
     description: "Search documents you have uploaded to this agent.",
-  },
-  {
-    id: "websearch",
-    label: "Web Search",
-    description: "Search the web using Tavily (requires TAVILY_API_KEY).",
   },
   {
     id: "fetch",
@@ -39,3 +34,7 @@ export interface AgentProfile {
 
 export const AGENT_PROFILES_STORAGE_KEY = "agent-profiles"
 export const SELECTED_AGENT_PROFILE_KEY = "selected-agent-profile-id"
+
+export function isDefaultAgentProfile(profile: Pick<AgentProfile, "id">): boolean {
+  return profile.id === "default" || profile.id.startsWith("default_")
+}
