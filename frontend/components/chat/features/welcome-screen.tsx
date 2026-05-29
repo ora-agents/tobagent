@@ -274,17 +274,17 @@ export function WelcomeScreen({
               <div className="flex items-center border-l border-border/40 pl-3">
                 <Combobox
                   options={[
-                    { value: "default", label: locale === "zh" ? "默认系统智能体" : "Default" },
+                    { value: "default", label: locale === "zh" ? "默认系统角色" : "Default" },
                     ...agentProfiles
                       .filter((p) => !isDefaultAgentProfile(p))
                       .map((p) => ({ value: p.id, label: p.name })),
                   ]}
                   value={agentProfile && !isDefaultAgentProfile(agentProfile) ? agentProfile.id : "default"}
                   onValueChange={(val) => onAgentProfileChange(val === "default" ? null : val)}
-                  prefix={locale === "zh" ? "智能体：" : "Agent: "}
-                  placeholder={locale === "zh" ? "选择智能体..." : "Select agent..."}
-                  searchPlaceholder={locale === "zh" ? "搜索智能体..." : "Search agent..."}
-                  emptyText={locale === "zh" ? "未找到该智能体" : "No agent found."}
+                  prefix={locale === "zh" ? "角色：" : "Agent: "}
+                  placeholder={locale === "zh" ? "选择角色..." : "Select agent..."}
+                  searchPlaceholder={locale === "zh" ? "搜索角色..." : "Search agent..."}
+                  emptyText={locale === "zh" ? "未找到该角色" : "No agent found."}
                 />
               </div>
             )}

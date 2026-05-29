@@ -1115,7 +1115,7 @@ export function ManagementDashboard({
                             <button
                               onClick={() => handleStartEditMcp(mcp)}
                               className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                              title={t.editAgent.replace(t.agent, "").trim()}
+                      title={t.editAgent.replace(t.agent, "").trim()}
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -1509,7 +1509,7 @@ export function ManagementDashboard({
           {/* ========================================== */}
           {activeTab === "agents" && (
             <div className="flex-1 flex overflow-hidden">
-              {/* Left Agent List */}
+              {/* Left Role List */}
               <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
@@ -1592,7 +1592,7 @@ export function ManagementDashboard({
                         {(profile as any).agentIds && (profile as any).agentIds.length > 0 && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/15 flex items-center gap-0.5">
                             <Bot className="w-2.5 h-2.5" />
-                            {(profile as any).agentIds.length} {locale === "zh" ? "协同" : "Agents"}
+                            {(profile as any).agentIds.length} {locale === "zh" ? "协同" : "Roles"}
                           </span>
                         )}
                       </div>
@@ -1647,7 +1647,7 @@ export function ManagementDashboard({
                 </div>
               </div>
 
-              {/* Right Agent Form / Details */}
+              {/* Right Role Form / Details */}
               <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingAgent || isEditingAgent ? (
                   <div className="max-w-2xl space-y-4">
@@ -1706,14 +1706,14 @@ export function ManagementDashboard({
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="space-y-1.5">
+                      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
+                        <div className="space-y-1.5 min-w-0">
                           <Label>{locale === "zh" ? "人物形象" : "Persona"}</Label>
                           <Select
                             value={agentForm.personaStyle}
                             onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
                           >
-                            <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1726,13 +1726,13 @@ export function ManagementDashboard({
                           </Select>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 min-w-0">
                           <Label>{locale === "zh" ? "客服边界" : "Support Boundary"}</Label>
                           <Select
                             value={agentForm.boundaryMode}
                             onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
                           >
-                            <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1745,23 +1745,30 @@ export function ManagementDashboard({
                           </Select>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 min-w-0">
                           <Label>{locale === "zh" ? "语音风格" : "Voice Style"}</Label>
                           <Select
                             value={agentForm.ttsVoice}
                             onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
                           >
-                            <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {TTS_VOICES.map((voice) => (
                                 <SelectItem key={voice.voice} value={voice.voice}>
-                                  {voice.nameZh} · {voice.voice} · {locale === "zh" ? voice.descriptionZh : voice.descriptionEn}
+                                  {voice.nameZh} · {voice.voice}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {(() => {
+                              const voice = TTS_VOICES.find(item => item.voice === agentForm.ttsVoice)
+                              if (!voice) return null
+                              return locale === "zh" ? voice.descriptionZh : voice.descriptionEn
+                            })()}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1998,7 +2005,7 @@ export function ManagementDashboard({
                     {agentProfiles.filter(p => p.id !== activeEditingAgentId).length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
                         <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          {locale === "zh" ? "关联其他智能体 (多智能体协同)" : "Link Other Agents (Multi-Agent)"}
+                          {locale === "zh" ? "关联其他角色 (多角色协同)" : "Link Other Roles (Multi-Role)"}
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
                           {agentProfiles
@@ -2230,7 +2237,7 @@ export function ManagementDashboard({
                           <div className="space-y-2">
                             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                               <Bot className="w-3.5 h-3.5 text-rose-500" />
-                              {locale === "zh" ? "已关联的协同智能体" : "Linked Collaborative Agents"}
+                              {locale === "zh" ? "已关联的协同角色" : "Linked Collaborative Roles"}
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {agentProfiles

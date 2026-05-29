@@ -33,7 +33,7 @@ export function Header({
   const t = useT()
   const { locale } = useI18n()
 
-  const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "默认系统智能体" : "Default")
+  const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "默认系统角色" : "Default")
 
   return (
     <header className="bg-background h-16 flex items-center">
@@ -54,10 +54,10 @@ export function Header({
             <button
               onClick={onOpenAgentSettings}
               className="group inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-muted hover:bg-muted/80 border border-border/60 hover:border-border rounded-full text-sm font-medium text-foreground/80 hover:text-foreground transition-all duration-200"
-              title={locale === "zh" ? "智能体设置" : "Agent Settings"}
+              title={locale === "zh" ? "角色设置" : "Agent Settings"}
             >
               <Settings className="w-4 h-4 text-muted-foreground group-hover:rotate-45 group-hover:text-foreground transition-all duration-300" />
-              <span className="hidden sm:inline">{locale === "zh" ? "智能体设置" : "Agent Settings"}</span>
+              <span className="hidden sm:inline">{locale === "zh" ? "角色设置" : "Agent Settings"}</span>
             </button>
           )}
 

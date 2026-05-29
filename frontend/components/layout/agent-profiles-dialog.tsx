@@ -422,7 +422,7 @@ function ProfileForm({
       {availableAgents && availableAgents.length > 0 && (
         <div className="space-y-1.5 pt-2 border-t border-border">
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {locale === "zh" ? "关联其他智能体 (多智能体协同)" : "Link Other Agents (Multi-Agent)"}
+            {locale === "zh" ? "关联其他角色 (多角色协同)" : "Link Other Agents (Multi-Agent)"}
           </Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1">
             {availableAgents.map((agent) => {
