@@ -90,6 +90,16 @@ async def lifespan(app: FastAPI):
 
         logger.info("Database schema migration completed.")
 
+        async def _import_assets_on_startup() -> None:
+            try:
+                from src.utils.assets_import import import_assets_for_existing_users
+
+                await import_assets_for_existing_users()
+            except Exception as e:
+                logger.error("Assets startup import failed: %s", e)
+
+        app.state.assets_import_task = asyncio.create_task(_import_assets_on_startup())
+
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
 
@@ -105,6 +115,11 @@ async def lifespan(app: FastAPI):
             loading_task.cancel()
             with suppress(asyncio.CancelledError):
                 await loading_task
+        assets_import_task = getattr(app.state, "assets_import_task", None)
+        if assets_import_task and not assets_import_task.done():
+            assets_import_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await assets_import_task
 
 
 async def _initialize_kws(app: FastAPI) -> None:
@@ -290,6 +305,7 @@ class KnowledgeBaseSchema(BaseModel):
     name: str
     description: str | None = None
     files: list[KBFileSchema] = []
+    isSystem: bool = False
     createdAt: str
     updatedAt: str
 
@@ -402,6 +418,7 @@ def _kb_schema(kb: KnowledgeBaseTable) -> KnowledgeBaseSchema:
         name=kb.name,
         description=kb.description,
         files=_schema_files(kb.files),
+        isSystem=kb.owner_user_id is None,
         createdAt=kb.created_at,
         updatedAt=kb.updated_at,
     )
@@ -457,13 +474,38 @@ def _require_owned_ids(
         )
 
 
+def _require_accessible_knowledge_base_ids(
+    db: Session,
+    ids: list[str],
+    owner_user_id: str,
+) -> None:
+    """Require KB ids to be owned by the user or provided by the system."""
+    from sqlalchemy import or_
+
+    unique_ids = list(dict.fromkeys(ids or []))
+    if not unique_ids:
+        return
+    count = db.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.id.in_(unique_ids),
+        or_(
+            KnowledgeBaseTable.owner_user_id == owner_user_id,
+            KnowledgeBaseTable.owner_user_id.is_(None),
+        ),
+    ).count()
+    if count != len(unique_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="knowledgeBaseIds contains resources that do not belong to the current user",
+        )
+
+
 def _validate_agent_profile_links(
     db: Session,
     profile_data: AgentProfileSchema,
     owner_user_id: str,
     current_profile_id: str | None = None,
 ) -> None:
-    _require_owned_ids(db, KnowledgeBaseTable, profile_data.knowledgeBaseIds, owner_user_id, "knowledgeBaseIds")
+    _require_accessible_knowledge_base_ids(db, profile_data.knowledgeBaseIds, owner_user_id)
     _require_owned_ids(db, SkillTable, profile_data.skillIds, owner_user_id, "skillIds")
     _require_owned_ids(db, McpServerTable, profile_data.mcpIds, owner_user_id, "mcpIds")
 
@@ -631,6 +673,19 @@ async def get_agent_profiles(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    from src.utils.assets_import import (
+        ensure_default_agent_profile,
+        ensure_user_default_agent_assets,
+    )
+
+    ensure_default_agent_profile(db, current_user.id)
+    db.commit()
+
+    # Importing may call the embedding provider, so run it outside the request's
+    # active SQLAlchemy transaction. Existing KBs are only linked, not re-ingested.
+    await ensure_user_default_agent_assets(current_user.id)
+    db.expire_all()
+
     profiles = db.query(AgentProfileTable).filter(
         AgentProfileTable.owner_user_id == current_user.id
     ).all()
@@ -707,6 +762,11 @@ async def delete_agent_profile(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    from src.utils.assets_import import is_default_agent_profile_id
+
+    if is_default_agent_profile_id(id):
+        raise HTTPException(status_code=400, detail="Default agent profile cannot be deleted")
+
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == current_user.id,
@@ -806,9 +866,18 @@ async def get_knowledge_bases(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    from sqlalchemy import or_
+    from src.utils.assets_import import ensure_system_asset_knowledge_bases
+
+    await ensure_system_asset_knowledge_bases()
+    db.expire_all()
+
     kbs = db.query(KnowledgeBaseTable).filter(
-        KnowledgeBaseTable.owner_user_id == current_user.id
-    ).all()
+        or_(
+            KnowledgeBaseTable.owner_user_id == current_user.id,
+            KnowledgeBaseTable.owner_user_id.is_(None),
+        )
+    ).order_by(KnowledgeBaseTable.owner_user_id.isnot(None), KnowledgeBaseTable.name).all()
     return [_kb_schema(k) for k in kbs]
 
 
@@ -898,49 +967,9 @@ def _sync_load_document(filename: str, content_type: str, raw: bytes) -> str:
     
     Runs completely in a thread pool via asyncio.to_thread to avoid blocking ASGI event loop.
     """
-    import pathlib
-    import tempfile
-    
-    fname_lower = filename.lower()
-    
-    if content_type == "application/pdf" or fname_lower.endswith(".pdf"):
-        suffix = ".pdf"
-        from langchain_community.document_loaders import PyPDFLoader
-        loader_cls = PyPDFLoader
-        loader_kwargs = {}
-    elif (
-        content_type in (
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/msword",
-        )
-        or fname_lower.endswith(".docx")
-        or fname_lower.endswith(".doc")
-    ):
-        suffix = ".docx"
-        from langchain_community.document_loaders import Docx2txtLoader
-        loader_cls = Docx2txtLoader
-        loader_kwargs = {}
-    elif fname_lower.endswith(".csv"):
-        suffix = ".csv"
-        from langchain_community.document_loaders import CSVLoader
-        loader_cls = CSVLoader
-        loader_kwargs = {}
-    else:
-        suffix = pathlib.Path(filename or "file.txt").suffix or ".txt"
-        from langchain_community.document_loaders import TextLoader
-        loader_cls = TextLoader
-        loader_kwargs = {"encoding": "utf-8"}
+    from src.utils.document_loader import load_document_bytes
 
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(raw)
-        tmp_path = tmp.name
-        
-    try:
-        loader = loader_cls(tmp_path, **loader_kwargs)
-        docs = loader.load()
-        return "\n\n".join(d.page_content for d in docs)
-    finally:
-        pathlib.Path(tmp_path).unlink(missing_ok=True)
+    return load_document_bytes(filename, content_type, raw)
 
 
 async def _load_document_content(file: UploadFile, raw: bytes) -> str:

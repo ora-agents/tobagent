@@ -74,7 +74,7 @@ class AgentProfileTable(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
-    # enabled_tools is a JSON list of builtin tool IDs, e.g., ["rag_search", "websearch"]
+    # enabled_tools is a JSON list of builtin tool IDs, e.g., ["rag_search", "fetch"]
     enabled_tools = Column(JSON, nullable=False, default=list)
     # knowledge_base_ids is a JSON list of linked knowledge bases, e.g., ["kb_1", "kb_2"]
     knowledge_base_ids = Column(JSON, nullable=True, default=list)
