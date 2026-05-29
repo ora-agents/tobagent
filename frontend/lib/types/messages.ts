@@ -35,7 +35,10 @@ export interface Message {
   // LangSmith tracing
   runId?: string
 
+  // LangGraph checkpoint metadata used for replay/regeneration
+  checkpointId?: string
+  parentCheckpointId?: string
+
   // Interruption tracking
   wasInterrupted?: boolean
 }
-

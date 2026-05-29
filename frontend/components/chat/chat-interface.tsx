@@ -425,6 +425,43 @@ export function ChatInterface({
           return
         }
 
+        const checkpointsByMessageId = new Map<string, { checkpointId: string; parentCheckpointId?: string }>()
+        const checkpointsByContent = new Map<string, { checkpointId: string; parentCheckpointId?: string }>()
+        try {
+          const history = await client.threads.getHistory(currentThreadId)
+          const chronologicalHistory = [...history].reverse()
+
+          for (const checkpointState of chronologicalHistory) {
+            const stateAny = checkpointState as any
+            const checkpointId =
+              stateAny.config?.configurable?.checkpoint_id ||
+              stateAny.metadata?.checkpoint_id
+            if (!checkpointId) continue
+
+            const parentCheckpointId =
+              stateAny.parent_config?.configurable?.checkpoint_id ||
+              stateAny.metadata?.parent_checkpoint_id
+            const stateMessages = stateAny.values?.messages || []
+            if (!Array.isArray(stateMessages) || stateMessages.length === 0) continue
+
+            const lastMessage = stateMessages[stateMessages.length - 1]
+            const rawRole = lastMessage?.type || lastMessage?.role
+            const role = rawRole === "ai" || rawRole === "assistant" ? "assistant" : "user"
+            if (!["human", "user", "ai", "assistant"].includes(rawRole)) continue
+
+            const content = extractTextFromContent(lastMessage.content)
+            if (!content.trim()) continue
+
+            const checkpointInfo = { checkpointId, parentCheckpointId }
+            if (lastMessage.id) {
+              checkpointsByMessageId.set(lastMessage.id, checkpointInfo)
+            }
+            checkpointsByContent.set(`${role}:${content}`, checkpointInfo)
+          }
+        } catch (error) {
+          console.warn("Failed to load checkpoint metadata for thread history:", error)
+        }
+
         const convertedMessages: Message[] = threadMessages
           .filter((msg: any) => {
             const msgType = msg.type || msg.role
@@ -436,6 +473,10 @@ export function ChatInterface({
 
             const role = (msg.type === "ai" || msg.role === "assistant") ? "assistant" : "user"
 
+            const checkpointInfo =
+              checkpointsByMessageId.get(messageId) ||
+              checkpointsByContent.get(`${role}:${extractTextFromContent(msg.content)}`)
+
             return {
               id: messageId,
               role,
@@ -443,6 +484,8 @@ export function ChatInterface({
               timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
               toolCalls: msg.tool_calls,
               runId: msg.run_id,
+              checkpointId: checkpointInfo?.checkpointId,
+              parentCheckpointId: checkpointInfo?.parentCheckpointId,
               thinkingDuration: msg.response_metadata?.thinking_duration,
               // Preserve images/attachments
               images: msg.images,
@@ -580,6 +623,7 @@ export function ChatInterface({
         assistantMessageId,
         files,
         targetThreadId,
+        { userMessageId: userMessage.id },
       )
 
       if (onThreadUpdate && assistantContent) {
@@ -775,8 +819,11 @@ export function ChatInterface({
       const { assistantContent } = await processStream(
         lastUserMessage.content,
         assistantMessageId,
-        undefined,
+        lastUserMessage.checkpointId ? undefined : lastUserMessage.images,
         targetThreadId,
+        lastUserMessage.checkpointId
+          ? { checkpointId: lastUserMessage.checkpointId, replayFromCheckpoint: true }
+          : undefined,
       )
 
       if (onThreadUpdate && assistantContent) {
@@ -823,6 +870,10 @@ export function ChatInterface({
         assistantMessageId,
         undefined,
         targetThreadId,
+        {
+          checkpointId: updatedMessage.parentCheckpointId,
+          userMessageId: updatedMessage.id,
+        },
       )
 
       if (onThreadUpdate && assistantContent) {

@@ -104,7 +104,12 @@ interface UseStreamHandlerReturn {
     userContent: string,
     assistantMessageId: string,
     images?: ImageAttachment[],
-    threadIdOverride?: string
+    threadIdOverride?: string,
+    options?: {
+      checkpointId?: string
+      replayFromCheckpoint?: boolean
+      userMessageId?: string
+    }
   ) => Promise<{ assistantContent: string; runId: string | undefined }>
 }
 
@@ -175,6 +180,11 @@ export function useStreamHandler({
       assistantMessageId: string,
       images?: ImageAttachment[],
       threadIdOverride?: string,
+      options?: {
+        checkpointId?: string
+        replayFromCheckpoint?: boolean
+        userMessageId?: string
+      },
     ) => {
       if (!LANGGRAPH_API_URL) {
         throw new Error(
@@ -260,9 +270,11 @@ export function useStreamHandler({
           : messageContent.slice(0, 100)
       })
 
-      const input = {
-        messages: [{ role: "user", content: messageContent }],
-      }
+      const input = options?.replayFromCheckpoint
+        ? null
+        : {
+            messages: [{ role: "user", content: messageContent }],
+          }
 
       const model = (agentConfig?.model ?? getDefaultModel()) as ModelOption
       const recursionLimit = agentConfig?.recursionLimit ?? 100
@@ -271,6 +283,8 @@ export function useStreamHandler({
       let assistantToolCalls: ToolCall[] = []
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
+      let currentUserCheckpointId: string | undefined = options?.checkpointId
+      let finalAssistantCheckpointId: string | undefined
 
       const isCustomProfile = !!agentProfile
       const agentType = "generic_agent"
@@ -303,13 +317,14 @@ export function useStreamHandler({
 
       const streamResponse = client.runs.stream(targetThreadId, agentType, {
         input,
+        ...(options?.checkpointId ? { checkpointId: options.checkpointId } : {}),
         config: {
           recursion_limit: recursionLimit,
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
           configurable: configurableBase,
         } as any,
-        streamMode: ["values", "updates", "messages"],
+        streamMode: ["values", "updates", "messages", "checkpoints"],
         streamSubgraphs: true,
         ifNotExists: "create",
       })
@@ -354,6 +369,34 @@ export function useStreamHandler({
         const isSubgraphEvent = eventType.includes("|")
         const eventParts = eventType.split("|")
         const baseEvent = eventParts[0]
+
+        if ((eventType === "checkpoints" || baseEvent === "checkpoints") && !isSubgraphEvent && data) {
+          const checkpointId = data.config?.configurable?.checkpoint_id
+          const parentCheckpointId = data.parent_config?.configurable?.checkpoint_id
+          const checkpointMessages = data.values?.messages
+          const lastMessage = Array.isArray(checkpointMessages)
+            ? checkpointMessages[checkpointMessages.length - 1]
+            : undefined
+          const lastRole = lastMessage?.type || lastMessage?.role
+          const lastContent = lastMessage?.content ? extractTextFromContent(lastMessage.content) : ""
+
+          if (checkpointId && (lastRole === "human" || lastRole === "user") && lastContent === userContent) {
+            currentUserCheckpointId = checkpointId
+
+            if (options?.userMessageId) {
+              setMessages((prev) =>
+                updateMessageInList(prev, options.userMessageId!, {
+                  checkpointId,
+                  parentCheckpointId,
+                })
+              )
+            }
+          }
+
+          if (checkpointId && (lastRole === "ai" || lastRole === "assistant")) {
+            finalAssistantCheckpointId = checkpointId
+          }
+        }
 
         // Track subgraph outputs when they complete or stream
         if (
@@ -725,6 +768,8 @@ export function useStreamHandler({
               isThinking: false,
               thinkingDuration,
               runId,
+              checkpointId: finalAssistantCheckpointId,
+              parentCheckpointId: currentUserCheckpointId,
               subgraphOutputs: subgraphOutputs.length > 0 ? subgraphOutputs : undefined,
               wasInterrupted,
             }
