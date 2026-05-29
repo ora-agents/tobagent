@@ -115,7 +115,9 @@ async def kws_websocket(websocket: WebSocket) -> None:
         # 2. Convert keywords to phoneme format
         keywords_string = None
         if keyword_processor:
-            keywords_string = keyword_processor.format_keywords(keywords_list)
+            keywords_string = await asyncio.to_thread(
+                keyword_processor.format_keywords, keywords_list
+            )
 
         if not keywords_string:
             await websocket.send_json({
@@ -132,7 +134,7 @@ async def kws_websocket(websocket: WebSocket) -> None:
         )
 
         # 3. Create a per-connection stream
-        stream = spotter.create_stream(keywords_string)
+        stream = await asyncio.to_thread(spotter.create_stream, keywords_string)
 
         # 4. Audio processing loop
         while True:
