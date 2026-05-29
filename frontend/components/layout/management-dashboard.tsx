@@ -35,6 +35,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS, isDefaultAgentProfile } from "@/lib/types/agent-profiles"
+import {
+  BOUNDARY_MODE_LABELS,
+  PERSONA_STYLE_LABELS,
+  ROLE_TEMPLATES,
+  TTS_VOICES,
+  type BoundaryMode,
+  type PersonaStyle,
+} from "@/lib/types/role-templates"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
 
@@ -306,6 +314,10 @@ export function ManagementDashboard({
     mcpIds: string[]
     agentIds: string[]
     wakeWords: string[]
+    roleTemplateId: string
+    personaStyle: PersonaStyle
+    boundaryMode: BoundaryMode
+    ttsVoice: string
   }>({
     name: "",
     description: "",
@@ -315,7 +327,11 @@ export function ManagementDashboard({
     skillIds: [],
     mcpIds: [],
     agentIds: [],
-    wakeWords: []
+    wakeWords: [],
+    roleTemplateId: "",
+    personaStyle: "professional",
+    boundaryMode: "business_only",
+    ttsVoice: "Cherry"
   })
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
@@ -417,7 +433,11 @@ export function ManagementDashboard({
             skillIds: selectedProfile.skillIds || [],
             mcpIds: selectedProfile.mcpIds || [],
             agentIds: (selectedProfile as any).agentIds || [],
-            wakeWords: (selectedProfile as any).wakeWords || []
+            wakeWords: (selectedProfile as any).wakeWords || [],
+            roleTemplateId: selectedProfile.roleTemplateId || "",
+            personaStyle: (selectedProfile.personaStyle || "professional") as PersonaStyle,
+            boundaryMode: (selectedProfile.boundaryMode || "business_only") as BoundaryMode,
+            ttsVoice: selectedProfile.ttsVoice || "Cherry"
           })
         }
       } else {
@@ -563,7 +583,11 @@ export function ManagementDashboard({
       skillIds: [],
       mcpIds: [],
       agentIds: [],
-      wakeWords: []
+      wakeWords: [],
+      roleTemplateId: "",
+      personaStyle: "professional",
+      boundaryMode: "business_only",
+      ttsVoice: "Cherry"
     })
     setDeleteConfirmId(null)
   }
@@ -581,7 +605,11 @@ export function ManagementDashboard({
       skillIds: profile.skillIds || [],
       mcpIds: profile.mcpIds || [],
       agentIds: (profile as any).agentIds || [],
-      wakeWords: (profile as any).wakeWords || []
+      wakeWords: (profile as any).wakeWords || [],
+      roleTemplateId: profile.roleTemplateId || "",
+      personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
+      boundaryMode: (profile.boundaryMode || "business_only") as BoundaryMode,
+      ttsVoice: profile.ttsVoice || "Cherry"
     })
     setDeleteConfirmId(null)
   }
@@ -598,7 +626,11 @@ export function ManagementDashboard({
       skillIds: agentForm.skillIds,
       mcpIds: agentForm.mcpIds,
       agentIds: agentForm.agentIds,
-      wakeWords: agentForm.wakeWords
+      wakeWords: agentForm.wakeWords,
+      roleTemplateId: agentForm.roleTemplateId || null,
+      personaStyle: agentForm.personaStyle,
+      boundaryMode: agentForm.boundaryMode,
+      ttsVoice: agentForm.ttsVoice
     }
 
     if (isCreatingAgent) {
@@ -640,6 +672,32 @@ export function ManagementDashboard({
         : [...prev.enabledTools, toolId]
       return { ...prev, enabledTools: nextTools }
     })
+  }
+
+  const handleApplyRoleTemplate = (templateId: string) => {
+    const template = ROLE_TEMPLATES.find(item => item.id === templateId)
+    if (!template) {
+      setAgentForm(prev => ({ ...prev, roleTemplateId: "" }))
+      return
+    }
+
+    const lowerSkillNames = template.defaultSkillNames.map(name => name.toLowerCase())
+    const matchedSkillIds = skills
+      .filter(skill => lowerSkillNames.some(name => skill.name.toLowerCase().includes(name)))
+      .map(skill => skill.id)
+
+    setAgentForm(prev => ({
+      ...prev,
+      roleTemplateId: template.id,
+      name: locale === "zh" ? template.defaultNameZh : template.defaultNameEn,
+      description: locale === "zh" ? template.defaultDescriptionZh : template.defaultDescriptionEn,
+      systemPrompt: template.systemPrompt,
+      enabledTools: template.enabledTools,
+      skillIds: Array.from(new Set([...prev.skillIds, ...matchedSkillIds])),
+      personaStyle: template.personaStyle,
+      boundaryMode: template.boundaryMode,
+      ttsVoice: template.ttsVoice,
+    }))
   }
 
   // ---------------------------------------------------------------------------
@@ -1619,9 +1677,98 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
+                    <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-background/50">
+                      <div className="space-y-1.5">
+                        <Label>{locale === "zh" ? "角色模板" : "Role Template"}</Label>
+                        <Select
+                          value={agentForm.roleTemplateId || "custom"}
+                          onValueChange={(value) => handleApplyRoleTemplate(value === "custom" ? "" : value)}
+                        >
+                          <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                            <SelectValue placeholder={locale === "zh" ? "选择角色模板" : "Select role template"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="custom">{locale === "zh" ? "自定义角色" : "Custom role"}</SelectItem>
+                            {ROLE_TEMPLATES.map((template) => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {locale === "zh" ? template.nameZh : template.nameEn}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {agentForm.roleTemplateId && (
+                          <p className="text-xs text-muted-foreground">
+                            {(() => {
+                              const template = ROLE_TEMPLATES.find((item) => item.id === agentForm.roleTemplateId)
+                              return template ? (locale === "zh" ? template.descriptionZh : template.descriptionEn) : null
+                            })()}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>{locale === "zh" ? "人物形象" : "Persona"}</Label>
+                          <Select
+                            value={agentForm.personaStyle}
+                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
+                          >
+                            <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {locale === "zh" ? label.zh : label.en}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label>{locale === "zh" ? "客服边界" : "Support Boundary"}</Label>
+                          <Select
+                            value={agentForm.boundaryMode}
+                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
+                          >
+                            <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {locale === "zh" ? label.zh : label.en}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label>{locale === "zh" ? "语音风格" : "Voice Style"}</Label>
+                          <Select
+                            value={agentForm.ttsVoice}
+                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
+                          >
+                            <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TTS_VOICES.map((voice) => (
+                                <SelectItem key={voice.voice} value={voice.voice}>
+                                  {voice.nameZh} · {voice.voice} · {locale === "zh" ? voice.descriptionZh : voice.descriptionEn}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
-                        <Label htmlFor="agent-name">{t.agentName}</Label>
+                        <Label htmlFor="agent-name">{locale === "zh" ? "角色名称" : "Role Name"}</Label>
                         <Input
                           id="agent-name"
                           value={agentForm.name}
@@ -1631,7 +1778,7 @@ export function ManagementDashboard({
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="agent-desc">{t.agentDesc}</Label>
+                        <Label htmlFor="agent-desc">{locale === "zh" ? "角色描述" : "Role Description"}</Label>
                         <Input
                           id="agent-desc"
                           value={agentForm.description}
@@ -1926,6 +2073,42 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="space-y-6 mt-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "角色模板" : "Role Template"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1">
+                            {(() => {
+                              const template = ROLE_TEMPLATES.find(item => item.id === selectedAgent.roleTemplateId)
+                              if (!template) return locale === "zh" ? "自定义角色" : "Custom role"
+                              return locale === "zh" ? template.nameZh : template.nameEn
+                            })()}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "人物/边界" : "Persona / Boundary"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1">
+                            {locale === "zh"
+                              ? `${PERSONA_STYLE_LABELS[(selectedAgent.personaStyle || "professional") as PersonaStyle]?.zh || "专业"} · ${BOUNDARY_MODE_LABELS[(selectedAgent.boundaryMode || "business_only") as BoundaryMode]?.zh || "只执行业务流程"}`
+                              : `${PERSONA_STYLE_LABELS[(selectedAgent.personaStyle || "professional") as PersonaStyle]?.en || "Professional"} · ${BOUNDARY_MODE_LABELS[(selectedAgent.boundaryMode || "business_only") as BoundaryMode]?.en || "Business only"}`}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "语音风格" : "Voice Style"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1">
+                            {(() => {
+                              const voice = TTS_VOICES.find(item => item.voice === selectedAgent.ttsVoice)
+                              return voice ? `${voice.nameZh} · ${voice.voice}` : selectedAgent.ttsVoice || "Cherry"
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden">
                         <div className="px-4 py-2 border-b border-border/30 bg-muted/20">
                           <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
