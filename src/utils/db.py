@@ -107,9 +107,9 @@ class McpServerTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     name = Column(String(255), nullable=False)
-    type = Column(String(50), nullable=False)  # keep "sse"
-    url = Column(String(2048), nullable=True)   # for sse
-    headers = Column(JSON, nullable=True, default=dict) # for custom sse headers
+    type = Column(String(50), nullable=False)  # e.g. "sse" or "streamable_http"
+    url = Column(String(2048), nullable=True)
+    headers = Column(JSON, nullable=True, default=dict)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 

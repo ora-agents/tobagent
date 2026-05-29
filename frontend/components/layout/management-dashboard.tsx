@@ -24,6 +24,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
@@ -208,15 +215,22 @@ export interface KnowledgeBase {
 
 const KB_STORAGE_KEY = "knowledge-bases"
 
+type McpTransport = "sse" | "streamable_http"
+
 export interface McpServer {
   id: string
   name: string
-  type: "sse"
+  type: McpTransport
   url?: string
   headers: Record<string, string>
   createdAt: string
   updatedAt: string
 }
+
+const normalizeMcpTransport = (type?: string): McpTransport =>
+  type === "http" || type === "streamable-http" || type === "streamable_http"
+    ? "streamable_http"
+    : "sse"
 
 // ---------------------------------------------------------------------------
 // Properties Interface
@@ -270,7 +284,7 @@ export function ManagementDashboard({
   const [isCreatingMcp, setIsCreatingMcp] = useState(false)
   const [mcpForm, setMcpForm] = useState({
     name: "",
-    type: "sse" as "sse",
+    type: "streamable_http" as McpTransport,
     url: "",
     headers: "{}"
   })
@@ -341,8 +355,12 @@ export function ManagementDashboard({
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`)
         if (resp.ok) {
           const data = await resp.json()
-          setMcpServers(data)
-          if (data.length > 0) setSelectedMcpId(data[0].id)
+          const servers = data.map((server: McpServer) => ({
+            ...server,
+            type: normalizeMcpTransport(server.type)
+          }))
+          setMcpServers(servers)
+          if (servers.length > 0) setSelectedMcpId(servers[0].id)
         }
       } catch (err) {
         console.error("Failed to load MCP servers from database", err)
@@ -620,7 +638,7 @@ export function ManagementDashboard({
     setIsEditingMcp(false)
     setMcpForm({
       name: "",
-      type: "sse",
+      type: "streamable_http",
       url: "http://localhost:8000/mcp",
       headers: "{\n  \"Authorization\": \"Bearer token\"\n}"
     })
@@ -633,7 +651,7 @@ export function ManagementDashboard({
     setIsCreatingMcp(false)
     setMcpForm({
       name: mcp.name,
-      type: mcp.type,
+      type: normalizeMcpTransport(mcp.type),
       url: mcp.url || "",
       headers: JSON.stringify(mcp.headers || {}, null, 2)
     })
@@ -972,7 +990,7 @@ export function ManagementDashboard({
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold truncate">{mcp.name}</div>
                         <div className="text-xs text-muted-foreground/80 mt-0.5 uppercase tracking-wider font-mono">
-                          {mcp.type}
+                          {mcp.type === "streamable_http" ? "HTTP" : "SSE"}
                         </div>
                       </div>
 
@@ -1074,12 +1092,28 @@ export function ManagementDashboard({
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="mcp-type">{t.mcpType}</Label>
-                          <Input
-                            id="mcp-type"
-                            value="SSE (Server-Sent Events)"
-                            disabled
-                            className="bg-muted border-border/40 rounded-lg text-muted-foreground select-none cursor-not-allowed"
-                          />
+                          <Select
+                            value={mcpForm.type}
+                            onValueChange={value =>
+                              setMcpForm({
+                                ...mcpForm,
+                                type: normalizeMcpTransport(value)
+                              })
+                            }
+                          >
+                            <SelectTrigger
+                              id="mcp-type"
+                              className="w-full bg-background border-border/80 rounded-lg"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="streamable_http">
+                                {t.streamableHttpTransport}
+                              </SelectItem>
+                              <SelectItem value="sse">{t.sseTransport}</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 
@@ -1119,7 +1153,9 @@ export function ManagementDashboard({
                           {selectedMcp.name}
                         </h2>
                         <div className="text-xs font-mono uppercase tracking-wider bg-muted text-muted-foreground px-2 py-0.5 rounded w-max mt-2">
-                          SSE Transport
+                          {selectedMcp.type === "streamable_http"
+                            ? t.streamableHttpTransport
+                            : t.sseTransport}
                         </div>
                       </div>
                       <div className="flex gap-2">

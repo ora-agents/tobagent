@@ -1,30 +1,43 @@
-import logging
-import asyncio
+"""Utilities for loading dynamic MCP tools linked to agent profiles."""
 
-# Eagerly import MCP and networking modules to prevent importlib from executing synchronous
-# ScandirIterator call inside the active asyncio event loop when client.get_tools() is first called.
-try:
-    import httpx
-    import anyio
-    import anyio._backends._asyncio
-    import mcp
-    import mcp.client
-    import mcp.client.sse
-    import mcp.client.stdio
-    import langchain_mcp_adapters.client
-except ImportError:
-    pass
+import asyncio
+import importlib
+import logging
+from urllib.parse import urlsplit, urlunsplit
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+
 from src.utils.db import AgentProfileTable, McpServerTable, SessionLocal
+
+# Eagerly import MCP and networking modules to prevent importlib from executing synchronous
+# ScandirIterator call inside the active asyncio event loop when client.get_tools() is first called.
+for module_name in (
+    "anyio",
+    "anyio._backends._asyncio",
+    "httpx",
+    "langchain_mcp_adapters.client",
+    "mcp",
+    "mcp.client",
+    "mcp.client.sse",
+    "mcp.client.stdio",
+    "mcp.client.streamable_http",
+):
+    try:
+        importlib.import_module(module_name)
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
+
 class McpPoolManager:
+    """Load, cache, and refresh MCP tools for configured agent profiles."""
+
     # A global cache to hold fetched MCP tools.
     # Key: agent_id, Value: (tools, mcp_ids_tuple)
     _clients = {}
+    _STREAMABLE_TRANSPORTS = {"http", "streamable_http", "streamable-http"}
 
     @classmethod
     def clear_cache(cls):
@@ -59,24 +72,13 @@ class McpPoolManager:
         if not servers:
             return []
 
-        # 3. Build MultiServerMCPClient config dict
-        # MultiServerMCPClient takes a dictionary mapping server_name -> configuration
+        # 3. Build MultiServerMCPClient config dict.
+        # MultiServerMCPClient takes a dictionary mapping server_name -> configuration.
         client_config = {}
         for s in servers:
-            if s.url:
-                # ModelScope remote MCP servers utilize the Streamable HTTP protocol.
-                # Standard sse transport GET request to '/mcp' yields application/json instead of text/event-stream,
-                # causing SSEError. We dynamically switch to 'streamable_http' when ModelScope URL is detected.
-                transport = s.type or "sse"
-                if s.url and "mcp.api-inference.modelscope.net" in s.url:
-                    transport = "streamable_http"
-
-                client_config[s.name] = {
-                    "transport": transport,
-                    "url": s.url,
-                    "headers": s.headers or {},
-                }
-
+            config = cls._build_client_config(s)
+            if config:
+                client_config[s.name] = config
 
         if not client_config:
             return []
@@ -85,29 +87,141 @@ class McpPoolManager:
         try:
             logger.info(f"Creating new MultiServerMCPClient for agent {agent_id} with configs: {list(client_config.keys())}")
             
-            # Define a helper function to run both client instantiation and get_tools() 
-            # on a dedicated worker thread with an isolated event loop. This completely
+            # Run client initialization on a dedicated worker thread with an isolated
+            # event loop. This completely
             # avoids synchronous filesystem scans (ScandirIterator) and dynamic imports
             # from blocking the main ASGI server's event loop.
             def _fetch_in_thread():
-                import asyncio
-                loop = asyncio.new_event_loop()
-                try:
-                    c = MultiServerMCPClient(client_config)
-                    t = loop.run_until_complete(c.get_tools())
-                    return c, t
-                finally:
-                    loop.close()
+                async def _fetch_all_tools():
+                    all_tools = []
+                    failed_servers = []
+                    for server_name, config in client_config.items():
+                        tools, failed = await cls._get_tools_for_server(server_name, config)
+                        if failed:
+                            failed_servers.append(server_name)
+                        all_tools.extend(tools)
+                    return all_tools, failed_servers
 
-            _client, tools = await asyncio.to_thread(_fetch_in_thread)
+                return asyncio.run(_fetch_all_tools())
+
+            tools, failed_servers = await asyncio.to_thread(_fetch_in_thread)
             
-            # Cache it
-            cls._clients[agent_id] = (tools, mcp_ids_tuple)
-            logger.info(f"Successfully cached {len(tools)} MCP tools for agent {agent_id}")
+            if failed_servers:
+                logger.warning(
+                    "Skipping MCP tool cache for agent %s because these servers failed: %s",
+                    agent_id,
+                    failed_servers,
+                )
+            else:
+                # Cache successful loads, including servers that intentionally expose no tools.
+                cls._clients[agent_id] = (tools, mcp_ids_tuple)
+                logger.info(f"Successfully cached {len(tools)} MCP tools for agent {agent_id}")
             return tools
         except Exception as e:
-            logger.error(f"Failed to initialize MultiServerMCPClient for agent {agent_id}: {e}")
+            logger.exception(
+                "Failed to initialize MultiServerMCPClient for agent %s: %s",
+                agent_id,
+                cls._format_exception(e),
+            )
             return []
+
+    @classmethod
+    async def _get_tools_for_server(cls, server_name: str, config: dict) -> tuple[list[BaseTool], bool]:
+        try:
+            return await cls._fetch_tools_for_config(server_name, config), False
+        except Exception as first_error:
+            fallback_config = cls._streamable_http_retry_config(config)
+            if fallback_config:
+                logger.warning(
+                    "MCP server '%s' failed as SSE (%s): %s. Retrying as streamable_http.",
+                    server_name,
+                    cls._safe_url(config.get("url")),
+                    cls._format_exception(first_error),
+                )
+                try:
+                    return await cls._fetch_tools_for_config(server_name, fallback_config), False
+                except Exception as retry_error:
+                    logger.exception(
+                        "MCP server '%s' failed after streamable_http retry (%s). "
+                        "SSE error: %s; streamable_http error: %s",
+                        server_name,
+                        cls._safe_url(config.get("url")),
+                        cls._format_exception(first_error),
+                        cls._format_exception(retry_error),
+                    )
+                    return [], True
+
+            logger.exception(
+                "MCP server '%s' failed to initialize (transport=%s, url=%s): %s",
+                server_name,
+                config.get("transport"),
+                cls._safe_url(config.get("url")),
+                cls._format_exception(first_error),
+            )
+            return [], True
+
+    @staticmethod
+    async def _fetch_tools_for_config(server_name: str, config: dict) -> list[BaseTool]:
+        client = MultiServerMCPClient({server_name: config})
+        return await client.get_tools(server_name=server_name)
+
+    @classmethod
+    def _build_client_config(cls, server: McpServerTable) -> dict | None:
+        if not server.url:
+            return None
+
+        transport = cls._normalize_transport(server.type, server.url)
+        headers = server.headers if isinstance(server.headers, dict) else {}
+
+        return {
+            "transport": transport,
+            "url": server.url,
+            "headers": headers,
+        }
+
+    @classmethod
+    def _normalize_transport(cls, transport: str | None, url: str | None) -> str:
+        # ModelScope remote MCP servers use Streamable HTTP at /mcp. Treating them
+        # as SSE produces a content-type mismatch before tools can be listed.
+        if url and "mcp.api-inference.modelscope.net" in url:
+            return "streamable_http"
+
+        normalized = (transport or "sse").strip().lower()
+        if normalized in cls._STREAMABLE_TRANSPORTS:
+            return "streamable_http"
+        if normalized in {"sse", "websocket"}:
+            return normalized
+
+        logger.warning("Unsupported MCP transport '%s'; defaulting to SSE", transport)
+        return "sse"
+
+    @classmethod
+    def _streamable_http_retry_config(cls, config: dict) -> dict | None:
+        if config.get("transport") != "sse":
+            return None
+
+        url = config.get("url")
+        if not isinstance(url, str):
+            return None
+
+        if urlsplit(url).path.rstrip("/") != "/mcp":
+            return None
+
+        return {**config, "transport": "streamable_http"}
+
+    @staticmethod
+    def _safe_url(url: object) -> str:
+        if not isinstance(url, str):
+            return ""
+
+        parts = urlsplit(url)
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+    @classmethod
+    def _format_exception(cls, exc: BaseException) -> str:
+        if isinstance(exc, BaseExceptionGroup):
+            return "; ".join(cls._format_exception(sub_exc) for sub_exc in exc.exceptions)
+        return f"{type(exc).__name__}: {exc}"
 
     @staticmethod
     def _load_agent_mcp_ids(agent_id: str) -> list[str]:

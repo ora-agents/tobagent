@@ -260,7 +260,7 @@ class AgentProfileSchema(BaseModel):
 class McpServerSchema(BaseModel):
     id: str
     name: str
-    type: str  # "sse"
+    type: str  # "sse" or "streamable_http"
     url: str | None = None
     headers: dict[str, str] = {}
     createdAt: str
