@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Mail, Shield, Loader2, AlertCircle, Settings2, ArrowLeft } from "lucide-react"
+import { User, Mail, Shield, Loader2, AlertCircle, Settings2, ArrowLeft, MessagesSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,6 +21,7 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
   const [email, setEmail] = useState("")
   const [preferences, setPreferences] = useState("")
   const [safetyEnabled, setSafetyEnabled] = useState(false)
+  const [multiAgentEnabled, setMultiAgentEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -244,6 +245,35 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                   </div>
                 </div>
               </div>
+
+              <Button
+                type="button"
+                variant={multiAgentEnabled ? "default" : "outline"}
+                onClick={() => setMultiAgentEnabled((enabled) => !enabled)}
+                className={`w-full justify-between rounded-xl h-12 px-4 text-sm font-semibold transition-all duration-200 ${
+                  multiAgentEnabled
+                    ? "bg-primary hover:bg-primary/95 text-primary-foreground border-primary"
+                    : "bg-background/50 border-border/50 hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                }`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <MessagesSquare className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">
+                    {zh ? "多角色对话和信息沟通" : "Multi-agent Conversation & Information Exchange"}
+                  </span>
+                </span>
+                <span
+                  className={`relative inline-flex h-[22px] w-10 flex-shrink-0 overflow-hidden rounded-full transition-colors duration-200 ${
+                    multiAgentEnabled ? "bg-primary-foreground/25" : "bg-muted-foreground/25"
+                  }`}
+                >
+                  <span
+                    className={`absolute left-0 top-[2px] h-[18px] w-[18px] rounded-full bg-background shadow-sm transition-transform duration-200 ${
+                      multiAgentEnabled ? "translate-x-[20px]" : "translate-x-[2px]"
+                    }`}
+                  />
+                </span>
+              </Button>
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 pt-2">
