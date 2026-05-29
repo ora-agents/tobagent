@@ -222,6 +222,7 @@ from src.utils.db import (
     UserTable,
     get_db,
 )
+from src.utils.default_skills import ensure_default_skills
 
 # ---------------------------------------------------------------------------
 # Pydantic Schemas for persistence
@@ -585,6 +586,9 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    ensure_default_skills(db, user.id)
+    db.commit()
     
     return UserResponse(
         id=user.id,
@@ -726,6 +730,7 @@ async def get_agent_profiles(
     )
 
     ensure_default_agent_profile(db, current_user.id)
+    ensure_default_skills(db, current_user.id)
     db.commit()
 
     # Importing may call the embedding provider, so run it outside the request's
@@ -843,6 +848,9 @@ async def get_skills(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    ensure_default_skills(db, current_user.id)
+    db.commit()
+
     skills = db.query(SkillTable).filter(SkillTable.owner_user_id == current_user.id).all()
     return [_skill_schema(s) for s in skills]
 
