@@ -36,7 +36,7 @@ class McpPoolManager:
     """Load, cache, and refresh MCP tools for configured agent profiles."""
 
     # A global cache to hold fetched MCP tools.
-    # Key: agent_id, Value: (tools, mcp_ids_tuple[, failed_servers_tuple, retry_at])
+    # Key: (owner_user_id, agent_id), Value: (tools, mcp_ids_tuple[, failed_servers_tuple, retry_at])
     _clients = {}
     _STREAMABLE_TRANSPORTS = {"http", "streamable_http", "streamable-http"}
     _FAILED_SERVER_CACHE_TTL_SECONDS = 300
@@ -48,20 +48,21 @@ class McpPoolManager:
         cls._clients.clear()
 
     @classmethod
-    async def get_tools_for_agent(cls, agent_id: str) -> list[BaseTool]:
+    async def get_tools_for_agent(cls, agent_id: str, owner_user_id: str) -> list[BaseTool]:
         """Fetch and return LangChain BaseTools from all MCP servers linked to this agent."""
-        if not agent_id or agent_id == "default":
+        if not agent_id or agent_id == "default" or not owner_user_id:
             return []
 
         # 1. Fetch agent profile to get linked mcp_ids
-        mcp_ids = await asyncio.to_thread(cls._load_agent_mcp_ids, agent_id)
+        mcp_ids = await asyncio.to_thread(cls._load_agent_mcp_ids, agent_id, owner_user_id)
 
         if not mcp_ids:
             return []
 
         # Check cache: if we already have a client with the EXACT same mcp_ids, reuse it
         mcp_ids_tuple = tuple(sorted(mcp_ids))
-        cached = cls._clients.get(agent_id)
+        cache_key = (owner_user_id, agent_id)
+        cached = cls._clients.get(cache_key)
         if cached:
             cached_tools, cached_ids, *failure_state = cached
             if cached_ids == mcp_ids_tuple:
@@ -79,7 +80,7 @@ class McpPoolManager:
                     return cached_tools
 
         # 2. Query MCP server details from DB
-        servers = await asyncio.to_thread(cls._load_mcp_servers, mcp_ids)
+        servers = await asyncio.to_thread(cls._load_mcp_servers, mcp_ids, owner_user_id)
 
         if not servers:
             return []
@@ -125,7 +126,7 @@ class McpPoolManager:
                     cls._FAILED_SERVER_CACHE_TTL_SECONDS,
                     failed_servers,
                 )
-                cls._clients[agent_id] = (
+                cls._clients[cache_key] = (
                     tools,
                     mcp_ids_tuple,
                     tuple(failed_servers),
@@ -133,7 +134,7 @@ class McpPoolManager:
                 )
             else:
                 # Cache successful loads, including servers that intentionally expose no tools.
-                cls._clients[agent_id] = (tools, mcp_ids_tuple)
+                cls._clients[cache_key] = (tools, mcp_ids_tuple)
                 logger.info(f"Successfully cached {len(tools)} MCP tools for agent {agent_id}")
             return tools
         except Exception as e:
@@ -243,10 +244,13 @@ class McpPoolManager:
         return f"{type(exc).__name__}: {exc}"
 
     @staticmethod
-    def _load_agent_mcp_ids(agent_id: str) -> list[str]:
+    def _load_agent_mcp_ids(agent_id: str, owner_user_id: str) -> list[str]:
         db = SessionLocal()
         try:
-            agent_profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == agent_id).first()
+            agent_profile = db.query(AgentProfileTable).filter(
+                AgentProfileTable.id == agent_id,
+                AgentProfileTable.owner_user_id == owner_user_id,
+            ).first()
             if agent_profile and agent_profile.mcp_ids:
                 return list(agent_profile.mcp_ids or [])
         except Exception as e:
@@ -256,10 +260,13 @@ class McpPoolManager:
         return []
 
     @staticmethod
-    def _load_mcp_servers(mcp_ids: list[str]) -> list[McpServerTable]:
+    def _load_mcp_servers(mcp_ids: list[str], owner_user_id: str) -> list[McpServerTable]:
         db = SessionLocal()
         try:
-            servers = db.query(McpServerTable).filter(McpServerTable.id.in_(mcp_ids)).all()
+            servers = db.query(McpServerTable).filter(
+                McpServerTable.id.in_(mcp_ids),
+                McpServerTable.owner_user_id == owner_user_id,
+            ).all()
             return list(servers)
         except Exception as e:
             logger.error(f"Failed to query McpServerTable: {e}")

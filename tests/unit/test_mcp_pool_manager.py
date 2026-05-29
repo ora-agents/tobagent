@@ -100,14 +100,18 @@ def test_get_tools_for_agent_reuses_partial_cache_during_failed_server_cooldown(
     original_load_mcp_servers = McpPoolManager._load_mcp_servers
     original_get_tools_for_server = McpPoolManager._get_tools_for_server
     McpPoolManager.clear_cache()
-    McpPoolManager._load_agent_mcp_ids = staticmethod(lambda agent_id: ["good_id", "bad_id"])
-    McpPoolManager._load_mcp_servers = staticmethod(lambda mcp_ids: servers)
+    McpPoolManager._load_agent_mcp_ids = staticmethod(
+        lambda agent_id, owner_user_id: ["good_id", "bad_id"]
+    )
+    McpPoolManager._load_mcp_servers = staticmethod(
+        lambda mcp_ids, owner_user_id: servers
+    )
     McpPoolManager._get_tools_for_server = classmethod(
         lambda cls, server_name, config: fake_get_tools_for_server(server_name, config)
     )
     try:
-        first_tools = asyncio.run(McpPoolManager.get_tools_for_agent("agent_1"))
-        second_tools = asyncio.run(McpPoolManager.get_tools_for_agent("agent_1"))
+        first_tools = asyncio.run(McpPoolManager.get_tools_for_agent("agent_1", "user_1"))
+        second_tools = asyncio.run(McpPoolManager.get_tools_for_agent("agent_1", "user_1"))
     finally:
         McpPoolManager._load_agent_mcp_ids = original_load_agent_mcp_ids
         McpPoolManager._load_mcp_servers = original_load_mcp_servers

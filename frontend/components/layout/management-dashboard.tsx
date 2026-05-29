@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useRef } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   Wrench,
@@ -36,6 +36,7 @@ import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import { generateUUID } from "@/lib/utils"
+import { useAuth } from "@/components/providers/auth-provider"
 
 // ---------------------------------------------------------------------------
 // Skills Data Types & Storage
@@ -259,6 +260,11 @@ export function ManagementDashboard({
 }: ManagementDashboardProps) {
   const t = useT()
   const { locale } = useI18n()
+  const { user } = useAuth()
+  const authHeaders = useMemo(
+    () => user ? { Authorization: `Bearer ${user.id}` } : undefined,
+    [user],
+  )
   const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "mcp">(initialTab)
 
   // ---------------------------------------------------------------------------
@@ -323,12 +329,12 @@ export function ManagementDashboard({
   // Load local data on Mount via Backend API
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!LANGGRAPH_API_URL) return
+    if (!LANGGRAPH_API_URL || !authHeaders) return
 
     async function loadData() {
       // 1. Fetch Skills
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`)
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`, { headers: authHeaders })
         if (resp.ok) {
           const data = await resp.json()
           setSkills(data)
@@ -340,7 +346,7 @@ export function ManagementDashboard({
 
       // 2. Fetch Knowledge Bases
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`)
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, { headers: authHeaders })
         if (resp.ok) {
           const data = await resp.json()
           setKnowledgeBases(data)
@@ -352,7 +358,7 @@ export function ManagementDashboard({
 
       // 3. Fetch MCP Servers
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`)
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, { headers: authHeaders })
         if (resp.ok) {
           const data = await resp.json()
           const servers = data.map((server: McpServer) => ({
@@ -368,7 +374,7 @@ export function ManagementDashboard({
     }
 
     loadData()
-  }, [])
+  }, [authHeaders])
 
   // Sync to activeTab change from props
   useEffect(() => {
@@ -445,7 +451,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveSkill = async () => {
-    if (!LANGGRAPH_API_URL) return
+    if (!LANGGRAPH_API_URL || !authHeaders) return
 
     const { name: parsedName, description: parsedDesc } = parseSkillFrontmatter(skillForm.content)
     const now = new Date().toISOString()
@@ -461,7 +467,7 @@ export function ManagementDashboard({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(newSkill),
         })
         if (resp.ok) {
@@ -487,7 +493,7 @@ export function ManagementDashboard({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills/${selectedSkillId}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedSkill),
         })
         if (resp.ok) {
@@ -502,10 +508,11 @@ export function ManagementDashboard({
   }
 
   const handleDeleteSkill = async (id: string) => {
-    if (!LANGGRAPH_API_URL) return
+    if (!LANGGRAPH_API_URL || !authHeaders) return
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills/${id}`, {
         method: "DELETE",
+        headers: authHeaders,
       })
       if (resp.ok) {
         setSkills(prev => {
@@ -659,7 +666,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveMcp = async () => {
-    if (!mcpForm.name.trim() || !LANGGRAPH_API_URL) return
+    if (!mcpForm.name.trim() || !LANGGRAPH_API_URL || !authHeaders) return
 
     // Parse headers
     let parsedHeaders = {}
@@ -686,7 +693,7 @@ export function ManagementDashboard({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({
             ...newMcp,
             createdAt: now,
@@ -718,7 +725,7 @@ export function ManagementDashboard({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${selectedMcpId}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedMcp)
         })
         if (resp.ok) {
@@ -733,10 +740,11 @@ export function ManagementDashboard({
   }
 
   const handleDeleteMcp = async (id: string) => {
-    if (!LANGGRAPH_API_URL) return
+    if (!LANGGRAPH_API_URL || !authHeaders) return
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${id}`, {
-        method: "DELETE"
+        method: "DELETE",
+        headers: authHeaders,
       })
       if (resp.ok) {
         setMcpServers(prev => {
@@ -781,7 +789,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveKB = async () => {
-    if (!kbForm.name.trim() || !LANGGRAPH_API_URL) return
+    if (!kbForm.name.trim() || !LANGGRAPH_API_URL || !authHeaders) return
 
     const now = new Date().toISOString()
     if (isCreatingKB) {
@@ -796,7 +804,7 @@ export function ManagementDashboard({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(newKB),
         })
         if (resp.ok) {
@@ -821,7 +829,7 @@ export function ManagementDashboard({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedKB),
         })
         if (resp.ok) {
@@ -836,10 +844,11 @@ export function ManagementDashboard({
   }
 
   const handleDeleteKB = async (id: string) => {
-    if (!LANGGRAPH_API_URL) return
+    if (!LANGGRAPH_API_URL || !authHeaders) return
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${id}`, {
         method: "DELETE",
+        headers: authHeaders,
       })
       if (resp.ok) {
         setKnowledgeBases(prev => {
@@ -864,7 +873,7 @@ export function ManagementDashboard({
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedKBId || !LANGGRAPH_API_URL) return
+    if (!file || !selectedKBId || !LANGGRAPH_API_URL || !authHeaders) return
 
     setUploadingFile(true)
     const form = new FormData()
@@ -872,6 +881,7 @@ export function ManagementDashboard({
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/upload`, {
         method: "POST",
+        headers: authHeaders,
         body: form,
       })
       if (resp.ok) {
@@ -891,10 +901,11 @@ export function ManagementDashboard({
   }
 
   const handleDeleteKBFile = async (fileName: string) => {
-    if (!selectedKBId || !LANGGRAPH_API_URL) return
+    if (!selectedKBId || !LANGGRAPH_API_URL || !authHeaders) return
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/files/${encodeURIComponent(fileName)}`, {
         method: "DELETE",
+        headers: authHeaders,
       })
       if (resp.ok) {
         const data = await resp.json()

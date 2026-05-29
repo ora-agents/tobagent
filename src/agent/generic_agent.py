@@ -55,6 +55,10 @@ class GenericAgentContext(BaseModel):
         default="default",
         description="Unique agent ID; used to namespace the RAG knowledge base.",
     )
+    user_id: str = Field(
+        default="",
+        description="Authenticated account ID used to scope user-owned resources.",
+    )
     agent_ids: list[str] = Field(
         default_factory=list,
         description="List of other agent IDs linked to this agent.",

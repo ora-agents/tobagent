@@ -17,7 +17,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 import lancedb
 from langchain_core.tools import BaseTool, tool
@@ -123,7 +122,7 @@ async def get_or_create_table_async(agent_id: str) -> lancedb.AsyncTable:
 # Text cleaning
 # ---------------------------------------------------------------------------
 
-def _clean_text(t: object) -> Optional[str]:
+def _clean_text(t: object) -> str | None:
     """Sanitise a text chunk before embedding.
 
     Returns None when the chunk should be discarded (non-string, blank, or
@@ -256,9 +255,23 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
         def _get_kb_ids() -> list[str]:
             try:
                 from src.utils.db import AgentProfileTable, SessionLocal
+
+                owner_user_id = ""
+                try:
+                    from langgraph.config import get_config
+
+                    cfg = get_config()
+                    owner_user_id = cfg.get("configurable", {}).get("user_id") or ""
+                except Exception:
+                    pass
+
+                if not owner_user_id:
+                    return []
+
                 session = SessionLocal()
                 agent_profile = session.query(AgentProfileTable).filter(
-                    AgentProfileTable.id == agent_id
+                    AgentProfileTable.id == agent_id,
+                    AgentProfileTable.owner_user_id == owner_user_id,
                 ).first()
                 kb_ids = list(agent_profile.knowledge_base_ids or []) if agent_profile else []
                 session.close()

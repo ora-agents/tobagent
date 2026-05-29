@@ -5,11 +5,10 @@ import os
 import re
 import string
 from contextlib import asynccontextmanager, suppress
-from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -74,6 +73,10 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences TEXT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS safety_enabled VARCHAR(10) DEFAULT 'false'",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS wake_words JSON",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
+            "ALTER TABLE skills ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
+            "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
+            "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
         ]
 
         with engine.connect() as conn:
@@ -344,6 +347,132 @@ def verify_password(password: str, hashed_password: str) -> bool:
         return False
 
 
+def _extract_bearer_user_id(authorization: str | None) -> str:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_id = authorization.strip()
+    if user_id.lower().startswith("bearer "):
+        user_id = user_id.split(" ", 1)[1].strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if user_id == "studio-user" or user_id.startswith("lsv2_"):
+        raise HTTPException(status_code=401, detail="User login required")
+    return user_id
+
+
+def _schema_files(files: list[dict] | None) -> list[KBFileSchema]:
+    return [
+        KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"])
+        for f in files or []
+    ]
+
+
+def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
+    return AgentProfileSchema(
+        id=profile.id,
+        name=profile.name,
+        description=profile.description,
+        systemPrompt=profile.system_prompt,
+        enabledTools=profile.enabled_tools or [],
+        knowledgeBaseIds=profile.knowledge_base_ids or [],
+        skillIds=profile.skill_ids or [],
+        mcpIds=profile.mcp_ids or [],
+        agentIds=profile.agent_ids or [],
+        wakeWords=profile.wake_words or [],
+        createdAt=profile.created_at,
+        updatedAt=profile.updated_at,
+    )
+
+
+def _skill_schema(skill: SkillTable) -> SkillSchema:
+    return SkillSchema(
+        id=skill.id,
+        name=skill.name,
+        description=skill.description,
+        content=skill.content,
+        createdAt=skill.created_at,
+        updatedAt=skill.updated_at,
+    )
+
+
+def _kb_schema(kb: KnowledgeBaseTable) -> KnowledgeBaseSchema:
+    return KnowledgeBaseSchema(
+        id=kb.id,
+        name=kb.name,
+        description=kb.description,
+        files=_schema_files(kb.files),
+        createdAt=kb.created_at,
+        updatedAt=kb.updated_at,
+    )
+
+
+def _mcp_schema(server: McpServerTable) -> McpServerSchema:
+    return McpServerSchema(
+        id=server.id,
+        name=server.name,
+        type=server.type,
+        url=server.url,
+        headers=server.headers or {},
+        createdAt=server.created_at,
+        updatedAt=server.updated_at,
+    )
+
+
+async def get_current_user(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> UserTable:
+    """Require a logged-in account and return the authenticated user."""
+    user_id = _extract_bearer_user_id(authorization)
+    user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid user")
+    return user
+
+
+def _require_same_user(current_user: UserTable, user_id: str) -> None:
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Cannot access another account")
+
+
+def _require_owned_ids(
+    db: Session,
+    table,
+    ids: list[str],
+    owner_user_id: str,
+    label: str,
+) -> None:
+    unique_ids = list(dict.fromkeys(ids or []))
+    if not unique_ids:
+        return
+    count = db.query(table).filter(
+        table.id.in_(unique_ids),
+        table.owner_user_id == owner_user_id,
+    ).count()
+    if count != len(unique_ids):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{label} contains resources that do not belong to the current user",
+        )
+
+
+def _validate_agent_profile_links(
+    db: Session,
+    profile_data: AgentProfileSchema,
+    owner_user_id: str,
+    current_profile_id: str | None = None,
+) -> None:
+    _require_owned_ids(db, KnowledgeBaseTable, profile_data.knowledgeBaseIds, owner_user_id, "knowledgeBaseIds")
+    _require_owned_ids(db, SkillTable, profile_data.skillIds, owner_user_id, "skillIds")
+    _require_owned_ids(db, McpServerTable, profile_data.mcpIds, owner_user_id, "mcpIds")
+
+    agent_ids = list(profile_data.agentIds or [])
+    if current_profile_id:
+        agent_ids = [agent_id for agent_id in agent_ids if agent_id != current_profile_id]
+    _require_owned_ids(db, AgentProfileTable, agent_ids, owner_user_id, "agentIds")
+
+
 @app.post("/api/auth/register", response_model=UserResponse)
 async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
     # Check if username already exists
@@ -397,7 +526,12 @@ async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
 
 
 @app.get("/api/auth/users/{user_id}", response_model=UserResponse)
-async def get_user_profile(user_id: str, db: Session = Depends(get_db)):
+async def get_user_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    _require_same_user(current_user, user_id)
     user = db.query(UserTable).filter(UserTable.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -413,20 +547,19 @@ async def get_user_profile(user_id: str, db: Session = Depends(get_db)):
 
 
 @app.put("/api/auth/users/{user_id}", response_model=UserResponse)
-async def update_user_profile(user_id: str, req: UserUpdateRequest, db: Session = Depends(get_db)):
+async def update_user_profile(
+    user_id: str,
+    req: UserUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    _require_same_user(current_user, user_id)
     user = db.query(UserTable).filter(UserTable.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Check username uniqueness if changing
     if req.username is not None and req.username != user.username:
-        existing = db.query(UserTable).filter(
-            UserTable.username == req.username,
-            UserTable.id != user_id,
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Username already exists")
-        user.username = req.username
+        raise HTTPException(status_code=400, detail="Username cannot be changed")
 
     if req.email is not None:
         user.email = req.email
@@ -453,7 +586,7 @@ async def update_user_profile(user_id: str, req: UserUpdateRequest, db: Session 
 # Client Profile CRUD
 # ---------------------------------------------------------------------------
 
-@app.get("/api/client-profiles/{id}", response_model=Optional[ClientProfileSchema])
+@app.get("/api/client-profiles/{id}", response_model=ClientProfileSchema | None)
 async def get_client_profile(id: str, db: Session = Depends(get_db)):
     profile = db.query(ClientProfileTable).filter(ClientProfileTable.id == id).first()
     if not profile:
@@ -494,36 +627,31 @@ async def upsert_client_profile(profile_data: ClientProfileSchema, db: Session =
 # ---------------------------------------------------------------------------
 
 @app.get("/api/agent-profiles", response_model=list[AgentProfileSchema])
-async def get_agent_profiles(db: Session = Depends(get_db)):
-    profiles = db.query(AgentProfileTable).all()
-    return [
-        AgentProfileSchema(
-            id=p.id,
-            name=p.name,
-            description=p.description,
-            systemPrompt=p.system_prompt,
-            enabledTools=p.enabled_tools or [],
-            knowledgeBaseIds=p.knowledge_base_ids or [],
-            skillIds=p.skill_ids or [],
-            mcpIds=p.mcp_ids or [],
-            agentIds=p.agent_ids or [],
-            wakeWords=p.wake_words or [],
-            createdAt=p.created_at,
-            updatedAt=p.updated_at,
-        )
-        for p in profiles
-    ]
+async def get_agent_profiles(
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    profiles = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == current_user.id
+    ).all()
+    return [_agent_profile_schema(p) for p in profiles]
 
 
 @app.post("/api/agent-profiles", response_model=AgentProfileSchema)
-async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = Depends(get_db)):
+async def create_agent_profile(
+    profile_data: AgentProfileSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
     # Check duplicate
     existing = db.query(AgentProfileTable).filter(AgentProfileTable.id == profile_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Agent profile already exists")
+    _validate_agent_profile_links(db, profile_data, current_user.id, profile_data.id)
     
     new_profile = AgentProfileTable(
         id=profile_data.id,
+        owner_user_id=current_user.id,
         name=profile_data.name,
         description=profile_data.description,
         system_prompt=profile_data.systemPrompt,
@@ -539,27 +667,23 @@ async def create_agent_profile(profile_data: AgentProfileSchema, db: Session = D
     db.add(new_profile)
     db.commit()
     db.refresh(new_profile)
-    return AgentProfileSchema(
-        id=new_profile.id,
-        name=new_profile.name,
-        description=new_profile.description,
-        systemPrompt=new_profile.system_prompt,
-        enabledTools=new_profile.enabled_tools or [],
-        knowledgeBaseIds=new_profile.knowledge_base_ids or [],
-        skillIds=new_profile.skill_ids or [],
-        mcpIds=new_profile.mcp_ids or [],
-        agentIds=new_profile.agent_ids or [],
-        wakeWords=new_profile.wake_words or [],
-        createdAt=new_profile.created_at,
-        updatedAt=new_profile.updated_at,
-    )
+    return _agent_profile_schema(new_profile)
 
 
 @app.put("/api/agent-profiles/{id}", response_model=AgentProfileSchema)
-async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Session = Depends(get_db)):
-    profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == id).first()
+async def update_agent_profile(
+    id: str,
+    profile_data: AgentProfileSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
+    _validate_agent_profile_links(db, profile_data, current_user.id, id)
 
     profile.name = profile_data.name
     profile.description = profile_data.description
@@ -574,25 +698,19 @@ async def update_agent_profile(id: str, profile_data: AgentProfileSchema, db: Se
     
     db.commit()
     db.refresh(profile)
-    return AgentProfileSchema(
-        id=profile.id,
-        name=profile.name,
-        description=profile.description,
-        systemPrompt=profile.system_prompt,
-        enabledTools=profile.enabled_tools or [],
-        knowledgeBaseIds=profile.knowledge_base_ids or [],
-        skillIds=profile.skill_ids or [],
-        mcpIds=profile.mcp_ids or [],
-        agentIds=profile.agent_ids or [],
-        wakeWords=profile.wake_words or [],
-        createdAt=profile.created_at,
-        updatedAt=profile.updated_at,
-    )
+    return _agent_profile_schema(profile)
 
 
 @app.delete("/api/agent-profiles/{id}")
-async def delete_agent_profile(id: str, db: Session = Depends(get_db)):
-    profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == id).first()
+async def delete_agent_profile(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
     db.delete(profile)
@@ -605,29 +723,27 @@ async def delete_agent_profile(id: str, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @app.get("/api/skills", response_model=list[SkillSchema])
-async def get_skills(db: Session = Depends(get_db)):
-    skills = db.query(SkillTable).all()
-    return [
-        SkillSchema(
-            id=s.id,
-            name=s.name,
-            description=s.description,
-            content=s.content,
-            createdAt=s.created_at,
-            updatedAt=s.updated_at,
-        )
-        for s in skills
-    ]
+async def get_skills(
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    skills = db.query(SkillTable).filter(SkillTable.owner_user_id == current_user.id).all()
+    return [_skill_schema(s) for s in skills]
 
 
 @app.post("/api/skills", response_model=SkillSchema)
-async def create_skill(skill_data: SkillSchema, db: Session = Depends(get_db)):
+async def create_skill(
+    skill_data: SkillSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
     existing = db.query(SkillTable).filter(SkillTable.id == skill_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Skill already exists")
     
     new_skill = SkillTable(
         id=skill_data.id,
+        owner_user_id=current_user.id,
         name=skill_data.name,
         description=skill_data.description,
         content=skill_data.content,
@@ -637,19 +753,20 @@ async def create_skill(skill_data: SkillSchema, db: Session = Depends(get_db)):
     db.add(new_skill)
     db.commit()
     db.refresh(new_skill)
-    return SkillSchema(
-        id=new_skill.id,
-        name=new_skill.name,
-        description=new_skill.description,
-        content=new_skill.content,
-        createdAt=new_skill.created_at,
-        updatedAt=new_skill.updated_at,
-    )
+    return _skill_schema(new_skill)
 
 
 @app.put("/api/skills/{id}", response_model=SkillSchema)
-async def update_skill(id: str, skill_data: SkillSchema, db: Session = Depends(get_db)):
-    skill = db.query(SkillTable).filter(SkillTable.id == id).first()
+async def update_skill(
+    id: str,
+    skill_data: SkillSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    skill = db.query(SkillTable).filter(
+        SkillTable.id == id,
+        SkillTable.owner_user_id == current_user.id,
+    ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
     
@@ -660,19 +777,19 @@ async def update_skill(id: str, skill_data: SkillSchema, db: Session = Depends(g
     
     db.commit()
     db.refresh(skill)
-    return SkillSchema(
-        id=skill.id,
-        name=skill.name,
-        description=skill.description,
-        content=skill.content,
-        createdAt=skill.created_at,
-        updatedAt=skill.updated_at,
-    )
+    return _skill_schema(skill)
 
 
 @app.delete("/api/skills/{id}")
-async def delete_skill(id: str, db: Session = Depends(get_db)):
-    skill = db.query(SkillTable).filter(SkillTable.id == id).first()
+async def delete_skill(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    skill = db.query(SkillTable).filter(
+        SkillTable.id == id,
+        SkillTable.owner_user_id == current_user.id,
+    ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
     db.delete(skill)
@@ -685,23 +802,22 @@ async def delete_skill(id: str, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @app.get("/api/knowledge-bases", response_model=list[KnowledgeBaseSchema])
-async def get_knowledge_bases(db: Session = Depends(get_db)):
-    kbs = db.query(KnowledgeBaseTable).all()
-    return [
-        KnowledgeBaseSchema(
-            id=k.id,
-            name=k.name,
-            description=k.description,
-            files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in k.files or []],
-            createdAt=k.created_at,
-            updatedAt=k.updated_at,
-        )
-        for k in kbs
-    ]
+async def get_knowledge_bases(
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    kbs = db.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.owner_user_id == current_user.id
+    ).all()
+    return [_kb_schema(k) for k in kbs]
 
 
 @app.post("/api/knowledge-bases", response_model=KnowledgeBaseSchema)
-async def create_knowledge_base(kb_data: KnowledgeBaseSchema, db: Session = Depends(get_db)):
+async def create_knowledge_base(
+    kb_data: KnowledgeBaseSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
     existing = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Knowledge Base already exists")
@@ -710,6 +826,7 @@ async def create_knowledge_base(kb_data: KnowledgeBaseSchema, db: Session = Depe
     db_files = [{"name": f.name, "size": f.size, "uploadedAt": f.uploadedAt} for f in kb_data.files]
     new_kb = KnowledgeBaseTable(
         id=kb_data.id,
+        owner_user_id=current_user.id,
         name=kb_data.name,
         description=kb_data.description,
         files=db_files,
@@ -719,19 +836,20 @@ async def create_knowledge_base(kb_data: KnowledgeBaseSchema, db: Session = Depe
     db.add(new_kb)
     db.commit()
     db.refresh(new_kb)
-    return KnowledgeBaseSchema(
-        id=new_kb.id,
-        name=new_kb.name,
-        description=new_kb.description,
-        files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in new_kb.files or []],
-        createdAt=new_kb.created_at,
-        updatedAt=new_kb.updated_at,
-    )
+    return _kb_schema(new_kb)
 
 
 @app.put("/api/knowledge-bases/{id}", response_model=KnowledgeBaseSchema)
-async def update_knowledge_base(id: str, kb_data: KnowledgeBaseSchema, db: Session = Depends(get_db)):
-    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == id).first()
+async def update_knowledge_base(
+    id: str,
+    kb_data: KnowledgeBaseSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    kb = db.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.id == id,
+        KnowledgeBaseTable.owner_user_id == current_user.id,
+    ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
     
@@ -743,19 +861,19 @@ async def update_knowledge_base(id: str, kb_data: KnowledgeBaseSchema, db: Sessi
     
     db.commit()
     db.refresh(kb)
-    return KnowledgeBaseSchema(
-        id=kb.id,
-        name=kb.name,
-        description=kb.description,
-        files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in kb.files or []],
-        createdAt=kb.created_at,
-        updatedAt=kb.updated_at,
-    )
+    return _kb_schema(kb)
 
 
 @app.delete("/api/knowledge-bases/{id}")
-async def delete_knowledge_base(id: str, db: Session = Depends(get_db)):
-    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == id).first()
+async def delete_knowledge_base(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    kb = db.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.id == id,
+        KnowledgeBaseTable.owner_user_id == current_user.id,
+    ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
     
@@ -852,13 +970,17 @@ async def upload_kb_document(
     chunk_size: int = Form(default=512),
     chunk_overlap: int = Form(default=64),
     db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
 ):
     """Upload document directly to a shared knowledge base (RAG).
     
     Extracts text, splits into chunks, embeds and saves to LanceDB.
     Also records file metadata under the KB in PostgreSQL.
     """
-    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_id).first()
+    kb = db.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.id == kb_id,
+        KnowledgeBaseTable.owner_user_id == current_user.id,
+    ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
 
@@ -919,7 +1041,7 @@ async def upload_kb_document(
                 id=kb.id,
                 name=kb.name,
                 description=kb.description,
-                files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in kb.files or []],
+                files=_schema_files(kb.files),
                 createdAt=kb.created_at,
                 updatedAt=kb.updated_at,
             )
@@ -936,13 +1058,17 @@ async def upload_kb_document(
 async def delete_kb_file(
     kb_id: str,
     filename: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
 ):
     """Delete a file from the Knowledge Base.
     
     Removes vector data from LanceDB and deletes metadata from PostgreSQL.
     """
-    kb = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_id).first()
+    kb = db.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.id == kb_id,
+        KnowledgeBaseTable.owner_user_id == current_user.id,
+    ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
 
@@ -971,7 +1097,7 @@ async def delete_kb_file(
                 id=kb.id,
                 name=kb.name,
                 description=kb.description,
-                files=[KBFileSchema(name=f["name"], size=f["size"], uploadedAt=f["uploadedAt"]) for f in kb.files or []],
+                files=_schema_files(kb.files),
                 createdAt=kb.created_at,
                 updatedAt=kb.updated_at,
             )
@@ -991,12 +1117,21 @@ async def upload_document(
     file: UploadFile = File(...),
     chunk_size: int = Form(default=512),
     chunk_overlap: int = Form(default=64),
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
 ):
     """Upload a document to the agent's RAG knowledge base.
 
     Accepts plain text, markdown, and PDF files.
     Splits into chunks, embeds, and stores in LanceDB.
     """
+    agent_profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == agent_id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
+    if not agent_profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+
     try:
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -1029,9 +1164,20 @@ async def upload_document(
 
 
 @app.get("/agents/{agent_id}/rag-status", response_model=AgentRAGStatusResponse)
-async def rag_status(agent_id: str):
+async def rag_status(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
     """Return the number of documents in the agent's RAG knowledge base."""
     import asyncio
+
+    agent_profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == agent_id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
+    if not agent_profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
 
     def _get_count() -> int:
         from src.tools.rag_tool import _get_db, _table_name
@@ -1056,24 +1202,22 @@ async def rag_status(agent_id: str):
 # ---------------------------------------------------------------------------
 
 @app.get("/api/mcp-servers", response_model=list[McpServerSchema])
-async def get_mcp_servers(db: Session = Depends(get_db)):
-    servers = db.query(McpServerTable).all()
-    return [
-        McpServerSchema(
-            id=s.id,
-            name=s.name,
-            type=s.type,
-            url=s.url,
-            headers=s.headers or {},
-            createdAt=s.created_at,
-            updatedAt=s.updated_at,
-        )
-        for s in servers
-    ]
+async def get_mcp_servers(
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    servers = db.query(McpServerTable).filter(
+        McpServerTable.owner_user_id == current_user.id
+    ).all()
+    return [_mcp_schema(s) for s in servers]
 
 
 @app.post("/api/mcp-servers", response_model=McpServerSchema)
-async def create_mcp_server(server_data: McpServerSchema, db: Session = Depends(get_db)):
+async def create_mcp_server(
+    server_data: McpServerSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
     # Check duplicate
     existing = db.query(McpServerTable).filter(McpServerTable.id == server_data.id).first()
     if existing:
@@ -1081,6 +1225,7 @@ async def create_mcp_server(server_data: McpServerSchema, db: Session = Depends(
     
     new_server = McpServerTable(
         id=server_data.id,
+        owner_user_id=current_user.id,
         name=server_data.name,
         type=server_data.type,
         url=server_data.url,
@@ -1099,20 +1244,20 @@ async def create_mcp_server(server_data: McpServerSchema, db: Session = Depends(
     except Exception:
         pass
         
-    return McpServerSchema(
-        id=new_server.id,
-        name=new_server.name,
-        type=new_server.type,
-        url=new_server.url,
-        headers=new_server.headers or {},
-        createdAt=new_server.created_at,
-        updatedAt=new_server.updated_at,
-    )
+    return _mcp_schema(new_server)
 
 
 @app.put("/api/mcp-servers/{id}", response_model=McpServerSchema)
-async def update_mcp_server(id: str, server_data: McpServerSchema, db: Session = Depends(get_db)):
-    server = db.query(McpServerTable).filter(McpServerTable.id == id).first()
+async def update_mcp_server(
+    id: str,
+    server_data: McpServerSchema,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    server = db.query(McpServerTable).filter(
+        McpServerTable.id == id,
+        McpServerTable.owner_user_id == current_user.id,
+    ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
     
@@ -1132,20 +1277,19 @@ async def update_mcp_server(id: str, server_data: McpServerSchema, db: Session =
     except Exception:
         pass
 
-    return McpServerSchema(
-        id=server.id,
-        name=server.name,
-        type=server.type,
-        url=server.url,
-        headers=server.headers or {},
-        createdAt=server.created_at,
-        updatedAt=server.updated_at,
-    )
+    return _mcp_schema(server)
 
 
 @app.delete("/api/mcp-servers/{id}")
-async def delete_mcp_server(id: str, db: Session = Depends(get_db)):
-    server = db.query(McpServerTable).filter(McpServerTable.id == id).first()
+async def delete_mcp_server(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    server = db.query(McpServerTable).filter(
+        McpServerTable.id == id,
+        McpServerTable.owner_user_id == current_user.id,
+    ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
     

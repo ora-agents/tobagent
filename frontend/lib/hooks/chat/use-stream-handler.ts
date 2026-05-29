@@ -286,7 +286,7 @@ export function useStreamHandler({
       }
 
       // Build configurable dict
-      const configurableBase: Record<string, unknown> = { model }
+      const configurableBase: Record<string, unknown> = { model, user_id: userId }
       if (isCustomProfile && agentProfile) {
         configurableBase.agent_id = agentProfile.id
       } else if (repos.length > 0) {

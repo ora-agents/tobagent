@@ -70,6 +70,7 @@ class AgentProfileTable(Base):
     __tablename__ = "agent_profiles"
 
     id = Column(String(255), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
@@ -94,6 +95,7 @@ class SkillTable(Base):
     __tablename__ = "skills"
 
     id = Column(String(255), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     content = Column(Text, nullable=False)
@@ -106,6 +108,7 @@ class McpServerTable(Base):
     __tablename__ = "mcp_servers"
 
     id = Column(String(255), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     type = Column(String(50), nullable=False)  # e.g. "sse" or "streamable_http"
     url = Column(String(2048), nullable=True)
@@ -120,6 +123,7 @@ class KnowledgeBaseTable(Base):
     __tablename__ = "knowledge_bases"
 
     id = Column(String(255), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     # files is a JSON list storing files uploaded to this KB,

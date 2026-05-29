@@ -1,6 +1,5 @@
-import logging
 import asyncio
-from typing import Type
+import logging
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
@@ -27,23 +26,29 @@ class ReadSkillTool(BaseTool):
         "or list all available skills in the database. Use this to understand how to perform complex tasks "
         "or follow specific workflows defined in the skills."
     )
-    args_schema: Type[BaseModel] = ReadSkillInput
+    args_schema: type[BaseModel] = ReadSkillInput
 
     def _run(self, skill_name: str = "", **kwargs) -> str:
         db = SessionLocal()
         try:
             # 1. Try to get agent_id from ToolRuntime context
             agent_id = None
+            owner_user_id = None
             try:
                 from langgraph.config import get_config
                 cfg = get_config()
-                agent_id = cfg.get("configurable", {}).get("agent_id")
+                configurable = cfg.get("configurable", {})
+                agent_id = configurable.get("agent_id")
+                owner_user_id = configurable.get("user_id")
             except Exception:
                 pass
 
             allowed_skill_ids = None
-            if agent_id and agent_id != "default":
-                agent_profile = db.query(AgentProfileTable).filter(AgentProfileTable.id == agent_id).first()
+            if agent_id and agent_id != "default" and owner_user_id:
+                agent_profile = db.query(AgentProfileTable).filter(
+                    AgentProfileTable.id == agent_id,
+                    AgentProfileTable.owner_user_id == owner_user_id,
+                ).first()
                 if agent_profile:
                     allowed_skill_ids = agent_profile.skill_ids or []
 
@@ -55,6 +60,8 @@ class ReadSkillTool(BaseTool):
             if not skill_name:
                 # List skills
                 query = db.query(SkillTable)
+                if owner_user_id:
+                    query = query.filter(SkillTable.owner_user_id == owner_user_id)
                 if allowed_skill_ids is not None:
                     query = query.filter(SkillTable.id.in_(allowed_skill_ids))
                 skills = query.all()
@@ -71,6 +78,8 @@ class ReadSkillTool(BaseTool):
             query = db.query(SkillTable).filter(
                 (SkillTable.name.ilike(f"%{skill_name}%")) | (SkillTable.id == skill_name)
             )
+            if owner_user_id:
+                query = query.filter(SkillTable.owner_user_id == owner_user_id)
             if allowed_skill_ids is not None:
                 query = query.filter(SkillTable.id.in_(allowed_skill_ids))
             

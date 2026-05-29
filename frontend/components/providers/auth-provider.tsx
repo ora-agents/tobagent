@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { LANGGRAPH_API_URL } from '@/lib/constants/api'
-import { generateUUID } from '@/lib/utils'
 
 // ============================================================================
 // Types & Interfaces
@@ -20,7 +19,7 @@ export interface User {
 
 interface AuthContextType {
   user: User | null
-  userId: string | null // Either user.id or anonymous uuid
+  userId: string | null
   loading: boolean
   error: string | null
   login: (username: string, password: string) => Promise<void>
@@ -49,28 +48,15 @@ export function useAuth() {
 // ============================================================================
 
 const USER_SESSION_KEY = 'chat-langchain-auth-user'
-const ANONYMOUS_ID_KEY = 'langgraph-user-id'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [anonymousId, setAnonymousId] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  // 1. Initialize user session and anonymous ID from localStorage
+  // 1. Initialize user session from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return
-
-    // Load or generate anonymous ID
-    let anonId = localStorage.getItem(ANONYMOUS_ID_KEY)
-    if (!anonId) {
-      anonId = `user-${generateUUID()}`
-      localStorage.setItem(ANONYMOUS_ID_KEY, anonId)
-      console.info('[Auth] Generated anonymous user ID:', anonId)
-    } else {
-      console.info('[Auth] Loaded existing anonymous user ID:', anonId)
-    }
-    setAnonymousId(anonId)
 
     // Load registered user session if exists
     const savedUser = localStorage.getItem(USER_SESSION_KEY)
@@ -166,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info('[Auth] Updating profile:', user.id, data)
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
         body: JSON.stringify(data),
       })
 
@@ -195,8 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user])
 
-  // Compute final userId
-  const userId = user ? user.id : anonymousId
+  // Compute final userId. Anonymous access is intentionally disabled.
+  const userId = user ? user.id : null
 
   const contextValue: AuthContextType = {
     user,

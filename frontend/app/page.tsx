@@ -9,6 +9,8 @@ import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-
 import { AgentProfilesDialog } from "@/components/layout/agent-profiles-dialog"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
+import { AuthDialog } from "@/components/layout/auth-dialog"
+import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
 import { resolveClientProfile } from "@/lib/config/client-config"
@@ -42,6 +44,7 @@ function DashboardFallback() {
 
 function DashboardContent() {
   const t = useT()
+  const { user, loading: authLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings">("chat")
   const [showToolCalls, setShowToolCalls] = useState(false)
@@ -394,6 +397,18 @@ function DashboardContent() {
       handler: handleCycleModel,
     },
   ])
+
+  if (authLoading) {
+    return <DashboardFallback />
+  }
+
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <AuthDialog open={true} onOpenChange={() => {}} />
+      </div>
+    )
+  }
 
   return (
     <>

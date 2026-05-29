@@ -53,15 +53,9 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
     e.preventDefault()
     setError(null)
 
-    if (!username.trim()) {
-      setError(zh ? "用户名不能为空" : "Username cannot be empty")
-      return
-    }
-
     setLoading(true)
     try {
       const payload = {
-        username: username.trim(),
         email: email.trim() || null,
         preferences: preferences.trim() || null,
         safetyEnabled,
@@ -150,8 +144,8 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                       type="text"
                       placeholder={zh ? "输入用户名" : "Enter username"}
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      disabled={loading}
+                      readOnly
+                      disabled
                       className="pl-9 bg-background/50 border-border/40 focus:border-primary/60 focus:bg-background/90 rounded-lg h-10 text-sm"
                       required
                     />

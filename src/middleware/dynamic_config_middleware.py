@@ -7,7 +7,8 @@ import asyncio
 import logging
 import re
 import traceback
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
 from langchain_core.messages import SystemMessage, ToolMessage
@@ -51,6 +52,7 @@ def _make_subagent_tool(
     agent_data: dict,
     tool_name: str,
     parent_model: str,
+    owner_user_id: str,
     parent_state_messages: list | None = None,
 ) -> BaseTool:
     """Create a dynamic ``call_agent_*`` tool that delegates to a subagent.
@@ -103,6 +105,7 @@ def _make_subagent_tool(
             "system_prompt": _system_prompt,
             "enabled_tools": _enabled_tools,
             "agent_id": _id,
+            "user_id": owner_user_id,
             "agent_ids": _agent_ids,
             "model": parent_model,
         }
@@ -153,6 +156,7 @@ def _context_field_was_set(ctx: Any, field_name: str) -> bool:
 
 def _load_agent_runtime_resources(
     agent_id: str,
+    owner_user_id: str,
     agent_ids_override: list[str] | None = None,
 ) -> dict[str, Any]:
     """Load agent-linked skills and subagents in a worker thread."""
@@ -160,7 +164,8 @@ def _load_agent_runtime_resources(
     try:
         db = SessionLocal()
         agent_profile = db.query(AgentProfileTable).filter(
-            AgentProfileTable.id == agent_id
+            AgentProfileTable.id == agent_id,
+            AgentProfileTable.owner_user_id == owner_user_id,
         ).first()
 
         if not agent_profile:
@@ -177,7 +182,8 @@ def _load_agent_runtime_resources(
         skill_rows = []
         if agent_profile.skill_ids:
             skill_rows = db.query(SkillTable).filter(
-                SkillTable.id.in_(agent_profile.skill_ids)
+                SkillTable.id.in_(agent_profile.skill_ids),
+                SkillTable.owner_user_id == owner_user_id,
             ).all()
 
         skills = [
@@ -196,7 +202,8 @@ def _load_agent_runtime_resources(
         linked_agent_rows = []
         if linked_ids:
             linked_agent_rows = db.query(AgentProfileTable).filter(
-                AgentProfileTable.id.in_(linked_ids)
+                AgentProfileTable.id.in_(linked_ids),
+                AgentProfileTable.owner_user_id == owner_user_id,
             ).all()
 
         return {
@@ -211,20 +218,22 @@ def _load_agent_runtime_resources(
             db.close()
 
 
-def _load_linked_agent_data(agent_id: str) -> list[dict[str, Any]]:
+def _load_linked_agent_data(agent_id: str, owner_user_id: str) -> list[dict[str, Any]]:
     """Load linked subagent data for cold-start dynamic tool execution."""
     db = None
     try:
         db = SessionLocal()
         agent_profile = db.query(AgentProfileTable).filter(
-            AgentProfileTable.id == agent_id
+            AgentProfileTable.id == agent_id,
+            AgentProfileTable.owner_user_id == owner_user_id,
         ).first()
 
         if not agent_profile or not agent_profile.agent_ids:
             return []
 
         linked_agents = db.query(AgentProfileTable).filter(
-            AgentProfileTable.id.in_(agent_profile.agent_ids)
+            AgentProfileTable.id.in_(agent_profile.agent_ids),
+            AgentProfileTable.owner_user_id == owner_user_id,
         ).all()
         return [_extract_agent_data(a) for a in linked_agents]
     finally:
@@ -255,10 +264,11 @@ class DynamicConfigMiddleware(AgentMiddleware):
         # Dynamic system prompt
         system_prompt = getattr(ctx, "system_prompt", "")
         agent_id = getattr(ctx, "agent_id", None)
+        owner_user_id = getattr(ctx, "user_id", "") or ""
         enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
 
-        if agent_id and agent_id != "default":
+        if agent_id and agent_id != "default" and owner_user_id:
             try:
                 agent_ids_override = None
                 if _context_field_was_set(ctx, "agent_ids"):
@@ -267,6 +277,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 resources = await asyncio.to_thread(
                     _load_agent_runtime_resources,
                     agent_id,
+                    owner_user_id,
                     agent_ids_override,
                 )
                 if resources["found"]:
@@ -334,6 +345,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                                     agent_data=agent_data,
                                     tool_name=tool_name,
                                     parent_model=parent_model,
+                                    owner_user_id=owner_user_id,
                                     parent_state_messages=parent_messages,
                                 )
                                 linked_agent_tools.append(dynamic_tool)
@@ -410,9 +422,9 @@ class DynamicConfigMiddleware(AgentMiddleware):
             filtered.extend(linked_agent_tools)
 
         # Dynamic MCP tools injection.
-        if agent_id and agent_id != "default":
+        if agent_id and agent_id != "default" and owner_user_id:
             try:
-                mcp_tools = await McpPoolManager.get_tools_for_agent(agent_id)
+                mcp_tools = await McpPoolManager.get_tools_for_agent(agent_id, owner_user_id)
                 if mcp_tools:
                     filtered.extend(mcp_tools)
             except Exception as e:
@@ -446,9 +458,10 @@ class DynamicConfigMiddleware(AgentMiddleware):
         """Intercept and execute dynamically created subagent tools."""
         ctx = request.runtime.context if request.runtime else None
         agent_id = getattr(ctx, "agent_id", None)
+        owner_user_id = getattr(ctx, "user_id", "") or ""
         tool_name = request.tool_call.get("name", "")
 
-        if agent_id and agent_id != "default" and tool_name.startswith("call_agent_"):
+        if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("call_agent_"):
             # Fast path: reuse cached tool from awrap_model_call.
             cached_tools = self._tools_cache.get(agent_id, {})
             if tool_name in cached_tools:
@@ -464,7 +477,11 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 tool_name,
             )
             try:
-                linked_agents_data = await asyncio.to_thread(_load_linked_agent_data, agent_id)
+                linked_agents_data = await asyncio.to_thread(
+                    _load_linked_agent_data,
+                    agent_id,
+                    owner_user_id,
+                )
                 if linked_agents_data:
                     parent_model = getattr(ctx, "model", "") or ""
                     parent_messages = list(request.state.get("messages", []))
@@ -478,6 +495,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                             agent_data=agent_data,
                             tool_name=expected_name,
                             parent_model=parent_model,
+                            owner_user_id=owner_user_id,
                             parent_state_messages=parent_messages,
                         )
                         tools_for_agent[expected_name] = dynamic_tool

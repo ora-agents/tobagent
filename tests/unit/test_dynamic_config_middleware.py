@@ -30,6 +30,7 @@ async def test_dynamic_config_middleware_injects_skill_summary():
     mock_ctx = MagicMock()
     mock_ctx.system_prompt = "You are a helpful assistant."
     mock_ctx.agent_id = "agent_123"
+    mock_ctx.user_id = "user_123"
     mock_ctx.enabled_tools = ["rag_search"]
     mock_ctx.model = None
     mock_ctx.user_preferences = ""
@@ -87,6 +88,7 @@ async def test_dynamic_config_middleware_loads_profile_defaults_from_agent_id():
 
     mock_ctx = SimpleNamespace(
         agent_id="agent_123",
+        user_id="user_123",
         system_prompt="Runtime default prompt",
         enabled_tools=["websearch"],
         model=None,
@@ -131,6 +133,7 @@ async def test_dynamic_config_middleware_request_config_overrides_profile_defaul
 
     mock_ctx = SimpleNamespace(
         agent_id="agent_123",
+        user_id="user_123",
         system_prompt="Request prompt",
         enabled_tools=["websearch"],
         model=None,

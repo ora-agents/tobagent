@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { Bot, Plus, Pencil, Trash2, Check, X, Upload, ChevronLeft, Wrench, BookOpen, Zap, Cpu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,7 @@ import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import type { KnowledgeBase, Skill, McpServer } from "./management-dashboard"
 import { useT, useI18n } from "@/lib/i18n"
+import { useAuth } from "@/components/providers/auth-provider"
 
 // ---------------------------------------------------------------------------
 // Form state for creating / editing a profile
@@ -133,13 +134,14 @@ function WakeWordsEditor({
 
 function RagUploadButton({ agentId }: { agentId: string }) {
   const t = useT()
+  const { user } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<string | null>(null)
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !LANGGRAPH_API_URL) return
+    if (!file || !LANGGRAPH_API_URL || !user) return
 
     setUploading(true)
     setResult(null)
@@ -148,6 +150,7 @@ function RagUploadButton({ agentId }: { agentId: string }) {
       form.append("file", file)
       const resp = await fetch(`${LANGGRAPH_API_URL}/agents/${agentId}/upload`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${user.id}` },
         body: form,
       })
       if (!resp.ok) {
@@ -507,6 +510,11 @@ export function AgentProfilesDialog({
 }: AgentProfilesDialogProps) {
   const t = useT()
   const { locale } = useI18n()
+  const { user } = useAuth()
+  const authHeaders = useMemo(
+    () => user ? { Authorization: `Bearer ${user.id}` } : undefined,
+    [user],
+  )
   const [view, setView] = useState<View>({ kind: "list" })
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>(initialKnowledgeBases)
@@ -515,23 +523,23 @@ export function AgentProfilesDialog({
 
   // Auto-fetch shared KBs, skills, and MCPs when dialog is opened
   useEffect(() => {
-    if (open && LANGGRAPH_API_URL) {
-      fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`)
+    if (open && LANGGRAPH_API_URL && authHeaders) {
+      fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, { headers: authHeaders })
         .then(res => res.ok ? res.json() : [])
         .then(data => setKnowledgeBases(data))
         .catch(err => console.error("Failed to fetch KBs in AgentProfilesDialog", err))
 
-      fetch(`${LANGGRAPH_API_URL}/api/skills`)
+      fetch(`${LANGGRAPH_API_URL}/api/skills`, { headers: authHeaders })
         .then(res => res.ok ? res.json() : [])
         .then(data => setSkills(data))
         .catch(err => console.error("Failed to fetch Skills in AgentProfilesDialog", err))
 
-      fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`)
+      fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, { headers: authHeaders })
         .then(res => res.ok ? res.json() : [])
         .then(data => setMcpServers(data))
         .catch(err => console.error("Failed to fetch MCPs in AgentProfilesDialog", err))
     }
-  }, [open])
+  }, [open, authHeaders])
 
   const handleCreate = useCallback((data: FormState) => {
     const res = onCreate({
