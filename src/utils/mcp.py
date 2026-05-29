@@ -3,6 +3,7 @@
 import asyncio
 import importlib
 import logging
+from time import monotonic
 from urllib.parse import urlsplit, urlunsplit
 
 from langchain_core.tools import BaseTool
@@ -35,9 +36,10 @@ class McpPoolManager:
     """Load, cache, and refresh MCP tools for configured agent profiles."""
 
     # A global cache to hold fetched MCP tools.
-    # Key: agent_id, Value: (tools, mcp_ids_tuple)
+    # Key: agent_id, Value: (tools, mcp_ids_tuple[, failed_servers_tuple, retry_at])
     _clients = {}
     _STREAMABLE_TRANSPORTS = {"http", "streamable_http", "streamable-http"}
+    _FAILED_SERVER_CACHE_TTL_SECONDS = 300
 
     @classmethod
     def clear_cache(cls):
@@ -61,10 +63,20 @@ class McpPoolManager:
         mcp_ids_tuple = tuple(sorted(mcp_ids))
         cached = cls._clients.get(agent_id)
         if cached:
-            cached_tools, cached_ids = cached
+            cached_tools, cached_ids, *failure_state = cached
             if cached_ids == mcp_ids_tuple:
-                logger.info(f"Reusing cached MCP client for agent {agent_id}")
-                return cached_tools
+                if failure_state:
+                    failed_servers, retry_at = failure_state
+                    if monotonic() < retry_at:
+                        logger.info(
+                            "Reusing MCP tools for agent %s while failed servers are cooling down: %s",
+                            agent_id,
+                            list(failed_servers),
+                        )
+                        return cached_tools
+                else:
+                    logger.info(f"Reusing cached MCP client for agent {agent_id}")
+                    return cached_tools
 
         # 2. Query MCP server details from DB
         servers = await asyncio.to_thread(cls._load_mcp_servers, mcp_ids)
@@ -108,9 +120,16 @@ class McpPoolManager:
             
             if failed_servers:
                 logger.warning(
-                    "Skipping MCP tool cache for agent %s because these servers failed: %s",
+                    "Caching partial MCP tools for agent %s for %s seconds because these servers failed: %s",
                     agent_id,
+                    cls._FAILED_SERVER_CACHE_TTL_SECONDS,
                     failed_servers,
+                )
+                cls._clients[agent_id] = (
+                    tools,
+                    mcp_ids_tuple,
+                    tuple(failed_servers),
+                    monotonic() + cls._FAILED_SERVER_CACHE_TTL_SECONDS,
                 )
             else:
                 # Cache successful loads, including servers that intentionally expose no tools.
