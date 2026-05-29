@@ -84,13 +84,13 @@ async def test_dynamic_config_middleware_loads_profile_defaults_from_agent_id():
     mock_db.query.return_value.filter.return_value.first.return_value = mock_agent_profile
 
     rag_tool = SimpleNamespace(name="rag_search")
-    web_tool = SimpleNamespace(name="websearch")
+    fetch_tool = SimpleNamespace(name="fetch")
 
     mock_ctx = SimpleNamespace(
         agent_id="agent_123",
         user_id="user_123",
         system_prompt="Runtime default prompt",
-        enabled_tools=["websearch"],
+        enabled_tools=["fetch"],
         model=None,
         user_preferences="",
         safety_enabled=False,
@@ -99,7 +99,7 @@ async def test_dynamic_config_middleware_loads_profile_defaults_from_agent_id():
 
     mock_request = MagicMock()
     mock_request.runtime.context = mock_ctx
-    mock_request.tools = [rag_tool, web_tool]
+    mock_request.tools = [rag_tool, fetch_tool]
     mock_request.override.return_value = mock_request
 
     async def mock_handler(req):
@@ -129,13 +129,13 @@ async def test_dynamic_config_middleware_request_config_overrides_profile_defaul
     mock_db.query.return_value.filter.return_value.first.return_value = mock_agent_profile
 
     rag_tool = SimpleNamespace(name="rag_search")
-    web_tool = SimpleNamespace(name="websearch")
+    fetch_tool = SimpleNamespace(name="fetch")
 
     mock_ctx = SimpleNamespace(
         agent_id="agent_123",
         user_id="user_123",
         system_prompt="Request prompt",
-        enabled_tools=["websearch"],
+        enabled_tools=["fetch"],
         model=None,
         user_preferences="",
         safety_enabled=False,
@@ -144,7 +144,7 @@ async def test_dynamic_config_middleware_request_config_overrides_profile_defaul
 
     mock_request = MagicMock()
     mock_request.runtime.context = mock_ctx
-    mock_request.tools = [rag_tool, web_tool]
+    mock_request.tools = [rag_tool, fetch_tool]
     mock_request.override.return_value = mock_request
 
     async def mock_handler(req):
@@ -156,4 +156,4 @@ async def test_dynamic_config_middleware_request_config_overrides_profile_defaul
 
     kwargs = mock_request.override.call_args[1]
     assert kwargs["system_message"].content == "Request prompt"
-    assert kwargs["tools"] == [web_tool]
+    assert kwargs["tools"] == [fetch_tool]
