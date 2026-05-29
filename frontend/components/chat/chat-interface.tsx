@@ -216,6 +216,16 @@ export function ChatInterface({
     },
     wakeWords: agentProfile?.wakeWords || [],
   })
+  const previousThreadIdRef = useRef<string | null>(threadId)
+
+  useEffect(() => {
+    if (previousThreadIdRef.current === threadId) return
+
+    previousThreadIdRef.current = threadId
+    if (voiceAgent.voiceState !== "idle" && voiceAgent.voiceState !== "kws") {
+      voiceAgent.exitVoiceMode()
+    }
+  }, [threadId, voiceAgent.voiceState, voiceAgent.exitVoiceMode])
 
   // ============================================================================
   // Refs
