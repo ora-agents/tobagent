@@ -6,7 +6,6 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
-import { AgentProfilesDialog } from "@/components/layout/agent-profiles-dialog"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { AuthDialog } from "@/components/layout/auth-dialog"
@@ -49,7 +48,6 @@ function DashboardContent() {
   const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings">("chat")
   const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
-  const [showAgentProfilesDialog, setShowAgentProfilesDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
 
@@ -415,16 +413,6 @@ function DashboardContent() {
       <KeyboardShortcutsDialog
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
-      />
-      <AgentProfilesDialog
-        open={showAgentProfilesDialog}
-        onOpenChange={setShowAgentProfilesDialog}
-        profiles={agentProfiles}
-        selectedId={selectedAgentProfileId}
-        onSelect={setSelectedAgentProfileId}
-        onCreate={createAgentProfile}
-        onUpdate={updateAgentProfile}
-        onDelete={deleteAgentProfile}
       />
       <div className="flex h-screen bg-background">
         <Sidebar
