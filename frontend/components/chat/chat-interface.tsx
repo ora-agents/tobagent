@@ -51,7 +51,8 @@ const scrollbarStyles = `
 
 interface ChatInterfaceProps {
   showToolCalls?: boolean
-  threadId: string
+  threadId: string | null
+  onCreateThread?: () => string
   onThreadUpdate?: (threadId: string, title: string, lastMessage: string, client?: ClientProfile, messageCount?: number) => void
   onThreadNotFound?: () => void
   agentConfig?: AgentConfig
@@ -74,11 +75,13 @@ interface QueuedMessage {
   content: string
   files: ImageAttachment[]
   userMessage: Message
+  threadId: string
 }
 
 export function ChatInterface({
   showToolCalls = false,
   threadId,
+  onCreateThread,
   onThreadUpdate,
   onThreadNotFound,
   initialMessage,
@@ -98,9 +101,11 @@ export function ChatInterface({
   // ============================================================================
 
   const [messages, setMessages] = useState<Message[]>([])
+  const threadStorageKey = threadId ?? "new"
+  const activeThreadIdRef = useRef<string | null>(threadId)
 
   // UI state with reducer
-  const { state: uiState, dispatch: uiDispatch, setInput } = useChatState(threadId)
+  const { state: uiState, dispatch: uiDispatch, setInput } = useChatState(threadStorageKey)
   const [inputError, setInputError] = useState<string | null>(null)
   const inputLengthRef = useRef(uiState.input.length)
 
@@ -149,6 +154,24 @@ export function ChatInterface({
   // Use ref for handleStop so the voice agent can interrupt the stream
   const handleStopRef = useRef<() => void>(() => {})
 
+  useEffect(() => {
+    activeThreadIdRef.current = threadId
+  }, [threadId])
+
+  const ensureThreadId = useCallback(() => {
+    if (activeThreadIdRef.current) {
+      return activeThreadIdRef.current
+    }
+
+    const createdThreadId = onCreateThread?.()
+    if (!createdThreadId) {
+      throw new Error("Unable to create a conversation thread")
+    }
+
+    activeThreadIdRef.current = createdThreadId
+    return createdThreadId
+  }, [onCreateThread])
+
   const voiceAgent = useVoiceAgent({
     onSendMessage: (text) => {
       // Send the voice transcript directly — do NOT go through setInput +
@@ -157,6 +180,13 @@ export function ChatInterface({
       // flushed yet, causing it to see an empty input and bail out).
       const trimmed = text.trim()
       if (!trimmed || !userId || !client) return
+      let targetThreadId: string
+      try {
+        targetThreadId = ensureThreadId()
+      } catch (error) {
+        console.error("Failed to create thread for voice message:", error)
+        return
+      }
 
       const userMessage = createUserMessage(trimmed)
 
@@ -166,6 +196,7 @@ export function ChatInterface({
           content: trimmed,
           files: [],
           userMessage,
+          threadId: targetThreadId,
         })
         setQueuedMessagesDisplay(prev => [...prev, { content: trimmed, id: userMessage.id }])
         return
@@ -174,7 +205,7 @@ export function ChatInterface({
 
       // Show message in chat and process immediately
       setMessages((prev) => [...prev, userMessage])
-      processMessage(trimmed, [], userMessage)
+      processMessage(trimmed, [], userMessage, targetThreadId)
     },
     onInterrupt: () => {
       handleStopRef.current()
@@ -284,17 +315,18 @@ export function ChatInterface({
       return
     }
 
-    const draft = localStorage.getItem(`draft-${threadId}`)
+    const draft = localStorage.getItem(`draft-${threadStorageKey}`)
     if (draft) {
       setLimitedInput(draft)
     } else {
       // Clear input when switching to thread with no draft
       setLimitedInput('')
     }
-  }, [threadId, initialMessage, uiState.hasAutoSent, setLimitedInput])
+  }, [threadStorageKey, initialMessage, uiState.hasAutoSent, setLimitedInput])
 
   // Track if we've sent a message on the current thread to skip unnecessary reloads
   const hasSentMessageRef = useRef<string | null>(null)
+  const autoSentPromptRef = useRef<string | null>(null)
 
   // Load conversation history when threadId changes
   useEffect(() => {
@@ -302,9 +334,9 @@ export function ChatInterface({
     const currentThreadId = threadId
 
     const loadThreadHistory = async () => {
-      // Skip loading for new threads - they don't exist in backend yet
-      if (isNewThread) {
-        console.log('New thread detected - skipping backend load')
+      if (!currentThreadId) {
+        console.log('No thread selected - showing blank chat')
+        hasSentMessageRef.current = null
         setMessages([])
         uiDispatch({ type: 'SET_LOADING_THREAD', payload: false })
         return
@@ -314,6 +346,14 @@ export function ChatInterface({
       // This prevents race conditions where history reload overwrites trace URLs
       if (hasSentMessageRef.current === currentThreadId) {
         console.log('Skipping reload - we just sent a message on this thread')
+        uiDispatch({ type: 'SET_LOADING_THREAD', payload: false })
+        return
+      }
+
+      // Skip loading for new threads - they don't exist in backend yet
+      if (isNewThread) {
+        console.log('New thread detected - skipping backend load')
+        setMessages([])
         uiDispatch({ type: 'SET_LOADING_THREAD', payload: false })
         return
       }
@@ -379,7 +419,7 @@ export function ChatInterface({
           })
           .map((msg: any, idx: number) => {
             // Create a stable ID for historical messages
-            const messageId = msg.id || `history-${threadId}-${idx}-${msg.content?.slice(0, 20)}`
+            const messageId = msg.id || `history-${currentThreadId}-${idx}-${msg.content?.slice(0, 20)}`
 
             const role = (msg.type === "ai" || msg.role === "assistant") ? "assistant" : "user"
 
@@ -510,20 +550,30 @@ export function ChatInterface({
   // ============================================================================
 
   // Process a single message (used for both immediate send and queue processing)
-  const processMessage = useCallback(async (content: string, files: ImageAttachment[], userMessage: Message) => {
+  const processMessage = useCallback(async (
+    content: string,
+    files: ImageAttachment[],
+    userMessage: Message,
+    targetThreadId: string,
+  ) => {
     uiDispatch({ type: 'START_SEND' })
     shouldInterruptRef.current = false
-    hasSentMessageRef.current = threadId
+    hasSentMessageRef.current = targetThreadId
 
     try {
       const assistantMessageId = generateMessageId()
-      const { assistantContent } = await processStream(content, assistantMessageId, files)
+      const { assistantContent } = await processStream(
+        content,
+        assistantMessageId,
+        files,
+        targetThreadId,
+      )
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messages.find((m) => m.role === "user") || userMessage
         const title = customTitle || truncate(firstUserMsg.content, 60) || "New conversation"
         const messageCount = messages.length + 2
-        onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
+        onThreadUpdate(targetThreadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
       console.error("Error streaming from LangGraph:", error)
@@ -533,12 +583,12 @@ export function ChatInterface({
 
       if (onThreadUpdate) {
         const messageCount = messages.length + 2
-        onThreadUpdate(threadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorMessage.content, 100), undefined, messageCount)
+        onThreadUpdate(targetThreadId, customTitle || truncate(userMessage.content, 60) || "New conversation", truncate(errorMessage.content, 100), undefined, messageCount)
       }
     } finally {
       uiDispatch({ type: 'FINISH_SEND' })
     }
-  }, [threadId, onThreadUpdate, processStream, messages, customTitle, uiDispatch])
+  }, [onThreadUpdate, processStream, messages, customTitle, uiDispatch])
 
   // Process queued messages one by one
   const processQueue = useCallback(async () => {
@@ -551,7 +601,12 @@ export function ChatInterface({
     setQueuedMessagesDisplay(prev => prev.filter(m => m.id !== nextMessage.userMessage.id))
     setMessages((prev) => [...prev, nextMessage.userMessage])
 
-    await processMessage(nextMessage.content, nextMessage.files, nextMessage.userMessage)
+    await processMessage(
+      nextMessage.content,
+      nextMessage.files,
+      nextMessage.userMessage,
+      nextMessage.threadId,
+    )
 
     isProcessingQueueRef.current = false
 
@@ -575,10 +630,21 @@ export function ChatInterface({
   // Auto-send initial message (for ?q= URL param)
   useEffect(() => {
     const trimmedMessage = initialMessage?.trim()
-    if (!trimmedMessage || uiState.hasAutoSent || uiState.isLoadingThread || !userId || !client) {
+    if (!trimmedMessage) {
+      autoSentPromptRef.current = null
       return
     }
 
+    if (
+      autoSentPromptRef.current === trimmedMessage ||
+      uiState.isLoadingThread ||
+      !userId ||
+      !client
+    ) {
+      return
+    }
+
+    autoSentPromptRef.current = trimmedMessage
     uiDispatch({ type: 'SET_AUTO_SENT', payload: true })
     const cappedMessage = trimmedMessage.slice(0, MAX_INPUT_CHARS)
     if (trimmedMessage.length > MAX_INPUT_CHARS) {
@@ -586,9 +652,18 @@ export function ChatInterface({
     }
 
     if (autoSend) {
+      let targetThreadId: string
+      try {
+        targetThreadId = ensureThreadId()
+      } catch (error) {
+        console.error('Failed to create thread for initial message:', error)
+        onInitialMessageSent?.()
+        return
+      }
+
       const userMessage = createUserMessage(cappedMessage)
       setMessages((prev) => [...prev, userMessage])
-      processMessage(cappedMessage, [], userMessage)
+      processMessage(cappedMessage, [], userMessage, targetThreadId)
         .then(() => onInitialMessageSent?.())
         .catch((error) => {
           console.error('Failed to auto-send initial message:', error)
@@ -598,7 +673,7 @@ export function ChatInterface({
       // Just populate input (existing behavior for ticket page, etc.)
       setLimitedInput(trimmedMessage)
     }
-  }, [initialMessage, autoSend, uiState.hasAutoSent, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent])
+  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId])
 
   const handleSend = useCallback(async () => {
     if (!uiState.input.trim() && attachedFiles.length === 0) {
@@ -606,6 +681,14 @@ export function ChatInterface({
     }
 
     if (!userId || !client) {
+      return
+    }
+
+    let targetThreadId: string
+    try {
+      targetThreadId = ensureThreadId()
+    } catch (error) {
+      console.error("Failed to create thread for message:", error)
       return
     }
 
@@ -632,6 +715,7 @@ export function ChatInterface({
         content: currentInput,
         files: currentFiles,
         userMessage,
+        threadId: targetThreadId,
       }
       messageQueueRef.current.push(queuedItem)
       setQueuedMessagesDisplay(prev => [...prev, { content: currentInput, id: userMessage.id }])
@@ -640,13 +724,13 @@ export function ChatInterface({
 
     // Show message in chat and process immediately
     setMessages((prev) => [...prev, userMessage])
-    await processMessage(currentInput, currentFiles, userMessage)
+    await processMessage(currentInput, currentFiles, userMessage, targetThreadId)
 
     // Check if anything was queued while processing
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
@@ -662,6 +746,8 @@ export function ChatInterface({
 
   const handleRegenerate = useCallback(async () => {
     if (uiState.isLoading || uiState.isRegenerating) return
+    const targetThreadId = activeThreadIdRef.current
+    if (!targetThreadId) return
 
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")
     if (!lastUserMessage) return
@@ -673,13 +759,18 @@ export function ChatInterface({
 
     try {
       const assistantMessageId = generateMessageId()
-      const { assistantContent } = await processStream(lastUserMessage.content, assistantMessageId)
+      const { assistantContent } = await processStream(
+        lastUserMessage.content,
+        assistantMessageId,
+        undefined,
+        targetThreadId,
+      )
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messagesUpToLastUser.find((m) => m.role === "user")
         const title = customTitle || (firstUserMsg ? truncate(firstUserMsg.content, 60) : t.newConversation)
         const messageCount = messagesUpToLastUser.length + 1
-        onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
+        onThreadUpdate(targetThreadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
       console.error("Error regenerating:", error)
@@ -689,12 +780,14 @@ export function ChatInterface({
     } finally {
       uiDispatch({ type: 'FINISH_REGENERATE' })
     }
-  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, threadId, uiDispatch])
+  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, customTitle, t.newConversation, uiDispatch])
 
   const handleEditAndRerun = useCallback(async (messageId: string, newContent: string) => {
     console.log('Edit and rerun from message:', messageId, 'new content:', newContent.slice(0, 50))
 
     if (uiState.isLoading || uiState.isRegenerating) return
+    const targetThreadId = activeThreadIdRef.current
+    if (!targetThreadId) return
 
     const messageIndex = messages.findIndex((m) => m.id === messageId)
     if (messageIndex === -1) return
@@ -712,13 +805,18 @@ export function ChatInterface({
     try {
       const assistantMessageId = generateMessageId()
       console.log('Rerunning from edited message with assistantMessageId:', assistantMessageId)
-      const { assistantContent } = await processStream(newContent, assistantMessageId)
+      const { assistantContent } = await processStream(
+        newContent,
+        assistantMessageId,
+        undefined,
+        targetThreadId,
+      )
 
       if (onThreadUpdate && assistantContent) {
         const firstUserMsg = messagesUpToEdit.find((m) => m.role === "user") || updatedMessage
         const title = customTitle || truncate(firstUserMsg.content, 60) || t.newConversation
         const messageCount = messagesUpToEdit.length + 2
-        onThreadUpdate(threadId, title, truncate(assistantContent, 100), undefined, messageCount)
+        onThreadUpdate(targetThreadId, title, truncate(assistantContent, 100), undefined, messageCount)
       }
     } catch (error) {
       console.error("Error rerunning from edit:", error)
@@ -729,7 +827,7 @@ export function ChatInterface({
       uiDispatch({ type: 'SET_LOADING', payload: false })
       uiDispatch({ type: 'SET_STOPPING', payload: false })
     }
-  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, threadId, uiDispatch])
+  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, customTitle, t.newConversation, t.failedToRerunFromEdit, uiDispatch])
 
   const handleCopy = async (content: string, messageId: string) => {
     await navigator.clipboard.writeText(content)

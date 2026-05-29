@@ -74,7 +74,7 @@ function describeToolStep(name: string, args: Record<string, any> = {}): string 
  */
 interface UseStreamHandlerProps {
   client: Client | null
-  threadId: string
+  threadId: string | null
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   agentConfig?: AgentConfig
   /** Custom agent profile to use instead of (or alongside) the built-in agents. */
@@ -103,7 +103,8 @@ interface UseStreamHandlerReturn {
   processStream: (
     userContent: string,
     assistantMessageId: string,
-    images?: ImageAttachment[]
+    images?: ImageAttachment[],
+    threadIdOverride?: string
   ) => Promise<{ assistantContent: string; runId: string | undefined }>
 }
 
@@ -169,7 +170,12 @@ export function useStreamHandler({
    * @returns Promise with assistant content and run ID
    */
   const processStream = useCallback(
-    async (userContent: string, assistantMessageId: string, images?: ImageAttachment[]) => {
+    async (
+      userContent: string,
+      assistantMessageId: string,
+      images?: ImageAttachment[],
+      threadIdOverride?: string,
+    ) => {
       if (!LANGGRAPH_API_URL) {
         throw new Error(
           "Missing LANGGRAPH_API_URL; cannot invoke LangGraph"
@@ -180,6 +186,11 @@ export function useStreamHandler({
         throw new Error(
           "Client not initialized; cannot invoke LangGraph. User ID may not be loaded yet."
         )
+      }
+
+      const targetThreadId = threadIdOverride ?? threadId
+      if (!targetThreadId) {
+        throw new Error("Thread ID is required before invoking LangGraph")
       }
 
       // Format message content - use multimodal format if files are present
@@ -293,7 +304,7 @@ export function useStreamHandler({
         configurableBase.safety_enabled = true
       }
 
-      const streamResponse = client.runs.stream(threadId, agentType, {
+      const streamResponse = client.runs.stream(targetThreadId, agentType, {
         input,
         config: {
           recursion_limit: recursionLimit,

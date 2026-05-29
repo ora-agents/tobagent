@@ -61,7 +61,7 @@ function DashboardContent() {
     deleteProfile: deleteAgentProfile,
   } = useAgentProfiles()
 
-  // Track newly created threads that haven't been initialized in backend yet
+  // Track threads that have started sending but are not fully visible in the backend list yet.
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
 
   // Use URL query param for thread ID (shareable, bookmarkable)
@@ -69,6 +69,8 @@ function DashboardContent() {
 
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
+  const hasInitialPrompt = !!initialPrompt?.trim()
+  const activeThreadId = hasInitialPrompt ? null : threadId
 
   // Get browser-specific user ID
   const userId = useUserId()
@@ -134,35 +136,22 @@ function DashboardContent() {
 
   // Create a new thread
   const handleNewChat = () => {
-    const newThreadId = generateUUID()
-
     // Switch back to chat view
     setCurrentView("chat")
+    setInitialPrompt(null)
+    setThreadId(null)
+  }
 
-    // Mark this thread as new (doesn't exist in backend yet)
+  const handleCreateThreadForSend = () => {
+    const newThreadId = generateUUID()
     setNewThreads(prev => new Set(prev).add(newThreadId))
-
-    // Immediately add "Untitled" thread to sidebar
-    if (userId) {
-      addOptimisticThread({
-        thread_id: newThreadId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: {
-          user_id: userId,
-          title: t.untitled,
-          lastMessage: "",
-          client: resolveClientProfile(clientProfile),
-          agent_id: selectedAgentProfileId || "default",
-        },
-      })
-    }
-
     setThreadId(newThreadId)
+    return newThreadId
   }
 
   // Switch to an existing thread
   const handleSelectThread = (selectedThreadId: string) => {
+    setInitialPrompt(null)
     setThreadId(selectedThreadId)
   }
 
@@ -170,40 +159,16 @@ function DashboardContent() {
   const handleDeleteThread = (threadIdToDelete: string) => {
     deleteThread(threadIdToDelete, () => {
       // If deleting current thread, create a new one
-      if (threadIdToDelete === threadId) {
-        const newThreadId = generateUUID()
-        setThreadId(newThreadId)
+      if (threadIdToDelete === activeThreadId) {
+        setThreadId(null)
       }
     })
   }
 
   // Handle when thread is not found (404) or access denied (403)
   const handleThreadNotFound = () => {
-    console.log('Thread not accessible - creating new thread')
-
-    // Always create a new thread when current thread is not accessible
-    const newThreadId = generateUUID()
-
-    // Mark this thread as new (doesn't exist in backend yet)
-    setNewThreads(prev => new Set(prev).add(newThreadId))
-
-    // Add to sidebar optimistically
-    if (userId) {
-      addOptimisticThread({
-        thread_id: newThreadId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        metadata: {
-          user_id: userId,
-          title: t.untitled,
-          lastMessage: "",
-          client: resolveClientProfile(clientProfile),
-          agent_id: selectedAgentProfileId || "default",
-        },
-      })
-    }
-
-    setThreadId(newThreadId)
+    console.log('Thread not accessible - showing blank chat')
+    setThreadId(null)
   }
 
   // Update thread metadata when messages are sent
@@ -216,14 +181,13 @@ function DashboardContent() {
   ) => {
     if (!userId) return
 
-    // Clear the new thread flag once the thread has been initialized (first message sent)
-    if (newThreads.has(threadId)) {
-      setNewThreads(prev => {
-        const updated = new Set(prev)
-        updated.delete(threadId)
-        return updated
-      })
-    }
+    // Clear the pending flag once the thread has been initialized (first message sent).
+    setNewThreads(prev => {
+      if (!prev.has(threadId)) return prev
+      const updated = new Set(prev)
+      updated.delete(threadId)
+      return updated
+    })
 
     const resolvedClient = resolveClientProfile(client ?? clientProfile)
     const agentId = selectedAgentProfileId || "default"
@@ -330,34 +294,33 @@ function DashboardContent() {
     }
   }
 
-  // If no threadId in URL, create one
-  // Also create a new thread if ?q= is present (always start fresh for prompt links)
-  const hasProcessedPromptRef = useRef(false)
+  // Prompt links always start from a blank chat. The real thread ID is assigned
+  // only when the prompt is actually sent.
+  const processedPromptRef = useRef<string | null>(null)
   useEffect(() => {
-    // Validate and process ?q= param - create fresh thread for prompt links
     const trimmedPrompt = initialPrompt?.trim()
-    if (trimmedPrompt && !hasProcessedPromptRef.current) {
-      hasProcessedPromptRef.current = true
-      const newThreadId = generateUUID()
-      setNewThreads(prev => new Set(prev).add(newThreadId))
-      setThreadId(newThreadId)
+    if (!trimmedPrompt) {
+      processedPromptRef.current = null
       return
     }
 
-    // Create a thread if none exists
-    if (!threadId) {
-      const newThreadId = generateUUID()
-      setNewThreads(prev => new Set(prev).add(newThreadId))
-      setThreadId(newThreadId)
+    if (processedPromptRef.current === trimmedPrompt) {
+      return
+    }
+
+    processedPromptRef.current = trimmedPrompt
+    if (threadId) {
+      setThreadId(null)
     }
   }, [threadId, setThreadId, initialPrompt])
 
   // Handle switching active thread or creating a new one when active agent changes
   useEffect(() => {
     if (!userId || threadsLoading) return;
+    if (!activeThreadId || newThreads.has(activeThreadId)) return;
 
     // Check if the current threadId is in the filteredThreads
-    const currentThreadInFiltered = filteredThreads.some(t => t.thread_id === threadId);
+    const currentThreadInFiltered = filteredThreads.some(t => t.thread_id === activeThreadId);
     
     // If current thread does not belong to the selected agent:
     if (!currentThreadInFiltered) {
@@ -365,11 +328,11 @@ function DashboardContent() {
         // Switch to the most recent thread of the selected agent
         setThreadId(filteredThreads[0].thread_id);
       } else {
-        // If there are no threads for this agent, create a new chat for this agent
-        handleNewChat();
+        // If there are no threads for this agent, show a blank chat.
+        setThreadId(null);
       }
     }
-  }, [selectedAgentProfileId, threadsLoading, filteredThreads, threadId]);
+  }, [selectedAgentProfileId, threadsLoading, filteredThreads, activeThreadId, newThreads, userId, setThreadId]);
 
   // Cycle to next model
   const handleCycleModel = () => {
@@ -453,7 +416,7 @@ function DashboardContent() {
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
-          currentThreadId={threadId || ''}
+          currentThreadId={activeThreadId || ''}
           onSelectThread={handleSelectThread}
           onDeleteThread={handleDeleteThread}
           isLoading={threadsLoading}
@@ -474,24 +437,22 @@ function DashboardContent() {
               selectedAgentProfile={selectedAgentProfile}
               onOpenAgentSettings={() => setCurrentView("agents")}
             />
-            {threadId && (
-              <ChatInterface
-                key={threadId}
-                showToolCalls={showToolCalls}
-                threadId={threadId}
-                onThreadUpdate={handleThreadUpdate}
-                onThreadNotFound={handleThreadNotFound}
-                agentConfig={agentConfig}
-                onAgentConfigChange={setAgentConfig}
-                agentProfile={selectedAgentProfile}
-                agentProfiles={agentProfiles}
-                onAgentProfileChange={setSelectedAgentProfileId}
-                isNewThread={newThreads.has(threadId)}
-                initialMessage={initialPrompt}
-                autoSend={!!initialPrompt}
-                onInitialMessageSent={() => setInitialPrompt(null)}
-              />
-            )}
+            <ChatInterface
+              showToolCalls={showToolCalls}
+              threadId={activeThreadId}
+              onCreateThread={handleCreateThreadForSend}
+              onThreadUpdate={handleThreadUpdate}
+              onThreadNotFound={handleThreadNotFound}
+              agentConfig={agentConfig}
+              onAgentConfigChange={setAgentConfig}
+              agentProfile={selectedAgentProfile}
+              agentProfiles={agentProfiles}
+              onAgentProfileChange={setSelectedAgentProfileId}
+              isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
+              initialMessage={initialPrompt}
+              autoSend={!!initialPrompt}
+              onInitialMessageSent={() => setInitialPrompt(null)}
+            />
           </>
         ) : currentView === "settings" ? (
           <UserSettingsPage
