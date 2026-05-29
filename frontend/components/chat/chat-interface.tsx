@@ -219,9 +219,12 @@ export function ChatInterface({
   const previousThreadIdRef = useRef<string | null>(threadId)
 
   useEffect(() => {
-    if (previousThreadIdRef.current === threadId) return
+    const previousThreadId = previousThreadIdRef.current
+    if (previousThreadId === threadId) return
 
     previousThreadIdRef.current = threadId
+    if (!previousThreadId && threadId) return
+
     if (voiceAgent.voiceState !== "idle" && voiceAgent.voiceState !== "kws") {
       voiceAgent.exitVoiceMode()
     }
