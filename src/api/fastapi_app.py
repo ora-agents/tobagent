@@ -324,7 +324,7 @@ class AgentRAGStatusResponse(BaseModel):
 import hashlib
 import secrets
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 AVATAR_COLORS = [
     "#cc785c", # Coral
@@ -513,6 +513,41 @@ def _validate_agent_profile_links(
     if current_profile_id:
         agent_ids = [agent_id for agent_id in agent_ids if agent_id != current_profile_id]
     _require_owned_ids(db, AgentProfileTable, agent_ids, owner_user_id, "agentIds")
+
+
+def _remove_agent_profile_links(
+    db: Session,
+    owner_user_id: str,
+    field_name: str,
+    deleted_ids: list[str],
+) -> int:
+    """Remove deleted resource ids from all owned agent profile link arrays."""
+    ids_to_remove = set(deleted_ids)
+    if not ids_to_remove:
+        return 0
+
+    changed_count = 0
+    profiles = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == owner_user_id,
+    ).all()
+    for profile in profiles:
+        current_ids = getattr(profile, field_name, None)
+        if not isinstance(current_ids, list):
+            continue
+
+        updated_ids = [
+            resource_id
+            for resource_id in current_ids
+            if resource_id not in ids_to_remove
+        ]
+        if updated_ids == current_ids:
+            continue
+
+        setattr(profile, field_name, updated_ids)
+        profile.updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        changed_count += 1
+
+    return changed_count
 
 
 @app.post("/api/auth/register", response_model=UserResponse)
@@ -773,6 +808,7 @@ async def delete_agent_profile(
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
+    _remove_agent_profile_links(db, current_user.id, "agent_ids", [id])
     db.delete(profile)
     db.commit()
     return {"status": "success", "message": f"Agent profile {id} deleted"}
@@ -852,6 +888,7 @@ async def delete_skill(
     ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
+    _remove_agent_profile_links(db, current_user.id, "skill_ids", [id])
     db.delete(skill)
     db.commit()
     return {"status": "success", "message": f"Skill {id} deleted"}
@@ -948,15 +985,16 @@ async def delete_knowledge_base(
     
     # Try to drop/delete matching table in LanceDB if it exists
     try:
-        from src.tools.rag_tool import _get_db, _table_name
-        lancedb_instance = _get_db()
+        from src.tools.rag_tool import _get_async_db, _table_name
+        lancedb_instance = await _get_async_db()
         tname = _table_name(id)
-        if tname in lancedb_instance.table_names():
-            lancedb_instance.drop_table(tname)
+        if tname in await lancedb_instance.table_names():
+            await lancedb_instance.drop_table(tname)
             logger.info(f"Dropped LanceDB table '{tname}' for Knowledge Base {id}")
     except Exception as e:
         logger.error(f"Failed to drop LanceDB table for KB {id}: {e}")
 
+    _remove_agent_profile_links(db, current_user.id, "knowledge_base_ids", [id])
     db.delete(kb)
     db.commit()
     return {"status": "success", "message": f"Knowledge base {id} and associated LanceDB table deleted"}
@@ -1322,6 +1360,7 @@ async def delete_mcp_server(
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
     
+    _remove_agent_profile_links(db, current_user.id, "mcp_ids", [id])
     db.delete(server)
     db.commit()
     

@@ -89,6 +89,12 @@ def _table_name(agent_id: str) -> str:
     return f"rag_{safe}"
 
 
+def _get_db():
+    """Return a sync LanceDB connection for legacy call sites."""
+    Path(LANCEDB_PATH).mkdir(parents=True, exist_ok=True)
+    return lancedb.connect(LANCEDB_PATH)
+
+
 async def _get_async_db() -> lancedb.AsyncConnection:
     """Return an async LanceDB connection.
 
