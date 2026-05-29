@@ -86,6 +86,10 @@ class AgentProfileTable(Base):
     agent_ids = Column(JSON, nullable=True, default=list)
     # wake_words is a JSON list of wake word strings for KWS, e.g., ["小梯小梯", "hey assistant"]
     wake_words = Column(JSON, nullable=True, default=list)
+    role_template_id = Column(String(100), nullable=True)
+    persona_style = Column(String(50), nullable=True)
+    boundary_mode = Column(String(50), nullable=True)
+    tts_voice = Column(String(100), nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 

@@ -231,6 +231,7 @@ export function ChatInterface({
       setLimitedInput(text)
     },
     wakeWords: agentProfile?.wakeWords || [],
+    ttsVoice: agentProfile?.ttsVoice || null,
   })
   const previousThreadIdRef = useRef<string | null>(threadId)
 

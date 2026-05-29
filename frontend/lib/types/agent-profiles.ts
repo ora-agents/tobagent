@@ -28,6 +28,10 @@ export interface AgentProfile {
   mcpIds?: string[]
   agentIds?: string[]
   wakeWords?: string[]
+  roleTemplateId?: string | null
+  personaStyle?: string | null
+  boundaryMode?: string | null
+  ttsVoice?: string | null
   createdAt: string
   updatedAt: string
 }

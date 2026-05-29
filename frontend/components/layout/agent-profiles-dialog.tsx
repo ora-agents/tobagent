@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,6 +26,14 @@ import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import type { KnowledgeBase, Skill, McpServer } from "./management-dashboard"
 import { useT, useI18n } from "@/lib/i18n"
 import { useAuth } from "@/components/providers/auth-provider"
+import {
+  BOUNDARY_MODE_LABELS,
+  PERSONA_STYLE_LABELS,
+  ROLE_TEMPLATES,
+  TTS_VOICES,
+  type BoundaryMode,
+  type PersonaStyle,
+} from "@/lib/types/role-templates"
 
 // ---------------------------------------------------------------------------
 // Form state for creating / editing a profile
@@ -34,6 +49,10 @@ interface FormState {
   mcpIds: string[]
   agentIds: string[]
   wakeWords: string[]
+  roleTemplateId: string
+  personaStyle: PersonaStyle
+  boundaryMode: BoundaryMode
+  ttsVoice: string
 }
 
 const DEFAULT_FORM: FormState = {
@@ -46,6 +65,10 @@ const DEFAULT_FORM: FormState = {
   mcpIds: [],
   agentIds: [],
   wakeWords: [],
+  roleTemplateId: "",
+  personaStyle: "professional",
+  boundaryMode: "business_only",
+  ttsVoice: "Cherry",
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +254,34 @@ function ProfileForm({
   const { locale } = useI18n()
   const [form, setForm] = useState<FormState>(initial)
   const availableAgents = allProfiles.filter(p => p.id !== agentId)
+  const recommendedVoices = TTS_VOICES.filter((voice) => voice.recommended)
+  const otherVoices = TTS_VOICES.filter((voice) => !voice.recommended)
+
+  const applyTemplate = (templateId: string) => {
+    const template = ROLE_TEMPLATES.find((item) => item.id === templateId)
+    if (!template) {
+      setForm(prev => ({ ...prev, roleTemplateId: "" }))
+      return
+    }
+
+    const lowerSkillNames = template.defaultSkillNames.map(name => name.toLowerCase())
+    const matchedSkillIds = skills
+      .filter(skill => lowerSkillNames.some(name => skill.name.toLowerCase().includes(name)))
+      .map(skill => skill.id)
+
+    setForm(prev => ({
+      ...prev,
+      roleTemplateId: template.id,
+      name: locale === "zh" ? template.defaultNameZh : template.defaultNameEn,
+      description: locale === "zh" ? template.defaultDescriptionZh : template.defaultDescriptionEn,
+      systemPrompt: template.systemPrompt,
+      enabledTools: template.enabledTools,
+      skillIds: Array.from(new Set([...(prev.skillIds || []), ...matchedSkillIds])),
+      personaStyle: template.personaStyle,
+      boundaryMode: template.boundaryMode,
+      ttsVoice: template.ttsVoice,
+    }))
+  }
 
   const toggleTool = (id: BuiltinToolId) => {
     setForm(prev => ({
@@ -244,7 +295,32 @@ function ProfileForm({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="agent-name">{t.agentName}</Label>
+        <Label>{locale === "zh" ? "角色模板" : "Role Template"}</Label>
+        <Select value={form.roleTemplateId || "custom"} onValueChange={(value) => applyTemplate(value === "custom" ? "" : value)}>
+          <SelectTrigger>
+            <SelectValue placeholder={locale === "zh" ? "选择角色模板" : "Select role template"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="custom">{locale === "zh" ? "自定义角色" : "Custom role"}</SelectItem>
+            {ROLE_TEMPLATES.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {locale === "zh" ? template.nameZh : template.nameEn}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {form.roleTemplateId && (
+          <p className="text-xs text-muted-foreground">
+            {(() => {
+              const template = ROLE_TEMPLATES.find((item) => item.id === form.roleTemplateId)
+              return template ? (locale === "zh" ? template.descriptionZh : template.descriptionEn) : null
+            })()}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="agent-name">{locale === "zh" ? "角色名称" : "Role Name"}</Label>
         <Input
           id="agent-name"
           value={form.name}
@@ -254,13 +330,77 @@ function ProfileForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="agent-description">{t.agentDesc}</Label>
+        <Label htmlFor="agent-description">{locale === "zh" ? "角色描述" : "Role Description"}</Label>
         <Input
           id="agent-description"
           value={form.description}
           onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
           placeholder="What does this agent do?"
         />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>{locale === "zh" ? "人物形象" : "Persona"}</Label>
+          <Select
+            value={form.personaStyle}
+            onValueChange={(value) => setForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {locale === "zh" ? label.zh : label.en}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>{locale === "zh" ? "客服边界" : "Support Boundary"}</Label>
+          <Select
+            value={form.boundaryMode}
+            onValueChange={(value) => setForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {locale === "zh" ? label.zh : label.en}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>{locale === "zh" ? "语音风格" : "Voice Style"}</Label>
+        <Select
+          value={form.ttsVoice}
+          onValueChange={(value) => setForm(prev => ({ ...prev, ttsVoice: value }))}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {recommendedVoices.map((voice) => (
+              <SelectItem key={voice.voice} value={voice.voice}>
+                {voice.nameZh} · {voice.voice} · {locale === "zh" ? voice.descriptionZh : voice.descriptionEn}
+              </SelectItem>
+            ))}
+            {otherVoices.map((voice) => (
+              <SelectItem key={voice.voice} value={voice.voice}>
+                {voice.nameZh} · {voice.voice} · {locale === "zh" ? voice.descriptionZh : voice.descriptionEn}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-1.5">
@@ -560,6 +700,10 @@ export function AgentProfilesDialog({
       mcpIds: data.mcpIds,
       agentIds: data.agentIds,
       wakeWords: data.wakeWords,
+      roleTemplateId: data.roleTemplateId || null,
+      personaStyle: data.personaStyle,
+      boundaryMode: data.boundaryMode,
+      ttsVoice: data.ttsVoice,
     } as any)
 
     if (res && typeof res.then === "function") {
@@ -585,6 +729,10 @@ export function AgentProfilesDialog({
       mcpIds: data.mcpIds,
       agentIds: data.agentIds,
       wakeWords: data.wakeWords,
+      roleTemplateId: data.roleTemplateId || null,
+      personaStyle: data.personaStyle,
+      boundaryMode: data.boundaryMode,
+      ttsVoice: data.ttsVoice,
     } as any)
     
     // Auto-select updated agent and close the dialog
@@ -798,6 +946,10 @@ export function AgentProfilesDialog({
                 mcpIds: (view.profile as any).mcpIds || [],
                 agentIds: (view.profile as any).agentIds || [],
                 wakeWords: (view.profile as any).wakeWords || [],
+                roleTemplateId: (view.profile as any).roleTemplateId || "",
+                personaStyle: ((view.profile as any).personaStyle || "professional") as PersonaStyle,
+                boundaryMode: ((view.profile as any).boundaryMode || "business_only") as BoundaryMode,
+                ttsVoice: (view.profile as any).ttsVoice || "Cherry",
               }}
               onSave={data => handleUpdate(view.profile.id, data)}
               onCancel={() => setView({ kind: "list" })}

@@ -73,6 +73,10 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences TEXT",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS safety_enabled VARCHAR(10) DEFAULT 'false'",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS wake_words JSON",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS role_template_id VARCHAR(100)",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona_style VARCHAR(50)",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS boundary_mode VARCHAR(50)",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS tts_voice VARCHAR(100)",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
             "ALTER TABLE skills ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
             "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
@@ -271,6 +275,10 @@ class AgentProfileSchema(BaseModel):
     mcpIds: list[str] = []
     agentIds: list[str] = []
     wakeWords: list[str] = []
+    roleTemplateId: str | None = None
+    personaStyle: str | None = None
+    boundaryMode: str | None = None
+    ttsVoice: str | None = None
     createdAt: str
     updatedAt: str
 
@@ -396,6 +404,10 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         mcpIds=profile.mcp_ids or [],
         agentIds=profile.agent_ids or [],
         wakeWords=profile.wake_words or [],
+        roleTemplateId=profile.role_template_id,
+        personaStyle=profile.persona_style,
+        boundaryMode=profile.boundary_mode,
+        ttsVoice=profile.tts_voice,
         createdAt=profile.created_at,
         updatedAt=profile.updated_at,
     )
@@ -751,6 +763,10 @@ async def create_agent_profile(
         mcp_ids=profile_data.mcpIds,
         agent_ids=profile_data.agentIds,
         wake_words=profile_data.wakeWords,
+        role_template_id=profile_data.roleTemplateId,
+        persona_style=profile_data.personaStyle,
+        boundary_mode=profile_data.boundaryMode,
+        tts_voice=profile_data.ttsVoice,
         created_at=profile_data.createdAt,
         updated_at=profile_data.updatedAt,
     )
@@ -784,6 +800,10 @@ async def update_agent_profile(
     profile.mcp_ids = profile_data.mcpIds
     profile.agent_ids = profile_data.agentIds
     profile.wake_words = profile_data.wakeWords
+    profile.role_template_id = profile_data.roleTemplateId
+    profile.persona_style = profile_data.personaStyle
+    profile.boundary_mode = profile_data.boundaryMode
+    profile.tts_voice = profile_data.ttsVoice
     profile.updated_at = profile_data.updatedAt
     
     db.commit()

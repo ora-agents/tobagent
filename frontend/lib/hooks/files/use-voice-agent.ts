@@ -36,6 +36,8 @@ interface UseVoiceAgentOptions {
   onInterimTranscript?: (text: string) => void
   /** Wake words for always-on KWS detection (empty = KWS disabled) */
   wakeWords?: string[]
+  /** DashScope TTS voice id used for spoken replies */
+  ttsVoice?: string | null
 }
 
 export interface UseVoiceAgentReturn {
@@ -92,6 +94,7 @@ export function useVoiceAgent({
   onInterrupt,
   onInterimTranscript,
   wakeWords = [],
+  ttsVoice,
 }: UseVoiceAgentOptions): UseVoiceAgentReturn {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle")
   const [asrConnected, setAsrConnected] = useState(false)
@@ -738,7 +741,7 @@ export function useVoiceAgent({
             if (!isCurrentSession()) return
             setTtsConnected(false)
           },
-        })
+        }, ttsVoice || undefined)
         ttsClientRef.current = ttsClient
 
         try {
@@ -771,7 +774,7 @@ export function useVoiceAgent({
         ttsClientRef.current?.appendText(text)
       }
     })
-  }, [resetIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition, setVoiceStateSync])
+  }, [ttsVoice, resetIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition, setVoiceStateSync])
 
   /**
    * Called when the agent stream ends.

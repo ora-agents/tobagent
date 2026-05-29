@@ -36,6 +36,9 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     enabled_tools = getattr(agent_row, "enabled_tools", None)
     agent_ids = getattr(agent_row, "agent_ids", None)
     skill_ids = getattr(agent_row, "skill_ids", None)
+    persona_style = getattr(agent_row, "persona_style", None)
+    boundary_mode = getattr(agent_row, "boundary_mode", None)
+    role_template_id = getattr(agent_row, "role_template_id", None)
 
     return {
         "id": agent_row.id,
@@ -45,7 +48,46 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
         "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
         "skill_ids": list(skill_ids) if isinstance(skill_ids, list) else [],
+        "role_template_id": role_template_id if isinstance(role_template_id, str) else "",
+        "persona_style": persona_style if isinstance(persona_style, str) else "",
+        "boundary_mode": boundary_mode if isinstance(boundary_mode, str) else "",
     }
+
+
+def _role_behavior_instructions(profile: dict[str, Any]) -> str:
+    """Build structured behavior guidance from role metadata."""
+    persona_labels = {
+        "professional": "Maintain a professional, precise tone.",
+        "friendly": "Maintain a warm, approachable tone.",
+        "efficient": "Be concise, action-oriented, and minimize unnecessary back-and-forth.",
+        "patient": "Be patient, clear, and explain steps without rushing the user.",
+    }
+    boundary_labels = {
+        "knowledge_only": (
+            "Only answer using configured knowledge sources or explicitly provided context. "
+            "If the answer is not available, say so and ask for more information or handoff."
+        ),
+        "business_only": (
+            "Stay within the configured business workflow. Do not engage in unrelated small talk; "
+            "briefly redirect the user back to the task."
+        ),
+        "open": (
+            "Brief small talk is allowed, but keep the conversation focused on the user's task."
+        ),
+    }
+
+    lines = []
+    persona = persona_labels.get(profile.get("persona_style", ""))
+    boundary = boundary_labels.get(profile.get("boundary_mode", ""))
+    if profile.get("role_template_id"):
+        lines.append(f"Role template: {profile['role_template_id']}.")
+    if persona:
+        lines.append(f"Persona: {persona}")
+    if boundary:
+        lines.append(f"Boundary: {boundary}")
+    if not lines:
+        return ""
+    return "\n\n## Role Behavior\n" + "\n".join(f"- {line}" for line in lines) + "\n"
 
 
 def _make_subagent_tool(
@@ -286,6 +328,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         system_prompt = profile.get("system_prompt", "") or system_prompt
                     if not _context_field_was_set(ctx, "enabled_tools"):
                         enabled_tools = profile.get("enabled_tools", [])
+                    system_prompt += _role_behavior_instructions(profile)
 
                     # ---- Linked skills ----
                     skills = resources["skills"]
