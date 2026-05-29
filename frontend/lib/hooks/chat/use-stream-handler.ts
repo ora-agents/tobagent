@@ -109,6 +109,7 @@ interface UseStreamHandlerReturn {
       checkpointId?: string
       replayFromCheckpoint?: boolean
       userMessageId?: string
+      inputMessages?: Array<{ role: "user" | "assistant"; content: unknown }>
     }
   ) => Promise<{ assistantContent: string; runId: string | undefined }>
 }
@@ -184,6 +185,7 @@ export function useStreamHandler({
         checkpointId?: string
         replayFromCheckpoint?: boolean
         userMessageId?: string
+        inputMessages?: Array<{ role: "user" | "assistant"; content: unknown }>
       },
     ) => {
       if (!LANGGRAPH_API_URL) {
@@ -272,6 +274,8 @@ export function useStreamHandler({
 
       const input = options?.replayFromCheckpoint
         ? null
+        : options?.inputMessages
+          ? { messages: options.inputMessages }
         : {
             messages: [{ role: "user", content: messageContent }],
           }

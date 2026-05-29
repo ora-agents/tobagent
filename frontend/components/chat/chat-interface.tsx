@@ -78,6 +78,12 @@ interface QueuedMessage {
   threadId: string
 }
 
+const toLangGraphMessages = (messages: Message[]) =>
+  messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }))
+
 export function ChatInterface({
   showToolCalls = false,
   threadId,
@@ -166,6 +172,16 @@ export function ChatInterface({
     const createdThreadId = onCreateThread?.()
     if (!createdThreadId) {
       throw new Error("Unable to create a conversation thread")
+    }
+
+    activeThreadIdRef.current = createdThreadId
+    return createdThreadId
+  }, [onCreateThread])
+
+  const createForkThreadId = useCallback(() => {
+    const createdThreadId = onCreateThread?.()
+    if (!createdThreadId) {
+      throw new Error("Unable to create a forked conversation thread")
     }
 
     activeThreadIdRef.current = createdThreadId
@@ -803,13 +819,19 @@ export function ChatInterface({
 
   const handleRegenerate = useCallback(async () => {
     if (uiState.isLoading || uiState.isRegenerating) return
-    const targetThreadId = activeThreadIdRef.current
-    if (!targetThreadId) return
-
     const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")
     if (!lastUserMessage) return
 
     const messagesUpToLastUser = messages.slice(0, messages.findIndex((m) => m.id === lastUserMessage.id) + 1)
+    let targetThreadId: string
+    try {
+      targetThreadId = createForkThreadId()
+    } catch (error) {
+      console.error("Failed to create forked thread for regenerate:", error)
+      return
+    }
+
+    hasSentMessageRef.current = targetThreadId
     setMessages(messagesUpToLastUser)
     uiDispatch({ type: 'START_REGENERATE' })
     shouldInterruptRef.current = false
@@ -819,11 +841,9 @@ export function ChatInterface({
       const { assistantContent } = await processStream(
         lastUserMessage.content,
         assistantMessageId,
-        lastUserMessage.checkpointId ? undefined : lastUserMessage.images,
+        lastUserMessage.images,
         targetThreadId,
-        lastUserMessage.checkpointId
-          ? { checkpointId: lastUserMessage.checkpointId, replayFromCheckpoint: true }
-          : undefined,
+        { inputMessages: toLangGraphMessages(messagesUpToLastUser) },
       )
 
       if (onThreadUpdate && assistantContent) {
@@ -840,15 +860,12 @@ export function ChatInterface({
     } finally {
       uiDispatch({ type: 'FINISH_REGENERATE' })
     }
-  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, customTitle, t.newConversation, uiDispatch])
+  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, customTitle, t.newConversation, uiDispatch, createForkThreadId])
 
   const handleEditAndRerun = useCallback(async (messageId: string, newContent: string) => {
     console.log('Edit and rerun from message:', messageId, 'new content:', newContent.slice(0, 50))
 
     if (uiState.isLoading || uiState.isRegenerating) return
-    const targetThreadId = activeThreadIdRef.current
-    if (!targetThreadId) return
-
     const messageIndex = messages.findIndex((m) => m.id === messageId)
     if (messageIndex === -1) return
 
@@ -857,7 +874,15 @@ export function ChatInterface({
       ...messages[messageIndex],
       content: newContent,
     }
+    let targetThreadId: string
+    try {
+      targetThreadId = createForkThreadId()
+    } catch (error) {
+      console.error("Failed to create forked thread for edit rerun:", error)
+      return
+    }
 
+    hasSentMessageRef.current = targetThreadId
     setMessages([...messagesUpToEdit, updatedMessage])
     uiDispatch({ type: 'SET_LOADING', payload: true })
     shouldInterruptRef.current = false
@@ -871,8 +896,8 @@ export function ChatInterface({
         undefined,
         targetThreadId,
         {
-          checkpointId: updatedMessage.parentCheckpointId,
           userMessageId: updatedMessage.id,
+          inputMessages: toLangGraphMessages([...messagesUpToEdit, updatedMessage]),
         },
       )
 
@@ -891,7 +916,7 @@ export function ChatInterface({
       uiDispatch({ type: 'SET_LOADING', payload: false })
       uiDispatch({ type: 'SET_STOPPING', payload: false })
     }
-  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, customTitle, t.newConversation, t.failedToRerunFromEdit, uiDispatch])
+  }, [uiState.isLoading, uiState.isRegenerating, messages, processStream, onThreadUpdate, customTitle, t.newConversation, t.failedToRerunFromEdit, uiDispatch, createForkThreadId])
 
   const handleCopy = async (content: string, messageId: string) => {
     await navigator.clipboard.writeText(content)
