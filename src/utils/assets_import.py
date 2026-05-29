@@ -19,7 +19,7 @@ from src.utils.document_loader import load_document_bytes
 
 logger = logging.getLogger(__name__)
 
-ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+ASSETS_DIR = Path(__file__).parents[2] / "assets"
 DEFAULT_AGENT_ID_PREFIX = "default_"
 DEFAULT_AGENT_NAME = "默认系统智能体"
 DEFAULT_AGENT_DESCRIPTION = "预配置的文档助手智能体。"
