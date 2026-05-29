@@ -134,11 +134,12 @@ export function useVoiceAgent({
   const ttsConnectingRef = useRef<Promise<void> | null>(null)
   // KWS client for always-on wake word detection
   const kwsClientRef = useRef<KwsClient | null>(null)
+  const wakeWordsKey = wakeWords.filter(Boolean).join("\u0000")
   // Ref for wakeWords to avoid stale closures
   const wakeWordsRef = useRef(wakeWords)
   useEffect(() => {
-    wakeWordsRef.current = wakeWords
-  }, [wakeWords])
+    wakeWordsRef.current = wakeWordsKey ? wakeWordsKey.split("\u0000") : []
+  }, [wakeWordsKey])
 
   // Ref for enterVoiceMode to avoid stale closure in KWS callback
   const enterVoiceModeRef = useRef<() => void>(() => {})
@@ -237,6 +238,7 @@ export function useVoiceAgent({
   const startKwsListening = useCallback(async () => {
     const kw = wakeWordsRef.current
     if (!kw.length) return
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return
 
     // Don't start if already active
     if (kwsClientRef.current?.isActive) return
@@ -810,16 +812,34 @@ export function useVoiceAgent({
     }
   }, [resetIdleTimer, setVoiceStateSync])
 
-  // Auto-start KWS on page load if wake words are configured
+  // Auto-start KWS on page load if wake words are configured. Only the visible
+  // tab listens, which avoids duplicate wake detections from background chats.
   useEffect(() => {
-    if (wakeWords.length && voiceState === "idle" && isSupported) {
-      startKwsListening()
+    if (!isSupported || !wakeWordsRef.current.length) {
+      stopKwsListening()
+      return
     }
+    if (typeof document === "undefined") return
+
+    const syncKwsWithVisibility = () => {
+      if (document.visibilityState !== "visible") {
+        stopKwsListening()
+        return
+      }
+
+      if (voiceStateRef.current === "idle") {
+        startKwsListening()
+      }
+    }
+
+    syncKwsWithVisibility()
+    document.addEventListener("visibilitychange", syncKwsWithVisibility)
+
     return () => {
+      document.removeEventListener("visibilitychange", syncKwsWithVisibility)
       stopKwsListening()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wakeWords, isSupported])
+  }, [wakeWordsKey, isSupported, startKwsListening, stopKwsListening])
 
   // Cleanup on unmount
   useEffect(() => {
