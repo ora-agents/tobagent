@@ -83,8 +83,10 @@ def _get_embeddings():
 # ---------------------------------------------------------------------------
 
 def _table_name(agent_id: str) -> str:
-    safe = "".join(c if c.isalnum() or c == "_" else "_" for c in agent_id)
-    return f"rag_{safe}" if safe else "rag_default"
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", agent_id).strip("_")
+    if not safe:
+        safe = hashlib.sha1(agent_id.encode("utf-8")).hexdigest()[:12]
+    return f"rag_{safe}"
 
 
 async def _get_async_db() -> lancedb.AsyncConnection:
@@ -188,7 +190,7 @@ def ingest_documents(
     texts: list[str],
     sources: list[str] | None = None,
 ) -> int:
-    """Synchronous wrapper around ``ingest_documents_async``.
+    """Wrap ``ingest_documents_async`` for synchronous callers.
 
     Prefer calling ``ingest_documents_async`` directly from async code.
     This shim exists for backward compatibility only.
@@ -219,7 +221,7 @@ async def delete_documents_async(agent_id: str, source: str) -> None:
 
 # Sync shim
 def delete_documents(agent_id: str, source: str) -> None:
-    """Synchronous wrapper around ``delete_documents_async``."""
+    """Wrap ``delete_documents_async`` for synchronous callers."""
     import asyncio
     asyncio.run(delete_documents_async(agent_id, source))
 
@@ -338,7 +340,7 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
 
 # Sync shim: kept for backward compatibility
 def search_rag(query: str, agent_id: str, top_k: int = 5) -> str:
-    """Synchronous wrapper around ``search_rag_async``.
+    """Wrap ``search_rag_async`` for synchronous callers.
 
     Prefer ``search_rag_async`` from async code.
     """
@@ -352,7 +354,6 @@ def search_rag(query: str, agent_id: str, top_k: int = 5) -> str:
 
 def make_rag_tool(agent_id: str) -> BaseTool:
     """Return a LangChain tool for RAG search scoped to the given agent_id."""
-
     _doc = (
         "Search the agent's private knowledge base for relevant information.\n\n"
         "Args:\n"
