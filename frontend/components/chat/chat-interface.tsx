@@ -59,6 +59,7 @@ interface ChatInterfaceProps {
   onAgentConfigChange?: (config: AgentConfig) => void
   /** Custom agent profile; when set, the generic_agent graph is used instead. */
   agentProfile?: AgentProfile | null
+  agentProfilesLoaded?: boolean
   isNewThread?: boolean
   customTitle?: string | null
   /** Pre-fill or auto-send a message. Use with autoSend to control behavior. */
@@ -96,6 +97,7 @@ export function ChatInterface({
   agentConfig,
   onAgentConfigChange,
   agentProfile,
+  agentProfilesLoaded = true,
   isNewThread = false,
   autoSend = false,
   onInitialMessageSent,
@@ -706,6 +708,11 @@ export function ChatInterface({
       return
     }
 
+    if (!agentProfilesLoaded) {
+      setLimitedInput(trimmedMessage)
+      return
+    }
+
     if (!agentProfile) {
       setInputError(t.selectAgentRequired)
       setLimitedInput(trimmedMessage)
@@ -743,7 +750,7 @@ export function ChatInterface({
       // Just populate input (existing behavior for ticket page, etc.)
       setLimitedInput(trimmedMessage)
     }
-  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, agentProfile, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId, onCreateAgent, t.selectAgentRequired])
+  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, agentProfilesLoaded, agentProfile, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId, onCreateAgent, t.selectAgentRequired])
 
   const handleSend = useCallback(async () => {
     if (!uiState.input.trim() && attachedFiles.length === 0) {
@@ -1044,6 +1051,7 @@ export function ChatInterface({
             agentConfig={agentConfig}
             onAgentConfigChange={onAgentConfigChange}
             agentProfile={agentProfile}
+            agentProfilesLoaded={agentProfilesLoaded}
             agentProfiles={agentProfiles}
             onAgentProfileChange={onAgentProfileChange}
             onCreateAgent={onCreateAgent}

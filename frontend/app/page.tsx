@@ -97,6 +97,7 @@ function DashboardContent() {
   // Agent profiles (custom configurable agents)
   const {
     profiles: agentProfiles,
+    profilesLoaded: agentProfilesLoaded,
     selectedId: selectedAgentProfileId,
     selectedProfile: selectedAgentProfile,
     setSelectedId: setSelectedAgentProfileId,
@@ -494,6 +495,7 @@ function DashboardContent() {
               agentConfig={agentConfig}
               onAgentConfigChange={setAgentConfig}
               agentProfile={selectedAgentProfile}
+              agentProfilesLoaded={agentProfilesLoaded}
               agentProfiles={agentProfiles}
               onAgentProfileChange={setSelectedAgentProfileId}
               onCreateAgent={() => setCurrentView("agents")}

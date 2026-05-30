@@ -62,10 +62,21 @@ export function useAgentProfiles() {
   }, [user])
 
   useEffect(() => {
-    if (!profilesLoaded || !selectedId) return
-    if (profiles.some(p => p.id === selectedId)) return
-    setSelectedIdState(null)
-    saveSelectedId(null)
+    if (!profilesLoaded) return
+
+    if (profiles.length === 0) {
+      if (selectedId) {
+        setSelectedIdState(null)
+        saveSelectedId(null)
+      }
+      return
+    }
+
+    if (selectedId && profiles.some(p => p.id === selectedId)) return
+
+    const defaultId = profiles[0].id
+    setSelectedIdState(defaultId)
+    saveSelectedId(defaultId)
   }, [profilesLoaded, profiles, selectedId])
 
   const setSelectedId = useCallback((id: string | null) => {

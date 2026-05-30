@@ -56,6 +56,7 @@ interface WelcomeScreenProps {
   agentConfig?: AgentConfig
   onAgentConfigChange?: (config: AgentConfig) => void
   agentProfile?: AgentProfile | null
+  agentProfilesLoaded?: boolean
   agentProfiles?: AgentProfile[]
   onAgentProfileChange?: (id: string | null) => void
   onCreateAgent?: () => void
@@ -95,6 +96,7 @@ export function WelcomeScreen({
   agentConfig,
   onAgentConfigChange,
   agentProfile,
+  agentProfilesLoaded = true,
   agentProfiles,
   onAgentProfileChange,
   onCreateAgent,
@@ -112,6 +114,7 @@ export function WelcomeScreen({
       onAgentConfigChange({ ...agentConfig, model })
     }
   }
+  const isAgentLoading = !agentProfilesLoaded
   const hasActiveAgent = !!agentProfile
 
   return (
@@ -127,7 +130,7 @@ export function WelcomeScreen({
           </h2>
         </div>
 
-        {!hasActiveAgent && (
+        {!isAgentLoading && !hasActiveAgent && (
           <div className="mb-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{t.createAgentPrompt}</span>
             {onCreateAgent && (
@@ -196,7 +199,7 @@ export function WelcomeScreen({
                   onClick={onFileButtonClick}
                   variant="ghost"
                   size="sm"
-                  disabled={isLoading || !userId || !hasActiveAgent}
+                  disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
                   className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                   type="button"
                   title={t.attachFiles}
@@ -213,9 +216,9 @@ export function WelcomeScreen({
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
-                placeholder={!userId ? t.initializing : !hasActiveAgent ? t.selectAgentRequired : isLoading ? t.typeNextMessage : t.askAnything}
+                placeholder={!userId || isAgentLoading ? t.initializing : !hasActiveAgent ? t.selectAgentRequired : isLoading ? t.typeNextMessage : t.askAnything}
                 className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
-                disabled={isLoading || !userId || !hasActiveAgent}
+                disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
                 rows={1}
               />
 
@@ -223,7 +226,7 @@ export function WelcomeScreen({
                 <VoiceInputButton
                   voiceState={voiceState}
                   isSupported={isVoiceSupported}
-                  disabled={!userId || !hasActiveAgent}
+                  disabled={!userId || isAgentLoading || !hasActiveAgent}
                   onClick={onVoiceToggle}
                   size="sm"
                 />
@@ -291,15 +294,19 @@ export function WelcomeScreen({
             {/* Agent Combobox */}
             {agentProfiles && onAgentProfileChange && (
               <div className="flex items-center border-l border-border/40 pl-3">
-                <Combobox
-                  options={agentProfiles.map((p) => ({ value: p.id, label: p.name }))}
-                  value={agentProfile?.id || ""}
-                  onValueChange={onAgentProfileChange}
-                  prefix={locale === "zh" ? "角色：" : "Agent: "}
-                  placeholder={locale === "zh" ? "选择角色..." : "Select agent..."}
-                  searchPlaceholder={locale === "zh" ? "搜索角色..." : "Search agent..."}
-                  emptyText={locale === "zh" ? "未找到该角色" : "No agent found."}
-                />
+                {isAgentLoading ? (
+                  <ComboboxSkeleton label={t.loadingAgents} />
+                ) : (
+                  <Combobox
+                    options={agentProfiles.map((p) => ({ value: p.id, label: p.name }))}
+                    value={agentProfile?.id || ""}
+                    onValueChange={onAgentProfileChange}
+                    prefix={locale === "zh" ? "角色：" : "Agent: "}
+                    placeholder={locale === "zh" ? "选择角色..." : "Select agent..."}
+                    searchPlaceholder={locale === "zh" ? "搜索角色..." : "Search agent..."}
+                    emptyText={locale === "zh" ? "未找到该角色" : "No agent found."}
+                  />
+                )}
               </div>
             )}
           </div>
