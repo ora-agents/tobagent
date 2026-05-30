@@ -2,7 +2,7 @@
  * Sherpa-ONNX WASM module loader for VAD.
  *
  * Lazy-loads the sherpa-onnx Emscripten WASM module via dynamic script
- * injection. The module (~93MB including .wasm + .data) is only fetched
+ * injection. The VAD-only module is only fetched
  * when voice mode is first activated, then cached for subsequent use.
  *
  * The CircularBuffer and Vad wrapper classes are implemented directly
@@ -171,7 +171,7 @@ export class Vad {
     const Module = this.Module
 
     const sileroConfig = config.sileroVad || {
-      model: "./silero_vad.onnx",
+      model: "",
       threshold: 0.5,
       minSilenceDuration: 0.5,
       minSpeechDuration: 0.25,
@@ -180,7 +180,7 @@ export class Vad {
     }
 
     const tenConfig = config.tenVad || {
-      model: "",
+      model: "./ten-vad.onnx",
       threshold: 0.5,
       minSilenceDuration: 0.5,
       minSpeechDuration: 0.25,
@@ -349,7 +349,7 @@ export function loadSherpaOnnxModule(): Promise<{ module: SherpaOnnxModule }> {
 
     // Load the Emscripten glue code (triggers WASM + .data download)
     const glueScript = document.createElement("script")
-    glueScript.src = `${SHERPA_ONNX_BASE_PATH}/sherpa-onnx-wasm-main-vad-asr.js`
+    glueScript.src = `${SHERPA_ONNX_BASE_PATH}/sherpa-onnx-wasm-main-vad.js`
     glueScript.onerror = () => reject(new Error("Failed to load sherpa-onnx WASM glue code"))
     document.head.appendChild(glueScript)
   })

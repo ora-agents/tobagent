@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/sherpa-onnx-wasm-simd-1.13.2-vad-asr-zh-zipformer_wenetspeech/:path*",
+        source: "/sherpa-onnx-wasm-simd-v1.13.2-ten-vad/:path*",
         headers: [
           {
             key: "Cache-Control",
