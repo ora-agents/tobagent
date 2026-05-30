@@ -8,6 +8,7 @@ import logging
 import re
 import traceback
 from collections.abc import Awaitable, Callable
+from time import monotonic
 from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
@@ -39,6 +40,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     persona_style = getattr(agent_row, "persona_style", None)
     boundary_mode = getattr(agent_row, "boundary_mode", None)
     role_template_id = getattr(agent_row, "role_template_id", None)
+    updated_at = getattr(agent_row, "updated_at", None)
 
     return {
         "id": agent_row.id,
@@ -51,6 +53,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "role_template_id": role_template_id if isinstance(role_template_id, str) else "",
         "persona_style": persona_style if isinstance(persona_style, str) else "",
         "boundary_mode": boundary_mode if isinstance(boundary_mode, str) else "",
+        "updated_at": updated_at if isinstance(updated_at, str) else "",
     }
 
 
@@ -290,10 +293,81 @@ class DynamicConfigMiddleware(AgentMiddleware):
     subagents registration and runtime execution without graph compilation issues.
     """
 
-    # Per-agent cache of dynamic subagent tools: {parent_agent_id: {tool_name: BaseTool}}
+    # Per-agent cache of dynamic subagent tools: {(owner_user_id, parent_agent_id): {tool_name: BaseTool}}
     # Populated in awrap_model_call, reused in awrap_tool_call to avoid
     # redundant DB queries and DetachedInstanceError.
-    _tools_cache: dict[str, dict[str, BaseTool]] = {}
+    _tools_cache: dict[tuple[str, str], dict[str, BaseTool]] = {}
+    _resources_cache: dict[
+        tuple[str, str, tuple[str, ...] | None],
+        tuple[dict[str, Any], float, str],
+    ] = {}
+    _RESOURCES_CACHE_TTL_SECONDS = 30
+
+    @classmethod
+    def clear_cache(
+        cls,
+        agent_id: str | None = None,
+        owner_user_id: str | None = None,
+    ) -> None:
+        """Clear cached dynamic tools and profile resources."""
+        if agent_id is None and owner_user_id is None:
+            cls._tools_cache.clear()
+            cls._resources_cache.clear()
+            return
+
+        tool_keys_to_delete = []
+        for key in cls._tools_cache:
+            key_owner_user_id, key_agent_id = key
+            if owner_user_id is not None and key_owner_user_id != owner_user_id:
+                continue
+            if agent_id is not None and key_agent_id != agent_id:
+                continue
+            tool_keys_to_delete.append(key)
+
+        for key in tool_keys_to_delete:
+            cls._tools_cache.pop(key, None)
+
+        resource_keys_to_delete = []
+        for key in cls._resources_cache:
+            key_owner_user_id, key_agent_id, _override = key
+            if owner_user_id is not None and key_owner_user_id != owner_user_id:
+                continue
+            if agent_id is not None and key_agent_id != agent_id:
+                continue
+            resource_keys_to_delete.append(key)
+
+        for key in resource_keys_to_delete:
+            cls._resources_cache.pop(key, None)
+
+    async def _load_runtime_resources_cached(
+        self,
+        agent_id: str,
+        owner_user_id: str,
+        agent_ids_override: list[str] | None,
+    ) -> dict[str, Any]:
+        """Load dynamic runtime resources with a short per-process cache."""
+        override_key = (
+            tuple(agent_ids_override)
+            if agent_ids_override is not None
+            else None
+        )
+        cache_key = (owner_user_id, agent_id, override_key)
+        now = monotonic()
+        cached = self._resources_cache.get(cache_key)
+        if cached and now - cached[1] < self._RESOURCES_CACHE_TTL_SECONDS:
+            return cached[0]
+
+        resources = await asyncio.to_thread(
+            _load_agent_runtime_resources,
+            agent_id,
+            owner_user_id,
+            agent_ids_override,
+        )
+
+        profile_updated_at = (resources.get("profile") or {}).get("updated_at", "")
+        if resources.get("found") and isinstance(profile_updated_at, str) and profile_updated_at:
+            self._resources_cache[cache_key] = (resources, now, profile_updated_at)
+        return resources
 
     async def awrap_model_call(self, request, handler):
         """Override system message, tool list, and model from runtime context."""
@@ -316,8 +390,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 if _context_field_was_set(ctx, "agent_ids"):
                     agent_ids_override = list(getattr(ctx, "agent_ids", []) or [])
 
-                resources = await asyncio.to_thread(
-                    _load_agent_runtime_resources,
+                resources = await self._load_runtime_resources_cached(
                     agent_id,
                     owner_user_id,
                     agent_ids_override,
@@ -395,7 +468,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                                 tools_for_agent[tool_name] = dynamic_tool
 
                             # Cache tools for awrap_tool_call reuse.
-                            self._tools_cache[agent_id] = tools_for_agent
+                            self._tools_cache[(owner_user_id, agent_id)] = tools_for_agent
                             system_prompt += agents_instructions
 
                             logger.info(
@@ -506,7 +579,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
 
         if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("call_agent_"):
             # Fast path: reuse cached tool from awrap_model_call.
-            cached_tools = self._tools_cache.get(agent_id, {})
+            cached_tools = self._tools_cache.get((owner_user_id, agent_id), {})
             if tool_name in cached_tools:
                 logger.info(
                     "[DynamicConfigMiddleware] Tool call '%s' matched in cache, executing.",
@@ -544,7 +617,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         tools_for_agent[expected_name] = dynamic_tool
 
                     # Populate cache for subsequent calls.
-                    self._tools_cache[agent_id] = tools_for_agent
+                    self._tools_cache[(owner_user_id, agent_id)] = tools_for_agent
 
                     if tool_name in tools_for_agent:
                         logger.info(
