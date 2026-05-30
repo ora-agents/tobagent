@@ -141,10 +141,12 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(204, 120, 92, 0.18),
+    rgba(204, 120, 92, 0.16),
+    rgba(250, 249, 245, 0.42),
+    rgba(204, 120, 92, 0.12),
     transparent
   );
-  animation: loading-shimmer 1.5s ease-in-out infinite;
+  animation: loading-shimmer 1.9s ease-in-out infinite;
 }
 
 .loading-placeholder::before {
@@ -152,21 +154,23 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 55%),
-    linear-gradient(90deg, rgba(20, 20, 19, 0.03), transparent 28%, rgba(20, 20, 19, 0.025) 64%, transparent);
+    linear-gradient(180deg, rgba(250, 249, 245, 0.38), transparent 58%),
+    linear-gradient(90deg, rgba(20, 20, 19, 0.035), transparent 30%, rgba(204, 120, 92, 0.045) 66%, transparent);
 }
 
 .dark .loading-placeholder::before {
   background:
-    linear-gradient(180deg, rgba(250, 249, 245, 0.06), transparent 55%),
-    linear-gradient(90deg, rgba(250, 249, 245, 0.04), transparent 28%, rgba(250, 249, 245, 0.035) 64%, transparent);
+    linear-gradient(180deg, rgba(250, 249, 245, 0.07), transparent 58%),
+    linear-gradient(90deg, rgba(250, 249, 245, 0.035), transparent 30%, rgba(204, 120, 92, 0.05) 66%, transparent);
 }
 
 .dark .loading-placeholder::after {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(204, 120, 92, 0.22),
+    rgba(204, 120, 92, 0.16),
+    rgba(250, 249, 245, 0.12),
+    rgba(204, 120, 92, 0.12),
     transparent
   );
 }
@@ -174,6 +178,8 @@
 @media (prefers-reduced-motion: reduce) {
   .loading-placeholder::after {
     animation: none;
+    transform: none;
+    opacity: 0.55;
   }
 }
 
