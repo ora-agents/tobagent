@@ -176,6 +176,7 @@ function DashboardContent() {
       return threadAgentId === currentAgentId;
     });
   }, [threads, selectedAgentProfileId]);
+  const currentAgentId = selectedAgentProfileId || "default"
 
   const { clientProfile } = useClientProfile()
 
@@ -360,24 +361,54 @@ function DashboardContent() {
   }, [threadId, setThreadId, initialPrompt])
 
   // Handle switching active thread or creating a new one when active agent changes
+  const previousSyncedAgentIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!userId || threadsLoading) return;
+    if (!userId || threadsLoading || !agentProfilesLoaded) return;
     if (!activeThreadId || newThreads.has(activeThreadId)) return;
 
-    // Check if the current threadId is in the filteredThreads
-    const currentThreadInFiltered = filteredThreads.some(t => t.thread_id === activeThreadId);
-    
-    // If current thread does not belong to the selected agent:
-    if (!currentThreadInFiltered) {
-      if (filteredThreads.length > 0) {
-        // Switch to the most recent thread of the selected agent
-        setThreadId(filteredThreads[0].thread_id);
-      } else {
-        // If there are no threads for this agent, show a blank chat.
-        setThreadId(null);
+    const previousAgentId = previousSyncedAgentIdRef.current
+    const agentChangedAfterInitialSync = previousAgentId !== null && previousAgentId !== currentAgentId
+    previousSyncedAgentIdRef.current = currentAgentId
+
+    const activeThread = threads.find(t => t.thread_id === activeThreadId)
+    const activeThreadAgentId = activeThread?.metadata?.agent_id || "default"
+
+    if (!activeThread) {
+      if (agentChangedAfterInitialSync) {
+        const nextThreadId = filteredThreads[0]?.thread_id ?? null
+        setThreadId(nextThreadId)
       }
+
+      // On initial load, the thread may be outside the sidebar fetch window or
+      // filtered out as empty. Keep the URL stable and let ChatInterface load it.
+      return
     }
-  }, [selectedAgentProfileId, threadsLoading, filteredThreads, activeThreadId, newThreads, userId, setThreadId]);
+
+    // Direct links and page refreshes should preserve the requested thread. If the
+    // URL points at a thread from another agent, select that agent instead of
+    // rewriting the URL and losing the bookmarkable threadId.
+    if (!agentChangedAfterInitialSync && activeThreadAgentId !== currentAgentId) {
+      setSelectedAgentProfileId(activeThreadAgentId === "default" ? null : activeThreadAgentId)
+      return
+    }
+
+    if (agentChangedAfterInitialSync && activeThreadAgentId !== currentAgentId) {
+      const nextThreadId = filteredThreads[0]?.thread_id ?? null
+      setThreadId(nextThreadId)
+    }
+  }, [
+    agentProfilesLoaded,
+    currentAgentId,
+    filteredThreads,
+    activeThreadId,
+    newThreads,
+    selectedAgentProfileId,
+    setSelectedAgentProfileId,
+    setThreadId,
+    threads,
+    threadsLoading,
+    userId,
+  ]);
 
   // Cycle to next model
   const handleCycleModel = () => {
