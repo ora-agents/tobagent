@@ -235,20 +235,6 @@ export function ChatInterface({
     wakeWords: agentProfile?.wakeWords || [],
     ttsVoice: agentProfile?.ttsVoice || null,
   })
-  const previousThreadIdRef = useRef<string | null>(threadId)
-
-  useEffect(() => {
-    const previousThreadId = previousThreadIdRef.current
-    if (previousThreadId === threadId) return
-
-    previousThreadIdRef.current = threadId
-    if (!previousThreadId && threadId) return
-
-    if (voiceAgent.voiceState !== "idle" && voiceAgent.voiceState !== "kws") {
-      voiceAgent.exitVoiceMode()
-    }
-  }, [threadId, voiceAgent.voiceState, voiceAgent.exitVoiceMode])
-
   // ============================================================================
   // Refs
   // ============================================================================

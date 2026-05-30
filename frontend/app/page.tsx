@@ -427,8 +427,10 @@ function DashboardContent() {
           onViewChange={setCurrentView}
         />
       <div className="flex-1 flex flex-col overflow-hidden">
-        {currentView === "chat" ? (
-          <>
+        <div
+          className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
+          aria-hidden={currentView !== "chat"}
+        >
             <Header
               showToolCalls={showToolCalls}
               onToggleToolCalls={() => setShowToolCalls(!showToolCalls)}
@@ -457,12 +459,13 @@ function DashboardContent() {
               autoSend={!!initialPrompt}
               onInitialMessageSent={() => setInitialPrompt(null)}
             />
-          </>
-        ) : currentView === "settings" ? (
+        </div>
+
+        {currentView === "settings" ? (
           <UserSettingsPage
             onBackToChat={() => setCurrentView("chat")}
           />
-        ) : (
+        ) : currentView !== "chat" ? (
           <ManagementDashboard
             initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
             onBackToChat={() => setCurrentView("chat")}
@@ -473,7 +476,7 @@ function DashboardContent() {
             updateAgentProfile={updateAgentProfile}
             deleteAgentProfile={deleteAgentProfile}
           />
-        )}
+        ) : null}
       </div>
     </div>
     </>
