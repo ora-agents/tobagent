@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
-import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
+import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { LoaderCircle, Plus, Square } from "lucide-react"
 import { FilePreviewGrid } from "./file-preview-grid"
 import { VoiceInputButton } from "./voice-input-button"
@@ -273,7 +273,7 @@ export function WelcomeScreen({
             {agentConfig && onAgentConfigChange && (
               <div className="flex items-center">
                 {availableModels === null ? (
-                  <LoadingPlaceholder className="h-8 w-36" label={t.loadingModels} />
+                  <ComboboxSkeleton label={t.loadingModels} />
                 ) : availableModels.length > 0 ? (
                   <Combobox
                     options={availableModels.map((m) => ({ value: m, label: getModelDisplayName(m as ModelOption) }))}
