@@ -813,18 +813,22 @@ async def get_agent_profiles(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from src.utils.assets_import import (
-        ensure_default_agent_profile,
-        ensure_user_default_agent_assets,
-    )
+    from src.utils.assets_import import is_default_agent_profile_id
 
-    ensure_default_agent_profile(db, current_user.id)
-    db.commit()
-
-    # Importing may call the embedding provider, so run it outside the request's
-    # active SQLAlchemy transaction. Existing KBs are only linked, not re-ingested.
-    await ensure_user_default_agent_assets(current_user.id)
-    db.expire_all()
+    default_profiles = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).all()
+    default_profile_ids = [
+        profile.id
+        for profile in default_profiles
+        if is_default_agent_profile_id(profile.id)
+    ]
+    if default_profile_ids:
+        _remove_agent_profile_links(db, current_user.id, "agent_ids", default_profile_ids)
+        for profile in default_profiles:
+            if profile.id in default_profile_ids:
+                db.delete(profile)
+        db.commit()
 
     profiles = db.query(AgentProfileTable).filter(
         AgentProfileTable.owner_user_id == current_user.id
@@ -910,11 +914,6 @@ async def delete_agent_profile(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from src.utils.assets_import import is_default_agent_profile_id
-
-    if is_default_agent_profile_id(id):
-        raise HTTPException(status_code=400, detail="Default agent profile cannot be deleted")
-
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == current_user.id,

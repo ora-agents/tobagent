@@ -12,7 +12,6 @@ import type { ImageAttachment } from "@/lib/types"
 import type { VoiceState } from "@/lib/voice/types"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
-import { isDefaultAgentProfile } from "@/lib/types/agent-profiles"
 import { MAX_INPUT_CHARS } from "@/lib/constants/features"
 import {
   fetchAvailableModels,
@@ -59,6 +58,7 @@ interface WelcomeScreenProps {
   agentProfile?: AgentProfile | null
   agentProfiles?: AgentProfile[]
   onAgentProfileChange?: (id: string | null) => void
+  onCreateAgent?: () => void
 }
 
 /**
@@ -97,6 +97,7 @@ export function WelcomeScreen({
   agentProfile,
   agentProfiles,
   onAgentProfileChange,
+  onCreateAgent,
 }: WelcomeScreenProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -111,6 +112,7 @@ export function WelcomeScreen({
       onAgentConfigChange({ ...agentConfig, model })
     }
   }
+  const hasActiveAgent = !!agentProfile
 
   return (
     <div className="absolute inset-0 flex items-center justify-center px-3 sm:px-4">
@@ -124,6 +126,23 @@ export function WelcomeScreen({
             {t.whatCanIHelpWith}
           </h2>
         </div>
+
+        {!hasActiveAgent && (
+          <div className="mb-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{t.createAgentPrompt}</span>
+            {onCreateAgent && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={onCreateAgent}
+                className="gap-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary-active"
+              >
+                <Plus className="w-4 h-4" />
+                {t.addAgent}
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* File Previews */}
         <FilePreviewGrid files={attachedFiles} onRemove={onRemoveFile} />
@@ -177,7 +196,7 @@ export function WelcomeScreen({
                   onClick={onFileButtonClick}
                   variant="ghost"
                   size="sm"
-                  disabled={isLoading || !userId}
+                  disabled={isLoading || !userId || !hasActiveAgent}
                   className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                   type="button"
                   title={t.attachFiles}
@@ -194,9 +213,9 @@ export function WelcomeScreen({
                 onKeyDown={onKeyDown}
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
-                placeholder={!userId ? t.initializing : isLoading ? t.typeNextMessage : t.askAnything}
+                placeholder={!userId ? t.initializing : !hasActiveAgent ? t.selectAgentRequired : isLoading ? t.typeNextMessage : t.askAnything}
                 className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
-                disabled={isLoading || !userId}
+                disabled={isLoading || !userId || !hasActiveAgent}
                 rows={1}
               />
 
@@ -204,7 +223,7 @@ export function WelcomeScreen({
                 <VoiceInputButton
                   voiceState={voiceState}
                   isSupported={isVoiceSupported}
-                  disabled={!userId}
+                  disabled={!userId || !hasActiveAgent}
                   onClick={onVoiceToggle}
                   size="sm"
                 />
@@ -273,14 +292,9 @@ export function WelcomeScreen({
             {agentProfiles && onAgentProfileChange && (
               <div className="flex items-center border-l border-border/40 pl-3">
                 <Combobox
-                  options={[
-                    { value: "default", label: locale === "zh" ? "默认系统角色" : "Default" },
-                    ...agentProfiles
-                      .filter((p) => !isDefaultAgentProfile(p))
-                      .map((p) => ({ value: p.id, label: p.name })),
-                  ]}
-                  value={agentProfile && !isDefaultAgentProfile(agentProfile) ? agentProfile.id : "default"}
-                  onValueChange={(val) => onAgentProfileChange(val === "default" ? null : val)}
+                  options={agentProfiles.map((p) => ({ value: p.id, label: p.name }))}
+                  value={agentProfile?.id || ""}
+                  onValueChange={onAgentProfileChange}
                   prefix={locale === "zh" ? "角色：" : "Agent: "}
                   placeholder={locale === "zh" ? "选择角色..." : "Select agent..."}
                   searchPlaceholder={locale === "zh" ? "搜索角色..." : "Search agent..."}

@@ -14,7 +14,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
 from src.tools.rag_tool import ingest_documents_async
-from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal, UserTable
+from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal
 from src.utils.document_loader import load_document_bytes
 
 logger = logging.getLogger(__name__)
@@ -248,30 +248,10 @@ async def ensure_system_asset_knowledge_bases() -> list[str]:
 
 
 async def ensure_user_default_agent_assets(owner_user_id: str) -> list[str]:
-    """Link shared system asset KBs to a user's editable default agent."""
-    kb_ids = await ensure_system_asset_knowledge_bases()
-    db = SessionLocal()
-    try:
-        ensure_default_agent_profile(db, owner_user_id, kb_ids)
-        db.commit()
-    finally:
-        db.close()
-    return kb_ids
+    """Ensure shared system asset KBs exist without creating a default role."""
+    return await ensure_system_asset_knowledge_bases()
 
 
 async def import_assets_for_existing_users() -> None:
-    """Import bundled system assets and link them to existing users."""
-    kb_ids = await ensure_system_asset_knowledge_bases()
-    db = SessionLocal()
-    try:
-        user_ids = [row.id for row in db.query(UserTable.id).all()]
-    finally:
-        db.close()
-
-    for user_id in user_ids:
-        db = SessionLocal()
-        try:
-            ensure_default_agent_profile(db, user_id, kb_ids)
-            db.commit()
-        finally:
-            db.close()
+    """Import bundled system assets without creating user default roles."""
+    await ensure_system_asset_knowledge_bases()

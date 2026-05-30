@@ -69,6 +69,7 @@ interface ChatInterfaceProps {
   onInitialMessageSent?: () => void
   agentProfiles?: AgentProfile[]
   onAgentProfileChange?: (id: string | null) => void
+  onCreateAgent?: () => void
 }
 
 interface QueuedMessage {
@@ -100,6 +101,7 @@ export function ChatInterface({
   onInitialMessageSent,
   agentProfiles,
   onAgentProfileChange,
+  onCreateAgent,
 }: ChatInterfaceProps) {
   const t = useT()
   // ============================================================================
@@ -718,6 +720,14 @@ export function ChatInterface({
       return
     }
 
+    if (!agentProfile) {
+      setInputError(t.selectAgentRequired)
+      setLimitedInput(trimmedMessage)
+      onCreateAgent?.()
+      onInitialMessageSent?.()
+      return
+    }
+
     autoSentPromptRef.current = trimmedMessage
     uiDispatch({ type: 'SET_AUTO_SENT', payload: true })
     const cappedMessage = trimmedMessage.slice(0, MAX_INPUT_CHARS)
@@ -747,10 +757,16 @@ export function ChatInterface({
       // Just populate input (existing behavior for ticket page, etc.)
       setLimitedInput(trimmedMessage)
     }
-  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId])
+  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, agentProfile, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId, onCreateAgent, t.selectAgentRequired])
 
   const handleSend = useCallback(async () => {
     if (!uiState.input.trim() && attachedFiles.length === 0) {
+      return
+    }
+
+    if (!agentProfile) {
+      setInputError(t.selectAgentRequired)
+      onCreateAgent?.()
       return
     }
 
@@ -804,7 +820,7 @@ export function ChatInterface({
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, agentProfile, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId, onCreateAgent, t.selectAgentRequired])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
@@ -1044,6 +1060,7 @@ export function ChatInterface({
             agentProfile={agentProfile}
             agentProfiles={agentProfiles}
             onAgentProfileChange={onAgentProfileChange}
+            onCreateAgent={onCreateAgent}
           />
         ) : (
           <ChatInput

@@ -451,6 +451,7 @@ function DashboardContent() {
               agentProfile={selectedAgentProfile}
               agentProfiles={agentProfiles}
               onAgentProfileChange={setSelectedAgentProfileId}
+              onCreateAgent={() => setCurrentView("agents")}
               isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
               initialMessage={initialPrompt}
               autoSend={!!initialPrompt}
