@@ -383,6 +383,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
         owner_user_id = getattr(ctx, "user_id", "") or ""
         enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
+        has_linked_skills = False
 
         if agent_id and agent_id != "default" and owner_user_id:
             try:
@@ -406,6 +407,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     # ---- Linked skills ----
                     skills = resources["skills"]
                     if skills:
+                        has_linked_skills = True
                         skills_instructions = (
                             "\n\nYou have access to the following custom skills. "
                             "Only a summary (name + description) is listed below. "
@@ -529,8 +531,12 @@ class DynamicConfigMiddleware(AgentMiddleware):
         filtered = list(request.tools)
         if enabled_tools is not None:
             tool_set = set(enabled_tools)
-            # Always allow read_skill so agents can dynamically query custom skills.
-            tool_set.add("read_skill")
+            if has_linked_skills:
+                # Allow linked skills to be loaded even when the saved profile's
+                # enabled_tools predates the skills feature.
+                tool_set.add("read_skill")
+            else:
+                tool_set.discard("read_skill")
             filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]
 
         # Inject the linked agent tools.
