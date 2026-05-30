@@ -17,7 +17,7 @@ import { ChatInput } from "./chat-input"
 import { VoiceMiniPanel } from "./features/voice-mini-panel"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
-import { getUserRuntimeApiKey, LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
+import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
 import {
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
@@ -275,18 +275,6 @@ export function ChatInterface({
 
   // Get user information for tracking in LangSmith
   const userId = useUserId()
-  const [runtimeApiKey, setRuntimeApiKey] = useState<string | null>(null)
-
-  useEffect(() => {
-    const syncRuntimeApiKey = () => setRuntimeApiKey(getUserRuntimeApiKey())
-    syncRuntimeApiKey()
-    window.addEventListener("storage", syncRuntimeApiKey)
-    window.addEventListener("tobagent-runtime-api-key-change", syncRuntimeApiKey)
-    return () => {
-      window.removeEventListener("storage", syncRuntimeApiKey)
-      window.removeEventListener("tobagent-runtime-api-key-change", syncRuntimeApiKey)
-    }
-  }, [])
 
   // Create stable client instance with user authentication
   // Recreate when userId changes to update auth headers
@@ -298,7 +286,7 @@ export function ChatInterface({
     }
 
     const headers: Record<string, string> = {
-      Authorization: `Bearer ${runtimeApiKey || userId}`,
+      Authorization: `Bearer ${userId}`,
     }
 
     return new Client({
@@ -306,7 +294,7 @@ export function ChatInterface({
       apiKey: LANGSMITH_API_KEY,
       defaultHeaders: headers,
     })
-  }, [runtimeApiKey, userId])
+  }, [userId])
 
   // Memoize user metadata to prevent unnecessary re-renders
   const userEmail = useMemo(

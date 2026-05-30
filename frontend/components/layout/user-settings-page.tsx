@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
-import { LANGGRAPH_API_URL, getUserRuntimeApiKey, setUserRuntimeApiKey } from "@/lib/constants/api"
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 interface UserSettingsPageProps {
   onBackToChat: () => void
@@ -37,7 +37,6 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
   const [apiKeys, setApiKeys] = useState<UserApiKey[]>([])
   const [apiKeyName, setApiKeyName] = useState("Default SDK key")
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
-  const [runtimeApiKey, setRuntimeApiKeyState] = useState("")
   const [apiKeysLoading, setApiKeysLoading] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -50,7 +49,6 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
       setSafetyEnabled(user.safetyEnabled || false)
       setError(null)
       setSaved(false)
-      setRuntimeApiKeyState(getUserRuntimeApiKey() || "")
     }
   }, [user])
 
@@ -108,11 +106,6 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
     }
   }
 
-  const handleSaveRuntimeApiKey = () => {
-    setUserRuntimeApiKey(runtimeApiKey.trim() || null)
-    setSaved(true)
-  }
-
   const handleCreateApiKey = async () => {
     if (!apiKeyName.trim()) return
     setError(null)
@@ -129,8 +122,6 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
       }
       const created = await resp.json()
       setNewApiKey(created.apiKey)
-      setRuntimeApiKeyState(created.apiKey)
-      setUserRuntimeApiKey(created.apiKey)
       setApiKeys((prev) => [{ ...created, apiKey: undefined }, ...prev])
       setApiKeyName("Default SDK key")
     } catch (err: any) {
@@ -345,29 +336,11 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                   {zh ? "API Key 与远程调用" : "API Keys & Remote Calls"}
                 </h3>
 
-                <div className="space-y-2">
-                  <Label htmlFor="runtime-api-key" className="text-xs font-semibold text-muted-foreground">
-                    {zh ? "当前前端调用使用的 API key" : "API key used by this browser"}
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="runtime-api-key"
-                      type="password"
-                      value={runtimeApiKey}
-                      onChange={(e) => setRuntimeApiKeyState(e.target.value)}
-                      placeholder={zh ? "留空则使用登录会话" : "Leave empty to use the login session"}
-                      className="bg-background/50 border-border/40 focus:border-primary/60 rounded-lg h-10 text-sm"
-                    />
-                    <Button type="button" variant="outline" onClick={handleSaveRuntimeApiKey} className="rounded-lg h-10">
-                      {zh ? "应用" : "Apply"}
-                    </Button>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground/80">
-                    {zh
-                      ? "聊天请求会把该 key 放入 Authorization Header，并要求请求中携带当前选中的 agent_id。"
-                      : "Chat requests send this key in the Authorization header and require the selected agent_id."}
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {zh
+                    ? "这些 key 用于外部 LangGraph SDK 或服务端调用。本 Web UI 始终使用当前登录会话。"
+                    : "These keys are for external LangGraph SDK or server-side calls. This Web UI always uses the current login session."}
+                </p>
 
                 {newApiKey && (
                   <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 space-y-2">
