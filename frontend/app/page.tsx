@@ -30,12 +30,55 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 
 function DashboardFallback() {
   return (
-    <div className="flex h-screen items-center justify-center bg-background px-6">
-      <div className="w-full max-w-md rounded-xl border border-border/70 bg-card/70 p-5">
-        <div className="mb-4 h-2 w-10 rounded-full bg-primary/70" />
-        <LoadingPlaceholder className="mb-3 h-5 w-40" label="Loading dashboard" />
-        <LoadingPlaceholder className="mb-2 h-3 w-full" />
-        <LoadingPlaceholder className="h-3 w-3/4" />
+    <div className="flex h-screen bg-background" aria-busy="true" aria-label="Loading dashboard" role="status">
+      <aside className="hidden w-56 flex-col border-r border-border/60 bg-sidebar md:flex">
+        <div className="flex h-16 items-center border-b border-border/60 px-3">
+          <LoadingPlaceholder variant="button" className="h-9 w-9" />
+        </div>
+        <div className="space-y-3 px-3 py-4">
+          <LoadingPlaceholder variant="input" className="h-10 w-full" />
+          <div className="space-y-2 pt-2">
+            <LoadingPlaceholder className="h-2.5 w-16" />
+            <LoadingPlaceholder variant="thread" className="w-full" />
+            <LoadingPlaceholder variant="thread" className="w-[92%]" />
+            <LoadingPlaceholder variant="thread" className="w-[84%]" />
+          </div>
+        </div>
+        <div className="mt-auto space-y-2 border-t border-border/40 px-3 py-3">
+          <LoadingPlaceholder variant="button" className="h-9 w-full" />
+          <LoadingPlaceholder variant="button" className="h-9 w-4/5" />
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 items-center justify-between border-b border-border/60 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <LoadingPlaceholder variant="button" className="h-9 w-9 md:hidden" />
+            <LoadingPlaceholder className="h-4 w-28" />
+          </div>
+          <div className="flex items-center gap-2">
+            <LoadingPlaceholder variant="button" className="h-9 w-9" />
+            <LoadingPlaceholder variant="button" className="h-9 w-24" />
+          </div>
+        </header>
+
+        <main className="flex flex-1 items-center justify-center px-4">
+          <div className="w-full max-w-3xl -mt-20">
+            <LoadingPlaceholder className="mx-auto mb-8 h-9 w-64 sm:h-12 sm:w-96" />
+            <div className="rounded-xl border border-border/70 bg-background/95 p-3 shadow-depth-sm">
+              <LoadingPlaceholder className="mb-3 h-4 w-3/4" />
+              <div className="flex items-end gap-2">
+                <LoadingPlaceholder variant="button" className="h-9 w-9 rounded-full" />
+                <LoadingPlaceholder variant="input" className="h-11 flex-1 border-0" />
+                <LoadingPlaceholder variant="button" className="h-9 w-20 rounded-full" />
+              </div>
+            </div>
+            <div className="mt-3 flex gap-3 px-2">
+              <LoadingPlaceholder variant="button" className="h-8 w-36" />
+              <LoadingPlaceholder variant="button" className="h-8 w-32" />
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   )
