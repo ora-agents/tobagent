@@ -50,15 +50,6 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: "/sherpa-onnx-wasm-simd-1.13.2-kws-zh-en-3M-2025-12-20/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
-      {
         source: "/:path*",
         headers: [
           {
