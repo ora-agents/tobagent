@@ -92,6 +92,9 @@ async def lifespan(app: FastAPI):
                     logger.warning(f"Migration skipped: {ddl} — {e}")
             conn.commit()
 
+        # Create tables added after the initial metadata create_all on long-lived
+        # deployments where migrations may run against an existing database.
+        Base.metadata.create_all(bind=engine)
         logger.info("Database schema migration completed.")
 
         async def _import_assets_on_startup() -> None:
@@ -219,6 +222,7 @@ from src.utils.db import (
     KnowledgeBaseTable,
     McpServerTable,
     SkillTable,
+    UserApiKeyTable,
     UserTable,
     get_db,
 )
@@ -261,6 +265,22 @@ class UserResponse(BaseModel):
     preferences: str | None = None
     safetyEnabled: bool = False
     createdAt: str
+
+
+class UserApiKeySchema(BaseModel):
+    id: str
+    name: str
+    keyPrefix: str
+    createdAt: str
+    lastUsedAt: str | None = None
+
+
+class CreateUserApiKeyRequest(BaseModel):
+    name: str
+
+
+class CreateUserApiKeyResponse(UserApiKeySchema):
+    apiKey: str
 
 
 
@@ -446,6 +466,20 @@ def _mcp_schema(server: McpServerTable) -> McpServerSchema:
         createdAt=server.created_at,
         updatedAt=server.updated_at,
     )
+
+
+def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
+    return UserApiKeySchema(
+        id=api_key.id,
+        name=api_key.name,
+        keyPrefix=api_key.key_prefix,
+        createdAt=api_key.created_at,
+        lastUsedAt=api_key.last_used_at,
+    )
+
+
+def hash_api_key(api_key: str) -> str:
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
 
 async def get_current_user(
@@ -669,6 +703,65 @@ async def update_user_profile(
         safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
         createdAt=user.created_at,
     )
+
+
+@app.get("/api/auth/api-keys", response_model=list[UserApiKeySchema])
+async def list_user_api_keys(
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    keys = db.query(UserApiKeyTable).filter(
+        UserApiKeyTable.owner_user_id == current_user.id,
+    ).all()
+    return [_api_key_schema(key) for key in keys]
+
+
+@app.post("/api/auth/api-keys", response_model=CreateUserApiKeyResponse)
+async def create_user_api_key(
+    req: CreateUserApiKeyRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    key_name = req.name.strip()
+    if not key_name:
+        raise HTTPException(status_code=400, detail="API key name is required")
+
+    raw_key = f"tob_{secrets.token_urlsafe(32)}"
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    api_key = UserApiKeyTable(
+        id=f"apikey-{uuid.uuid4()}",
+        owner_user_id=current_user.id,
+        name=key_name,
+        key_hash=hash_api_key(raw_key),
+        key_prefix=f"{raw_key[:8]}...",
+        created_at=now,
+    )
+    db.add(api_key)
+    db.commit()
+    db.refresh(api_key)
+
+    return CreateUserApiKeyResponse(
+        **_api_key_schema(api_key).model_dump(),
+        apiKey=raw_key,
+    )
+
+
+@app.delete("/api/auth/api-keys/{key_id}")
+async def delete_user_api_key(
+    key_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    api_key = db.query(UserApiKeyTable).filter(
+        UserApiKeyTable.id == key_id,
+        UserApiKeyTable.owner_user_id == current_user.id,
+    ).first()
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    db.delete(api_key)
+    db.commit()
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

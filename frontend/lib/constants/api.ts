@@ -46,3 +46,20 @@ export const LANGGRAPH_API_URL = getLangGraphApiUrl()
 // LangGraph Cloud deployments need auth disabled or custom auth configured
 export const LANGSMITH_API_KEY = process.env.LANGSMITH_API_KEY
 
+export const USER_RUNTIME_API_KEY_STORAGE = "tobagent-runtime-api-key"
+
+export function getUserRuntimeApiKey(): string | null {
+  if (typeof window === "undefined") return null
+  const value = window.localStorage.getItem(USER_RUNTIME_API_KEY_STORAGE)
+  return value?.trim() || null
+}
+
+export function setUserRuntimeApiKey(value: string | null) {
+  if (typeof window === "undefined") return
+  if (value?.trim()) {
+    window.localStorage.setItem(USER_RUNTIME_API_KEY_STORAGE, value.trim())
+  } else {
+    window.localStorage.removeItem(USER_RUNTIME_API_KEY_STORAGE)
+  }
+  window.dispatchEvent(new Event("tobagent-runtime-api-key-change"))
+}

@@ -1,5 +1,7 @@
 """Authenticate and authorize LangGraph deployment requests."""
+import hashlib
 import os
+from datetime import UTC, datetime
 
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
@@ -8,6 +10,13 @@ auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
 MAX_MESSAGE_CHARS = 50_000
+ALLOWED_CONFIGURABLE_OVERRIDES = {
+    "system_prompt",
+    "enabled_tools",
+    "agent_ids",
+    "model",
+}
+ALLOWED_BUILTIN_TOOLS = {"rag_search", "fetch", "read_skill"}
 
 
 def _get_auth_secret() -> str | None:
@@ -23,6 +32,34 @@ def _get_header(headers: dict, name: str) -> str | None:
         if key_str.lower() == target:
             return value.decode() if isinstance(value, bytes) else str(value)
     return None
+
+
+def _hash_api_key(api_key: str) -> str:
+    """Return stable digest for API key lookup."""
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+
+def _resolve_api_key_user_id(api_key: str) -> str | None:
+    """Resolve a user-scoped API key to its owner user id."""
+    try:
+        from src.utils.db import SessionLocal, UserApiKeyTable
+
+        db = SessionLocal()
+        try:
+            row = db.query(UserApiKeyTable).filter(
+                UserApiKeyTable.key_hash == _hash_api_key(api_key),
+            ).first()
+            if not row:
+                return None
+
+            row.last_used_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            owner_user_id = row.owner_user_id
+            db.commit()
+            return owner_user_id
+        finally:
+            db.close()
+    except Exception:
+        return None
 
 
 @auth.authenticate
@@ -47,7 +84,9 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
                 status_code=401, detail="Invalid auth key"
             )
 
-    # Extract user identity from Authorization header
+    # Extract user identity from Authorization header. For compatibility with
+    # existing browser sessions, Bearer user-... is still accepted as a session
+    # identity. Other bearer values are treated as user-scoped API keys first.
     authorization = _get_header(headers, "authorization")
     if not authorization:
         return {"identity": "studio-user", "kind": "StudioUser"}
@@ -55,6 +94,10 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
     user_id = authorization
     if authorization.lower().startswith("bearer "):
         user_id = authorization.split(" ", 1)[1]
+
+    resolved_user_id = _resolve_api_key_user_id(user_id)
+    if resolved_user_id:
+        user_id = resolved_user_id
 
     # Detect if the request comes from LangGraph Studio
     is_studio = False
@@ -134,6 +177,8 @@ async def enrich_run_metadata(
     validate_config(
         value["kwargs"].get("config") or value.get("config"),
         input_has_image=input_has_image,
+        owner_user_id=None if is_studio_user(ctx.user) else ctx.user.identity,
+        require_agent_id=not is_studio_user(ctx.user),
     )
 
 
@@ -294,9 +339,17 @@ def content_has_image(content) -> bool:
     return False
 
 
-def validate_config(config: dict | None, *, input_has_image: bool = False):
+def validate_config(
+    config: dict | None,
+    *,
+    input_has_image: bool = False,
+    owner_user_id: str | None = None,
+    require_agent_id: bool = False,
+):
     """Validate user-controlled run config before it reaches the graph."""
     if not config:
+        if require_agent_id:
+            raise Auth.exceptions.HTTPException(400, "config.configurable.agent_id is required")
         return
     if not isinstance(config, dict):
         raise Auth.exceptions.HTTPException(
@@ -311,12 +364,121 @@ def validate_config(config: dict | None, *, input_has_image: bool = False):
             422, f"Unrecognized configurable input: {type(configurable)}"
         )
 
+    validate_agent_context(configurable, owner_user_id, require_agent_id=require_agent_id)
+
     requested_model = configurable.get("model")
     if requested_model is None:
         return
     if not isinstance(requested_model, str) or not requested_model.strip():
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized model input: {type(requested_model)}"
+        )
+
+
+def validate_agent_context(
+    configurable: dict,
+    owner_user_id: str | None,
+    *,
+    require_agent_id: bool,
+) -> None:
+    """Validate required agent context and apply safe request overrides."""
+    agent_id = configurable.get("agent_id")
+    if require_agent_id and (not isinstance(agent_id, str) or not agent_id.strip()):
+        raise Auth.exceptions.HTTPException(400, "config.configurable.agent_id is required")
+
+    if not agent_id or not owner_user_id:
+        return
+
+    agent_profile = _load_owned_agent_profile(agent_id, owner_user_id)
+    if not agent_profile:
+        raise Auth.exceptions.HTTPException(403, "Agent is not available for this API key")
+
+    configurable["user_id"] = owner_user_id
+
+    overrides = configurable.pop("overrides", None)
+    if overrides is None:
+        return
+    if not isinstance(overrides, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized overrides input: {type(overrides)}"
+        )
+
+    unknown = set(overrides) - ALLOWED_CONFIGURABLE_OVERRIDES
+    if unknown:
+        raise Auth.exceptions.HTTPException(
+            422, f"Unsupported configurable override(s): {', '.join(sorted(unknown))}"
+        )
+
+    if "system_prompt" in overrides:
+        system_prompt = overrides["system_prompt"]
+        if not isinstance(system_prompt, str):
+            raise Auth.exceptions.HTTPException(422, "system_prompt override must be a string")
+        configurable["system_prompt"] = system_prompt
+
+    if "enabled_tools" in overrides:
+        enabled_tools = overrides["enabled_tools"]
+        if not isinstance(enabled_tools, list) or not all(isinstance(t, str) for t in enabled_tools):
+            raise Auth.exceptions.HTTPException(422, "enabled_tools override must be a string list")
+        unknown_tools = set(enabled_tools) - ALLOWED_BUILTIN_TOOLS
+        if unknown_tools:
+            raise Auth.exceptions.HTTPException(
+                403, f"Tool override contains unavailable tool(s): {', '.join(sorted(unknown_tools))}"
+            )
+        configurable["enabled_tools"] = enabled_tools
+
+    if "agent_ids" in overrides:
+        agent_ids = overrides["agent_ids"]
+        if not isinstance(agent_ids, list) or not all(isinstance(a, str) for a in agent_ids):
+            raise Auth.exceptions.HTTPException(422, "agent_ids override must be a string list")
+        _require_owned_agent_ids(agent_ids, owner_user_id)
+        configurable["agent_ids"] = agent_ids
+
+    if "model" in overrides:
+        model = overrides["model"]
+        if not isinstance(model, str) or not model.strip():
+            raise Auth.exceptions.HTTPException(422, "model override must be a non-empty string")
+        configurable["model"] = model
+
+
+def _load_owned_agent_profile(agent_id: str, owner_user_id: str):
+    """Return the agent profile if it belongs to the authenticated user."""
+    try:
+        from src.utils.db import AgentProfileTable, SessionLocal
+
+        db = SessionLocal()
+        try:
+            return db.query(AgentProfileTable).filter(
+                AgentProfileTable.id == agent_id,
+                AgentProfileTable.owner_user_id == owner_user_id,
+            ).first()
+        finally:
+            db.close()
+    except Exception as err:
+        raise Auth.exceptions.HTTPException(500, f"Failed to validate agent ownership: {err}") from err
+
+
+def _require_owned_agent_ids(agent_ids: list[str], owner_user_id: str) -> None:
+    """Require all linked subagent ids to belong to the API key owner."""
+    unique_ids = list(dict.fromkeys(agent_ids or []))
+    if not unique_ids:
+        return
+    try:
+        from src.utils.db import AgentProfileTable, SessionLocal
+
+        db = SessionLocal()
+        try:
+            count = db.query(AgentProfileTable).filter(
+                AgentProfileTable.id.in_(unique_ids),
+                AgentProfileTable.owner_user_id == owner_user_id,
+            ).count()
+        finally:
+            db.close()
+    except Exception as err:
+        raise Auth.exceptions.HTTPException(500, f"Failed to validate linked agents: {err}") from err
+
+    if count != len(unique_ids):
+        raise Auth.exceptions.HTTPException(
+            403, "agent_ids override contains agents outside this account"
         )
 
 

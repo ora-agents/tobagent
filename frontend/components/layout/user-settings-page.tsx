@@ -1,16 +1,25 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Mail, Shield, Loader2, AlertCircle, Settings2, ArrowLeft, MessagesSquare } from "lucide-react"
+import { User, Mail, Shield, Loader2, AlertCircle, Settings2, ArrowLeft, MessagesSquare, KeyRound, Plus, Trash2, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
+import { LANGGRAPH_API_URL, getUserRuntimeApiKey, setUserRuntimeApiKey } from "@/lib/constants/api"
 
 interface UserSettingsPageProps {
   onBackToChat: () => void
+}
+
+interface UserApiKey {
+  id: string
+  name: string
+  keyPrefix: string
+  createdAt: string
+  lastUsedAt: string | null
 }
 
 export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
@@ -25,6 +34,12 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [apiKeys, setApiKeys] = useState<UserApiKey[]>([])
+  const [apiKeyName, setApiKeyName] = useState("Default SDK key")
+  const [newApiKey, setNewApiKey] = useState<string | null>(null)
+  const [runtimeApiKey, setRuntimeApiKeyState] = useState("")
+  const [apiKeysLoading, setApiKeysLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Sync form state when user changes
   useEffect(() => {
@@ -35,7 +50,28 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
       setSafetyEnabled(user.safetyEnabled || false)
       setError(null)
       setSaved(false)
+      setRuntimeApiKeyState(getUserRuntimeApiKey() || "")
     }
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const loadApiKeys = async () => {
+      setApiKeysLoading(true)
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys`, {
+          headers: { Authorization: `Bearer ${user.id}` },
+        })
+        if (resp.ok) {
+          setApiKeys(await resp.json())
+        }
+      } catch (err) {
+        console.error("[UserSettingsPage] Failed to load API keys:", err)
+      } finally {
+        setApiKeysLoading(false)
+      }
+    }
+    loadApiKeys()
   }, [user])
 
   // Auto-hide success message
@@ -70,6 +106,62 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSaveRuntimeApiKey = () => {
+    setUserRuntimeApiKey(runtimeApiKey.trim() || null)
+    setSaved(true)
+  }
+
+  const handleCreateApiKey = async () => {
+    if (!apiKeyName.trim()) return
+    setError(null)
+    setApiKeysLoading(true)
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}` },
+        body: JSON.stringify({ name: apiKeyName.trim() }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        throw new Error(data.detail || (zh ? "创建 API key 失败" : "Failed to create API key"))
+      }
+      const created = await resp.json()
+      setNewApiKey(created.apiKey)
+      setRuntimeApiKeyState(created.apiKey)
+      setUserRuntimeApiKey(created.apiKey)
+      setApiKeys((prev) => [{ ...created, apiKey: undefined }, ...prev])
+      setApiKeyName("Default SDK key")
+    } catch (err: any) {
+      setError(err.message || (zh ? "创建 API key 失败" : "Failed to create API key"))
+    } finally {
+      setApiKeysLoading(false)
+    }
+  }
+
+  const handleDeleteApiKey = async (keyId: string) => {
+    setError(null)
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys/${keyId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${user.id}` },
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        throw new Error(data.detail || (zh ? "删除 API key 失败" : "Failed to delete API key"))
+      }
+      setApiKeys((prev) => prev.filter((key) => key.id !== keyId))
+    } catch (err: any) {
+      setError(err.message || (zh ? "删除 API key 失败" : "Failed to delete API key"))
+    }
+  }
+
+  const handleCopyNewApiKey = async () => {
+    if (!newApiKey) return
+    await navigator.clipboard.writeText(newApiKey)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   return (
@@ -243,6 +335,98 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                         : "When enabled, the agent will describe the action and its potential consequences before executing any potentially dangerous operations (e.g., deleting files, sending emails, modifying system configs), and wait for your explicit confirmation."}
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* API Key Section */}
+              <div className="space-y-4 border border-border/40 rounded-xl bg-background/50 p-5">
+                <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  {zh ? "API Key 与远程调用" : "API Keys & Remote Calls"}
+                </h3>
+
+                <div className="space-y-2">
+                  <Label htmlFor="runtime-api-key" className="text-xs font-semibold text-muted-foreground">
+                    {zh ? "当前前端调用使用的 API key" : "API key used by this browser"}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="runtime-api-key"
+                      type="password"
+                      value={runtimeApiKey}
+                      onChange={(e) => setRuntimeApiKeyState(e.target.value)}
+                      placeholder={zh ? "留空则使用登录会话" : "Leave empty to use the login session"}
+                      className="bg-background/50 border-border/40 focus:border-primary/60 rounded-lg h-10 text-sm"
+                    />
+                    <Button type="button" variant="outline" onClick={handleSaveRuntimeApiKey} className="rounded-lg h-10">
+                      {zh ? "应用" : "Apply"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/80">
+                    {zh
+                      ? "聊天请求会把该 key 放入 Authorization Header，并要求请求中携带当前选中的 agent_id。"
+                      : "Chat requests send this key in the Authorization header and require the selected agent_id."}
+                  </p>
+                </div>
+
+                {newApiKey && (
+                  <div className="rounded-lg border border-primary/25 bg-primary/5 p-3 space-y-2">
+                    <div className="text-xs font-semibold text-foreground">
+                      {zh ? "新 API key 只显示一次" : "New API key, shown once"}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input value={newApiKey} readOnly className="font-mono text-xs h-9 bg-background/70" />
+                      <Button type="button" variant="outline" size="sm" onClick={handleCopyNewApiKey} className="h-9 gap-1.5">
+                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        {copied ? (zh ? "已复制" : "Copied") : (zh ? "复制" : "Copy")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Input
+                    value={apiKeyName}
+                    onChange={(e) => setApiKeyName(e.target.value)}
+                    placeholder={zh ? "API key 名称" : "API key name"}
+                    className="bg-background/50 border-border/40 focus:border-primary/60 rounded-lg h-10 text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={apiKeysLoading || !apiKeyName.trim()}
+                    onClick={handleCreateApiKey}
+                    className="rounded-lg h-10 gap-1.5"
+                  >
+                    {apiKeysLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                    {zh ? "创建" : "Create"}
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  {apiKeys.map((key) => (
+                    <div key={key.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{key.name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{key.keyPrefix}</div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteApiKey(key.id)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        title={zh ? "删除 API key" : "Delete API key"}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  {!apiKeysLoading && apiKeys.length === 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {zh ? "还没有 API key。" : "No API keys yet."}
+                    </div>
+                  )}
                 </div>
               </div>
 
