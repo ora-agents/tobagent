@@ -1,7 +1,33 @@
 import pytest
 from langgraph_sdk import Auth
 
-from src.api.auth import MAX_MESSAGE_CHARS, validate_inputs
+from src.api.auth import MAX_MESSAGE_CHARS, authenticate, validate_inputs
+
+
+@pytest.mark.anyio
+async def test_authenticate_extracts_authorization_from_headers(monkeypatch):
+    """Aegra auth middleware passes only headers to the auth callback."""
+    monkeypatch.delenv("LANGGRAPH_AUTH_SECRET", raising=False)
+
+    user = await authenticate({"authorization": "Bearer user-123"})
+
+    assert user["identity"] == "user-123"
+    assert user["is_authenticated"] is True
+
+
+@pytest.mark.anyio
+async def test_authenticate_accepts_secret_header_case_insensitively(monkeypatch):
+    """Header matching should survive ASGI and test-client casing differences."""
+    monkeypatch.setenv("LANGGRAPH_AUTH_SECRET", "secret")
+
+    user = await authenticate(
+        {
+            "Authorization": "Bearer user-123",
+            "X-Auth-Key": "secret",
+        }
+    )
+
+    assert user["identity"] == "user-123"
 
 
 def test_validate_inputs_accepts_forked_conversation_history():

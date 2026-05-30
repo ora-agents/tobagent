@@ -15,10 +15,18 @@ def _get_auth_secret() -> str | None:
     return os.getenv("LANGGRAPH_AUTH_SECRET")
 
 
+def _get_header(headers: dict, name: str) -> str | None:
+    """Return a request header from string or byte-keyed mappings."""
+    target = name.lower()
+    for key, value in headers.items():
+        key_str = key.decode() if isinstance(key, bytes) else str(key)
+        if key_str.lower() == target:
+            return value.decode() if isinstance(value, bytes) else str(value)
+    return None
+
+
 @auth.authenticate
-async def authenticate(
-    authorization: str | None, headers: dict
-) -> Auth.types.MinimalUserDict:
+async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
     """Validate requests and extract user identity.
 
     If LANGGRAPH_AUTH_SECRET is set, requires X-Auth-Key header to match.
@@ -29,18 +37,18 @@ async def authenticate(
     # If auth secret is configured, validate X-Auth-Key header
     auth_secret = _get_auth_secret()
     if auth_secret:
-        auth_key = headers.get(b"x-auth-key") or headers.get("x-auth-key")
+        auth_key = _get_header(headers, "x-auth-key")
         if not auth_key:
             raise Auth.exceptions.HTTPException(
                 status_code=401, detail="Authentication required"
             )
-        key = auth_key.decode() if isinstance(auth_key, bytes) else auth_key
-        if key != auth_secret:
+        if auth_key != auth_secret:
             raise Auth.exceptions.HTTPException(
                 status_code=401, detail="Invalid auth key"
             )
 
     # Extract user identity from Authorization header
+    authorization = _get_header(headers, "authorization")
     if not authorization:
         return {"identity": "studio-user", "kind": "StudioUser"}
 
@@ -54,10 +62,8 @@ async def authenticate(
         is_studio = True
     else:
         # Check Origin and Referer headers (LangGraph Studio UI runs on smith.langchain.com)
-        origin = headers.get(b"origin") or headers.get("origin")
-        referer = headers.get(b"referer") or headers.get("referer")
-        origin_str = origin.decode() if isinstance(origin, bytes) else str(origin or "")
-        referer_str = referer.decode() if isinstance(referer, bytes) else str(referer or "")
+        origin_str = _get_header(headers, "origin") or ""
+        referer_str = _get_header(headers, "referer") or ""
         if "smith.langchain.com" in origin_str or "smith.langchain.com" in referer_str:
             is_studio = True
 
