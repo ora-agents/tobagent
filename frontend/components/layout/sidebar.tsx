@@ -4,7 +4,7 @@ import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
+import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
 import type { Thread } from "@/lib/hooks/threads"
 import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
@@ -414,14 +414,21 @@ export const Sidebar = memo(function Sidebar({
       <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-sidebar-accent/5 via-transparent to-sidebar-accent/10 custom-scrollbar">
         {isLoading ? (
           <div className="px-3 py-3">
-            <div className="px-3 pb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t.loadingConversations}
+            <div className="px-3 pb-3">
+              <LoadingPlaceholder className="h-2.5 w-24" label={t.loadingConversations} />
             </div>
-            <div className="space-y-2 px-3">
-              <LoadingPlaceholder className="h-9 w-full" label={t.loadingConversations} />
-              <LoadingPlaceholder className="h-9 w-[92%]" />
-              <LoadingPlaceholder className="h-9 w-[78%]" />
-              <LoadingPlaceholder className="h-9 w-[88%]" />
+            <div className="space-y-1.5 px-1">
+              <ThreadSkeleton />
+              <ThreadSkeleton />
+              <ThreadSkeleton />
+            </div>
+            <div className="px-3 pb-3 pt-5">
+              <LoadingPlaceholder className="h-2.5 w-20" />
+            </div>
+            <div className="space-y-1.5 px-1">
+              <ThreadSkeleton />
+              <ThreadSkeleton />
+              <ThreadSkeleton />
             </div>
           </div>
         ) : searchQuery && filteredThreads.length === 0 ? (
