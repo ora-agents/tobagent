@@ -212,13 +212,6 @@ export function ChatInput({
                   )}
 
                   {isLoading && (
-                    <div className="hidden sm:flex h-9 items-center gap-1.5 mb-0.5 px-2.5 rounded-full bg-muted/70 text-[11px] font-medium text-muted-foreground border border-border/60 flex-shrink-0">
-                      <LoaderCircle className="h-3.5 w-3.5 animate-spin text-primary" />
-                      <span>{t.running}</span>
-                    </div>
-                  )}
-
-                  {isLoading && (
                     <Button
                       onClick={onStop}
                       variant="ghost"
@@ -232,8 +225,13 @@ export function ChatInput({
                       `}
                       type="button"
                       title={isStopping ? t.stopping : t.stop}
+                      aria-label={isStopping ? t.stopping : t.stop}
                     >
-                      <Square className="w-3 h-3 fill-current" />
+                      {isStopping ? (
+                        <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Square className="w-3 h-3 fill-current" />
+                      )}
                       <span className="text-xs font-medium">
                         {isStopping ? t.stopping : t.stop}
                       </span>
