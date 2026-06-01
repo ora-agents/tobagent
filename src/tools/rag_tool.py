@@ -16,6 +16,7 @@ import hashlib
 import logging
 import os
 import re
+import time
 from pathlib import Path
 
 import lancedb
@@ -36,6 +37,13 @@ elif "v3" in _embed_model_env:
 else:
     _default_dim = 1536
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", str(_default_dim)))
+
+_ASYNC_DB: lancedb.AsyncConnection | None = None
+_ASYNC_DB_INIT_LOCK = None
+_TABLE_NAMES_CACHE: tuple[set[str], float] | None = None
+_TABLE_NAMES_TTL_SECONDS = float(os.getenv("LANCEDB_TABLE_NAMES_TTL_SECONDS", "10"))
+_AGENT_KB_IDS_CACHE: dict[tuple[str, str], tuple[list[str], float]] = {}
+_AGENT_KB_IDS_TTL_SECONDS = float(os.getenv("RAG_AGENT_KB_IDS_TTL_SECONDS", "30"))
 
 
 # ---------------------------------------------------------------------------
@@ -103,8 +111,91 @@ async def _get_async_db() -> lancedb.AsyncConnection:
     thread via ``asyncio.to_thread``.
     """
     import asyncio
-    await asyncio.to_thread(Path(LANCEDB_PATH).mkdir, parents=True, exist_ok=True)
-    return await lancedb.connect_async(LANCEDB_PATH)
+
+    global _ASYNC_DB, _ASYNC_DB_INIT_LOCK
+    if _ASYNC_DB is not None:
+        return _ASYNC_DB
+
+    if _ASYNC_DB_INIT_LOCK is None:
+        _ASYNC_DB_INIT_LOCK = asyncio.Lock()
+
+    async with _ASYNC_DB_INIT_LOCK:
+        if _ASYNC_DB is None:
+            await asyncio.to_thread(Path(LANCEDB_PATH).mkdir, parents=True, exist_ok=True)
+            _ASYNC_DB = await lancedb.connect_async(LANCEDB_PATH)
+        return _ASYNC_DB
+
+
+def invalidate_rag_cache(agent_id: str | None = None, owner_user_id: str | None = None) -> None:
+    """Invalidate cached RAG metadata after KB/profile mutations."""
+    global _TABLE_NAMES_CACHE
+    _TABLE_NAMES_CACHE = None
+
+    if agent_id is None:
+        _AGENT_KB_IDS_CACHE.clear()
+        return
+
+    if owner_user_id is None:
+        keys_to_delete = [
+            key for key in _AGENT_KB_IDS_CACHE
+            if key[1] == agent_id
+        ]
+    else:
+        keys_to_delete = [(owner_user_id, agent_id)]
+
+    for key in keys_to_delete:
+        _AGENT_KB_IDS_CACHE.pop(key, None)
+
+
+async def _table_names_async(db: lancedb.AsyncConnection) -> set[str]:
+    """Return LanceDB table names with a short TTL cache."""
+    global _TABLE_NAMES_CACHE
+    now = time.monotonic()
+    if (
+        _TABLE_NAMES_CACHE is not None
+        and now - _TABLE_NAMES_CACHE[1] < _TABLE_NAMES_TTL_SECONDS
+    ):
+        return _TABLE_NAMES_CACHE[0]
+
+    table_names = set(await db.table_names())
+    _TABLE_NAMES_CACHE = (table_names, now)
+    return table_names
+
+
+async def _linked_kb_ids_for_agent(agent_id: str, owner_user_id: str) -> list[str]:
+    """Return linked KB ids for an agent with a short TTL cache."""
+    if not owner_user_id:
+        return []
+
+    cache_key = (owner_user_id, agent_id)
+    now = time.monotonic()
+    cached = _AGENT_KB_IDS_CACHE.get(cache_key)
+    if cached and now - cached[1] < _AGENT_KB_IDS_TTL_SECONDS:
+        return cached[0]
+
+    def _get_kb_ids() -> list[str]:
+        session = None
+        try:
+            from src.utils.db import AgentProfileTable, SessionLocal
+
+            session = SessionLocal()
+            agent_profile = session.query(AgentProfileTable).filter(
+                AgentProfileTable.id == agent_id,
+                AgentProfileTable.owner_user_id == owner_user_id,
+            ).first()
+            return list(agent_profile.knowledge_base_ids or []) if agent_profile else []
+        except Exception as _err:
+            logger.error(f"Failed to fetch linked KBs from PostgreSQL for {agent_id}: {_err}")
+            return []
+        finally:
+            if session is not None:
+                session.close()
+
+    import asyncio
+
+    kb_ids = await asyncio.to_thread(_get_kb_ids)
+    _AGENT_KB_IDS_CACHE[cache_key] = (kb_ids, now)
+    return kb_ids
 
 
 async def get_or_create_table_async(agent_id: str) -> lancedb.AsyncTable:
@@ -113,7 +204,7 @@ async def get_or_create_table_async(agent_id: str) -> lancedb.AsyncTable:
 
     db = await _get_async_db()
     tname = _table_name(agent_id)
-    table_names = await db.table_names()
+    table_names = await _table_names_async(db)
     if tname in table_names:
         return await db.open_table(tname)
 
@@ -123,7 +214,9 @@ async def get_or_create_table_async(agent_id: str) -> lancedb.AsyncTable:
         pa.field("source", pa.utf8()),
         pa.field("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
     ])
-    return await db.create_table(tname, schema=schema)
+    table = await db.create_table(tname, schema=schema)
+    invalidate_rag_cache()
+    return table
 
 
 # ---------------------------------------------------------------------------
@@ -214,12 +307,13 @@ async def delete_documents_async(agent_id: str, source: str) -> None:
     try:
         db = await _get_async_db()
         tname = _table_name(agent_id)
-        table_names = await db.table_names()
+        table_names = await _table_names_async(db)
         if tname not in table_names:
             return
         table = await db.open_table(tname)
         safe_source = source.replace("'", "''")
         await table.delete(f"source = '{safe_source}'")
+        invalidate_rag_cache()
         logger.info(f"Deleted chunks for source '{source}' from LanceDB table '{tname}'")
     except Exception as e:
         logger.error(f"Failed to delete chunks for source '{source}' in table '{_table_name(agent_id)}': {e}")
@@ -248,7 +342,7 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
         # 使用原生 async embedding
         query_vec = await embedder.aembed_query(query)
 
-        table_names = await db.table_names()
+        table_names = await _table_names_async(db)
 
         # Determine all target tables to search
         tables_to_search: list[tuple[str, str]] = []
@@ -259,37 +353,16 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
             tables_to_search.append((agent_table_name, "Exclusive RAG"))
 
         # 2. Linked knowledge bases from PostgreSQL
-        # SQLAlchemy 同步查询会阻塞事件循环，用 asyncio.to_thread 封装
-        def _get_kb_ids() -> list[str]:
-            try:
-                from src.utils.db import AgentProfileTable, SessionLocal
+        owner_user_id = ""
+        try:
+            from langgraph.config import get_config
 
-                owner_user_id = ""
-                try:
-                    from langgraph.config import get_config
+            cfg = get_config()
+            owner_user_id = cfg.get("configurable", {}).get("user_id") or ""
+        except Exception:
+            pass
 
-                    cfg = get_config()
-                    owner_user_id = cfg.get("configurable", {}).get("user_id") or ""
-                except Exception:
-                    pass
-
-                if not owner_user_id:
-                    return []
-
-                session = SessionLocal()
-                agent_profile = session.query(AgentProfileTable).filter(
-                    AgentProfileTable.id == agent_id,
-                    AgentProfileTable.owner_user_id == owner_user_id,
-                ).first()
-                kb_ids = list(agent_profile.knowledge_base_ids or []) if agent_profile else []
-                session.close()
-                return kb_ids
-            except Exception as _err:
-                logger.error(f"Failed to fetch linked KBs from PostgreSQL for {agent_id}: {_err}")
-                return []
-
-        import asyncio as _asyncio
-        kb_ids = await _asyncio.to_thread(_get_kb_ids)
+        kb_ids = await _linked_kb_ids_for_agent(agent_id, owner_user_id)
         for kb_id in kb_ids:
             kb_tname = _table_name(kb_id)
             if kb_tname in table_names:

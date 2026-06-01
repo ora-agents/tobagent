@@ -34,7 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
-import { BUILTIN_TOOLS, isDefaultAgentProfile } from "@/lib/types/agent-profiles"
+import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import {
   BOUNDARY_MODE_LABELS,
   PERSONA_STYLE_LABELS,
@@ -341,15 +341,7 @@ export function ManagementDashboard({
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
-  const defaultAgentProfile = useMemo(
-    () => agentProfiles.find(isDefaultAgentProfile) || null,
-    [agentProfiles],
-  )
-  const customAgentProfiles = useMemo(
-    () => agentProfiles.filter(profile => !isDefaultAgentProfile(profile)),
-    [agentProfiles],
-  )
-  const activeEditingAgentId = selectedAgentId ?? defaultAgentProfile?.id ?? null
+  const activeEditingAgentId = selectedAgentId
 
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
@@ -650,9 +642,7 @@ export function ManagementDashboard({
       // Mark saving so the useEffect won't re-enter edit mode
       isSavingRef.current = true
       // Automatically set the edited agent as active and return to chat
-      setSelectedAgentProfileId(
-        defaultAgentProfile?.id === activeEditingAgentId ? null : activeEditingAgentId,
-      )
+      setSelectedAgentProfileId(activeEditingAgentId)
       setIsEditingAgent(false)
       onBackToChat()
     }
@@ -1010,9 +1000,9 @@ export function ManagementDashboard({
 
   // Current Selections
   const selectedSkill = skills.find(sk => sk.id === selectedSkillId) || null
-  const selectedAgent = selectedAgentId === null
-    ? defaultAgentProfile
-    : (agentProfiles.find(p => p.id === selectedAgentId) || null)
+  const selectedAgent = selectedAgentId
+    ? agentProfiles.find(p => p.id === selectedAgentId) || null
+    : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
 
@@ -1526,26 +1516,13 @@ export function ManagementDashboard({
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                  {/* Default Built-in Agent */}
-                  <div
-                    onClick={() => handleSelectAgent(null)}
-                    className={`group relative p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
-                      selectedAgentId === null
-                        ? "border-primary/60 bg-primary/5 shadow-depth-xs"
-                        : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
-                    }`}
-                  >
-                    <div className="font-semibold text-sm flex items-center gap-1.5">
-                      <Bot className="w-3.5 h-3.5 text-primary" />
-                      {t.defaultSystemAgent}
+                  {agentProfiles.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                      {t.createAgentPrompt}
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1 truncate">
-                      {t.defaultSystemAgentDesc}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Custom Agents */}
-                  {customAgentProfiles.map(profile => (
+                  {agentProfiles.map(profile => (
                     <div
                       key={profile.id}
                       onClick={() => handleSelectAgent(profile.id)}
@@ -2055,17 +2032,17 @@ export function ManagementDashboard({
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant={(isDefaultAgentProfile(selectedAgent) ? selectedAgentProfileId === null : selectedAgentProfileId === selectedAgent.id) ? "secondary" : "outline"}
+                          variant={selectedAgentProfileId === selectedAgent.id ? "secondary" : "outline"}
                           size="sm"
-                          onClick={() => setSelectedAgentProfileId(isDefaultAgentProfile(selectedAgent) ? null : selectedAgent.id)}
+                          onClick={() => setSelectedAgentProfileId(selectedAgent.id)}
                           className={`gap-1.5 rounded-lg border transition-all ${
-                            (isDefaultAgentProfile(selectedAgent) ? selectedAgentProfileId === null : selectedAgentProfileId === selectedAgent.id)
+                            selectedAgentProfileId === selectedAgent.id
                               ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
                               : "border-border hover:bg-primary/10 hover:text-primary"
                           }`}
                         >
                           <Check className="w-3.5 h-3.5" />
-                          {(isDefaultAgentProfile(selectedAgent) ? selectedAgentProfileId === null : selectedAgentProfileId === selectedAgent.id) ? t.selected : t.setActive}
+                          {selectedAgentProfileId === selectedAgent.id ? t.selected : t.setActive}
                         </Button>
                         <Button
                           variant="outline"
@@ -2254,45 +2231,6 @@ export function ManagementDashboard({
                             </div>
                           </div>
                         )}
-                      </div>
-                    </div>
-                  </div>
-                ) : selectedAgentId === null ? (
-                  <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-xl font-bold font-display flex items-center gap-2">
-                          <Bot className="w-6 h-6 text-primary" />
-                          {t.defaultSystemAgent}
-                        </h2>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {t.defaultSystemAgentDesc}
-                        </p>
-                      </div>
-                      <Button
-                        variant={selectedAgentProfileId === null ? "secondary" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedAgentProfileId(null)}
-                        className={`gap-1.5 rounded-lg border transition-all ${
-                          selectedAgentProfileId === null
-                            ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
-                            : "border-border hover:bg-primary/10 hover:text-primary"
-                        }`}
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        {selectedAgentProfileId === null ? t.selected : t.setActive}
-                      </Button>
-                    </div>
-
-                    <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden mt-6">
-                      <div className="px-4 py-2 border-b border-border/30 bg-muted/20">
-                        <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
-                          {t.systemInformation}
-                        </span>
-                      </div>
-                      <div className="p-4 text-sm text-muted-foreground leading-relaxed space-y-2">
-                        <p>{t.defaultAgentDescText}</p>
-                        <p>{t.defaultAgentCustomizePrompt}</p>
                       </div>
                     </div>
                   </div>

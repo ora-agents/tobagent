@@ -4,7 +4,7 @@
  * Owns the VAD instance, feeds audio from the worklet, tracks speech state,
  * and buffers the speech segment's Int16 PCM for ASR submission.
  *
- * The VAD consumes Float32 16kHz audio in 512-sample windows (32ms).
+ * The VAD consumes Float32 16kHz audio in 256-sample windows (16ms).
  * When speech is detected, we accumulate the corresponding Int16 PCM.
  * When speech ends, the complete Int16 segment is emitted for transcription.
  */
@@ -96,19 +96,24 @@ export class VadManager {
       const { module } = await loadSherpaOnnxModule()
       this.module = module
 
-      // Create VAD instance with Silero model
+      // Create VAD instance with Ten VAD model
       this.vad = new Vad(
         {
           sileroVad: {
-            model: "./silero_vad.onnx",
+            model: "",
+            threshold: VAD_THRESHOLD,
+            minSilenceDuration: VAD_MIN_SILENCE_DURATION,
+            minSpeechDuration: VAD_MIN_SPEECH_DURATION,
+            windowSize: 512,
+            maxSpeechDuration: MAX_SPEECH_DURATION_S,
+          },
+          tenVad: {
+            model: "./ten-vad.onnx",
             threshold: VAD_THRESHOLD,
             minSilenceDuration: VAD_MIN_SILENCE_DURATION,
             minSpeechDuration: VAD_MIN_SPEECH_DURATION,
             windowSize: VAD_WINDOW_SIZE,
             maxSpeechDuration: MAX_SPEECH_DURATION_S,
-          },
-          tenVad: {
-            model: "",
           },
           sampleRate: VAD_SAMPLE_RATE,
           numThreads: 1,

@@ -832,6 +832,8 @@ export function useVoiceAgent({
 
       if (voiceStateRef.current === "idle") {
         startKwsListening()
+      } else if (voiceStateRef.current === "kws") {
+        kwsClientRef.current?.updateKeywords(wakeWordsRef.current)
       }
     }
 
@@ -840,7 +842,6 @@ export function useVoiceAgent({
 
     return () => {
       document.removeEventListener("visibilitychange", syncKwsWithVisibility)
-      stopKwsListening()
     }
   }, [wakeWordsKey, isSupported, startKwsListening, stopKwsListening])
 

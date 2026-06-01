@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
-import { isDefaultAgentProfile, SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
+import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -24,6 +24,7 @@ export function useAgentProfiles() {
   const { user } = useAuth()
   const [profiles, setProfiles] = useState<AgentProfile[]>([])
   const [selectedId, setSelectedIdState] = useState<string | null>(null)
+  const [profilesLoaded, setProfilesLoaded] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   // 1. Fetch all profiles from PostgreSQL on mount
@@ -34,6 +35,7 @@ export function useAgentProfiles() {
     if (!LANGGRAPH_API_URL || !user) {
       setProfiles([])
       setSelectedIdState(null)
+      setProfilesLoaded(true)
       return
     }
 
@@ -50,11 +52,32 @@ export function useAgentProfiles() {
         }
       } catch (err) {
         console.error("Failed to load agent profiles from PostgreSQL", err)
+      } finally {
+        setProfilesLoaded(true)
       }
     }
 
+    setProfilesLoaded(false)
     fetchProfiles()
   }, [user])
+
+  useEffect(() => {
+    if (!profilesLoaded) return
+
+    if (profiles.length === 0) {
+      if (selectedId) {
+        setSelectedIdState(null)
+        saveSelectedId(null)
+      }
+      return
+    }
+
+    if (selectedId && profiles.some(p => p.id === selectedId)) return
+
+    const defaultId = profiles[0].id
+    setSelectedIdState(defaultId)
+    saveSelectedId(defaultId)
+  }, [profilesLoaded, profiles, selectedId])
 
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIdState(id)
@@ -136,17 +159,16 @@ export function useAgentProfiles() {
     }
   }, [user])
 
-  const defaultProfile = profiles.find(isDefaultAgentProfile) ?? null
   const selectedProfile = selectedId
     ? profiles.find(p => p.id === selectedId) ?? null
-    : defaultProfile
+    : null
 
   return {
     mounted,
+    profilesLoaded,
     profiles,
     selectedId,
     selectedProfile,
-    defaultProfile,
     setSelectedId,
     createProfile,
     updateProfile,

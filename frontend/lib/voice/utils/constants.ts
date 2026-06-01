@@ -30,12 +30,12 @@ export const VOICE_IDLE_TIMEOUT_MS = 30000
 // Client-side VAD (sherpa-onnx / Silero VAD) configuration
 // ============================================================================
 
-/** Path to sherpa-onnx WASM resources in public/ */
+/** Path to sherpa-onnx VAD-only WASM resources in public/ */
 export const SHERPA_ONNX_BASE_PATH =
-  "/sherpa-onnx-wasm-simd-1.13.2-vad-asr-zh-zipformer_wenetspeech"
+  "/sherpa-onnx-wasm-simd-v1.13.2-ten-vad"
 
-/** VAD window size in samples (32ms at 16kHz) */
-export const VAD_WINDOW_SIZE = 512
+/** VAD window size in samples (16ms at 16kHz for Ten VAD) */
+export const VAD_WINDOW_SIZE = 256
 
 /** VAD sample rate (Hz) */
 export const VAD_SAMPLE_RATE = 16000

@@ -11,6 +11,7 @@ Protocol:
 """
 
 import asyncio
+import json
 import logging
 
 import numpy as np
@@ -64,6 +65,28 @@ def _process_audio_chunk(spotter, stream, audio_bytes: bytes) -> str | None:
     return None
 
 
+async def _create_keyword_stream(
+    spotter,
+    keyword_processor,
+    keywords_list: list[str],
+):
+    """Create a KWS stream for the provided wake words."""
+    if not keywords_list:
+        return None, None
+
+    keywords_string = None
+    if keyword_processor:
+        keywords_string = await asyncio.to_thread(
+            keyword_processor.format_keywords, keywords_list
+        )
+
+    if not keywords_string:
+        return None, None
+
+    stream = await asyncio.to_thread(spotter.create_stream, keywords_string)
+    return stream, keywords_string
+
+
 @kws_router.websocket("/ws/voice/kws")
 async def kws_websocket(websocket: WebSocket) -> None:
     """KWS WebSocket endpoint for always-on wake word detection."""
@@ -113,13 +136,11 @@ async def kws_websocket(websocket: WebSocket) -> None:
             return
 
         # 2. Convert keywords to phoneme format
-        keywords_string = None
-        if keyword_processor:
-            keywords_string = await asyncio.to_thread(
-                keyword_processor.format_keywords, keywords_list
-            )
+        stream, keywords_string = await _create_keyword_stream(
+            spotter, keyword_processor, keywords_list
+        )
 
-        if not keywords_string:
+        if stream is None or not keywords_string:
             await websocket.send_json({
                 "type": "error",
                 "message": "Failed to process keywords",
@@ -133,29 +154,55 @@ async def kws_websocket(websocket: WebSocket) -> None:
             keywords_string[:100],
         )
 
-        # 3. Create a per-connection stream
-        stream = await asyncio.to_thread(spotter.create_stream, keywords_string)
-
-        # 4. Audio processing loop
+        # 3. Audio processing loop. Text config messages can update wake words
+        # without forcing the browser to release and reopen the microphone.
         while True:
-            # Receive binary PCM audio
-            try:
-                audio_chunk = await websocket.receive_bytes()
-            except ValueError:
-                # Client sent text instead of bytes — ignore
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                raise WebSocketDisconnect
+
+            if "bytes" in message and message["bytes"] is not None:
+                detected = await asyncio.to_thread(
+                    _process_audio_chunk, spotter, stream, message["bytes"]
+                )
+
+                if detected:
+                    logger.info("KWS detection: '%s'", detected)
+                    await websocket.send_json({
+                        "type": "detection",
+                        "keyword": detected,
+                    })
                 continue
 
-            # Process in thread pool (CPU-bound)
-            detected = await asyncio.to_thread(
-                _process_audio_chunk, spotter, stream, audio_chunk
-            )
+            if "text" not in message or message["text"] is None:
+                continue
 
-            if detected:
-                logger.info("KWS detection: '%s'", detected)
+            try:
+                update_msg = json.loads(message["text"])
+            except json.JSONDecodeError:
+                continue
+
+            if update_msg.get("type") != "config":
+                continue
+
+            next_keywords = update_msg.get("keywords", [])
+            next_stream, next_keywords_string = await _create_keyword_stream(
+                spotter, keyword_processor, next_keywords
+            )
+            if next_stream is None or not next_keywords_string:
                 await websocket.send_json({
-                    "type": "detection",
-                    "keyword": detected,
+                    "type": "error",
+                    "message": "Failed to process updated keywords",
                 })
+                continue
+
+            keywords_list = next_keywords
+            stream = next_stream
+            logger.info(
+                "KWS session updated: keywords=%s, formatted=%s",
+                keywords_list,
+                next_keywords_string[:100],
+            )
 
     except WebSocketDisconnect:
         logger.debug("KWS client disconnected")

@@ -92,6 +92,9 @@ async def lifespan(app: FastAPI):
                     logger.warning(f"Migration skipped: {ddl} — {e}")
             conn.commit()
 
+        # Create tables added after the initial metadata create_all on long-lived
+        # deployments where migrations may run against an existing database.
+        Base.metadata.create_all(bind=engine)
         logger.info("Database schema migration completed.")
 
         async def _import_assets_on_startup() -> None:
@@ -219,6 +222,7 @@ from src.utils.db import (
     KnowledgeBaseTable,
     McpServerTable,
     SkillTable,
+    UserApiKeyTable,
     UserTable,
     get_db,
 )
@@ -262,6 +266,22 @@ class UserResponse(BaseModel):
     preferences: str | None = None
     safetyEnabled: bool = False
     createdAt: str
+
+
+class UserApiKeySchema(BaseModel):
+    id: str
+    name: str
+    keyPrefix: str
+    createdAt: str
+    lastUsedAt: str | None = None
+
+
+class CreateUserApiKeyRequest(BaseModel):
+    name: str
+
+
+class CreateUserApiKeyResponse(UserApiKeySchema):
+    apiKey: str
 
 
 
@@ -449,6 +469,20 @@ def _mcp_schema(server: McpServerTable) -> McpServerSchema:
     )
 
 
+def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
+    return UserApiKeySchema(
+        id=api_key.id,
+        name=api_key.name,
+        keyPrefix=api_key.key_prefix,
+        createdAt=api_key.created_at,
+        lastUsedAt=api_key.last_used_at,
+    )
+
+
+def hash_api_key(api_key: str) -> str:
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+
 async def get_current_user(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
@@ -563,6 +597,26 @@ def _remove_agent_profile_links(
     return changed_count
 
 
+def _invalidate_runtime_caches(
+    agent_id: str | None = None,
+    owner_user_id: str | None = None,
+) -> None:
+    """Best-effort invalidation for request-time agent/RAG metadata caches."""
+    try:
+        from src.middleware.dynamic_config_middleware import DynamicConfigMiddleware
+
+        DynamicConfigMiddleware.clear_cache(agent_id=agent_id, owner_user_id=owner_user_id)
+    except Exception:
+        pass
+
+    try:
+        from src.tools.rag_tool import invalidate_rag_cache
+
+        invalidate_rag_cache(agent_id=agent_id, owner_user_id=owner_user_id)
+    except Exception:
+        pass
+
+
 @app.post("/api/auth/register", response_model=UserResponse)
 async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
     # Check if username already exists
@@ -675,6 +729,65 @@ async def update_user_profile(
     )
 
 
+@app.get("/api/auth/api-keys", response_model=list[UserApiKeySchema])
+async def list_user_api_keys(
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    keys = db.query(UserApiKeyTable).filter(
+        UserApiKeyTable.owner_user_id == current_user.id,
+    ).all()
+    return [_api_key_schema(key) for key in keys]
+
+
+@app.post("/api/auth/api-keys", response_model=CreateUserApiKeyResponse)
+async def create_user_api_key(
+    req: CreateUserApiKeyRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    key_name = req.name.strip()
+    if not key_name:
+        raise HTTPException(status_code=400, detail="API key name is required")
+
+    raw_key = f"tob_{secrets.token_urlsafe(32)}"
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    api_key = UserApiKeyTable(
+        id=f"apikey-{uuid.uuid4()}",
+        owner_user_id=current_user.id,
+        name=key_name,
+        key_hash=hash_api_key(raw_key),
+        key_prefix=f"{raw_key[:8]}...",
+        created_at=now,
+    )
+    db.add(api_key)
+    db.commit()
+    db.refresh(api_key)
+
+    return CreateUserApiKeyResponse(
+        **_api_key_schema(api_key).model_dump(),
+        apiKey=raw_key,
+    )
+
+
+@app.delete("/api/auth/api-keys/{key_id}")
+async def delete_user_api_key(
+    key_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    api_key = db.query(UserApiKeyTable).filter(
+        UserApiKeyTable.id == key_id,
+        UserApiKeyTable.owner_user_id == current_user.id,
+    ).first()
+    if not api_key:
+        raise HTTPException(status_code=404, detail="API key not found")
+
+    db.delete(api_key)
+    db.commit()
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------------------
 # Client Profile CRUD
 # ---------------------------------------------------------------------------
@@ -724,19 +837,23 @@ async def get_agent_profiles(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from src.utils.assets_import import (
-        ensure_default_agent_profile,
-        ensure_user_default_agent_assets,
-    )
+    from src.utils.assets_import import is_default_agent_profile_id
 
-    ensure_default_agent_profile(db, current_user.id)
     ensure_default_skills(db, current_user.id)
+    default_profiles = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).all()
+    default_profile_ids = [
+        profile.id
+        for profile in default_profiles
+        if is_default_agent_profile_id(profile.id)
+    ]
+    if default_profile_ids:
+        _remove_agent_profile_links(db, current_user.id, "agent_ids", default_profile_ids)
+        for profile in default_profiles:
+            if profile.id in default_profile_ids:
+                db.delete(profile)
     db.commit()
-
-    # Importing may call the embedding provider, so run it outside the request's
-    # active SQLAlchemy transaction. Existing KBs are only linked, not re-ingested.
-    await ensure_user_default_agent_assets(current_user.id)
-    db.expire_all()
 
     profiles = db.query(AgentProfileTable).filter(
         AgentProfileTable.owner_user_id == current_user.id
@@ -778,6 +895,7 @@ async def create_agent_profile(
     db.add(new_profile)
     db.commit()
     db.refresh(new_profile)
+    _invalidate_runtime_caches(new_profile.id, current_user.id)
     return _agent_profile_schema(new_profile)
 
 
@@ -813,6 +931,7 @@ async def update_agent_profile(
     
     db.commit()
     db.refresh(profile)
+    _invalidate_runtime_caches(id, current_user.id)
     return _agent_profile_schema(profile)
 
 
@@ -822,11 +941,6 @@ async def delete_agent_profile(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from src.utils.assets_import import is_default_agent_profile_id
-
-    if is_default_agent_profile_id(id):
-        raise HTTPException(status_code=400, detail="Default agent profile cannot be deleted")
-
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == current_user.id,
@@ -836,6 +950,7 @@ async def delete_agent_profile(
     _remove_agent_profile_links(db, current_user.id, "agent_ids", [id])
     db.delete(profile)
     db.commit()
+    _invalidate_runtime_caches(id, current_user.id)
     return {"status": "success", "message": f"Agent profile {id} deleted"}
 
 
@@ -877,6 +992,7 @@ async def create_skill(
     db.add(new_skill)
     db.commit()
     db.refresh(new_skill)
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
     return _skill_schema(new_skill)
 
 
@@ -901,6 +1017,7 @@ async def update_skill(
     
     db.commit()
     db.refresh(skill)
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
     return _skill_schema(skill)
 
 
@@ -919,6 +1036,7 @@ async def delete_skill(
     _remove_agent_profile_links(db, current_user.id, "skill_ids", [id])
     db.delete(skill)
     db.commit()
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
     return {"status": "success", "message": f"Skill {id} deleted"}
 
 
@@ -932,10 +1050,6 @@ async def get_knowledge_bases(
     current_user: UserTable = Depends(get_current_user),
 ):
     from sqlalchemy import or_
-    from src.utils.assets_import import ensure_system_asset_knowledge_bases
-
-    await ensure_system_asset_knowledge_bases()
-    db.expire_all()
 
     kbs = db.query(KnowledgeBaseTable).filter(
         or_(
@@ -970,6 +1084,7 @@ async def create_knowledge_base(
     db.add(new_kb)
     db.commit()
     db.refresh(new_kb)
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
     return _kb_schema(new_kb)
 
 
@@ -995,6 +1110,7 @@ async def update_knowledge_base(
     
     db.commit()
     db.refresh(kb)
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
     return _kb_schema(kb)
 
 
@@ -1018,6 +1134,9 @@ async def delete_knowledge_base(
         tname = _table_name(id)
         if tname in await lancedb_instance.table_names():
             await lancedb_instance.drop_table(tname)
+            from src.tools.rag_tool import invalidate_rag_cache
+
+            invalidate_rag_cache()
             logger.info(f"Dropped LanceDB table '{tname}' for Knowledge Base {id}")
     except Exception as e:
         logger.error(f"Failed to drop LanceDB table for KB {id}: {e}")
@@ -1025,6 +1144,7 @@ async def delete_knowledge_base(
     _remove_agent_profile_links(db, current_user.id, "knowledge_base_ids", [id])
     db.delete(kb)
     db.commit()
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
     return {"status": "success", "message": f"Knowledge base {id} and associated LanceDB table deleted"}
 
 
@@ -1127,6 +1247,7 @@ async def upload_kb_document(
         kb.updated_at = datetime.utcnow().isoformat() + "Z"
         db.commit()
         db.refresh(kb)
+        _invalidate_runtime_caches(owner_user_id=current_user.id)
 
         return {
             "kb_id": kb_id,
@@ -1183,6 +1304,7 @@ async def delete_kb_file(
         kb.updated_at = datetime.utcnow().isoformat() + "Z"
         db.commit()
         db.refresh(kb)
+        _invalidate_runtime_caches(owner_user_id=current_user.id)
 
         return {
             "status": "success",
@@ -1338,6 +1460,7 @@ async def create_mcp_server(
         McpPoolManager.clear_cache()
     except Exception:
         pass
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
         
     return _mcp_schema(new_server)
 
@@ -1371,6 +1494,7 @@ async def update_mcp_server(
         McpPoolManager.clear_cache()
     except Exception:
         pass
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
 
     return _mcp_schema(server)
 
@@ -1398,6 +1522,7 @@ async def delete_mcp_server(
         McpPoolManager.clear_cache()
     except Exception:
         pass
+    _invalidate_runtime_caches(owner_user_id=current_user.id)
 
     return {"status": "success", "message": f"MCP Server {id} deleted"}
 

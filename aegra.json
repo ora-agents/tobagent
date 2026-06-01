@@ -1,0 +1,31 @@
+{
+  "name": "tobagent",
+  "dependencies": ["."],
+  "graphs": {
+    "generic_agent": "./src/agent/generic_agent.py:generic_agent"
+  },
+  "env": ".env",
+  "auth": {
+    "path": "./src/api/auth.py:auth",
+    "disable_studio_auth": true
+  },
+  "http": {
+    "app": "./src/api/server.py:app",
+    "cors": {
+      "allow_origins": ["*"],
+      "allow_methods": ["*"],
+      "allow_headers": ["*"]
+    }
+  },
+  "image_distro": "wolfi",
+  "config": {
+    "recursion_limit": 100
+  },
+  "checkpointer": {
+    "ttl": {
+      "default_ttl": 604800,
+      "sweep_interval_minutes": 60,
+      "strategy": "delete"
+    }
+  }
+}

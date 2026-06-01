@@ -64,6 +64,19 @@ class UserTable(Base):
     created_at = Column(String(50), nullable=False)
 
 
+class UserApiKeyTable(Base):
+    """User-scoped API keys for remote LangGraph SDK calls."""
+    __tablename__ = "user_api_keys"
+
+    id = Column(String(255), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    key_hash = Column(String(64), unique=True, index=True, nullable=False)
+    key_prefix = Column(String(32), nullable=False)
+    created_at = Column(String(50), nullable=False)
+    last_used_at = Column(String(50), nullable=True)
+
+
 
 class AgentProfileTable(Base):
     """Configurable Agent Profiles."""

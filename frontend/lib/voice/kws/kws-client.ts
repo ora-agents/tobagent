@@ -101,6 +101,22 @@ export class KwsClient {
     this._teardown()
   }
 
+  /** Update wake words without restarting microphone capture when connected. */
+  updateKeywords(keywords: string[]): void {
+    this.keywords = keywords
+
+    if (!keywords.length) {
+      this.stop()
+      return
+    }
+
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({ type: "config", keywords: this.keywords }),
+      )
+    }
+  }
+
   /** Whether the client is currently connected and streaming. */
   get isActive(): boolean {
     return (

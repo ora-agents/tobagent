@@ -34,6 +34,7 @@ const zh = {
   model: "模型",
   selectModel: "选择模型",
   loadingModels: "加载模型中...",
+  loadingAgents: "加载角色中...",
   recursionLimit: "递归深度限制",
   recursionLimitDesc: "角色可执行的最大迭代次数（默认：100）",
   viewKeyboardShortcuts: "查看键盘快捷键",
@@ -181,8 +182,9 @@ const zh = {
 
   // New Management keys
   mcpConfigureDesc: "配置与管理您的自定义资产",
-  defaultSystemAgent: "默认系统角色",
-  defaultSystemAgentDesc: "预配置的文档助手角色。",
+  noActiveAgent: "未选择角色",
+  createAgentPrompt: "还没有角色。请先创建一个角色，然后开始对话。",
+  selectAgentRequired: "请先创建或选择一个角色。",
   selected: "已选择",
   setActive: "设为活跃",
   systemInformation: "系统信息",
@@ -256,6 +258,7 @@ const en = {
   model: "Model",
   selectModel: "Select a model",
   loadingModels: "Loading models...",
+  loadingAgents: "Loading roles...",
   recursionLimit: "Recursion Limit",
   recursionLimitDesc: "Maximum number of iterations the agent can perform (default: 100)",
   viewKeyboardShortcuts: "View Keyboard Shortcuts",
@@ -403,8 +406,9 @@ const en = {
 
   // New Management keys
   mcpConfigureDesc: "Configure and orchestrate your custom assets",
-  defaultSystemAgent: "Default System Agent",
-  defaultSystemAgentDesc: "The preconfigured documentation assistant helper.",
+  noActiveAgent: "No active role",
+  createAgentPrompt: "No roles yet. Create a role first, then start chatting.",
+  selectAgentRequired: "Create or select a role first.",
   selected: "Selected",
   setActive: "Set Active",
   systemInformation: "SYSTEM INFORMATION",

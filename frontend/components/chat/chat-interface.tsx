@@ -59,6 +59,7 @@ interface ChatInterfaceProps {
   onAgentConfigChange?: (config: AgentConfig) => void
   /** Custom agent profile; when set, the generic_agent graph is used instead. */
   agentProfile?: AgentProfile | null
+  agentProfilesLoaded?: boolean
   isNewThread?: boolean
   customTitle?: string | null
   /** Pre-fill or auto-send a message. Use with autoSend to control behavior. */
@@ -69,6 +70,7 @@ interface ChatInterfaceProps {
   onInitialMessageSent?: () => void
   agentProfiles?: AgentProfile[]
   onAgentProfileChange?: (id: string | null) => void
+  onCreateAgent?: () => void
 }
 
 interface QueuedMessage {
@@ -95,11 +97,13 @@ export function ChatInterface({
   agentConfig,
   onAgentConfigChange,
   agentProfile,
+  agentProfilesLoaded = true,
   isNewThread = false,
   autoSend = false,
   onInitialMessageSent,
   agentProfiles,
   onAgentProfileChange,
+  onCreateAgent,
 }: ChatInterfaceProps) {
   const t = useT()
   // ============================================================================
@@ -233,20 +237,6 @@ export function ChatInterface({
     wakeWords: agentProfile?.wakeWords || [],
     ttsVoice: agentProfile?.ttsVoice || null,
   })
-  const previousThreadIdRef = useRef<string | null>(threadId)
-
-  useEffect(() => {
-    const previousThreadId = previousThreadIdRef.current
-    if (previousThreadId === threadId) return
-
-    previousThreadIdRef.current = threadId
-    if (!previousThreadId && threadId) return
-
-    if (voiceAgent.voiceState !== "idle" && voiceAgent.voiceState !== "kws") {
-      voiceAgent.exitVoiceMode()
-    }
-  }, [threadId, voiceAgent.voiceState, voiceAgent.exitVoiceMode])
-
   // ============================================================================
   // Refs
   // ============================================================================
@@ -718,6 +708,19 @@ export function ChatInterface({
       return
     }
 
+    if (!agentProfilesLoaded) {
+      setLimitedInput(trimmedMessage)
+      return
+    }
+
+    if (!agentProfile) {
+      setInputError(t.selectAgentRequired)
+      setLimitedInput(trimmedMessage)
+      onCreateAgent?.()
+      onInitialMessageSent?.()
+      return
+    }
+
     autoSentPromptRef.current = trimmedMessage
     uiDispatch({ type: 'SET_AUTO_SENT', payload: true })
     const cappedMessage = trimmedMessage.slice(0, MAX_INPUT_CHARS)
@@ -747,10 +750,16 @@ export function ChatInterface({
       // Just populate input (existing behavior for ticket page, etc.)
       setLimitedInput(trimmedMessage)
     }
-  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId])
+  }, [initialMessage, autoSend, uiState.isLoadingThread, userId, client, agentProfilesLoaded, agentProfile, setLimitedInput, uiDispatch, processMessage, onInitialMessageSent, ensureThreadId, onCreateAgent, t.selectAgentRequired])
 
   const handleSend = useCallback(async () => {
     if (!uiState.input.trim() && attachedFiles.length === 0) {
+      return
+    }
+
+    if (!agentProfile) {
+      setInputError(t.selectAgentRequired)
+      onCreateAgent?.()
       return
     }
 
@@ -804,7 +813,7 @@ export function ChatInterface({
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, agentProfile, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId, onCreateAgent, t.selectAgentRequired])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')
@@ -1042,8 +1051,10 @@ export function ChatInterface({
             agentConfig={agentConfig}
             onAgentConfigChange={onAgentConfigChange}
             agentProfile={agentProfile}
+            agentProfilesLoaded={agentProfilesLoaded}
             agentProfiles={agentProfiles}
             onAgentProfileChange={onAgentProfileChange}
+            onCreateAgent={onCreateAgent}
           />
         ) : (
           <ChatInput

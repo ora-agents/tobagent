@@ -349,6 +349,45 @@ export function useStreamHandler({
         assistantToolCalls = [...existingMessage.toolCalls]
       }
 
+      let pendingMessageUpdater: ((prev: Message[]) => Message[]) | null = null
+      let scheduledMessageFlush:
+        | { type: "raf"; id: number }
+        | { type: "timeout"; id: ReturnType<typeof setTimeout> }
+        | null = null
+
+      const flushQueuedMessageUpdates = () => {
+        if (scheduledMessageFlush) {
+          if (scheduledMessageFlush.type === "raf" && typeof window !== "undefined") {
+            window.cancelAnimationFrame(scheduledMessageFlush.id)
+          } else if (scheduledMessageFlush.type === "timeout") {
+            clearTimeout(scheduledMessageFlush.id)
+          }
+          scheduledMessageFlush = null
+        }
+
+        if (!pendingMessageUpdater) return
+        const updater = pendingMessageUpdater
+        pendingMessageUpdater = null
+        setMessages(updater)
+      }
+
+      const queueMessageUpdate = (updater: (prev: Message[]) => Message[]) => {
+        const previousUpdater = pendingMessageUpdater
+        pendingMessageUpdater = previousUpdater
+          ? ((prev) => updater(previousUpdater(prev)))
+          : updater
+
+        if (scheduledMessageFlush) return
+
+        if (typeof window !== "undefined" && window.requestAnimationFrame) {
+          const id = window.requestAnimationFrame(flushQueuedMessageUpdates)
+          scheduledMessageFlush = { type: "raf", id }
+        } else {
+          const id = setTimeout(flushQueuedMessageUpdates, 32)
+          scheduledMessageFlush = { type: "timeout", id }
+        }
+      }
+
       for await (const chunk of streamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
@@ -388,7 +427,7 @@ export function useStreamHandler({
             currentUserCheckpointId = checkpointId
 
             if (options?.userMessageId) {
-              setMessages((prev) =>
+              queueMessageUpdate((prev) =>
                 updateMessageInList(prev, options.userMessageId!, {
                   checkpointId,
                   parentCheckpointId,
@@ -505,7 +544,7 @@ export function useStreamHandler({
           }
         }
 
-        setMessages((prev) => {
+        queueMessageUpdate((prev) => {
           const existing = prev.find((m) => m.id === assistantMessageId)
           const thinkingSteps = existing?.thinkingSteps || []
           const thinkingStartTime = existing?.thinkingStartTime || Date.now()
@@ -642,7 +681,7 @@ export function useStreamHandler({
         if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
           assistantContent = finalContent
 
-          setMessages((prev) => {
+          queueMessageUpdate((prev) => {
             const baseMessage: Message = {
               id: assistantMessageId,
               role: "assistant",
@@ -698,7 +737,7 @@ export function useStreamHandler({
               onTextChunk(delta)
             }
 
-            setMessages((prev) => {
+            queueMessageUpdate((prev) => {
               const baseMessage: Message = {
                 id: assistantMessageId,
                 role: "assistant",
@@ -730,7 +769,7 @@ export function useStreamHandler({
         })
 
         if (assistantToolCalls.length > 0) {
-          setMessages((prev) => {
+          queueMessageUpdate((prev) => {
             const baseMessage: Message = {
               id: assistantMessageId,
               role: "assistant",
@@ -751,6 +790,8 @@ export function useStreamHandler({
         }
       }
     }
+
+    flushQueuedMessageUpdates()
 
     // Check if stream was interrupted
     const wasInterrupted = shouldInterruptRef?.current || false

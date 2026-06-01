@@ -33,7 +33,7 @@ export function Header({
   const t = useT()
   const { locale } = useI18n()
 
-  const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "默认系统角色" : "Default")
+  const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
 
   return (
     <header className="bg-background h-16 flex items-center">
