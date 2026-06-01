@@ -438,7 +438,7 @@ export function useStreamHandler({
 
         const isSubgraphEvent = eventType.includes("|")
         const isSubagentMessageEvent =
-          (eventType === "messages/partial" || eventType === "messages") &&
+          eventType === "messages" &&
           isSubagentMessageStream(eventType, data, chunk)
         const eventParts = eventType.split("|")
         const baseEvent = eventParts[0]
@@ -731,10 +731,10 @@ export function useStreamHandler({
         }
       }
 
-      // Handle streaming messages - show progressive tokens
-      // Try both "messages/partial" and "messages" event types
-      // IMPORTANT: Skip subgraph events (they have "|" in the event type)
-      if ((eventType === "messages/partial" || eventType === "messages") && !isSubagentMessageEvent && data) {
+      // Handle streaming message tuples. `messages` includes token metadata,
+      // while `messages/partial` is a metadata-free aggregate that can include
+      // nested subagent output, so it must not drive the main UI or TTS.
+      if (eventType === "messages" && !isSubagentMessageEvent && data) {
         // Handle both array and tuple formats
         let aiChunk: any
         if (Array.isArray(data)) {
