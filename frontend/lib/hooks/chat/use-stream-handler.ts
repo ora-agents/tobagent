@@ -397,30 +397,30 @@ export function useStreamHandler({
         graph: agentType,
       }
 
-      // Build configurable dict
-      const configurableBase: Record<string, unknown> = { model, user_id: userId }
+      // Build runtime context for the graph context_schema.
+      const contextBase: Record<string, unknown> = { model, user_id: userId }
       if (isCustomProfile && agentProfile) {
-        configurableBase.agent_id = agentProfile.id
+        contextBase.agent_id = agentProfile.id
       } else if (repos.length > 0) {
-        configurableBase.repos = repos
+        contextBase.repos = repos
       }
 
       // Always inject user preferences and safety flag
       if (userPreferences) {
-        configurableBase.user_preferences = userPreferences
+        contextBase.user_preferences = userPreferences
       }
       if (safetyEnabled) {
-        configurableBase.safety_enabled = true
+        contextBase.safety_enabled = true
       }
 
       const streamResponse = client.runs.stream(targetThreadId, agentType, {
         input,
+        context: contextBase,
         ...(options?.checkpointId ? { checkpointId: options.checkpointId } : {}),
         config: {
           recursion_limit: recursionLimit,
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
-          configurable: configurableBase,
         } as any,
         streamMode: ["values", "updates", "messages", "checkpoints"],
         streamSubgraphs: false,

@@ -1,4 +1,5 @@
-# Docs agent for LangChain customer service with docs and knowledge base tools
+"""Docs agent for LangChain customer service with docs and knowledge base tools."""
+
 import logging
 import os
 
@@ -8,12 +9,12 @@ from langsmith import Client
 
 from src.agent.config import (
     DEFAULT_MODEL,
-    configurable_model,
+    chat_model,
     model_retry_middleware,
     tool_retry_middleware,
 )
-from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.prompts.context_summary_prompt import context_summary_prompt
+from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
 from src.tools.pricing_tools import fetch_langchain_pricing
@@ -84,7 +85,7 @@ docs_agent_middleware = [
 ]
 
 docs_agent = create_agent(
-    model=configurable_model,
+    model=chat_model,
     tools=docs_agent_tools,
     system_prompt=docs_agent_prompt,
     middleware=docs_agent_middleware,

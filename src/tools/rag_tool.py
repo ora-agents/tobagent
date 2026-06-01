@@ -353,14 +353,9 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
             tables_to_search.append((agent_table_name, "Exclusive RAG"))
 
         # 2. Linked knowledge bases from PostgreSQL
-        owner_user_id = ""
-        try:
-            from langgraph.config import get_config
+        from src.utils.runtime_context import get_runtime_context_value
 
-            cfg = get_config()
-            owner_user_id = cfg.get("configurable", {}).get("user_id") or ""
-        except Exception:
-            pass
+        owner_user_id = get_runtime_context_value("user_id", "") or ""
 
         kb_ids = await _linked_kb_ids_for_agent(agent_id, owner_user_id)
         for kb_id in kb_ids:

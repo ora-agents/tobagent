@@ -1,7 +1,7 @@
-"""Generic configurable agent using create_agent with context_schema.
+"""Generic agent using create_agent with context_schema.
 
 The agent's system prompt and enabled tools are configured per-request
-via the LangGraph configurable dict:
+via the LangGraph runtime context:
     {
         "model": "gpt-4o",
         "system_prompt": "You are a helpful assistant.",
@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from src.agent.config import (
     DEFAULT_MODEL,
-    configurable_model,
+    chat_model,
     model_retry_middleware,
     tool_retry_middleware,
 )
@@ -32,7 +32,7 @@ logger.info("Generic agent module loaded")
 
 
 # ---------------------------------------------------------------------------
-# Context schema — fields passed via config["configurable"] at runtime
+# Context schema — fields passed via run context at runtime
 # ---------------------------------------------------------------------------
 
 class GenericAgentContext(BaseModel):
@@ -110,7 +110,7 @@ _middleware = [
 
 # system_prompt=None so dynamic_config_middleware controls the system message.
 generic_agent = create_agent(
-    model=configurable_model,
+    model=chat_model,
     tools=_all_tools,
     system_prompt=None,
     middleware=_middleware,

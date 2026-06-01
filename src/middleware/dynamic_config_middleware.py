@@ -146,7 +146,7 @@ def _make_subagent_tool(
                 f"[Delegated task]\n{query}"
             )
 
-        sub_configurable = {
+        sub_context = {
             "system_prompt": _system_prompt,
             "enabled_tools": _enabled_tools,
             "agent_id": _id,
@@ -162,8 +162,8 @@ def _make_subagent_tool(
         try:
             res = await generic_agent.ainvoke(
                 {"messages": [("user", enriched_query)]},
+                context=sub_context,
                 config={
-                    "configurable": sub_configurable,
                     "tags": ["subagent", f"subagent:{_id}"],
                     "metadata": {
                         "stream_scope": "subagent",

@@ -1,12 +1,11 @@
-# Shared configuration for all agents (models, middleware, API keys)
+"""Shared configuration for all agents, models, middleware, and API keys."""
+
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 import dotenv
 from langchain.agents.middleware import ModelFallbackMiddleware
-from langchain_core.runnables import ConfigurableField
 from langchain_openai import ChatOpenAI
 
 from src.middleware.retry_middleware import ModelRetryMiddleware
@@ -47,6 +46,8 @@ if OPENAI_COMPATIBLE_API_KEY and OPENAI_COMPATIBLE_API_KEY != "dummy":
 
 @dataclass
 class ModelConfig:
+    """Display and provider identifiers for a chat model."""
+
     id: str    # model name passed to the API, e.g. "gpt-4o" or "llama3.2"
     name: str  # display name
 
@@ -68,18 +69,15 @@ logger.info(f"Default model: {DEFAULT_MODEL.name}")
 
 MAX_RETRIES = int(os.getenv("MODEL_MAX_RETRIES", "2"))
 
-# Primary configurable model — model name is set per-request via LangGraph config
-_base_model = ChatOpenAI(
+# Primary chat model. Generic-agent per-request model selection is handled by
+# context_schema-aware middleware rather than LangGraph configurable fields.
+chat_model = ChatOpenAI(
     base_url=OPENAI_COMPATIBLE_BASE_URL or None,
     api_key=OPENAI_COMPATIBLE_API_KEY,
     model=_DEFAULT_MODEL_NAME,
 )
 
-configurable_model = _base_model.configurable_fields(
-    model_name=ConfigurableField(id="model", name="Model", description="Model name to use")
-)
-
-logger.info(f"Configurable model initialised (default: {_DEFAULT_MODEL_NAME})")
+logger.info(f"Chat model initialised (default: {_DEFAULT_MODEL_NAME})")
 
 # =============================================================================
 # Middleware
@@ -101,8 +99,7 @@ __all__ = [
     "OPENAI_COMPATIBLE_BASE_URL",
     "OPENAI_COMPATIBLE_API_KEY",
     "_DEFAULT_MODEL_NAME",
-    "_base_model",
-    "configurable_model",
+    "chat_model",
     "model_retry_middleware",
     "tool_retry_middleware",
     "model_fallback_middleware",
