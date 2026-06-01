@@ -192,6 +192,11 @@ async def enrich_run_metadata(
     value["kwargs"] = kwargs
 
     config = kwargs.get("config") or value.get("config") or {}
+    context = kwargs.get("context") or value.get("context") or {}
+    if not isinstance(context, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized context input: {type(context)}"
+        )
     config_metadata = config.get("metadata") if isinstance(config, dict) else None
     if isinstance(config_metadata, dict):
         config_source_type = config_metadata.get("source_type")
@@ -205,26 +210,18 @@ async def enrich_run_metadata(
     )
     validate_config(
         config,
+        context=context,
         input_has_image=input_has_image,
         owner_user_id=None if is_studio_user(ctx.user) else ctx.user.identity,
         require_agent_id=not is_studio_user(ctx.user),
     )
 
-    # Keep the validated config in both locations used by LangGraph request
-    # payloads so auth-injected configurable fields reach the graph runtime.
+    # Keep the validated payload in both locations used by LangGraph request
+    # payloads so auth-injected fields reach the graph runtime.
     kwargs["config"] = config
     value["config"] = config
-
-    configurable = config.get("configurable") if isinstance(config, dict) else None
-    if isinstance(configurable, dict):
-        context = kwargs.get("context") or value.get("context") or {}
-        if not isinstance(context, dict):
-            raise Auth.exceptions.HTTPException(
-                422, f"Unrecognized context input: {type(context)}"
-            )
-        context.update(configurable)
-        kwargs["context"] = context
-        value["context"] = context
+    kwargs["context"] = context
+    value["context"] = context
 
 
 @auth.on.assistants(actions=["create", "update", "delete"])
@@ -387,14 +384,28 @@ def content_has_image(content) -> bool:
 def validate_config(
     config: dict | None,
     *,
+    context: dict | None = None,
     input_has_image: bool = False,
     owner_user_id: str | None = None,
     require_agent_id: bool = False,
 ):
     """Validate user-controlled run config before it reaches the graph."""
+    if context is None:
+        context = {}
+    if not isinstance(context, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized context input: {type(context)}"
+        )
+
     if not config:
-        if require_agent_id:
-            raise Auth.exceptions.HTTPException(400, "config.configurable.agent_id is required")
+        validate_agent_context(context, owner_user_id, require_agent_id=require_agent_id)
+        requested_model = context.get("model")
+        if requested_model is not None and (
+            not isinstance(requested_model, str) or not requested_model.strip()
+        ):
+            raise Auth.exceptions.HTTPException(
+                422, f"Unrecognized model input: {type(requested_model)}"
+            )
         return
     if not isinstance(config, dict):
         raise Auth.exceptions.HTTPException(
@@ -403,15 +414,16 @@ def validate_config(
 
     cap_recursion_limit(config)
 
-    configurable = config.get("configurable") or {}
+    configurable = config.pop("configurable", None) or {}
     if not isinstance(configurable, dict):
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized configurable input: {type(configurable)}"
         )
 
-    validate_agent_context(configurable, owner_user_id, require_agent_id=require_agent_id)
+    context.update(configurable)
+    validate_agent_context(context, owner_user_id, require_agent_id=require_agent_id)
 
-    requested_model = configurable.get("model")
+    requested_model = context.get("model")
     if requested_model is None:
         return
     if not isinstance(requested_model, str) or not requested_model.strip():
@@ -429,7 +441,7 @@ def validate_agent_context(
     """Validate required agent context and apply safe request overrides."""
     agent_id = configurable.get("agent_id")
     if require_agent_id and (not isinstance(agent_id, str) or not agent_id.strip()):
-        raise Auth.exceptions.HTTPException(400, "config.configurable.agent_id is required")
+        raise Auth.exceptions.HTTPException(400, "context.agent_id is required")
 
     if not agent_id or not owner_user_id:
         return

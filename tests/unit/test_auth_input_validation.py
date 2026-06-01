@@ -107,7 +107,18 @@ def test_validate_inputs_truncates_all_message_content():
 
 def test_validate_config_requires_agent_id_for_user_runs():
     with pytest.raises(Auth.exceptions.HTTPException):
-        validate_config({"configurable": {}}, owner_user_id="user-1", require_agent_id=True)
+        validate_config({}, owner_user_id="user-1", require_agent_id=True)
+
+
+def test_validate_config_accepts_context_agent_id(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    context = {"agent_id": "agent-1"}
+
+    validate_config({}, context=context, owner_user_id="user-1", require_agent_id=True)
+
+    assert context["agent_id"] == "agent-1"
+    assert context["user_id"] == "user-1"
 
 
 def test_validate_config_applies_owned_overrides(monkeypatch):
@@ -126,16 +137,18 @@ def test_validate_config_applies_owned_overrides(monkeypatch):
             },
         }
     }
+    context = {}
 
-    validate_config(config, owner_user_id="user-1", require_agent_id=True)
+    validate_config(config, context=context, owner_user_id="user-1", require_agent_id=True)
 
-    configurable = config["configurable"]
-    assert configurable["user_id"] == "user-1"
-    assert configurable["system_prompt"] == "Use the request prompt."
-    assert configurable["enabled_tools"] == ["rag_search", "fetch"]
-    assert configurable["agent_ids"] == ["agent-2"]
-    assert configurable["model"] == "gpt-4o"
-    assert "overrides" not in configurable
+    assert "configurable" not in config
+    assert context["agent_id"] == "agent-1"
+    assert context["user_id"] == "user-1"
+    assert context["system_prompt"] == "Use the request prompt."
+    assert context["enabled_tools"] == ["rag_search", "fetch"]
+    assert context["agent_ids"] == ["agent-2"]
+    assert context["model"] == "gpt-4o"
+    assert "overrides" not in context
 
 
 def test_validate_config_rejects_unknown_tool_override(monkeypatch):
@@ -170,8 +183,8 @@ async def test_create_run_auth_writes_validated_config_back_to_kwargs(monkeypatc
 
     await enrich_run_metadata(ctx, value)
 
-    assert value["kwargs"]["config"]["configurable"]["user_id"] == "user-1"
-    assert value["config"]["configurable"]["user_id"] == "user-1"
+    assert "configurable" not in value["kwargs"]["config"]
+    assert "configurable" not in value["config"]
     assert value["kwargs"]["context"]["agent_id"] == "agent-1"
     assert value["kwargs"]["context"]["user_id"] == "user-1"
     assert value["context"]["agent_id"] == "agent-1"

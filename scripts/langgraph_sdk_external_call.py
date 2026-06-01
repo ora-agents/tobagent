@@ -100,11 +100,6 @@ async def main() -> None:
         thread_id,
         args.assistant_id,
         input={"messages": [{"role": "user", "content": args.message}]},
-        config={
-            "configurable": {
-                "agent_id": args.agent_id,
-            },
-        },
         context=context,
         metadata={"agent_id": args.agent_id},
         stream_mode=["messages", "updates", "values"],
