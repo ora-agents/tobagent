@@ -195,3 +195,5 @@ frontend/public/sherpa-onnx-wasm-simd-1.13.2-sherpa-onnx-zipvoice-distill-int8-z
 models/
 
 *.pem
+
+logs
