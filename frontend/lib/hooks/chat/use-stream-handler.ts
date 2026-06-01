@@ -13,7 +13,7 @@
  * - SSR-safe implementation
  *
  * Architecture:
- * - Processes multiple stream modes: values, updates, messages, messages/partial
+ * - Processes multiple stream modes: values, updates, events, checkpoints
  * - Filters subgraph events to show only main agent responses
  * - Tracks execution state across streaming events
  */
@@ -72,6 +72,9 @@ function getStreamMessageMetadata(data: any, chunk?: any): Record<string, any> {
   if (Array.isArray(data) && data[1] && typeof data[1] === "object") {
     return data[1]
   }
+  if (data?.metadata && typeof data.metadata === "object") {
+    return data.metadata
+  }
   if (chunk?.metadata && typeof chunk.metadata === "object") {
     return chunk.metadata
   }
@@ -109,21 +112,44 @@ function hasToolCalls(msg: any): boolean {
   return Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0
 }
 
-function getAiMessageChunk(data: any): any | undefined {
-  if (Array.isArray(data)) {
-    const [message] = data
-    if (message?.type === "ai" || message?.role === "assistant") {
-      return message
-    }
-
-    return data.find((msg: any) => msg?.type === "ai" || msg?.role === "assistant")
+function getEventMessageChunk(data: any): any | undefined {
+  if (!data || typeof data !== "object") return undefined
+  if (data.event !== "on_chat_model_stream" && data.event !== "on_llm_stream") {
+    return undefined
   }
 
-  if (data && typeof data === "object") {
-    return data.type === "ai" || data.role === "assistant" ? data : undefined
-  }
+  const eventData = data.data
+  if (!eventData || typeof eventData !== "object") return undefined
 
-  return undefined
+  return eventData.chunk ?? eventData.output ?? eventData
+}
+
+function getEventRunId(data: any): string {
+  return typeof data?.run_id === "string" ? data.run_id : ""
+}
+
+function hasToolCallChunks(chunk: any): boolean {
+  if (!chunk || typeof chunk !== "object") return false
+
+  return (
+    (Array.isArray(chunk.tool_calls) && chunk.tool_calls.length > 0) ||
+    (Array.isArray(chunk.tool_call_chunks) && chunk.tool_call_chunks.length > 0) ||
+    (Array.isArray(chunk.invalid_tool_calls) && chunk.invalid_tool_calls.length > 0) ||
+    (Array.isArray(chunk.additional_kwargs?.tool_calls) &&
+      chunk.additional_kwargs.tool_calls.length > 0) ||
+    (Array.isArray(chunk.kwargs?.tool_calls) && chunk.kwargs.tool_calls.length > 0) ||
+    (Array.isArray(chunk.kwargs?.tool_call_chunks) &&
+      chunk.kwargs.tool_call_chunks.length > 0)
+  )
+}
+
+function getChunkText(chunk: any): string {
+  if (!chunk || typeof chunk !== "object") return ""
+  if (chunk.content !== undefined) return extractTextFromContent(chunk.content)
+  if (typeof chunk.text === "string") return chunk.text
+  if (typeof chunk.delta === "string") return chunk.delta
+  if (typeof chunk.token === "string") return chunk.token
+  return ""
 }
 
 function mergeStreamedContent(currentContent: string, streamedContent: string): string {
@@ -259,7 +285,7 @@ export function useStreamHandler({
    *
    * Main function that handles:
    * - Initiating the stream with LangGraph SDK
-   * - Processing various stream event types (values, updates, messages, messages/partial)
+   * - Processing various stream event types (values, updates, events, checkpoints)
    * - Tracking tool calls, thinking steps, and subagent outputs
    * - Updating message state in real-time
    * - Handling stream interruption
@@ -422,7 +448,7 @@ export function useStreamHandler({
           tags: ["Chat-LangChain", agentType],
           metadata: traceMetadata,
         } as any,
-        streamMode: ["values", "updates", "messages", "checkpoints"],
+        streamMode: ["values", "updates", "events", "checkpoints"],
         streamSubgraphs: false,
         ifNotExists: "create",
       })
@@ -450,6 +476,7 @@ export function useStreamHandler({
       }
 
       let pendingMessageUpdater: ((prev: Message[]) => Message[]) | null = null
+      const toolCallingModelRuns = new Set<string>()
       let scheduledMessageFlush:
         | { type: "raf"; id: number }
         | { type: "timeout"; id: ReturnType<typeof setTimeout> }
@@ -511,7 +538,7 @@ export function useStreamHandler({
 
         const isSubgraphEvent = eventType.includes("|")
         const isSubagentMessageEvent =
-          eventType === "messages" &&
+          (eventType === "messages" || eventType === "events") &&
           isSubagentMessageStream(eventType, data, chunk)
         const eventParts = eventType.split("|")
         const baseEvent = eventParts[0]
@@ -734,14 +761,21 @@ export function useStreamHandler({
         }
       }
 
-      // Handle streaming message tuples. `messages` includes token metadata,
-      // while `messages/partial` is a metadata-free aggregate that can include
-      // nested subagent output, so it must not drive the main UI or TTS.
-      if (eventType === "messages" && !isSubagentMessageEvent && data) {
-        const aiChunk = getAiMessageChunk(data)
+      // Handle astream_events-style model token events. Tool-call assistant
+      // messages are skipped; only natural-language answer chunks render.
+      if (eventType === "events" && !isSubagentMessageEvent && data) {
+        const aiChunk = getEventMessageChunk(data)
 
-        if (aiChunk?.content) {
-          const streamedContent = extractTextFromContent(aiChunk.content)
+        if (aiChunk) {
+          const eventRunId = getEventRunId(data)
+          if (eventRunId && hasToolCallChunks(aiChunk)) {
+            toolCallingModelRuns.add(eventRunId)
+          }
+          if (eventRunId && toolCallingModelRuns.has(eventRunId)) {
+            continue
+          }
+
+          const streamedContent = getChunkText(aiChunk)
 
           // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
           const looksLikeSubagentResponse = streamedContent.trim().startsWith('{') || streamedContent.trim().startsWith('{"answer')
@@ -749,10 +783,8 @@ export function useStreamHandler({
             continue
           }
 
-          // Only update if we have content and no pending tool calls (check array length)
-          const hasPendingToolCalls =
-            (Array.isArray(aiChunk.tool_calls) && aiChunk.tool_calls.length > 0) ||
-            (Array.isArray(aiChunk.tool_call_chunks) && aiChunk.tool_call_chunks.length > 0)
+          // Only update if we have content and no pending tool calls.
+          const hasPendingToolCalls = hasToolCallChunks(aiChunk)
           if (streamedContent && !hasPendingToolCalls) {
             const nextAssistantContent = mergeStreamedContent(assistantContent, streamedContent)
             const delta = nextAssistantContent.slice(assistantContent.length)
