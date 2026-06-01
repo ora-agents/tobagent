@@ -328,7 +328,7 @@ export const MessageItem = memo(function MessageItem({
         >
           {/* Thinking indicator - only for assistant messages */}
           {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0)) && (
-            <details open className="mb-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs">
+            <details open={message.isThinking} className="mb-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-xs">
               <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors marker:text-muted-foreground">
                 {message.isThinking && (
                   <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -337,7 +337,7 @@ export const MessageItem = memo(function MessageItem({
                   </span>
                 )}
                 <span>
-                  {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Agent steps</span>} ({message.thinkingSteps?.length || 0})
+                  {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Process</span>}
                 </span>
                 <span className="ml-1">•</span>
                 <ThinkingTimer
@@ -347,12 +347,14 @@ export const MessageItem = memo(function MessageItem({
                 />
               </summary>
               {message.thinkingSteps && message.thinkingSteps.length > 0 && (
-                <div className="mt-2 pl-4 space-y-1.5 text-muted-foreground font-mono text-[11px]">
+                <div className="mt-2 flex flex-wrap gap-1.5 text-muted-foreground">
                   {message.thinkingSteps.map((step, idx) => (
-                    <div key={`${message.id}-step-${idx}`} className="flex items-start gap-2">
-                      <span className="text-primary/70">{(idx + 1).toString().padStart(2, '0')}</span>
-                      <span>{step}</span>
-                    </div>
+                    <span
+                      key={`${message.id}-step-${idx}`}
+                      className="rounded-full border border-border/70 bg-background/55 px-2 py-0.5 leading-5"
+                    >
+                      {step}
+                    </span>
                   ))}
                 </div>
               )}

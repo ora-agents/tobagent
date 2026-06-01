@@ -40,28 +40,18 @@ import type { AgentProfile } from "../../types/agent-profiles"
 
 import { LANGGRAPH_API_URL } from "../../constants/api"
 
-function describeToolStep(name: string, args: Record<string, any> = {}): string {
-  if (args.query && name === "search_docs_by_lang_chain") {
-    const query = args.query.length > 40 ? args.query.substring(0, 40) + "..." : args.query
-    return `Searching documentation for "${query}"`
-  }
-  if (name === "query_docs_filesystem_docs_by_lang_chain") {
-    return "Reading documentation"
-  }
-  if (args.collections && name === "search_support_articles") {
-    return `Searching support articles (${args.collections})`
-  }
-  if (args.article_id && name === "get_support_article_content") {
-    return "Reading support articles"
-  }
-  if (name === "fetch_langchain_pricing") {
-    return "Fetching LangChain pricing"
-  }
-  if (name === "check_links") {
-    return "Checking documentation links"
-  }
+const BRIEF_AGENT_STEPS = {
+  thinking: "Understanding request",
+  context: "Checking context",
+  tools: "Using tools",
+  subagents: "Consulting linked agents",
+  answer: "Writing answer",
+} as const
 
-  return name
+function addBriefStep(steps: string[], step: string): boolean {
+  if (steps.includes(step)) return false
+  steps.push(step)
+  return true
 }
 
 function isSubagentToolName(name?: string): boolean {
@@ -627,24 +617,21 @@ export function useStreamHandler({
           const thinkingStartTime = existing?.thinkingStartTime || Date.now()
           let hasNewSteps = false
 
-          // Track node executions from updates (skip 'agent', 'model', 'tools', and middleware nodes)
+          // Track only high-level progress. Internal node names are too noisy
+          // for the chat UI and can expose implementation details.
           if ((eventType === "updates" || baseEvent === "updates") && data) {
-            Object.keys(data).forEach((nodeName) => {
-              if (
-                nodeName === "agent" ||
-                nodeName === "model" ||
-                nodeName === "tools" ||
-                nodeName.includes("Middleware")  // Skip all middleware nodes
-              )
-                return
-
-              const stepDesc = `Node: ${nodeName}`
-              const alreadyExists = thinkingSteps.some((s) => s === stepDesc)
-              if (!alreadyExists) {
-                thinkingSteps.push(stepDesc)
-                hasNewSteps = true
-              }
-            })
+            const nodeNames = Object.keys(data)
+            const hasContextStep = nodeNames.some(
+              (nodeName) =>
+                nodeName !== "agent" &&
+                nodeName !== "model" &&
+                nodeName !== "tools" &&
+                !nodeName.includes("Middleware")
+            )
+            if (hasContextStep) {
+              hasNewSteps =
+                addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.context) || hasNewSteps
+            }
           }
 
           // Check for AI thinking
@@ -653,11 +640,8 @@ export function useStreamHandler({
             (data?.agent || data?.model) &&
             !data?.tools
           ) {
-            const aiThinkingStep = "Planning next steps..."
-            if (!thinkingSteps.some((s) => s === "Planning next steps...")) {
-              thinkingSteps.push(aiThinkingStep)
-              hasNewSteps = true
-            }
+            hasNewSteps =
+              addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.thinking) || hasNewSteps
           }
 
         // Detect subagent execution (single or parallel)
@@ -667,33 +651,30 @@ export function useStreamHandler({
             if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
               const taskTools = msg.tool_calls.filter((tc: any) => tc.name === "task")
 
-              // Show message for subagents (task tools)
               if (taskTools.length > 0) {
-                const subagentNames = taskTools
-                  .map((tc: any) => tc.args?.subagent_type || "subagent")
-                  .join(", ")
-
-                const parallelStep = taskTools.length > 1
-                  ? `Calling ${taskTools.length} subagents in parallel: ${subagentNames}`
-                  : `Calling subagent: ${subagentNames}`
-
-                if (!thinkingSteps.includes(parallelStep)) {
-                  thinkingSteps.push(parallelStep)
-                  hasNewSteps = true
-                }
+                hasNewSteps =
+                  addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.subagents) ||
+                  hasNewSteps
               }
 
-              msg.tool_calls
-                .filter((tc: any) => tc.name !== "task")
-                .forEach((toolCall: any) => {
-                  const stepDesc = describeToolStep(toolCall.name, toolCall.args || {})
-                  if (!thinkingSteps.includes(stepDesc)) {
-                    thinkingSteps.push(stepDesc)
-                    hasNewSteps = true
-                  }
-                })
+              const regularToolCalls = msg.tool_calls.filter(
+                (tc: any) => !isSubagentToolName(tc.name)
+              )
+              if (regularToolCalls.length > 0) {
+                hasNewSteps =
+                  addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.tools) ||
+                  hasNewSteps
+              }
             }
           })
+        }
+
+        if (eventType === "events") {
+          const aiChunk = getEventMessageChunk(data)
+          if (aiChunk && getChunkText(aiChunk) && !hasToolCallChunks(aiChunk)) {
+            hasNewSteps =
+              addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.answer) || hasNewSteps
+          }
         }
 
         // Always ensure message exists with thinking state
