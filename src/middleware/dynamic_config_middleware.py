@@ -16,6 +16,7 @@ from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
+from sqlalchemy import text
 
 from src.agent.config import (
     OPENAI_COMPATIBLE_API_KEY,
@@ -93,6 +94,68 @@ def _role_behavior_instructions(profile: dict[str, Any]) -> str:
     if not lines:
         return ""
     return "\n\n## Role Behavior\n" + "\n".join(f"- {line}" for line in lines) + "\n"
+
+
+def _get_current_config_metadata() -> dict[str, Any]:
+    """Return LangGraph run metadata from the active config."""
+    try:
+        from langgraph.config import get_config
+
+        cfg = get_config()
+    except Exception:
+        return {}
+    if not isinstance(cfg, dict):
+        return {}
+
+    metadata = cfg.get("metadata")
+    if isinstance(metadata, dict):
+        return metadata
+
+    configurable = cfg.get("configurable")
+    if isinstance(configurable, dict):
+        metadata = configurable.get("metadata")
+        if isinstance(metadata, dict):
+            return metadata
+    return {}
+
+
+def _load_thread_owner_user_id(thread_id: str) -> str:
+    """Return the authenticated owner stored on a LangGraph thread."""
+    if not isinstance(thread_id, str) or not thread_id.strip():
+        return ""
+
+    try:
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text('SELECT user_id, metadata_json FROM "thread" WHERE thread_id = :thread_id'),
+                {"thread_id": thread_id.strip()},
+            ).first()
+        finally:
+            db.close()
+    except Exception as err:
+        write_debug_event(
+            "middleware.thread_owner.lookup_error",
+            thread_id=thread_id,
+            error=str(err),
+        )
+        return ""
+
+    if not row:
+        write_debug_event("middleware.thread_owner.not_found", thread_id=thread_id)
+        return ""
+
+    user_id = row[0]
+    if isinstance(user_id, str) and user_id.strip():
+        return user_id.strip()
+
+    metadata = row[1]
+    if isinstance(metadata, dict):
+        for key in ("user_id", "owner"):
+            value = metadata.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return ""
 
 
 def _make_subagent_tool(
@@ -398,7 +461,12 @@ class DynamicConfigMiddleware(AgentMiddleware):
         agent_id = getattr(ctx, "agent_id", None)
         context_user_id = getattr(ctx, "user_id", "") or ""
         fallback_user_id = get_runtime_context_value("user_id", "") or ""
-        owner_user_id = context_user_id or fallback_user_id
+        config_metadata = _get_current_config_metadata()
+        thread_id = config_metadata.get("thread_id", "")
+        thread_owner_user_id = ""
+        if not context_user_id and not fallback_user_id and isinstance(thread_id, str):
+            thread_owner_user_id = _load_thread_owner_user_id(thread_id)
+        owner_user_id = context_user_id or fallback_user_id or thread_owner_user_id
         enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
         has_linked_skills = False
@@ -408,6 +476,8 @@ class DynamicConfigMiddleware(AgentMiddleware):
             agent_id=agent_id,
             context_user_id=context_user_id,
             fallback_user_id=fallback_user_id,
+            thread_id=thread_id,
+            thread_owner_user_id=thread_owner_user_id,
             owner_user_id=owner_user_id,
             system_prompt_set=_context_field_was_set(ctx, "system_prompt"),
             enabled_tools_set=_context_field_was_set(ctx, "enabled_tools"),

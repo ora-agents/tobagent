@@ -230,6 +230,9 @@ async def add_owner(ctx: Auth.types.AuthContext, value: dict | None):
     if is_studio_user(ctx.user):
         return {}
 
+    if _is_run_create_payload(value):
+        return await _enrich_run_context(ctx, value)
+
     user_id = ctx.user.identity
     metadata = _ensure_metadata(value)
     metadata["user_id"] = user_id
@@ -255,6 +258,27 @@ async def enrich_run_metadata(
     ctx: Auth.types.AuthContext, value: Auth.types.RunsCreate
 ):
     """Inject public Chat LangChain metadata into the root run."""
+    return await _enrich_run_context(ctx, value)
+
+
+def _is_run_create_payload(value: dict | None) -> bool:
+    """Return whether a threads auth payload is creating a run."""
+    if not isinstance(value, dict):
+        return False
+    if isinstance(value.get("kwargs"), dict):
+        return True
+    if "assistant_id" in value and (
+        "thread_id" in value or "input" in value or "command" in value
+    ):
+        return True
+    return False
+
+
+async def _enrich_run_context(
+    ctx: Auth.types.AuthContext,
+    value: Auth.types.RunsCreate | dict | None,
+):
+    """Validate a run payload and inject authenticated runtime context."""
     value = _ensure_auth_value(value)
     metadata = _ensure_metadata(value)
 

@@ -60,6 +60,30 @@ async def test_thread_auth_normalizes_none_metadata():
     assert value["metadata"]["user_id"] == "user-1"
 
 
+@pytest.mark.anyio
+async def test_thread_auth_enriches_run_payload_when_resource_handler_matches(monkeypatch):
+    """Some SDK stream calls arrive through the broad threads auth handler."""
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+            "context": {"agent_id": "agent-1"},
+            "config": {"metadata": {"agent_id": "agent-1"}},
+        },
+        "metadata": {"agent_id": "agent-1"},
+    }
+
+    result = await add_owner(ctx, value)
+
+    assert result is None
+    assert value["kwargs"]["context"]["agent_id"] == "agent-1"
+    assert value["kwargs"]["context"]["user_id"] == "user-1"
+    assert value["context"]["agent_id"] == "agent-1"
+    assert value["context"]["user_id"] == "user-1"
+
+
 def test_validate_inputs_accepts_forked_conversation_history():
     """Forked reruns may send prior user/assistant messages plus a final user turn."""
     payload = {

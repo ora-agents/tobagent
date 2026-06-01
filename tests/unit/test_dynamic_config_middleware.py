@@ -216,6 +216,54 @@ async def test_dynamic_config_middleware_falls_back_to_config_user_id():
 
 
 @pytest.mark.anyio
+async def test_dynamic_config_middleware_falls_back_to_thread_owner():
+    mock_agent_profile = MagicMock()
+    mock_agent_profile.id = "agent_123"
+    mock_agent_profile.name = "Support Agent"
+    mock_agent_profile.description = "Support questions"
+    mock_agent_profile.system_prompt = "Profile prompt"
+    mock_agent_profile.enabled_tools = ["rag_search"]
+    mock_agent_profile.skill_ids = []
+    mock_agent_profile.agent_ids = []
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_agent_profile
+
+    rag_tool = SimpleNamespace(name="rag_search")
+    fetch_tool = SimpleNamespace(name="fetch")
+
+    mock_ctx = SimpleNamespace(
+        agent_id="agent_123",
+        user_id="",
+        system_prompt="Runtime default prompt",
+        enabled_tools=["fetch"],
+        model=None,
+        user_preferences="",
+        safety_enabled=False,
+        model_fields_set={"agent_id"},
+    )
+
+    mock_request = MagicMock()
+    mock_request.runtime.context = mock_ctx
+    mock_request.tools = [rag_tool, fetch_tool]
+    mock_request.override.return_value = mock_request
+
+    async def mock_handler(req):
+        return req
+
+    with patch("src.middleware.dynamic_config_middleware.SessionLocal", return_value=mock_db), \
+         patch("src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent", return_value=[]), \
+         patch("src.middleware.dynamic_config_middleware.get_runtime_context_value", return_value=""), \
+         patch("src.middleware.dynamic_config_middleware._get_current_config_metadata", return_value={"thread_id": "thread_123"}), \
+         patch("src.middleware.dynamic_config_middleware._load_thread_owner_user_id", return_value="user_123"):
+        await dynamic_config_middleware.awrap_model_call(mock_request, mock_handler)
+
+    kwargs = mock_request.override.call_args[1]
+    assert kwargs["system_message"].content == "Profile prompt"
+    assert kwargs["tools"] == [rag_tool]
+
+
+@pytest.mark.anyio
 async def test_dynamic_config_middleware_request_config_overrides_profile_defaults():
     mock_agent_profile = MagicMock()
     mock_agent_profile.id = "agent_123"
