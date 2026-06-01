@@ -215,6 +215,17 @@ async def enrich_run_metadata(
     kwargs["config"] = config
     value["config"] = config
 
+    configurable = config.get("configurable") if isinstance(config, dict) else None
+    if isinstance(configurable, dict):
+        context = kwargs.get("context") or value.get("context") or {}
+        if not isinstance(context, dict):
+            raise Auth.exceptions.HTTPException(
+                422, f"Unrecognized context input: {type(context)}"
+            )
+        context.update(configurable)
+        kwargs["context"] = context
+        value["context"] = context
+
 
 @auth.on.assistants(actions=["create", "update", "delete"])
 async def block_modify_assistants(

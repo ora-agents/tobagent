@@ -172,6 +172,10 @@ async def test_create_run_auth_writes_validated_config_back_to_kwargs(monkeypatc
 
     assert value["kwargs"]["config"]["configurable"]["user_id"] == "user-1"
     assert value["config"]["configurable"]["user_id"] == "user-1"
+    assert value["kwargs"]["context"]["agent_id"] == "agent-1"
+    assert value["kwargs"]["context"]["user_id"] == "user-1"
+    assert value["context"]["agent_id"] == "agent-1"
+    assert value["context"]["user_id"] == "user-1"
 
 
 @pytest.mark.anyio

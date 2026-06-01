@@ -17,7 +17,7 @@ AEGRA ?= $(shell if [ -x ./.venv/bin/aegra ]; then printf './.venv/bin/aegra'; e
 SDK_TEST_SCRIPT ?= scripts/langgraph_sdk_external_call.py
 LANGGRAPH_API_URL ?= http://localhost:2025
 LANGGRAPH_ASSISTANT_ID ?= generic_agent
-TOB_AGENT_ID ?= c63c8408-a1e7-4e9a-b636-e549f4343300
+TOB_AGENT_ID ?= cfd97b38-0751-4a88-b441-8424db410f81
 MESSAGE ?= 你可以调用子智能体吗？
 
 define run_frontend
@@ -119,18 +119,19 @@ install-backend:
 
 # Test external LangGraph SDK invocation with a user-scoped API key.
 # Usage:
-#   USER_API_KEY=<tob_...> make test-agent-sdk
+#   make test-agent-sdk USER_API_KEY=<tob_...> TOB_AGENT_ID=<agent-profile-id>
 # Optional overrides:
 #   LANGGRAPH_API_URL=http://localhost:2025
-#   TOB_AGENT_ID=<agent-profile-id>
+#   LANGGRAPH_ASSISTANT_ID=generic_agent
 #   MESSAGE="您好，我想咨询营业时间。"
 test-agent-sdk:
 	@if [ -z "$(USER_API_KEY)" ]; then \
-		echo "USER_API_KEY is required. Usage: make test-agent-sdk USER_API_KEY=<tob_...>"; \
+		echo "USER_API_KEY is required. Usage: make test-agent-sdk USER_API_KEY=<tob_...> TOB_AGENT_ID=<agent-profile-id>"; \
 		exit 1; \
 	fi
-	@USER_API_KEY="$(USER_API_KEY)" \
-	LANGGRAPH_API_URL="$(LANGGRAPH_API_URL)" \
-	LANGGRAPH_ASSISTANT_ID="$(LANGGRAPH_ASSISTANT_ID)" \
-	TOB_AGENT_ID="$(TOB_AGENT_ID)" \
-	uv run python $(SDK_TEST_SCRIPT) --message "$(MESSAGE)"
+	@uv run python $(SDK_TEST_SCRIPT) \
+		--api-key "$(USER_API_KEY)" \
+		--api-url "$(LANGGRAPH_API_URL)" \
+		--assistant-id "$(LANGGRAPH_ASSISTANT_ID)" \
+		--agent-id "$(TOB_AGENT_ID)" \
+		--message "$(MESSAGE)"

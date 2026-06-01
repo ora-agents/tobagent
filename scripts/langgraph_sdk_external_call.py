@@ -1,5 +1,7 @@
 """Test external LangGraph SDK calls with a user API key and agent profile ID."""
 
+# ruff: noqa: T201
+
 from __future__ import annotations
 
 import argparse
@@ -9,7 +11,6 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from langgraph_sdk import get_client
-
 
 DEFAULT_AGENT_PROFILE_ID = "c63c8408-a1e7-4e9a-b636-e549f4343300"
 DEFAULT_ASSISTANT_ID = "generic_agent"
@@ -63,6 +64,7 @@ async def _stream_response(chunks: AsyncIterator[Any]) -> str:
 
 
 async def main() -> None:
+    """Run one SDK-backed agent request and print the streamed result."""
     parser = argparse.ArgumentParser(
         description="Call a LangGraph agent through the SDK using USER_API_KEY.",
     )
@@ -84,10 +86,16 @@ async def main() -> None:
         },
     )
 
-    thread = await client.threads.create()
+    print(f"[assistant] {args.assistant_id}")
+    print(f"[agent] {args.agent_id}")
+
+    thread = await client.threads.create(metadata={"agent_id": args.agent_id})
     thread_id = thread["thread_id"]
     print(f"[thread] {thread_id}")
 
+    context = {
+        "agent_id": args.agent_id,
+    }
     stream = client.runs.stream(
         thread_id,
         args.assistant_id,
@@ -97,6 +105,8 @@ async def main() -> None:
                 "agent_id": args.agent_id,
             },
         },
+        context=context,
+        metadata={"agent_id": args.agent_id},
         stream_mode=["messages", "updates", "values"],
     )
 
