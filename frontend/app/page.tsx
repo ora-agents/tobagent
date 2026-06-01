@@ -93,6 +93,7 @@ function DashboardContent() {
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+  const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
 
   // Agent profiles (custom configurable agents)
   const {
@@ -422,6 +423,11 @@ function DashboardContent() {
     setForceShowTooltip(prev => prev + 1)
   }
 
+  const handleOpenActiveAgentSettings = () => {
+    setEditAgentIdOnOpen(selectedAgentProfileId)
+    setCurrentView("agents")
+  }
+
   // Keyboard shortcuts
   useKeyboardShortcuts([
     {
@@ -515,7 +521,7 @@ function DashboardContent() {
               onShowShortcuts={() => setShowShortcutsDialog(true)}
               forceShowTooltip={forceShowTooltip}
               selectedAgentProfile={selectedAgentProfile}
-              onOpenAgentSettings={() => setCurrentView("agents")}
+              onOpenAgentSettings={handleOpenActiveAgentSettings}
             />
             <ChatInterface
               showToolCalls={showToolCalls}
@@ -551,6 +557,8 @@ function DashboardContent() {
             createAgentProfile={createAgentProfile}
             updateAgentProfile={updateAgentProfile}
             deleteAgentProfile={deleteAgentProfile}
+            editAgentIdOnOpen={editAgentIdOnOpen}
+            onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}
           />
         ) : null}
       </div>

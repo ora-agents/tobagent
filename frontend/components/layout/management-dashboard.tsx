@@ -19,7 +19,8 @@ import {
   PlusCircle,
   HelpCircle,
   File,
-  Cpu
+  Cpu,
+  Copy
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -255,6 +256,8 @@ interface ManagementDashboardProps {
   createAgentProfile: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => Promise<AgentProfile | null>
   updateAgentProfile: (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => void
   deleteAgentProfile: (id: string) => void
+  editAgentIdOnOpen?: string | null
+  onEditAgentIdHandled?: () => void
 }
 
 export function ManagementDashboard({
@@ -265,7 +268,9 @@ export function ManagementDashboard({
   setSelectedAgentProfileId,
   createAgentProfile,
   updateAgentProfile,
-  deleteAgentProfile
+  deleteAgentProfile,
+  editAgentIdOnOpen,
+  onEditAgentIdHandled
 }: ManagementDashboardProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -338,6 +343,7 @@ export function ManagementDashboard({
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
   // Guard: prevents the selectedAgentProfileId useEffect from re-entering edit mode right after a save
   const isSavingRef = useRef(false)
+  const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
@@ -399,45 +405,31 @@ export function ManagementDashboard({
     setActiveTab(initialTab)
   }, [initialTab])
 
-  // Sync selectedAgentId with selectedAgentProfileId from props when tab is agents
+  // Sync selectedAgentId with selectedAgentProfileId from props when tab is agents.
+  // Opening the role manager should select the active role for context, but only
+  // the header role settings action should jump directly into the edit form.
   useEffect(() => {
     if (activeTab === "agents") {
-      // If we just finished a save, skip re-entering edit mode so the user can navigate away
       if (isSavingRef.current) {
         isSavingRef.current = false
         return
       }
 
       setSelectedAgentId(selectedAgentProfileId)
-      
-      // Auto-enter editing mode if a custom agent is selected to jump straight to its config form!
-      if (selectedAgentProfileId) {
-        const selectedProfile = agentProfiles.find(p => p.id === selectedAgentProfileId)
-        if (selectedProfile) {
-          setIsEditingAgent(true)
-          setIsCreatingAgent(false)
-          setAgentForm({
-            name: selectedProfile.name,
-            description: selectedProfile.description,
-            systemPrompt: selectedProfile.systemPrompt,
-            enabledTools: selectedProfile.enabledTools,
-            knowledgeBaseIds: selectedProfile.knowledgeBaseIds || [],
-            skillIds: selectedProfile.skillIds || [],
-            mcpIds: selectedProfile.mcpIds || [],
-            agentIds: (selectedProfile as any).agentIds || [],
-            wakeWords: (selectedProfile as any).wakeWords || [],
-            roleTemplateId: selectedProfile.roleTemplateId || "",
-            personaStyle: (selectedProfile.personaStyle || "professional") as PersonaStyle,
-            boundaryMode: (selectedProfile.boundaryMode || "business_only") as BoundaryMode,
-            ttsVoice: selectedProfile.ttsVoice || "Cherry"
-          })
-        }
-      } else {
-        setIsEditingAgent(false)
-        setIsCreatingAgent(false)
-      }
+      setIsEditingAgent(false)
+      setIsCreatingAgent(false)
     }
   }, [selectedAgentProfileId, activeTab, agentProfiles])
+
+  useEffect(() => {
+    if (activeTab !== "agents" || !editAgentIdOnOpen) return
+
+    const profile = agentProfiles.find(p => p.id === editAgentIdOnOpen)
+    if (profile) {
+      handleStartEditAgent(profile)
+    }
+    onEditAgentIdHandled?.()
+  }, [activeTab, editAgentIdOnOpen, agentProfiles, onEditAgentIdHandled])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -604,6 +596,16 @@ export function ManagementDashboard({
       ttsVoice: profile.ttsVoice || "Cherry"
     })
     setDeleteConfirmId(null)
+  }
+
+  const handleCopyAgentId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id)
+      setCopiedAgentId(id)
+      window.setTimeout(() => setCopiedAgentId(current => current === id ? null : current), 1400)
+    } catch (err) {
+      console.error("Failed to copy agent ID", err)
+    }
   }
 
   const handleSaveAgent = () => {
@@ -1654,6 +1656,32 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
+                    {isEditingAgent && activeEditingAgentId && (
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/50 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            {locale === "zh" ? "角色 ID" : "Role ID"}
+                          </div>
+                          <div className="mt-1 truncate font-mono text-xs text-foreground">
+                            {activeEditingAgentId}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyAgentId(activeEditingAgentId)}
+                          className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                          title={locale === "zh" ? "复制角色 ID" : "Copy role ID"}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {copiedAgentId === activeEditingAgentId
+                            ? (locale === "zh" ? "已复制" : "Copied")
+                            : (locale === "zh" ? "复制" : "Copy")}
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-background/50">
                       <div className="space-y-1.5">
                         <Label>{locale === "zh" ? "角色模板" : "Role Template"}</Label>
@@ -2044,6 +2072,30 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="space-y-6 mt-6">
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/50 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            {locale === "zh" ? "角色 ID" : "Role ID"}
+                          </div>
+                          <div className="mt-1 truncate font-mono text-xs text-foreground">
+                            {selectedAgent.id}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCopyAgentId(selectedAgent.id)}
+                          className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                          title={locale === "zh" ? "复制角色 ID" : "Copy role ID"}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {copiedAgentId === selectedAgent.id
+                            ? (locale === "zh" ? "已复制" : "Copied")
+                            : (locale === "zh" ? "复制" : "Copy")}
+                        </Button>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="p-3 border border-border/60 rounded-xl bg-background/50">
                           <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
