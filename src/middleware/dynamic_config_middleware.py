@@ -23,6 +23,7 @@ from src.agent.config import (
 )
 from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
 from src.utils.mcp import McpPoolManager
+from src.utils.runtime_context import get_runtime_context_value
 
 logger = logging.getLogger(__name__)
 
@@ -393,7 +394,9 @@ class DynamicConfigMiddleware(AgentMiddleware):
         # Dynamic system prompt
         system_prompt = getattr(ctx, "system_prompt", "")
         agent_id = getattr(ctx, "agent_id", None)
-        owner_user_id = getattr(ctx, "user_id", "") or ""
+        owner_user_id = (
+            getattr(ctx, "user_id", "") or get_runtime_context_value("user_id", "") or ""
+        )
         enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
         has_linked_skills = False
@@ -593,7 +596,9 @@ class DynamicConfigMiddleware(AgentMiddleware):
         """Intercept and execute dynamically created subagent tools."""
         ctx = request.runtime.context if request.runtime else None
         agent_id = getattr(ctx, "agent_id", None)
-        owner_user_id = getattr(ctx, "user_id", "") or ""
+        owner_user_id = (
+            getattr(ctx, "user_id", "") or get_runtime_context_value("user_id", "") or ""
+        )
         tool_name = request.tool_call.get("name", "")
 
         if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("call_agent_"):
