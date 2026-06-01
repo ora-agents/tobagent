@@ -1,4 +1,9 @@
-"""Test external LangGraph SDK calls with a user API key and agent profile ID."""
+"""Call the LangGraph deployment through the SDK with a user API key.
+
+This script exercises the same external path as third-party callers: it sends
+business runtime fields through the graph context schema, while keeping
+LangGraph run configuration in ``config``.
+"""
 
 # ruff: noqa: T201
 
@@ -6,16 +11,57 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 from collections.abc import AsyncIterator
 from typing import Any
 
+import dotenv
 from langgraph_sdk import get_client
 
 DEFAULT_AGENT_PROFILE_ID = "c63c8408-a1e7-4e9a-b636-e549f4343300"
 DEFAULT_ASSISTANT_ID = "generic_agent"
 DEFAULT_API_URL = "http://localhost:2025"
 USER_API_KEY_ENV = "USER_API_KEY"
+AUTH_SECRET_ENV = "LANGGRAPH_AUTH_SECRET"
+
+
+def _content_to_text(content: Any) -> str:
+    """Convert LangChain message content into displayable text."""
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict):
+            if isinstance(block.get("text"), str):
+                parts.append(block["text"])
+            elif isinstance(block.get("content"), str):
+                parts.append(block["content"])
+    return "".join(parts)
+
+
+def _message_role(message: Any) -> str:
+    """Return a normalized message role/type from dict or object messages."""
+    if isinstance(message, dict):
+        return str(message.get("role") or message.get("type") or "")
+    return str(getattr(message, "role", None) or getattr(message, "type", "") or "")
+
+
+def _message_content(message: Any) -> Any:
+    """Return content from dict or object messages."""
+    if isinstance(message, dict):
+        if "content" in message:
+            return message["content"]
+        kwargs = message.get("kwargs")
+        if isinstance(kwargs, dict):
+            return kwargs.get("content")
+        return None
+    return getattr(message, "content", None)
 
 
 def _text_from_messages(messages: Any) -> str:
@@ -24,28 +70,32 @@ def _text_from_messages(messages: Any) -> str:
         return ""
 
     for message in reversed(messages):
-        if not isinstance(message, dict):
-            continue
-        role = message.get("role") or message.get("type")
+        role = _message_role(message)
         if role not in {"assistant", "ai"}:
             continue
-        content = message.get("content")
-        if isinstance(content, str):
-            return content
-        if isinstance(content, list):
-            parts = []
-            for block in content:
-                if isinstance(block, str):
-                    parts.append(block)
-                elif isinstance(block, dict) and isinstance(block.get("text"), str):
-                    parts.append(block["text"])
-            return "".join(parts)
+        text = _content_to_text(_message_content(message))
+        if text:
+            return text
     return ""
 
 
-async def _stream_response(chunks: AsyncIterator[Any]) -> str:
+def _text_from_message_event(data: Any) -> str:
+    """Extract streamed token text from a LangGraph messages event."""
+    message = data
+    if isinstance(data, (list, tuple)) and data:
+        message = data[0]
+    role = _message_role(message)
+    if role and role not in {"assistant", "ai", "AIMessageChunk"}:
+        return ""
+    return _content_to_text(_message_content(message))
+
+
+async def _stream_response(chunks: AsyncIterator[Any], *, verbose: bool) -> str:
     """Print stream events and return the final assistant text if present."""
     final_text = ""
+    streamed_text = ""
+    printed_any_token = False
+
     async for chunk in chunks:
         event = getattr(chunk, "event", None)
         data = getattr(chunk, "data", None)
@@ -54,61 +104,126 @@ async def _stream_response(chunks: AsyncIterator[Any]) -> str:
             print(f"[run] {data['run_id']}")
             continue
 
+        if event == "messages":
+            token = _text_from_message_event(data)
+            if token:
+                printed_any_token = True
+                streamed_text += token
+                print(token, end="", flush=True)
+            continue
+
         if event == "values" and isinstance(data, dict):
             text = _text_from_messages(data.get("messages"))
             if text:
                 final_text = text
             continue
 
-    return final_text
+        if verbose:
+            print(f"\n[event:{event}] {data!r}")
+
+    if printed_any_token:
+        print()
+    return final_text or streamed_text
+
+
+def _json_object_arg(raw: str | None, *, name: str) -> dict[str, Any]:
+    """Parse an optional JSON object CLI argument."""
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"--{name} must be valid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise SystemExit(f"--{name} must be a JSON object.")
+    return value
 
 
 async def main() -> None:
     """Run one SDK-backed agent request and print the streamed result."""
+    dotenv.load_dotenv()
+
     parser = argparse.ArgumentParser(
         description="Call a LangGraph agent through the SDK using USER_API_KEY.",
     )
     parser.add_argument("--api-url", default=os.getenv("LANGGRAPH_API_URL", DEFAULT_API_URL))
     parser.add_argument("--api-key", default=os.getenv(USER_API_KEY_ENV))
+    parser.add_argument("--auth-secret", default=os.getenv(AUTH_SECRET_ENV))
     parser.add_argument("--assistant-id", default=os.getenv("LANGGRAPH_ASSISTANT_ID", DEFAULT_ASSISTANT_ID))
     parser.add_argument("--agent-id", default=os.getenv("TOB_AGENT_ID", DEFAULT_AGENT_PROFILE_ID))
     parser.add_argument("--message", default="你是什么智能体？")
+    parser.add_argument("--model", default=os.getenv("TOB_MODEL", ""))
+    parser.add_argument("--user-preferences", default=os.getenv("TOB_USER_PREFERENCES", ""))
+    parser.add_argument("--safety-enabled", action="store_true")
+    parser.add_argument("--thread-id", default="")
+    parser.add_argument(
+        "--context-json",
+        default="",
+        help="Extra JSON object merged into the graph context schema.",
+    )
+    parser.add_argument(
+        "--metadata-json",
+        default="",
+        help="Extra JSON object merged into run metadata.",
+    )
+    parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
     if not args.api_key:
         raise SystemExit(f"Missing API key. Set {USER_API_KEY_ENV} or pass --api-key.")
 
+    headers = {"Authorization": f"Bearer {args.api_key}"}
+    if args.auth_secret:
+        headers["X-Auth-Key"] = args.auth_secret
+
     client = get_client(
         url=args.api_url,
-        api_key=args.api_key,
-        headers={
-            "Authorization": f"Bearer {args.api_key}",
-        },
+        headers=headers,
     )
 
     print(f"[assistant] {args.assistant_id}")
     print(f"[agent] {args.agent_id}")
 
-    thread = await client.threads.create(metadata={"agent_id": args.agent_id})
-    thread_id = thread["thread_id"]
+    metadata = {
+        "agent_id": args.agent_id,
+        "source_type": "external-sdk-script",
+        **_json_object_arg(args.metadata_json, name="metadata-json"),
+    }
+
+    if args.thread_id:
+        thread_id = args.thread_id
+    else:
+        thread = await client.threads.create(metadata=metadata)
+        thread_id = thread["thread_id"]
     print(f"[thread] {thread_id}")
 
     context = {
         "agent_id": args.agent_id,
+        **_json_object_arg(args.context_json, name="context-json"),
     }
+    if args.model:
+        context["model"] = args.model
+    if args.user_preferences:
+        context["user_preferences"] = args.user_preferences
+    if args.safety_enabled:
+        context["safety_enabled"] = True
+
+    if args.verbose:
+        print(f"[context] {json.dumps(context, ensure_ascii=False)}")
+
     stream = client.runs.stream(
         thread_id,
         args.assistant_id,
         input={"messages": [{"role": "user", "content": args.message}]},
         context=context,
         config={
-            "metadata": {"agent_id": args.agent_id},
+            "metadata": metadata,
         },
-        metadata={"agent_id": args.agent_id},
+        metadata=metadata,
         stream_mode=["messages", "updates", "values"],
     )
 
-    final_text = await _stream_response(stream)
+    final_text = await _stream_response(stream, verbose=args.verbose)
     print("\n\n[final]")
     print(final_text or "(no assistant text found)")
 
