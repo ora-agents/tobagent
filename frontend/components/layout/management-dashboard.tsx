@@ -2032,19 +2032,6 @@ export function ManagementDashboard({
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant={selectedAgentProfileId === selectedAgent.id ? "secondary" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedAgentProfileId(selectedAgent.id)}
-                          className={`gap-1.5 rounded-lg border transition-all ${
-                            selectedAgentProfileId === selectedAgent.id
-                              ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
-                              : "border-border hover:bg-primary/10 hover:text-primary"
-                          }`}
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          {selectedAgentProfileId === selectedAgent.id ? t.selected : t.setActive}
-                        </Button>
-                        <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleStartEditAgent(selectedAgent)}
