@@ -23,7 +23,6 @@ import { Client } from "@langchain/langgraph-sdk"
 import type {
   Message,
   ToolCall,
-  SubgraphOutput,
   ImageAttachment,
 } from "../../types"
 import {
@@ -63,6 +62,10 @@ function describeToolStep(name: string, args: Record<string, any> = {}): string 
   }
 
   return name
+}
+
+function isSubagentToolName(name?: string): boolean {
+  return name === "task" || !!name?.startsWith("call_agent_")
 }
 
 function getStreamMessageMetadata(data: any, chunk?: any): Record<string, any> {
@@ -396,7 +399,7 @@ export function useStreamHandler({
           configurable: configurableBase,
         } as any,
         streamMode: ["values", "updates", "messages", "checkpoints"],
-        streamSubgraphs: true,
+        streamSubgraphs: false,
         ifNotExists: "create",
       })
 
@@ -407,13 +410,19 @@ export function useStreamHandler({
         return prev
       })
 
-      const subgraphOutputs: SubgraphOutput[] = existingMessage?.subgraphOutputs
-        ? [...existingMessage.subgraphOutputs]
-        : []
-
       // Restore tool calls from existing message
       if (existingMessage?.toolCalls) {
-        assistantToolCalls = [...existingMessage.toolCalls]
+        assistantToolCalls = existingMessage.toolCalls.filter(
+          (toolCall) => !isSubagentToolName(toolCall.name)
+        )
+      }
+      if (existingMessage?.subgraphOutputs || existingMessage?.toolCalls) {
+        setMessages((prev) =>
+          updateMessageInList(prev, assistantMessageId, {
+            toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
+            subgraphOutputs: undefined,
+          })
+        )
       }
 
       let pendingMessageUpdater: ((prev: Message[]) => Message[]) | null = null
@@ -511,7 +520,8 @@ export function useStreamHandler({
           }
         }
 
-        // Track subgraph outputs when they complete or stream
+        // Track tool calls. Subagent tool output is intentionally kept out of
+        // frontend state; the parent agent consumes it and streams one final answer.
         if (
           (eventType === "updates" ||
             (baseEvent === "updates" && isSubgraphEvent)) &&
@@ -527,29 +537,11 @@ export function useStreamHandler({
                     (tc) => tc.id === toolCall.id
                   )
                   if (!existingToolCall) {
-                    assistantToolCalls.push({
-                      id: toolCall.id,
-                      name: toolCall.name,
-                      args: toolCall.args,
-                    })
-                  }
-
-                  // Track task tool calls for subgraph outputs
-                  if (toolCall.name === "task") {
-                    const subagentName =
-                      toolCall.args?.subagent_type || "subagent-task"
-                    const existingOutput = subgraphOutputs.find(
-                      (o) => o.toolCallId === toolCall.id
-                    )
-
-                    if (!existingOutput) {
-                      subgraphOutputs.push({
-                        name: subagentName,
-                        output: "",
-                        timestamp: Date.now(),
-                        toolCallId: toolCall.id,
-                        isStreaming: true,
-                        isComplete: false,
+                    if (!isSubagentToolName(toolCall.name)) {
+                      assistantToolCalls.push({
+                        id: toolCall.id,
+                        name: toolCall.name,
+                        args: toolCall.args,
                       })
                     }
                   }
@@ -562,52 +554,16 @@ export function useStreamHandler({
           if (data.tools?.messages && Array.isArray(data.tools.messages)) {
             data.tools.messages.forEach((msg: any) => {
               if (msg.type === "tool" && msg.tool_call_id) {
-                // Handle task tools (subagents) separately
-                if (msg.name === "task" && msg.content) {
-                  const existingOutput = subgraphOutputs.find(
-                    (output) => output.toolCallId === msg.tool_call_id
-                  )
+                if (isSubagentToolName(msg.name)) return
 
-                  if (existingOutput) {
-                    existingOutput.output =
-                      typeof msg.content === "string"
-                        ? msg.content
-                        : JSON.stringify(msg.content)
-                    existingOutput.isStreaming = false
-                    existingOutput.isComplete = true
-                  } else {
-                    const toolCall = assistantToolCalls.find(
-                      (tc) => tc.id === msg.tool_call_id
-                    )
-                    const subagentName =
-                      toolCall?.args?.subagent_type || "subagent-task"
-
-                    const taskOutput = {
-                      name: subagentName,
-                      output:
-                        typeof msg.content === "string"
-                          ? msg.content
-                          : JSON.stringify(msg.content),
-                      timestamp: Date.now(),
-                      toolCallId: msg.tool_call_id,
-                      isStreaming: false,
-                      isComplete: true,
-                    }
-
-                    subgraphOutputs.push(taskOutput)
-                  }
-                }
-                // Handle regular tools (attach output to tool call)
-                else {
-                  const toolCall = assistantToolCalls.find(
-                    (tc) => tc.id === msg.tool_call_id
-                  )
-                  if (toolCall && msg.content) {
-                    toolCall.output =
-                      typeof msg.content === "string"
-                        ? msg.content
-                        : JSON.stringify(msg.content)
-                  }
+                const toolCall = assistantToolCalls.find(
+                  (tc) => tc.id === msg.tool_call_id
+                )
+                if (toolCall && msg.content) {
+                  toolCall.output =
+                    typeof msg.content === "string"
+                      ? msg.content
+                      : JSON.stringify(msg.content)
                 }
               }
             })
@@ -619,14 +575,6 @@ export function useStreamHandler({
           const thinkingSteps = existing?.thinkingSteps || []
           const thinkingStartTime = existing?.thinkingStartTime || Date.now()
           let hasNewSteps = false
-          let hasNewSubgraphOutputs = false
-
-          if (subgraphOutputs.length > 0) {
-            const existingOutputCount = existing?.subgraphOutputs?.length || 0
-            if (subgraphOutputs.length > existingOutputCount) {
-              hasNewSubgraphOutputs = true
-            }
-          }
 
           // Track node executions from updates (skip 'agent', 'model', 'tools', and middleware nodes)
           if ((eventType === "updates" || baseEvent === "updates") && data) {
@@ -709,10 +657,9 @@ export function useStreamHandler({
               isThinking: true,
               thinkingSteps: [...thinkingSteps],
               thinkingStartTime,
-              subgraphOutputs: subgraphOutputs.length > 0 ? [...subgraphOutputs] : [],
             },
           ]
-        } else if (hasNewSteps || hasNewSubgraphOutputs) {
+        } else if (hasNewSteps) {
           return prev.map((m) =>
             m.id === assistantMessageId
               ? {
@@ -720,7 +667,6 @@ export function useStreamHandler({
                   isThinking: true,
                   thinkingSteps: [...thinkingSteps],
                   thinkingStartTime,
-                  subgraphOutputs: [...subgraphOutputs],
                 }
               : m
           )
@@ -753,14 +699,12 @@ export function useStreamHandler({
               content: assistantContent,
               timestamp: new Date(),
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
             }
 
             const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
             return updateMessageInList(withMessage, assistantMessageId, {
               content: assistantContent,
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
             })
           })
         }
@@ -809,14 +753,12 @@ export function useStreamHandler({
                 content: streamedContent,
                 timestamp: new Date(),
                 isThinking: true,
-                subgraphOutputs: [...subgraphOutputs],
               }
 
               const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
               return updateMessageInList(withMessage, assistantMessageId, {
                 content: streamedContent,
                 isThinking: true,
-                subgraphOutputs: [...subgraphOutputs],
               })
             })
           }
@@ -829,7 +771,9 @@ export function useStreamHandler({
       if ((eventType === "updates" || baseEvent === "updates") && agentMessages && Array.isArray(agentMessages)) {
         agentMessages.forEach((msg: any) => {
           if (msg.type === "ai" && msg.tool_calls?.length > 0) {
-            assistantToolCalls = msg.tool_calls
+            assistantToolCalls = msg.tool_calls.filter(
+              (toolCall: any) => !isSubagentToolName(toolCall.name)
+            )
           }
         })
 
@@ -842,14 +786,12 @@ export function useStreamHandler({
               timestamp: new Date(),
               toolCalls: assistantToolCalls,
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
             }
 
             const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
             return updateMessageInList(withMessage, assistantMessageId, {
               toolCalls: assistantToolCalls,
               isThinking: true,
-              subgraphOutputs: [...subgraphOutputs],
             })
           })
         }
@@ -880,7 +822,7 @@ export function useStreamHandler({
               runId,
               checkpointId: finalAssistantCheckpointId,
               parentCheckpointId: currentUserCheckpointId,
-              subgraphOutputs: subgraphOutputs.length > 0 ? subgraphOutputs : undefined,
+              subgraphOutputs: undefined,
               wasInterrupted,
             }
           : m

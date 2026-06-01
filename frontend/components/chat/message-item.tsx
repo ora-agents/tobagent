@@ -1,4 +1,4 @@
-import { Copy, Check, Settings, RefreshCw } from "lucide-react"
+import { Copy, Check, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import ReactMarkdown from "react-markdown"
@@ -541,52 +541,6 @@ export const MessageItem = memo(function MessageItem({
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {message.subgraphOutputs && message.subgraphOutputs.length > 0 && (
-              <div className="mt-3">
-                <details className="group">
-                  <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                    <span>{t.subagentOutputs} ({message.subgraphOutputs.length})</span>
-                    <span className="text-[10px] opacity-50">{t.clickToExpand}</span>
-                  </summary>
-                  <div className="mt-2 space-y-2">
-                    {message.subgraphOutputs.map((subgraph, idx) => (
-                      <details
-                        key={`${subgraph.name}-${idx}`}
-                        className="px-3 py-2 rounded-lg border border-primary/30 bg-primary/5"
-                      >
-                        <summary className="cursor-pointer flex items-center gap-2 text-xs hover:opacity-80">
-                          <Settings className="w-3 h-3 text-primary" />
-                          <span className="font-semibold text-primary">{subgraph.name}</span>
-                          {subgraph.isStreaming && (
-                            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                              {t.running}
-                            </span>
-                          )}
-                          {subgraph.isComplete && (
-                            <span className="text-[10px] text-green-600 dark:text-green-400">
-                              {t.complete}
-                            </span>
-                          )}
-                        </summary>
-                        {subgraph.output ? (
-                          <div className="mt-2 text-xs font-mono text-muted-foreground">
-                            <pre className="whitespace-pre-wrap break-words text-[10px] max-h-60 overflow-y-auto">
-                              {subgraph.output}
-                            </pre>
-                          </div>
-                        ) : (
-                          <div className="mt-2 text-[10px] text-muted-foreground italic">
-                            {t.waitingForOutput}
-                          </div>
-                        )}
-                      </details>
-                    ))}
-                  </div>
-                </details>
               </div>
             )}
 
