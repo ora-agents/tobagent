@@ -17,6 +17,8 @@ ALLOWED_CONFIGURABLE_OVERRIDES = {
     "model",
 }
 ALLOWED_BUILTIN_TOOLS = {"rag_search", "fetch", "read_skill"}
+GRAPH_ASSISTANT_IDS = {"generic_agent"}
+AGENT_ID_KEYS = ("agent_id", "agent_profile_id", "agentProfileId")
 
 
 def _ensure_auth_value(value: dict | None) -> dict:
@@ -38,6 +40,57 @@ def _ensure_metadata(value: dict | None) -> dict:
         metadata = {}
         payload["metadata"] = metadata
     return metadata
+
+
+def _first_agent_id(*sources: dict | None) -> str | None:
+    """Return the first non-empty agent profile id from request payload sources."""
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for key in AGENT_ID_KEYS:
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _assistant_id_as_agent_id(value: dict, kwargs: dict) -> str | None:
+    """Treat a non-graph assistant id as an agent profile id fallback."""
+    assistant_id = (
+        value.get("assistant_id")
+        or value.get("assistantId")
+        or kwargs.get("assistant_id")
+        or kwargs.get("assistantId")
+    )
+    if not isinstance(assistant_id, str) or not assistant_id.strip():
+        return None
+    assistant_id = assistant_id.strip()
+    if assistant_id in GRAPH_ASSISTANT_IDS:
+        return None
+    return assistant_id
+
+
+def _normalize_run_agent_context(value: dict, kwargs: dict, config: dict, context: dict) -> None:
+    """Copy SDK-provided agent profile identity into runtime context."""
+    if context.get("agent_id"):
+        return
+
+    config_metadata = config.get("metadata") if isinstance(config, dict) else None
+    config_configurable = config.get("configurable") if isinstance(config, dict) else None
+    kwargs_metadata = kwargs.get("metadata")
+    value_metadata = value.get("metadata")
+
+    agent_id = _first_agent_id(
+        config_configurable,
+        config_metadata,
+        kwargs_metadata,
+        value_metadata,
+        kwargs,
+        value,
+    ) or _assistant_id_as_agent_id(value, kwargs)
+
+    if agent_id:
+        context["agent_id"] = agent_id
 
 
 def _get_auth_secret() -> str | None:
@@ -197,6 +250,11 @@ async def enrich_run_metadata(
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized context input: {type(context)}"
         )
+    if not isinstance(config, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized config input: {type(config)}"
+        )
+    _normalize_run_agent_context(value, kwargs, config, context)
     config_metadata = config.get("metadata") if isinstance(config, dict) else None
     if isinstance(config_metadata, dict):
         config_source_type = config_metadata.get("source_type")

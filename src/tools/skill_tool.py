@@ -1,3 +1,5 @@
+"""Tool for reading user-defined skills linked to agent profiles."""
+
 import asyncio
 import logging
 
@@ -5,12 +7,15 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
+from src.utils.runtime_context import get_runtime_context_value
 
 logger = logging.getLogger(__name__)
 
 class ReadSkillInput(BaseModel):
+    """Input schema for reading or listing available skills."""
+
     skill_name: str = Field(
-        default="", 
+        default="",
         description="The name or ID of the skill to read. If left empty, lists all available skills in the database."
     )
 
@@ -31,17 +36,9 @@ class ReadSkillTool(BaseTool):
     def _run(self, skill_name: str = "", **kwargs) -> str:
         db = SessionLocal()
         try:
-            # 1. Try to get agent_id from ToolRuntime context
-            agent_id = None
-            owner_user_id = None
-            try:
-                from langgraph.config import get_config
-                cfg = get_config()
-                configurable = cfg.get("configurable", {})
-                agent_id = configurable.get("agent_id")
-                owner_user_id = configurable.get("user_id")
-            except Exception:
-                pass
+            # 1. Try to get agent_id from LangGraph runtime context.
+            agent_id = get_runtime_context_value("agent_id")
+            owner_user_id = get_runtime_context_value("user_id")
 
             allowed_skill_ids = None
             if agent_id and agent_id != "default" and owner_user_id:

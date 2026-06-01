@@ -211,3 +211,23 @@ async def test_create_run_auth_normalizes_none_metadata(monkeypatch):
     await enrich_run_metadata(ctx, value)
 
     assert value["metadata"]["source_type"] == "Chat-LangChain"
+
+
+@pytest.mark.anyio
+async def test_create_run_auth_accepts_agent_id_from_run_metadata(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {
+        "metadata": {"agent_id": "agent-1"},
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+        },
+    }
+
+    await enrich_run_metadata(ctx, value)
+
+    assert value["kwargs"]["context"]["agent_id"] == "agent-1"
+    assert value["kwargs"]["context"]["user_id"] == "user-1"
+    assert value["context"]["agent_id"] == "agent-1"
+    assert value["context"]["user_id"] == "user-1"

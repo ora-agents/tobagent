@@ -477,14 +477,9 @@ class RagSearchTool(BaseTool):
     args_schema: type[BaseModel] = _RagInput
 
     def _get_agent_id(self, **kwargs) -> str:
-        agent_id = "default"
-        try:
-            from langgraph.config import get_config
-            cfg = get_config()
-            agent_id = cfg.get("configurable", {}).get("agent_id", "default")
-        except Exception:
-            pass
-        return agent_id
+        from src.utils.runtime_context import get_runtime_context_value
+
+        return get_runtime_context_value("agent_id", "default")
 
     def _run(self, query: str, **kwargs) -> str:
         """Sync fallback — runs the async implementation in a new event loop."""
