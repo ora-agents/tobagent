@@ -3,6 +3,7 @@
 	prod prod-backend prod-frontend build-frontend start-frontend \
 	deploy-prod deploy-prod-no-build deploy-down deploy-logs \
 	check-backend-port check-frontend-port check-ports \
+	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
 	test-agent-sdk
 
@@ -39,8 +40,30 @@ elif command -v lsof >/dev/null 2>&1; then \
 		echo "$(2) port $($(1)) is already in use. Stop the existing $(3) or run with $(1)=<port>."; \
 		exit 1; \
 	fi; \
+elif command -v powershell.exe >/dev/null 2>&1; then \
+	powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '& { $$port = [int]$($(1)); if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) { Write-Host "Warning: cannot check whether port $$port is available; install ss or lsof."; exit 0 }; $$conns = @(Get-NetTCPConnection -LocalPort $$port -State Listen -ErrorAction SilentlyContinue); if ($$conns.Count -gt 0) { Write-Host "$(2) port $$port is already in use. Stop the existing $(3) or run with $(1)=<port>."; exit 1 } }'; \
+elif command -v powershell >/dev/null 2>&1; then \
+	powershell -NoProfile -ExecutionPolicy Bypass -Command '& { $$port = [int]$($(1)); if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) { Write-Host "Warning: cannot check whether port $$port is available; install ss or lsof."; exit 0 }; $$conns = @(Get-NetTCPConnection -LocalPort $$port -State Listen -ErrorAction SilentlyContinue); if ($$conns.Count -gt 0) { Write-Host "$(2) port $$port is already in use. Stop the existing $(3) or run with $(1)=<port>."; exit 1 } }'; \
 else \
 	echo "Warning: cannot check whether port $($(1)) is available; install ss or lsof."; \
+fi
+endef
+
+define stop_port
+@if command -v lsof >/dev/null 2>&1; then \
+	pids=$$(lsof -tiTCP:$($(1)) -sTCP:LISTEN 2>/dev/null | sort -u); \
+	if [ -n "$$pids" ]; then \
+		echo "Stopping $(2) service on port $($(1)) (PID $$pids)."; \
+		kill $$pids 2>/dev/null || true; \
+		sleep 1; \
+		kill -9 $$pids 2>/dev/null || true; \
+	fi; \
+elif command -v powershell.exe >/dev/null 2>&1; then \
+	powershell.exe -NoProfile -ExecutionPolicy Bypass -Command '& { $$port = [int]$($(1)); $$conns = @(Get-NetTCPConnection -LocalPort $$port -State Listen -ErrorAction SilentlyContinue); $$ownerIds = @($$conns | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $$_ -gt 0 }); foreach ($$ownerId in $$ownerIds) { $$children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$$ownerId" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ProcessId); $$targets = @($$ownerId) + $$children | Select-Object -Unique; foreach ($$target in $$targets) { try { Stop-Process -Id $$target -Force -ErrorAction Stop; Write-Host "Stopped $(2) service on port $$port (PID $$target)." } catch {} } } }'; \
+elif command -v powershell >/dev/null 2>&1; then \
+	powershell -NoProfile -ExecutionPolicy Bypass -Command '& { $$port = [int]$($(1)); $$conns = @(Get-NetTCPConnection -LocalPort $$port -State Listen -ErrorAction SilentlyContinue); $$ownerIds = @($$conns | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $$_ -gt 0 }); foreach ($$ownerId in $$ownerIds) { $$children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$$ownerId" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ProcessId); $$targets = @($$ownerId) + $$children | Select-Object -Unique; foreach ($$target in $$targets) { try { Stop-Process -Id $$target -Force -ErrorAction Stop; Write-Host "Stopped $(2) service on port $$port (PID $$target)." } catch {} } } }'; \
+else \
+	echo "Warning: cannot automatically clear port $($(1)); install lsof or PowerShell."; \
 fi
 endef
 
@@ -52,8 +75,16 @@ check-frontend-port:
 
 check-ports: check-backend-port check-frontend-port
 
+stop-backend-port:
+	$(call stop_port,BACKEND_PORT,Backend)
+
+stop-frontend-port:
+	$(call stop_port,FRONTEND_PORT,Frontend)
+
+stop-ports: stop-backend-port stop-frontend-port
+
 # Run both frontend and backend concurrently
-dev: check-ports
+dev: stop-ports
 	@trap 'kill 0' INT TERM; \
 	"$(MAKE)" dev-backend & \
 	"$(MAKE)" dev-frontend & \
