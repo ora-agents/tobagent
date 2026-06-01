@@ -14,6 +14,8 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import dotenv
@@ -24,6 +26,31 @@ DEFAULT_ASSISTANT_ID = "generic_agent"
 DEFAULT_API_URL = "http://localhost:2025"
 USER_API_KEY_ENV = "USER_API_KEY"
 AUTH_SECRET_ENV = "LANGGRAPH_AUTH_SECRET"
+DEFAULT_LOG_FILE = "logs/test-agent-sdk.log"
+
+
+def _redact_secret(value: str | None, *, keep: int = 6) -> str:
+    """Return a non-sensitive representation of a secret-like value."""
+    if not value:
+        return ""
+    if len(value) <= keep * 2:
+        return "***"
+    return f"{value[:keep]}...{value[-keep:]}"
+
+
+def _write_log(log_file: str, event: str, **fields: Any) -> None:
+    """Append one JSONL event to the local SDK debug log."""
+    if not log_file:
+        return
+    payload = {
+        "ts": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "event": event,
+        **fields,
+    }
+    path = Path(log_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
 
 
 def _content_to_text(content: Any) -> str:
@@ -90,7 +117,12 @@ def _text_from_message_event(data: Any) -> str:
     return _content_to_text(_message_content(message))
 
 
-async def _stream_response(chunks: AsyncIterator[Any], *, verbose: bool) -> str:
+async def _stream_response(
+    chunks: AsyncIterator[Any],
+    *,
+    verbose: bool,
+    log_file: str,
+) -> str:
     """Print stream events and return the final assistant text if present."""
     final_text = ""
     streamed_text = ""
@@ -99,9 +131,11 @@ async def _stream_response(chunks: AsyncIterator[Any], *, verbose: bool) -> str:
     async for chunk in chunks:
         event = getattr(chunk, "event", None)
         data = getattr(chunk, "data", None)
+        _write_log(log_file, "sdk.stream.event", event_type=event, data=data)
 
         if isinstance(data, dict) and "run_id" in data:
             print(f"[run] {data['run_id']}")
+            _write_log(log_file, "sdk.run", run_id=data["run_id"])
             continue
 
         if event == "messages":
@@ -123,6 +157,12 @@ async def _stream_response(chunks: AsyncIterator[Any], *, verbose: bool) -> str:
 
     if printed_any_token:
         print()
+    _write_log(
+        log_file,
+        "sdk.stream.final_text",
+        final_text_len=len(final_text),
+        streamed_text_len=len(streamed_text),
+    )
     return final_text or streamed_text
 
 
@@ -167,6 +207,11 @@ async def main() -> None:
         help="Extra JSON object merged into run metadata.",
     )
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--log-file",
+        default=os.getenv("TOB_AGENT_SDK_LOG_FILE", DEFAULT_LOG_FILE),
+        help="Write SDK request/stream diagnostics as JSONL.",
+    )
     args = parser.parse_args()
 
     if not args.api_key:
@@ -175,6 +220,18 @@ async def main() -> None:
     headers = {"Authorization": f"Bearer {args.api_key}"}
     if args.auth_secret:
         headers["X-Auth-Key"] = args.auth_secret
+
+    _write_log(
+        args.log_file,
+        "sdk.start",
+        api_url=args.api_url,
+        assistant_id=args.assistant_id,
+        agent_id=args.agent_id,
+        api_key=_redact_secret(args.api_key),
+        has_auth_secret=bool(args.auth_secret),
+        message_len=len(args.message),
+    )
+    print(f"[log] {args.log_file}")
 
     client = get_client(
         url=args.api_url,
@@ -192,9 +249,11 @@ async def main() -> None:
 
     if args.thread_id:
         thread_id = args.thread_id
+        _write_log(args.log_file, "sdk.thread.reuse", thread_id=thread_id)
     else:
         thread = await client.threads.create(metadata=metadata)
         thread_id = thread["thread_id"]
+        _write_log(args.log_file, "sdk.thread.create", thread=thread)
     print(f"[thread] {thread_id}")
 
     context = {
@@ -211,21 +270,47 @@ async def main() -> None:
     if args.verbose:
         print(f"[context] {json.dumps(context, ensure_ascii=False)}")
 
-    stream = client.runs.stream(
-        thread_id,
-        args.assistant_id,
-        input={"messages": [{"role": "user", "content": args.message}]},
+    input_payload = {"messages": [{"role": "user", "content": args.message}]}
+    config = {"metadata": metadata}
+    _write_log(
+        args.log_file,
+        "sdk.run.request",
+        thread_id=thread_id,
+        assistant_id=args.assistant_id,
+        input=input_payload,
         context=context,
-        config={
-            "metadata": metadata,
-        },
+        config=config,
         metadata=metadata,
-        stream_mode=["messages", "updates", "values"],
     )
 
-    final_text = await _stream_response(stream, verbose=args.verbose)
+    try:
+        stream = client.runs.stream(
+            thread_id,
+            args.assistant_id,
+            input=input_payload,
+            context=context,
+            config=config,
+            metadata=metadata,
+            stream_mode=["messages", "updates", "values"],
+        )
+
+        final_text = await _stream_response(
+            stream,
+            verbose=args.verbose,
+            log_file=args.log_file,
+        )
+    except Exception as exc:
+        _write_log(
+            args.log_file,
+            "sdk.error",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        raise
+
     print("\n\n[final]")
     print(final_text or "(no assistant text found)")
+    _write_log(args.log_file, "sdk.done", final_text=final_text)
 
 
 if __name__ == "__main__":

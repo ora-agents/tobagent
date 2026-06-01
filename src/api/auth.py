@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
+from src.utils.debug_logging import redact_secret, write_debug_event
+
 auth = Auth()
 
 MAX_RECURSION_LIMIT = 100
@@ -124,15 +126,28 @@ def _resolve_api_key_user_id(api_key: str) -> str | None:
                 UserApiKeyTable.key_hash == _hash_api_key(api_key),
             ).first()
             if not row:
+                write_debug_event(
+                    "auth.api_key_not_found",
+                    api_key=redact_secret(api_key),
+                )
                 return None
 
             row.last_used_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             owner_user_id = row.owner_user_id
             db.commit()
+            write_debug_event(
+                "auth.api_key_resolved",
+                api_key=redact_secret(api_key),
+                owner_user_id=owner_user_id,
+            )
             return owner_user_id
         finally:
             db.close()
     except Exception:
+        write_debug_event(
+            "auth.api_key_lookup_failed",
+            api_key=redact_secret(api_key),
+        )
         return None
 
 
@@ -191,6 +206,12 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
     if is_studio:
         user_dict["kind"] = "StudioUser"
 
+    write_debug_event(
+        "auth.authenticate",
+        identity=user_dict["identity"],
+        is_studio=is_studio,
+        resolved_api_key=bool(resolved_user_id),
+    )
     return user_dict
 
 
@@ -255,6 +276,17 @@ async def enrich_run_metadata(
             422, f"Unrecognized config input: {type(config)}"
         )
     _normalize_run_agent_context(value, kwargs, config, context)
+    write_debug_event(
+        "auth.create_run.before_validate",
+        identity=ctx.user.identity,
+        is_studio=is_studio_user(ctx.user),
+        context_agent_id=context.get("agent_id"),
+        context_user_id=context.get("user_id"),
+        config_has_configurable=isinstance(config.get("configurable"), dict),
+        config_configurable_keys=sorted(config.get("configurable", {}).keys())
+        if isinstance(config.get("configurable"), dict)
+        else [],
+    )
     config_metadata = config.get("metadata") if isinstance(config, dict) else None
     if isinstance(config_metadata, dict):
         config_source_type = config_metadata.get("source_type")
@@ -272,6 +304,14 @@ async def enrich_run_metadata(
         input_has_image=input_has_image,
         owner_user_id=None if is_studio_user(ctx.user) else ctx.user.identity,
         require_agent_id=not is_studio_user(ctx.user),
+    )
+    write_debug_event(
+        "auth.create_run.after_validate",
+        identity=ctx.user.identity,
+        context_agent_id=context.get("agent_id"),
+        context_user_id=context.get("user_id"),
+        context_keys=sorted(context.keys()),
+        config_keys=sorted(config.keys()),
     )
 
     # Keep the validated payload in both locations used by LangGraph request

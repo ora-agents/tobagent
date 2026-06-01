@@ -22,6 +22,7 @@ from src.agent.config import (
     OPENAI_COMPATIBLE_BASE_URL,
 )
 from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
+from src.utils.debug_logging import write_debug_event
 from src.utils.mcp import McpPoolManager
 from src.utils.runtime_context import get_runtime_context_value
 
@@ -387,6 +388,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
         """Override system message, tool list, and model from runtime context."""
         ctx = request.runtime.context if request.runtime else None
         if ctx is None:
+            write_debug_event("middleware.model_call.skip", reason="missing_runtime_context")
             return await handler(request)
 
         overrides = {}
@@ -394,12 +396,24 @@ class DynamicConfigMiddleware(AgentMiddleware):
         # Dynamic system prompt
         system_prompt = getattr(ctx, "system_prompt", "")
         agent_id = getattr(ctx, "agent_id", None)
-        owner_user_id = (
-            getattr(ctx, "user_id", "") or get_runtime_context_value("user_id", "") or ""
-        )
+        context_user_id = getattr(ctx, "user_id", "") or ""
+        fallback_user_id = get_runtime_context_value("user_id", "") or ""
+        owner_user_id = context_user_id or fallback_user_id
         enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
         has_linked_skills = False
+
+        write_debug_event(
+            "middleware.model_call.context",
+            agent_id=agent_id,
+            context_user_id=context_user_id,
+            fallback_user_id=fallback_user_id,
+            owner_user_id=owner_user_id,
+            system_prompt_set=_context_field_was_set(ctx, "system_prompt"),
+            enabled_tools_set=_context_field_was_set(ctx, "enabled_tools"),
+            agent_ids_set=_context_field_was_set(ctx, "agent_ids"),
+            requested_model=getattr(ctx, "model", "") or "",
+        )
 
         if agent_id and agent_id != "default" and owner_user_id:
             try:
@@ -414,6 +428,17 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 )
                 if resources["found"]:
                     profile = resources["profile"] or {}
+                    write_debug_event(
+                        "middleware.resources.loaded",
+                        agent_id=agent_id,
+                        owner_user_id=owner_user_id,
+                        profile_name=profile.get("name", ""),
+                        profile_enabled_tools=profile.get("enabled_tools", []),
+                        profile_agent_ids=profile.get("agent_ids", []),
+                        skills_count=len(resources.get("skills", [])),
+                        linked_agents_count=len(resources.get("linked_agents", [])),
+                        linked_ids=resources.get("linked_ids", []),
+                    )
                     if not _context_field_was_set(ctx, "system_prompt"):
                         system_prompt = profile.get("system_prompt", "") or system_prompt
                     if not _context_field_was_set(ctx, "enabled_tools"):
@@ -505,15 +530,33 @@ class DynamicConfigMiddleware(AgentMiddleware):
                             agent_id,
                         )
                 else:
+                    write_debug_event(
+                        "middleware.resources.not_found",
+                        agent_id=agent_id,
+                        owner_user_id=owner_user_id,
+                    )
                     logger.warning(
                         "[DynamicConfigMiddleware] Agent profile not found in DB for agent_id='%s'.",
                         agent_id,
                     )
             except Exception as e:
+                write_debug_event(
+                    "middleware.resources.error",
+                    agent_id=agent_id,
+                    owner_user_id=owner_user_id,
+                    error=str(e),
+                )
                 logger.warning(
                     "[DynamicConfigMiddleware] Failed to load resources for agent '%s': %s\n%s",
                     agent_id, e, traceback.format_exc(),
                 )
+        else:
+            write_debug_event(
+                "middleware.model_call.skip",
+                reason="missing_agent_or_owner",
+                agent_id=agent_id,
+                owner_user_id=owner_user_id,
+            )
 
         # ---- User preferences injection ----
         user_preferences = getattr(ctx, "user_preferences", "") or ""
@@ -584,6 +627,14 @@ class DynamicConfigMiddleware(AgentMiddleware):
             )
 
         if overrides:
+            write_debug_event(
+                "middleware.model_call.overrides",
+                agent_id=agent_id,
+                owner_user_id=owner_user_id,
+                override_keys=sorted(overrides.keys()),
+                tool_names=[getattr(t, "name", "") for t in overrides.get("tools", [])],
+                system_message_len=len(getattr(overrides.get("system_message"), "content", "") or ""),
+            )
             request = request.override(**overrides)
 
         return await handler(request)

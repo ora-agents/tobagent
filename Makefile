@@ -16,6 +16,7 @@ FRONTEND_HOST ?= 0.0.0.0
 FRONTEND_PORT ?= 3000
 AEGRA ?= $(shell if [ -x ./.venv/Scripts/aegra.exe ]; then printf './.venv/Scripts/aegra.exe'; elif [ -x ./.venv/bin/aegra ]; then printf './.venv/bin/aegra'; else printf 'uv run aegra'; fi)
 SDK_TEST_SCRIPT ?= scripts/langgraph_sdk_external_call.py
+SDK_LOG_FILE ?= logs/test-agent-sdk.log
 LANGGRAPH_API_URL ?= http://localhost:2025
 LANGGRAPH_ASSISTANT_ID ?= generic_agent
 TOB_AGENT_ID ?= cfd97b38-0751-4a88-b441-8424db410f81
@@ -161,6 +162,7 @@ install-backend:
 #   LANGGRAPH_API_URL=http://localhost:2025
 #   LANGGRAPH_ASSISTANT_ID=generic_agent
 #   MESSAGE="您好，我想咨询营业时间。"
+#   SDK_LOG_FILE=logs/test-agent-sdk.log
 test-agent-sdk:
 	@if [ -z "$(USER_API_KEY)" ]; then \
 		echo "USER_API_KEY is required. Usage: make test-agent-sdk USER_API_KEY=<tob_...> TOB_AGENT_ID=<agent-profile-id>"; \
@@ -171,4 +173,6 @@ test-agent-sdk:
 		--api-url "$(LANGGRAPH_API_URL)" \
 		--assistant-id "$(LANGGRAPH_ASSISTANT_ID)" \
 		--agent-id "$(TOB_AGENT_ID)" \
-		--message "$(MESSAGE)"
+		--message "$(MESSAGE)" \
+		--log-file "$(SDK_LOG_FILE)" \
+		--verbose
