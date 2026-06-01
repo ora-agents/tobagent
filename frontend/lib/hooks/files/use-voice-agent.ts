@@ -137,6 +137,7 @@ export function useVoiceAgent({
   const ttsConnectingRef = useRef<Promise<void> | null>(null)
   // KWS client for always-on wake word detection
   const kwsClientRef = useRef<KwsClient | null>(null)
+  const wakeAcknowledgementPendingRef = useRef(false)
   const wakeWordsKey = wakeWords.filter(Boolean).join("\u0000")
   // Ref for wakeWords to avoid stale closures
   const wakeWordsRef = useRef(wakeWords)
@@ -254,6 +255,7 @@ export function useVoiceAgent({
             kwsClientRef.current.stop()
             kwsClientRef.current = null
           }
+          wakeAcknowledgementPendingRef.current = true
           enterVoiceModeRef.current()
         },
         onError: (err) => {
@@ -376,6 +378,84 @@ export function useVoiceAgent({
     setVoiceStateSync("listening")
     resetIdleTimer()
   }, [resetIdleTimer, cancelPlaybackEndTimer, setVoiceStateSync])
+
+  /** Speak a short acknowledgement immediately after KWS wakes voice mode. */
+  const speakWakeAcknowledgement = useCallback(async (sessionId: number) => {
+    const isCurrentSession = () => voiceSessionIdRef.current === sessionId
+
+    if (ttsClientRef.current) {
+      ttsClientRef.current.disconnect()
+      ttsClientRef.current = null
+    }
+
+    ttsStreamEndedRef.current = false
+    ttsActiveRef.current = true
+    setVoiceStateSync("speaking")
+
+    const finishAcknowledgement = () => {
+      if (!isCurrentSession()) return
+      ttsStreamEndedRef.current = true
+      ttsActiveRef.current = false
+
+      if (ttsClientRef.current) {
+        ttsClientRef.current.disconnect()
+        ttsClientRef.current = null
+      }
+
+      if (!ttsPlayerRef.current?.playing && voiceStateRef.current === "speaking") {
+        setIsSpeaking(false)
+        setVoiceStateSync("listening")
+        resetIdleTimer()
+      }
+    }
+
+    const ttsClient = new TtsClient({
+      onAudioChunk: (pcmBase64) => {
+        if (!isCurrentSession()) return
+        cancelPlaybackEndTimer()
+        ttsPlayerRef.current?.init().then(() => {
+          if (!isCurrentSession()) return
+          ttsPlayerRef.current?.enqueueAudio(pcmBase64)
+        })
+      },
+      onFinished: finishAcknowledgement,
+      onError: (errMsg) => {
+        if (!isCurrentSession()) return
+        console.error("Wake acknowledgement TTS error:", errMsg)
+        setError(errMsg)
+        finishAcknowledgement()
+      },
+      onConnected: () => {
+        if (!isCurrentSession()) return
+        setTtsConnected(true)
+      },
+      onDisconnected: () => {
+        if (!isCurrentSession()) return
+        setTtsConnected(false)
+      },
+    }, ttsVoice || undefined)
+
+    ttsClientRef.current = ttsClient
+
+    try {
+      await ttsClient.connect()
+      if (!isCurrentSession()) {
+        ttsClient.disconnect()
+        return
+      }
+      ttsClient.appendText("我在")
+      ttsClient.finish()
+    } catch (err) {
+      if (!isCurrentSession()) return
+      console.error("Failed to speak wake acknowledgement:", err)
+      finishAcknowledgement()
+    }
+  }, [
+    ttsVoice,
+    resetIdleTimer,
+    cancelPlaybackEndTimer,
+    setVoiceStateSync,
+  ])
 
   /** Start voice mode: set up audio capture, VAD, and ASR */
   const enterVoiceMode = useCallback(async () => {
@@ -570,6 +650,12 @@ export function useVoiceAgent({
       })
       ttsPlayerRef.current = ttsPlayer
 
+      const shouldSpeakWakeAcknowledgement = wakeAcknowledgementPendingRef.current
+      if (shouldSpeakWakeAcknowledgement) {
+        wakeAcknowledgementPendingRef.current = false
+        void speakWakeAcknowledgement(sessionId)
+      }
+
       // 8. Connect ASR client (immediate for HTTP)
       await asrClient.connect()
       if (!isCurrentSession()) return
@@ -592,7 +678,9 @@ export function useVoiceAgent({
 
       // 11. Ready — transition to listening
       if (!isCurrentSession()) return
-      setVoiceStateSync("listening")
+      if (!shouldSpeakWakeAcknowledgement) {
+        setVoiceStateSync("listening")
+      }
       resetIdleTimer()
     } catch (err) {
       const msg =
@@ -612,6 +700,7 @@ export function useVoiceAgent({
     exitVoiceModeInternal,
     cancelPlaybackEndTimer,
     schedulePlaybackEndTransition,
+    speakWakeAcknowledgement,
     setVoiceStateSync,
   ])
 
