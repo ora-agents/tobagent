@@ -22,11 +22,27 @@ else \
 fi
 endef
 
+define check_port
+@if command -v ss >/dev/null 2>&1; then \
+	if ss -ltn "sport = :$($(1))" | grep -q LISTEN; then \
+		echo "$(2) port $($(1)) is already in use. Stop the existing $(3) or run with $(1)=<port>."; \
+		exit 1; \
+	fi; \
+elif command -v lsof >/dev/null 2>&1; then \
+	if lsof -nP -iTCP:$($(1)) -sTCP:LISTEN >/dev/null; then \
+		echo "$(2) port $($(1)) is already in use. Stop the existing $(3) or run with $(1)=<port>."; \
+		exit 1; \
+	fi; \
+else \
+	echo "Warning: cannot check whether port $($(1)) is available; install ss or lsof."; \
+fi
+endef
+
 check-backend-port:
-	@! ss -ltn "sport = :$(BACKEND_PORT)" | grep -q LISTEN || (echo "Backend port $(BACKEND_PORT) is already in use. Stop the existing backend or run with BACKEND_PORT=<port>."; exit 1)
+	$(call check_port,BACKEND_PORT,Backend,backend)
 
 check-frontend-port:
-	@! ss -ltn "sport = :$(FRONTEND_PORT)" | grep -q LISTEN || (echo "Frontend port $(FRONTEND_PORT) is already in use. Stop the existing frontend or run with FRONTEND_PORT=<port>."; exit 1)
+	$(call check_port,FRONTEND_PORT,Frontend,frontend)
 
 check-ports: check-backend-port check-frontend-port
 
@@ -37,7 +53,7 @@ dev: check-ports
 	"$(MAKE)" dev-frontend & \
 	wait
 
-# Frontend only (connects to remote LangGraph API)
+# Frontend only (connects to the configured Aegra/LangGraph API)
 dev-frontend: check-frontend-port
 	$(call run_frontend,dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT))
 

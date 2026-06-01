@@ -41,7 +41,7 @@ cd chat-langchain
 uv sync
 
 # Or with pip
-pip install -e . "langgraph-cli[inmem]"
+pip install -e . aegra
 ```
 
 ### Configuration
@@ -69,14 +69,14 @@ cp .env.example .env
 #### Backend
 
 ```bash
-# Start LangGraph development server
-uv run langgraph dev
+# Start Aegra development server
+uv run aegra dev --host 0.0.0.0 --port 2025 --no-db-check
 
 # Or with pip
-langgraph dev
+aegra dev --host 0.0.0.0 --port 2025 --no-db-check
 ```
 
-Open LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2024>
+Open LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2025>
 
 #### Frontend
 
@@ -86,7 +86,7 @@ npm ci
 npm run dev:local
 ```
 
-The frontend expects the LangGraph server at `http://127.0.0.1:2024` by default. If you want trace sharing from the UI, set `LANGSMITH_API_KEY` in `frontend/.env.local`.
+The frontend expects the Aegra/LangGraph server at `http://127.0.0.1:2025` by default. If you want trace sharing from the UI, set `LANGSMITH_API_KEY` in `frontend/.env.local`.
 
 ## Project Structure
 

@@ -30,14 +30,14 @@ dependencies = [
     "sqlalchemy>=2.0.49",
     "psycopg[binary]>=3.3.4",
     "docx2txt>=0.9",
-    "langgraph-api>=0.8.7",
-    "langgraph-cli[inmem]>=0.4.26",
     "websockets>=12.0",
     "dashscope>=1.20.0",
     "sherpa-onnx>=1.10.0",
     "sherpa-onnx-core>=1.10.0",
     "pypinyin>=0.50.0",
     "sentencepiece>=0.2.0",
+    "aegra>=0.2.0",
+    "greenlet>=3.0.0",
 ]
 
 
@@ -85,8 +85,6 @@ convention = "google"
 [dependency-groups]
 dev = [
     "anyio>=4.7.0",
-    "langgraph-api>=0.5.33",
-    "langgraph-cli[inmem]>=0.4.7",
     "mypy>=1.13.0",
     "pytest>=8.3.5",
     "ruff>=0.8.2",
