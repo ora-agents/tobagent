@@ -102,7 +102,6 @@ async def main() -> None:
         input={"messages": [{"role": "user", "content": args.message}]},
         context=context,
         config={
-            "configurable": context,
             "metadata": {"agent_id": args.agent_id},
         },
         metadata={"agent_id": args.agent_id},
