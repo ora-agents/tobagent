@@ -29,6 +29,21 @@ else \
 fi
 endef
 
+define run_concurrent
+cleanup() { \
+	trap - INT TERM EXIT; \
+	if [ -n "$$pids" ]; then \
+		kill $$pids 2>/dev/null || true; \
+		wait $$pids 2>/dev/null || true; \
+	fi; \
+}; \
+pids=""; \
+trap cleanup INT TERM EXIT; \
+$(1) & pids="$$pids $$!"; \
+$(2) & pids="$$pids $$!"; \
+wait $$pids
+endef
+
 define check_port
 @if command -v ss >/dev/null 2>&1; then \
 	if ss -ltn "sport = :$($(1))" | grep -q LISTEN; then \
@@ -85,10 +100,7 @@ stop-ports: stop-backend-port stop-frontend-port
 
 # Run both frontend and backend concurrently
 dev: stop-ports
-	@trap 'kill 0' INT TERM; \
-	"$(MAKE)" dev-backend & \
-	"$(MAKE)" dev-frontend & \
-	wait
+	@$(call run_concurrent,"$(MAKE)" dev-backend,"$(MAKE)" dev-frontend)
 
 # Frontend only (connects to the configured Aegra/LangGraph API)
 dev-frontend: check-frontend-port
@@ -96,10 +108,7 @@ dev-frontend: check-frontend-port
 
 # Frontend pointing to local backend
 dev-local: check-ports
-	@trap 'kill 0' INT TERM; \
-	"$(MAKE)" dev-backend & \
-	(cd frontend && if command -v bun >/dev/null 2>&1; then bun run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT); else npm run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT); fi) & \
-	wait
+	@$(call run_concurrent,"$(MAKE)" dev-backend,(cd frontend && if command -v bun >/dev/null 2>&1; then bun run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT); else npm run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT); fi))
 
 # Backend only (Aegra dev server with hot reload)
 dev-backend: check-backend-port
@@ -107,10 +116,7 @@ dev-backend: check-backend-port
 
 # Run both frontend and backend in local production mode
 prod: check-ports build-frontend
-	@trap 'kill 0' INT TERM; \
-	"$(MAKE)" prod-backend & \
-	"$(MAKE)" start-frontend & \
-	wait
+	@$(call run_concurrent,"$(MAKE)" prod-backend,"$(MAKE)" start-frontend)
 
 # Backend only (Aegra production server, no reload)
 prod-backend: check-backend-port
