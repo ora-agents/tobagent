@@ -3,7 +3,8 @@
 	prod prod-backend prod-frontend build-frontend start-frontend \
 	deploy-prod deploy-prod-no-build deploy-down deploy-logs \
 	check-backend-port check-frontend-port check-ports \
-	install install-frontend install-backend
+	install install-frontend install-backend \
+	test-agent-sdk
 
 # Add standard Node.js and Bun paths to PATH for Windows/Git Bash users
 export PATH := $(PATH):/c/Program Files/nodejs:$(HOME)/.bun/bin
@@ -13,6 +14,11 @@ BACKEND_PORT ?= 2025
 FRONTEND_HOST ?= 0.0.0.0
 FRONTEND_PORT ?= 3000
 AEGRA ?= $(shell if [ -x ./.venv/bin/aegra ]; then printf './.venv/bin/aegra'; else printf 'aegra'; fi)
+SDK_TEST_SCRIPT ?= scripts/langgraph_sdk_external_call.py
+LANGGRAPH_API_URL ?= http://localhost:2025
+LANGGRAPH_ASSISTANT_ID ?= generic_agent
+TOB_AGENT_ID ?= c63c8408-a1e7-4e9a-b636-e549f4343300
+MESSAGE ?= 你可以调用子智能体吗？
 
 define run_frontend
 cd frontend && if command -v bun >/dev/null 2>&1; then \
@@ -110,3 +116,21 @@ install-frontend:
 
 install-backend:
 	uv sync
+
+# Test external LangGraph SDK invocation with a user-scoped API key.
+# Usage:
+#   USER_API_KEY=<tob_...> make test-agent-sdk
+# Optional overrides:
+#   LANGGRAPH_API_URL=http://localhost:2025
+#   TOB_AGENT_ID=<agent-profile-id>
+#   MESSAGE="您好，我想咨询营业时间。"
+test-agent-sdk:
+	@if [ -z "$(USER_API_KEY)" ]; then \
+		echo "USER_API_KEY is required. Usage: make test-agent-sdk USER_API_KEY=<tob_...>"; \
+		exit 1; \
+	fi
+	@USER_API_KEY="$(USER_API_KEY)" \
+	LANGGRAPH_API_URL="$(LANGGRAPH_API_URL)" \
+	LANGGRAPH_ASSISTANT_ID="$(LANGGRAPH_ASSISTANT_ID)" \
+	TOB_AGENT_ID="$(TOB_AGENT_ID)" \
+	uv run python $(SDK_TEST_SCRIPT) --message "$(MESSAGE)"
