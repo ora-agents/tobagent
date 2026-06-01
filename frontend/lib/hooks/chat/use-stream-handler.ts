@@ -92,6 +92,46 @@ function isSubagentMessageStream(eventType: string, data: any, chunk?: any): boo
   return typeof checkpointNs === "string" && checkpointNs.includes("subagent")
 }
 
+function isUserMessage(msg: any): boolean {
+  const role = msg?.type || msg?.role
+  return role === "human" || role === "user"
+}
+
+function isAssistantMessage(msg: any): boolean {
+  const role = msg?.type || msg?.role
+  return role === "ai" || role === "assistant"
+}
+
+function hasToolCalls(msg: any): boolean {
+  return Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0
+}
+
+function findFinalAssistantMessage(messages: any[], userContent: string): any | undefined {
+  let lastUserIndex = -1
+  let foundCurrentUser = !userContent
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const msg = messages[index]
+    if (!isUserMessage(msg)) continue
+
+    const content = msg.content ? extractTextFromContent(msg.content) : ""
+    if (!userContent || content === userContent || content.includes(userContent)) {
+      lastUserIndex = index
+      foundCurrentUser = true
+      break
+    }
+  }
+
+  if (!foundCurrentUser) return undefined
+
+  const candidates = lastUserIndex >= 0 ? messages.slice(lastUserIndex + 1) : messages
+  return [...candidates].reverse().find((msg: any) =>
+    isAssistantMessage(msg) &&
+    !hasToolCalls(msg) &&
+    extractTextFromContent(msg.content).trim()
+  )
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -691,25 +731,20 @@ export function useStreamHandler({
       // Handle "values" mode - final state with complete output
       // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
-        // Find the last assistant message
-        const finalAIMessage = [...data.messages].reverse().find((msg: any) =>
-          msg.type === "ai" || msg.role === "assistant"
-        )
+        const finalAIMessage = findFinalAssistantMessage(data.messages, userContent)
 
         const finalContent = finalAIMessage?.content ? extractTextFromContent(finalAIMessage.content) : ""
-        const hasFinalMessage = !finalAIMessage?.tool_calls || finalAIMessage.tool_calls.length === 0
 
-        // IMPORTANT: Skip subagent responses (they typically start with JSON like '{"answer":')
-        const looksLikeSubagentResponse = finalContent.trim().startsWith('{') || finalContent.trim().startsWith('{"answer')
-
-        // Only set content if:
-        // 1. We have final content
-        // 2. No pending tool calls
-        // 3. Haven't set content yet
-        // 4. Not a subagent response
-        // 5. We've seen NEW streaming content for this request (prevents using old thread history)
-        if (finalContent && hasFinalMessage && !looksLikeSubagentResponse && hasSeenNewResponse && !assistantContent) {
+        // Use final values as the authoritative fallback. This keeps the UI
+        // populated when the server emits no main-agent token tuples while
+        // still ignoring metadata-free partial aggregates.
+        if (finalContent && finalContent !== assistantContent) {
+          const delta = finalContent.slice(assistantContent.length)
           assistantContent = finalContent
+
+          if (delta && onTextChunk) {
+            onTextChunk(delta)
+          }
 
           queueMessageUpdate((prev) => {
             const baseMessage: Message = {
