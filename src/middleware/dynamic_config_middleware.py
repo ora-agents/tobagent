@@ -162,7 +162,20 @@ def _make_subagent_tool(
         try:
             res = await generic_agent.ainvoke(
                 {"messages": [("user", enriched_query)]},
-                config={"configurable": sub_configurable},
+                config={
+                    "configurable": sub_configurable,
+                    "tags": ["subagent", f"subagent:{_id}"],
+                    "metadata": {
+                        "stream_scope": "subagent",
+                        "parent_agent_id": agent_data.get("parent_agent_id", ""),
+                        "subagent_id": _id,
+                        "subagent_name": _name,
+                    },
+                    # Do not forward nested agent token streams to the parent
+                    # run consumer. The parent still receives this tool's final
+                    # string result and can produce the single user-facing reply.
+                    "callbacks": [],
+                },
             )
             messages = res.get("messages", [])
             if messages:

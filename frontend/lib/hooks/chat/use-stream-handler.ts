@@ -65,6 +65,33 @@ function describeToolStep(name: string, args: Record<string, any> = {}): string 
   return name
 }
 
+function getStreamMessageMetadata(data: any, chunk?: any): Record<string, any> {
+  if (Array.isArray(data) && data[1] && typeof data[1] === "object") {
+    return data[1]
+  }
+  if (chunk?.metadata && typeof chunk.metadata === "object") {
+    return chunk.metadata
+  }
+  return {}
+}
+
+function isSubagentMessageStream(eventType: string, data: any, chunk?: any): boolean {
+  if (eventType.includes("|")) return true
+
+  const metadata = getStreamMessageMetadata(data, chunk)
+  const tags = Array.isArray(metadata.tags) ? metadata.tags : []
+  if (metadata.stream_scope === "subagent" || tags.includes("subagent")) {
+    return true
+  }
+
+  const checkpointNs =
+    metadata.langgraph_checkpoint_ns ||
+    metadata.checkpoint_ns ||
+    metadata.checkpointNamespace
+
+  return typeof checkpointNs === "string" && checkpointNs.includes("subagent")
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -410,6 +437,9 @@ export function useStreamHandler({
         }
 
         const isSubgraphEvent = eventType.includes("|")
+        const isSubagentMessageEvent =
+          (eventType === "messages/partial" || eventType === "messages") &&
+          isSubagentMessageStream(eventType, data, chunk)
         const eventParts = eventType.split("|")
         const baseEvent = eventParts[0]
 
@@ -704,7 +734,7 @@ export function useStreamHandler({
       // Handle streaming messages - show progressive tokens
       // Try both "messages/partial" and "messages" event types
       // IMPORTANT: Skip subgraph events (they have "|" in the event type)
-      if ((eventType === "messages/partial" || eventType === "messages") && !isSubgraphEvent && data) {
+      if ((eventType === "messages/partial" || eventType === "messages") && !isSubagentMessageEvent && data) {
         // Handle both array and tuple formats
         let aiChunk: any
         if (Array.isArray(data)) {
