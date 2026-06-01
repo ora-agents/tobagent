@@ -109,6 +109,30 @@ function hasToolCalls(msg: any): boolean {
   return Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0
 }
 
+function getAiMessageChunk(data: any): any | undefined {
+  if (Array.isArray(data)) {
+    const [message] = data
+    if (message?.type === "ai" || message?.role === "assistant") {
+      return message
+    }
+
+    return data.find((msg: any) => msg?.type === "ai" || msg?.role === "assistant")
+  }
+
+  if (data && typeof data === "object") {
+    return data.type === "ai" || data.role === "assistant" ? data : undefined
+  }
+
+  return undefined
+}
+
+function mergeStreamedContent(currentContent: string, streamedContent: string): string {
+  if (!streamedContent) return currentContent
+  if (!currentContent) return streamedContent
+  if (streamedContent.startsWith(currentContent)) return streamedContent
+  return currentContent + streamedContent
+}
+
 function findFinalAssistantMessage(messages: any[], userContent: string): any | undefined {
   let lastUserIndex = -1
   let foundCurrentUser = !userContent
@@ -714,15 +738,7 @@ export function useStreamHandler({
       // while `messages/partial` is a metadata-free aggregate that can include
       // nested subagent output, so it must not drive the main UI or TTS.
       if (eventType === "messages" && !isSubagentMessageEvent && data) {
-        // Handle both array and tuple formats
-        let aiChunk: any
-        if (Array.isArray(data)) {
-          aiChunk = data.find((msg: any) => msg.type === "ai" || msg.role === "assistant")
-        } else if (data && typeof data === 'object') {
-          // Sometimes data is a tuple [message, metadata]
-          if (data[0]) aiChunk = data[0]
-          else aiChunk = data
-        }
+        const aiChunk = getAiMessageChunk(data)
 
         if (aiChunk?.content) {
           const streamedContent = extractTextFromContent(aiChunk.content)
@@ -734,11 +750,13 @@ export function useStreamHandler({
           }
 
           // Only update if we have content and no pending tool calls (check array length)
-          const hasPendingToolCalls = aiChunk.tool_calls && Array.isArray(aiChunk.tool_calls) && aiChunk.tool_calls.length > 0
+          const hasPendingToolCalls =
+            (Array.isArray(aiChunk.tool_calls) && aiChunk.tool_calls.length > 0) ||
+            (Array.isArray(aiChunk.tool_call_chunks) && aiChunk.tool_call_chunks.length > 0)
           if (streamedContent && !hasPendingToolCalls) {
-            // Compute text delta for TTS streaming
-            const delta = streamedContent.slice(assistantContent.length)
-            assistantContent = streamedContent
+            const nextAssistantContent = mergeStreamedContent(assistantContent, streamedContent)
+            const delta = nextAssistantContent.slice(assistantContent.length)
+            assistantContent = nextAssistantContent
             hasSeenNewResponse = true // Mark that we've seen new content
 
             // Notify TTS with the new text delta
@@ -750,14 +768,14 @@ export function useStreamHandler({
               const baseMessage: Message = {
                 id: assistantMessageId,
                 role: "assistant",
-                content: streamedContent,
+                content: assistantContent,
                 timestamp: new Date(),
                 isThinking: true,
               }
 
               const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
               return updateMessageInList(withMessage, assistantMessageId, {
-                content: streamedContent,
+                content: assistantContent,
                 isThinking: true,
               })
             })
