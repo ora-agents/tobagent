@@ -1,9 +1,13 @@
+from types import SimpleNamespace
+
 import pytest
 from langgraph_sdk import Auth
 
 from src.api.auth import (
     MAX_MESSAGE_CHARS,
+    add_owner,
     authenticate,
+    enrich_run_metadata,
     validate_config,
     validate_inputs,
 )
@@ -33,6 +37,27 @@ async def test_authenticate_accepts_secret_header_case_insensitively(monkeypatch
     )
 
     assert user["identity"] == "user-123"
+
+
+@pytest.mark.anyio
+async def test_thread_auth_accepts_empty_aegra_create_payload():
+    """Aegra may authorize SDK thread creation before a request body exists."""
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+
+    result = await add_owner(ctx, None)
+
+    assert result == {"user_id": "user-1"}
+
+
+@pytest.mark.anyio
+async def test_thread_auth_normalizes_none_metadata():
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {"metadata": None}
+
+    result = await add_owner(ctx, value)
+
+    assert result == {"user_id": "user-1"}
+    assert value["metadata"]["user_id"] == "user-1"
 
 
 def test_validate_inputs_accepts_forked_conversation_history():
@@ -125,3 +150,47 @@ def test_validate_config_rejects_unknown_tool_override(monkeypatch):
 
     with pytest.raises(Auth.exceptions.HTTPException):
         validate_config(config, owner_user_id="user-1", require_agent_id=True)
+
+
+@pytest.mark.anyio
+async def test_create_run_auth_writes_validated_config_back_to_kwargs(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+        },
+        "config": {
+            "configurable": {
+                "agent_id": "agent-1",
+            },
+        },
+    }
+
+    await enrich_run_metadata(ctx, value)
+
+    assert value["kwargs"]["config"]["configurable"]["user_id"] == "user-1"
+    assert value["config"]["configurable"]["user_id"] == "user-1"
+
+
+@pytest.mark.anyio
+async def test_create_run_auth_normalizes_none_metadata(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {
+        "metadata": None,
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+            "config": {
+                "configurable": {
+                    "agent_id": "agent-1",
+                },
+            },
+        },
+    }
+
+    await enrich_run_metadata(ctx, value)
+
+    assert value["metadata"]["source_type"] == "Chat-LangChain"

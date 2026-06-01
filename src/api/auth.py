@@ -19,6 +19,27 @@ ALLOWED_CONFIGURABLE_OVERRIDES = {
 ALLOWED_BUILTIN_TOOLS = {"rag_search", "fetch", "read_skill"}
 
 
+def _ensure_auth_value(value: dict | None) -> dict:
+    """Return a mutable auth payload mapping."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized auth payload: {type(value)}"
+        )
+    return value
+
+
+def _ensure_metadata(value: dict | None) -> dict:
+    """Return a mutable metadata mapping from an auth payload."""
+    payload = _ensure_auth_value(value)
+    metadata = payload.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+        payload["metadata"] = metadata
+    return metadata
+
+
 def _get_auth_secret() -> str | None:
     """Return optional auth secret for X-Auth-Key enforcement."""
     return os.getenv("LANGGRAPH_AUTH_SECRET")
@@ -130,26 +151,26 @@ async def block_all(ctx: Auth.types.AuthContext, value: dict):
 
 
 @auth.on.threads
-async def add_owner(ctx: Auth.types.AuthContext, value: dict):
+async def add_owner(ctx: Auth.types.AuthContext, value: dict | None):
     """Tag threads with their owner and restrict access."""
     if is_studio_user(ctx.user):
         return {}
 
     user_id = ctx.user.identity
-    metadata = value.setdefault("metadata", {})
+    metadata = _ensure_metadata(value)
     metadata["user_id"] = user_id
 
     return {"user_id": user_id}
 
 
 @auth.on.threads.update
-async def update_owner_metadata(ctx: Auth.types.AuthContext, value: dict):
+async def update_owner_metadata(ctx: Auth.types.AuthContext, value: dict | None):
     """Allow users to update metadata only on their own threads."""
     if is_studio_user(ctx.user):
         return {}
 
     user_id = ctx.user.identity
-    metadata = value.setdefault("metadata", {})
+    metadata = _ensure_metadata(value)
     metadata["user_id"] = user_id
 
     return {"user_id": user_id}
@@ -160,9 +181,17 @@ async def enrich_run_metadata(
     ctx: Auth.types.AuthContext, value: Auth.types.RunsCreate
 ):
     """Inject public Chat LangChain metadata into the root run."""
-    metadata = value.setdefault("metadata", {})
+    value = _ensure_auth_value(value)
+    metadata = _ensure_metadata(value)
 
-    config = value["kwargs"].get("config") or value.get("config") or {}
+    kwargs = value.get("kwargs") or {}
+    if not isinstance(kwargs, dict):
+        raise Auth.exceptions.HTTPException(
+            422, f"Unrecognized run kwargs: {type(kwargs)}"
+        )
+    value["kwargs"] = kwargs
+
+    config = kwargs.get("config") or value.get("config") or {}
     config_metadata = config.get("metadata") if isinstance(config, dict) else None
     if isinstance(config_metadata, dict):
         config_source_type = config_metadata.get("source_type")
@@ -172,14 +201,19 @@ async def enrich_run_metadata(
     metadata.setdefault("source_type", "Chat-LangChain")
 
     input_has_image = validate_inputs(
-        value["kwargs"].get("input"), value["kwargs"].get("command")
+        kwargs.get("input"), kwargs.get("command")
     )
     validate_config(
-        value["kwargs"].get("config") or value.get("config"),
+        config,
         input_has_image=input_has_image,
         owner_user_id=None if is_studio_user(ctx.user) else ctx.user.identity,
         require_agent_id=not is_studio_user(ctx.user),
     )
+
+    # Keep the validated config in both locations used by LangGraph request
+    # payloads so auth-injected configurable fields reach the graph runtime.
+    kwargs["config"] = config
+    value["config"] = config
 
 
 @auth.on.assistants(actions=["create", "update", "delete"])
