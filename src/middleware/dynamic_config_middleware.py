@@ -85,12 +85,12 @@ def _role_behavior_instructions(profile: dict[str, Any]) -> str:
     lines = []
     persona = persona_labels.get(profile.get("persona_style", ""))
     boundary = boundary_labels.get(profile.get("boundary_mode", ""))
-    if profile.get("role_template_id"):
-        lines.append(f"Role template: {profile['role_template_id']}.")
     if persona:
         lines.append(f"Persona: {persona}")
     if boundary:
         lines.append(f"Boundary: {boundary}")
+    if lines and profile.get("role_template_id"):
+        lines.insert(0, f"Role template: {profile['role_template_id']}.")
     if not lines:
         return ""
     return "\n\n## Role Behavior\n" + "\n".join(f"- {line}" for line in lines) + "\n"
@@ -714,7 +714,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[Any]]],
     ) -> ToolMessage | Command[Any]:
-        """Intercept and execute dynamically created subagent tools."""
+        """Intercept and execute dynamically created tools."""
         ctx = request.runtime.context if request.runtime else None
         agent_id = getattr(ctx, "agent_id", None)
         owner_user_id = (
@@ -778,6 +778,22 @@ class DynamicConfigMiddleware(AgentMiddleware):
             except Exception as e:
                 logger.warning(
                     "[DynamicConfigMiddleware] Failed to resolve tool '%s' for agent '%s': %s\n%s",
+                    tool_name, agent_id, e, traceback.format_exc(),
+                )
+
+        if agent_id and agent_id != "default" and owner_user_id:
+            try:
+                mcp_tools = await McpPoolManager.get_tools_for_agent(agent_id, owner_user_id)
+                for mcp_tool in mcp_tools:
+                    if getattr(mcp_tool, "name", "") == tool_name:
+                        logger.info(
+                            "[DynamicConfigMiddleware] Tool call '%s' matched MCP tools, executing.",
+                            tool_name,
+                        )
+                        return await handler(request.override(tool=mcp_tool))
+            except Exception as e:
+                logger.warning(
+                    "[DynamicConfigMiddleware] Failed to resolve MCP tool '%s' for agent '%s': %s\n%s",
                     tool_name, agent_id, e, traceback.format_exc(),
                 )
 
