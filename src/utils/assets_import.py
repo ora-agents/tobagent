@@ -13,7 +13,7 @@ from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
-from src.tools.rag_tool import ingest_documents_async
+from src.tools.rag_tool import _get_async_db, _table_name, ingest_documents_async
 from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal
 from src.utils.document_loader import load_document_bytes
 
@@ -129,6 +129,51 @@ async def _folder_files(folder: Path) -> list[Path]:
     return await asyncio.to_thread(_scan_folder_files, folder)
 
 
+async def _rag_table_has_rows(kb_id: str) -> bool:
+    """Return whether the LanceDB table for a KB exists and contains rows."""
+    try:
+        lancedb_instance = await _get_async_db()
+        tname = _table_name(kb_id)
+        if tname not in await lancedb_instance.table_names():
+            return False
+        table = await lancedb_instance.open_table(tname)
+        return await table.count_rows() > 0
+    except Exception:
+        logger.exception("Failed to inspect LanceDB table for KB %s", kb_id)
+        return False
+
+
+async def _load_asset_folder_chunks(folder: Path) -> tuple[list[str], list[str], list[dict]]:
+    """Load an asset folder into text chunks, source labels, and file metadata."""
+    files = await _folder_files(folder)
+    chunks: list[str] = []
+    sources: list[str] = []
+    file_records: list[dict] = []
+    splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
+
+    for asset_file in files:
+        raw = await asyncio.to_thread(asset_file.read_bytes)
+        content_type = mimetypes.guess_type(asset_file.name)[0] or ""
+        text = await asyncio.to_thread(
+            load_document_bytes,
+            asset_file.name,
+            content_type,
+            raw,
+        )
+        file_chunks = splitter.split_text(text)
+        chunks.extend(file_chunks)
+        sources.extend([str(asset_file.relative_to(ASSETS_DIR))] * len(file_chunks))
+        file_records.append(
+            {
+                "name": str(asset_file.relative_to(ASSETS_DIR)),
+                "size": len(raw),
+                "uploadedAt": _now_iso() + "Z",
+            }
+        )
+
+    return chunks, sources, file_records
+
+
 def ensure_default_agent_profile(
     db: Session,
     owner_user_id: str,
@@ -186,55 +231,33 @@ async def ensure_system_asset_knowledge_bases() -> list[str]:
             kb = db.query(KnowledgeBaseTable).filter(
                 KnowledgeBaseTable.id == kb_id,
             ).first()
-            if kb is not None:
+            if kb is not None and await _rag_table_has_rows(kb_id):
                 imported_kb_ids.append(kb_id)
                 continue
 
-            files = await _folder_files(folder)
-            if not files:
-                continue
-
-            chunks: list[str] = []
-            sources: list[str] = []
-            file_records: list[dict] = []
-            splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
-
-            for asset_file in files:
-                raw = await asyncio.to_thread(asset_file.read_bytes)
-                content_type = mimetypes.guess_type(asset_file.name)[0] or ""
-                text = await asyncio.to_thread(
-                    load_document_bytes,
-                    asset_file.name,
-                    content_type,
-                    raw,
-                )
-                file_chunks = splitter.split_text(text)
-                chunks.extend(file_chunks)
-                sources.extend([str(asset_file.relative_to(ASSETS_DIR))] * len(file_chunks))
-                file_records.append(
-                    {
-                        "name": str(asset_file.relative_to(ASSETS_DIR)),
-                        "size": len(raw),
-                        "uploadedAt": _now_iso() + "Z",
-                    }
-                )
-
+            chunks, sources, file_records = await _load_asset_folder_chunks(folder)
             if not chunks:
                 logger.warning("No content extracted from assets folder %s", folder)
                 continue
 
             await ingest_documents_async(kb_id, chunks, sources)
             now = _now_iso() + "Z"
-            kb = KnowledgeBaseTable(
-                id=kb_id,
-                owner_user_id=None,
-                name=folder.name,
-                description=f"System knowledge base imported from assets/{folder.name}",
-                files=file_records,
-                created_at=now,
-                updated_at=now,
-            )
-            db.add(kb)
+            if kb is None:
+                kb = KnowledgeBaseTable(
+                    id=kb_id,
+                    owner_user_id=None,
+                    name=folder.name,
+                    description=f"System knowledge base imported from assets/{folder.name}",
+                    files=file_records,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(kb)
+            else:
+                kb.name = folder.name
+                kb.description = f"System knowledge base imported from assets/{folder.name}"
+                kb.files = file_records
+                kb.updated_at = now
             db.commit()
             imported_kb_ids.append(kb_id)
             logger.info("Imported assets folder '%s' into KB %s", folder.name, kb_id)
