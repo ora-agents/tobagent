@@ -4,7 +4,36 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.messages import SystemMessage
 
-from src.middleware.dynamic_config_middleware import dynamic_config_middleware
+from src.middleware.dynamic_config_middleware import (
+    _role_behavior_instructions,
+    dynamic_config_middleware,
+)
+
+
+def test_role_behavior_instructions_can_disable_persona_and_boundary():
+    instructions = _role_behavior_instructions(
+        {
+            "role_template_id": "sales_qa",
+            "persona_style": "off",
+            "boundary_mode": "off",
+        }
+    )
+
+    assert instructions == ""
+
+
+def test_role_behavior_instructions_can_disable_only_persona():
+    instructions = _role_behavior_instructions(
+        {
+            "role_template_id": "sales_qa",
+            "persona_style": "off",
+            "boundary_mode": "knowledge_only",
+        }
+    )
+
+    assert "Persona:" not in instructions
+    assert "Boundary:" in instructions
+    assert "Role template: sales_qa." in instructions
 
 
 @pytest.mark.anyio
@@ -306,3 +335,35 @@ async def test_dynamic_config_middleware_request_config_overrides_profile_defaul
     kwargs = mock_request.override.call_args[1]
     assert kwargs["system_message"].content == "Request prompt"
     assert kwargs["tools"] == [fetch_tool]
+
+
+@pytest.mark.anyio
+async def test_dynamic_config_middleware_resolves_mcp_tool_call_by_name():
+    mcp_tool = SimpleNamespace(name="create_order")
+
+    mock_ctx = SimpleNamespace(
+        agent_id="agent_123",
+        user_id="user_123",
+    )
+
+    mock_request = MagicMock()
+    mock_request.runtime.context = mock_ctx
+    mock_request.tool_call = {"name": "create_order"}
+
+    mock_overridden_request = MagicMock()
+    mock_request.override.return_value = mock_overridden_request
+
+    async def mock_handler(req):
+        return req
+
+    with patch(
+        "src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent",
+        return_value=[mcp_tool],
+    ):
+        result = await dynamic_config_middleware.awrap_tool_call(
+            mock_request,
+            mock_handler,
+        )
+
+    mock_request.override.assert_called_once_with(tool=mcp_tool)
+    assert result == mock_overridden_request
