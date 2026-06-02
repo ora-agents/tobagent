@@ -1,7 +1,7 @@
 import type { BuiltinToolId } from "./agent-profiles"
 
-export type PersonaStyle = "professional" | "friendly" | "efficient" | "patient"
-export type BoundaryMode = "knowledge_only" | "business_only" | "open"
+export type PersonaStyle = "off" | "professional" | "friendly" | "efficient" | "patient"
+export type BoundaryMode = "off" | "knowledge_only" | "business_only" | "open"
 
 export interface RoleTemplate {
   id: string
@@ -31,6 +31,7 @@ export interface TtsVoiceOption {
 }
 
 export const PERSONA_STYLE_LABELS: Record<PersonaStyle, { zh: string; en: string }> = {
+  off: { zh: "关闭", en: "Off" },
   professional: { zh: "专业", en: "Professional" },
   friendly: { zh: "亲切", en: "Friendly" },
   efficient: { zh: "高效", en: "Efficient" },
@@ -38,6 +39,7 @@ export const PERSONA_STYLE_LABELS: Record<PersonaStyle, { zh: string; en: string
 }
 
 export const BOUNDARY_MODE_LABELS: Record<BoundaryMode, { zh: string; en: string }> = {
+  off: { zh: "关闭", en: "Off" },
   knowledge_only: { zh: "只回答知识库", en: "Knowledge only" },
   business_only: { zh: "只执行业务流程", en: "Business only" },
   open: { zh: "允许适度闲聊", en: "Limited small talk" },
