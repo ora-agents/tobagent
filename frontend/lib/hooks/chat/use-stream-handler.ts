@@ -43,15 +43,38 @@ import { LANGGRAPH_API_URL } from "../../constants/api"
 const BRIEF_AGENT_STEPS = {
   thinking: "Understanding request",
   context: "Checking context",
-  tools: "Using tools",
   subagents: "Consulting linked agents",
-  answer: "Writing answer",
 } as const
 
 function addBriefStep(steps: string[], step: string): boolean {
   if (steps.includes(step)) return false
   steps.push(step)
   return true
+}
+
+function getToolCallStepName(toolName: string): string {
+  return `Tool: ${toolName}`
+}
+
+function getToolCallName(toolCall: any): string | undefined {
+  const name = toolCall?.name || toolCall?.function?.name
+  return typeof name === "string" && name.trim() ? name : undefined
+}
+
+function getChunkToolCalls(chunk: any): any[] {
+  if (!chunk || typeof chunk !== "object") return []
+
+  return [
+    ...(Array.isArray(chunk.tool_calls) ? chunk.tool_calls : []),
+    ...(Array.isArray(chunk.tool_call_chunks) ? chunk.tool_call_chunks : []),
+    ...(Array.isArray(chunk.additional_kwargs?.tool_calls)
+      ? chunk.additional_kwargs.tool_calls
+      : []),
+    ...(Array.isArray(chunk.kwargs?.tool_calls) ? chunk.kwargs.tool_calls : []),
+    ...(Array.isArray(chunk.kwargs?.tool_call_chunks)
+      ? chunk.kwargs.tool_call_chunks
+      : []),
+  ]
 }
 
 function isSubagentToolName(name?: string): boolean {
@@ -660,21 +683,27 @@ export function useStreamHandler({
               const regularToolCalls = msg.tool_calls.filter(
                 (tc: any) => !isSubagentToolName(tc.name)
               )
-              if (regularToolCalls.length > 0) {
-                hasNewSteps =
-                  addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.tools) ||
-                  hasNewSteps
-              }
+              regularToolCalls.forEach((toolCall: any) => {
+                const toolName = getToolCallName(toolCall)
+                if (toolName) {
+                  hasNewSteps =
+                    addBriefStep(thinkingSteps, getToolCallStepName(toolName)) ||
+                    hasNewSteps
+                }
+              })
             }
           })
         }
 
         if (eventType === "events") {
           const aiChunk = getEventMessageChunk(data)
-          if (aiChunk && getChunkText(aiChunk) && !hasToolCallChunks(aiChunk)) {
-            hasNewSteps =
-              addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.answer) || hasNewSteps
-          }
+          getChunkToolCalls(aiChunk).forEach((toolCall: any) => {
+            const toolName = getToolCallName(toolCall)
+            if (toolName && !isSubagentToolName(toolName)) {
+              hasNewSteps =
+                addBriefStep(thinkingSteps, getToolCallStepName(toolName)) || hasNewSteps
+            }
+          })
         }
 
         // Always ensure message exists with thinking state
