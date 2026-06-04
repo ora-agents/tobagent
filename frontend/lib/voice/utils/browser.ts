@@ -32,10 +32,6 @@ export function getVoiceSupportError(): string | null {
     return "Voice input requires AudioWorklet support"
   }
 
-  if (!window.isSecureContext || !window.crossOriginIsolated) {
-    return "Voice recognition model requires HTTPS with cross-origin isolation"
-  }
-
   return null
 }
 
