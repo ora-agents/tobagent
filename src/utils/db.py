@@ -1,5 +1,8 @@
+"""Database engine configuration and SQLAlchemy models."""
+
 import logging
 import os
+from urllib.parse import quote_plus
 
 from sqlalchemy import JSON, Column, String, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -10,20 +13,43 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Database URL configuration and engine creation
 # ---------------------------------------------------------------------------
+def _normalize_database_url(database_url: str) -> str:
+    """Return a SQLAlchemy URL using the installed PostgreSQL driver."""
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return database_url
+
+
+def _database_url_from_postgres_env() -> str | None:
+    """Build a PostgreSQL URL from Aegra/docker-compose POSTGRES_* settings."""
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    database = os.getenv("POSTGRES_DB")
+    host = os.getenv("POSTGRES_HOST")
+    port = os.getenv("POSTGRES_PORT", "5432")
+
+    if not all([user, password, database, host]):
+        return None
+
+    return (
+        f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@"
+        f"{host}:{port}/{quote_plus(database)}"
+    )
+
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # SQLAlchemy defaults to psycopg2. If using psycopg 3 (installed as psycopg),
-    # we should use postgresql+psycopg://...
-    if DATABASE_URL.startswith("postgresql://"):
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
-        
+    DATABASE_URL = _normalize_database_url(DATABASE_URL)
     logger.info("Connecting to database via DATABASE_URL")
     # Add pool_pre_ping=True to prevent connection drops in long-running app
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+elif postgres_database_url := _database_url_from_postgres_env():
+    logger.info("DATABASE_URL is not set. Connecting via POSTGRES_* environment variables.")
+    engine = create_engine(postgres_database_url, pool_pre_ping=True)
 else:
     # Fallback to local SQLite database
-    logger.info("DATABASE_URL is not set. Falling back to local SQLite database.")
+    logger.info("DATABASE_URL and POSTGRES_* are not set. Falling back to local SQLite database.")
     sqlite_db_path = "./chat_langchain.db"
     # Need connect_args={"check_same_thread": False} for SQLite in FastAPI multi-threading
     engine = create_engine(
@@ -154,6 +180,7 @@ class KnowledgeBaseTable(Base):
 # Dependency for FastAPI endpoints
 # ---------------------------------------------------------------------------
 def get_db():
+    """Yield a database session for FastAPI dependency injection."""
     db = SessionLocal()
     try:
         yield db
