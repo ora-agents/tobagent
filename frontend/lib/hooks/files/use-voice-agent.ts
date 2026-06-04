@@ -2,8 +2,7 @@
  * Voice Agent Hook
  *
  * Orchestrates the complete voice agent experience:
- * - Client-side VAD (sherpa-onnx / Silero VAD via WASM) for speech detection
- * - REST ASR (qwen3-asr-flash) for transcription of complete speech segments
+ * - Backend VAD + ASR for speech detection and transcription
  * - Cloud TTS for agent reply playback (via WebSocket proxy)
  * - Backend KWS (sherpa-onnx) for always-on wake word detection
  * - State machine: idle/kws -> loading -> listening -> processing -> speaking -> loop
@@ -11,14 +10,13 @@
  * - Auto-send: ASR final transcript is sent automatically
  * - Timeout: returns to kws (or idle) after 30s of inactivity
  *
- * The VAD WASM module (~93MB) is lazy-loaded on first voice mode entry.
+ * The browser only streams 16kHz Int16 PCM; VAD runs on the backend.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react"
-import { AsrClient } from "@/lib/voice/asr-client"
+import { StreamingAsrClient } from "@/lib/voice/asr-stream-client"
 import { TtsClient } from "@/lib/voice/tts-client"
 import { TtsPlayer } from "@/lib/voice/tts-player"
-import { VadManager, preloadSherpaOnnxModule, type SpeechSegment } from "@/lib/voice/vad"
 import { KwsClient } from "@/lib/voice/kws/kws-client"
 import type { VoiceState } from "@/lib/voice/types"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
@@ -110,18 +108,11 @@ export function useVoiceAgent({
     setIsSupported(isVoiceSupported())
   }, [])
 
-  useEffect(() => {
-    if (isSupported) {
-      preloadSherpaOnnxModule()
-    }
-  }, [isSupported])
-
   // Refs for clients and audio resources
   const audioContextRef = useRef<AudioContext | null>(null)
   const workletNodeRef = useRef<AudioWorkletNode | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
-  const asrClientRef = useRef<AsrClient | null>(null)
-  const vadManagerRef = useRef<VadManager | null>(null)
+  const asrClientRef = useRef<StreamingAsrClient | null>(null)
   const ttsClientRef = useRef<TtsClient | null>(null)
   const ttsPlayerRef = useRef<TtsPlayer | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -288,12 +279,6 @@ export function useVoiceAgent({
     stopIdleTimer()
     cancelPlaybackEndTimer()
     ttsStreamEndedRef.current = false
-
-    // Dispose VAD manager (frees WASM resources)
-    if (vadManagerRef.current) {
-      vadManagerRef.current.dispose()
-      vadManagerRef.current = null
-    }
 
     // Disconnect ASR client
     if (asrClientRef.current) {
@@ -517,8 +502,8 @@ export function useVoiceAgent({
       )
       workletNodeRef.current = workletNode
 
-      // 4b. Create ASR client (HTTP-based, no persistent connection)
-      const asrClient = new AsrClient({
+      // 4b. Create backend ASR/VAD stream client
+      const asrClient = new StreamingAsrClient({
         onConnected: () => {
           if (!isCurrentSession()) return
           setAsrConnected(true)
@@ -527,7 +512,23 @@ export function useVoiceAgent({
           if (!isCurrentSession()) return
           setAsrConnected(false)
         },
-        onTranscript: (text, _isFinal) => {
+        onSpeechStart: () => {
+          if (!isCurrentSession()) return
+          resetIdleTimer()
+          if (
+            voiceStateRef.current === "processing" ||
+            voiceStateRef.current === "speaking"
+          ) {
+            interruptAndListen()
+          }
+        },
+        onTranscribing: () => {
+          if (!isCurrentSession()) return
+          setVoiceStateSync("transcribing")
+          setCurrentTranscript("...")
+          onInterimTranscriptRef.current?.("...")
+        },
+        onTranscript: (text) => {
           if (!isCurrentSession()) return
           // ASR result received — clear transcript display
           setCurrentTranscript("")
@@ -584,53 +585,8 @@ export function useVoiceAgent({
       })
       asrClientRef.current = asrClient
 
-      // 5. Show loading state while VAD WASM initializes
+      // 5. Show loading state while backend ASR/VAD WebSocket connects
       setVoiceStateSync("loading")
-
-      // 6. Create and initialize VAD manager (lazy-loads WASM on first use)
-      const vadManager = new VadManager({
-        onSpeechStart: () => {
-          if (!isCurrentSession()) return
-          resetIdleTimer()
-          // Interrupt agent when user speaks during processing or speaking.
-          // Browser echo cancellation (getUserMedia echoCancellation: true)
-          // filters TTS playback from mic input, preventing false triggers.
-          if (
-            voiceStateRef.current === "processing" ||
-            voiceStateRef.current === "speaking"
-          ) {
-            interruptAndListen()
-          }
-        },
-        onSpeechEnd: async (segment: SpeechSegment) => {
-          if (!isCurrentSession()) return
-          // Speech segment detected — send to ASR for transcription
-          if (!asrClientRef.current) return
-
-          // Show that we're transcribing
-          setVoiceStateSync("transcribing")
-          setCurrentTranscript("...")
-          onInterimTranscriptRef.current?.("...")
-
-          await asrClientRef.current.transcribeSegment(segment.pcmInt16)
-          if (isCurrentSession() && voiceStateRef.current === "transcribing") {
-            setVoiceStateSync("listening")
-            resetIdleTimer()
-          }
-        },
-        onError: (errMsg) => {
-          if (!isCurrentSession()) return
-          console.error("[VAD]", errMsg)
-          setError(errMsg)
-        },
-      })
-
-      await vadManager.init()
-      if (!isCurrentSession()) {
-        vadManager.dispose()
-        return
-      }
-      vadManagerRef.current = vadManager
 
       // 7. Create TTS player
       const ttsPlayer = new TtsPlayer({
@@ -658,20 +614,18 @@ export function useVoiceAgent({
         void speakWakeAcknowledgement(sessionId)
       }
 
-      // 8. Connect ASR client (immediate for HTTP)
+      // 8. Connect backend ASR/VAD stream
       await asrClient.connect()
       if (!isCurrentSession()) return
 
-      // 9. Wire audio: mic -> worklet -> main thread -> VAD
+      // 9. Wire audio: mic -> worklet -> backend ASR/VAD WebSocket
       const source = audioContext.createMediaStreamSource(stream)
       source.connect(workletNode)
 
       workletNode.port.onmessage = (event: MessageEvent) => {
         if (!isCurrentSession()) return
-        if (event.data.type === "audio" && vadManagerRef.current) {
-          const float32 = new Float32Array(event.data.float32)
-          const int16 = new Int16Array(event.data.int16)
-          vadManagerRef.current.processAudio(float32, int16)
+        if (event.data.type === "audio" && asrClientRef.current?.isConnected) {
+          asrClientRef.current.sendAudio(event.data.int16)
         }
       }
 

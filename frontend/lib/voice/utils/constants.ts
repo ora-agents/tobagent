@@ -17,6 +17,9 @@ export const KWS_WS_PATH = "/ws/voice/kws"
 /** REST API path for ASR transcription */
 export const ASR_REST_PATH = "/api/asr/transcribe"
 
+/** WebSocket path for backend VAD + ASR streaming */
+export const ASR_WS_PATH = "/ws/voice/asr"
+
 /** Default TTS model */
 export const DEFAULT_TTS_MODEL = "qwen3-tts-instruct-flash-realtime"
 

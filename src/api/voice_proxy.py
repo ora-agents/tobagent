@@ -13,12 +13,16 @@ Security:
 
 import asyncio
 import base64
+import io
 import logging
 import os
 import tempfile
+import wave
+from pathlib import Path
 from typing import Any
 
 import dashscope  # type: ignore[import-untyped]
+import numpy as np
 import websockets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
@@ -27,6 +31,24 @@ from websockets.asyncio.client import ClientConnection
 logger = logging.getLogger(__name__)
 
 DASHSCOPE_WS_BASE = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+VAD_SAMPLE_RATE = 16000
+VAD_THRESHOLD = 0.5
+VAD_MIN_SILENCE_DURATION = 0.5
+VAD_MIN_SPEECH_DURATION = 0.25
+VAD_MAX_SPEECH_DURATION = 20.0
+VAD_WINDOW_SIZE = 256
+MIN_ASR_SEGMENT_DURATION_SECONDS = 0.3
+REPO_ROOT = Path(__file__).resolve().parents[2]
+VAD_DATA_PATH = (
+    REPO_ROOT
+    / "frontend"
+    / "public"
+    / "sherpa-onnx-wasm-simd-v1.13.2-ten-vad"
+    / "sherpa-onnx-wasm-main-vad.data"
+)
+VAD_MODEL_PATH = REPO_ROOT / "models" / "vad" / "ten-vad.onnx"
+TEN_VAD_DATA_START = 1076
+TEN_VAD_DATA_END = 333287
 
 voice_router = APIRouter()
 
@@ -45,6 +67,95 @@ def _get_dashscope_key() -> str:
             "Voice proxy requires this environment variable."
         )
     return key
+
+
+def _ensure_ten_vad_model() -> Path:
+    """Extract the bundled Ten VAD ONNX model for server-side use."""
+    if VAD_MODEL_PATH.exists():
+        return VAD_MODEL_PATH
+
+    if not VAD_DATA_PATH.exists():
+        raise FileNotFoundError(f"Ten VAD data package not found: {VAD_DATA_PATH}")
+
+    data = VAD_DATA_PATH.read_bytes()
+    if len(data) < TEN_VAD_DATA_END:
+        raise RuntimeError("Ten VAD data package is shorter than expected")
+
+    VAD_MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    VAD_MODEL_PATH.write_bytes(data[TEN_VAD_DATA_START:TEN_VAD_DATA_END])
+    return VAD_MODEL_PATH
+
+
+def _float32_to_wav_bytes(samples: np.ndarray, sample_rate: int = VAD_SAMPLE_RATE) -> bytes:
+    """Encode float32 audio samples as mono 16-bit PCM WAV bytes."""
+    clipped = np.clip(samples, -1.0, 1.0)
+    pcm = np.where(clipped < 0, clipped * 32768, clipped * 32767).astype(np.int16)
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm.tobytes())
+    return buffer.getvalue()
+
+
+class StreamingVadSession:
+    """Run sherpa-onnx VAD for one browser audio stream."""
+
+    def __init__(self) -> None:
+        """Initialize the sherpa-onnx Ten VAD detector."""
+        import sherpa_onnx
+
+        model_path = _ensure_ten_vad_model()
+        config = sherpa_onnx.VadModelConfig(
+            ten_vad=sherpa_onnx.TenVadModelConfig(
+                model=str(model_path),
+                threshold=VAD_THRESHOLD,
+                min_silence_duration=VAD_MIN_SILENCE_DURATION,
+                min_speech_duration=VAD_MIN_SPEECH_DURATION,
+                window_size=VAD_WINDOW_SIZE,
+                max_speech_duration=VAD_MAX_SPEECH_DURATION,
+            ),
+            sample_rate=VAD_SAMPLE_RATE,
+            num_threads=1,
+            provider="cpu",
+            debug=False,
+        )
+        self.vad = sherpa_onnx.VoiceActivityDetector(config, 30)
+        self.was_speech_detected = False
+
+    def accept_audio(self, audio_bytes: bytes) -> tuple[bool, list[bytes]]:
+        """Accept Int16 PCM bytes and return speech-start plus completed WAVs."""
+        samples_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
+        if len(samples_int16) == 0:
+            return False, []
+
+        samples_float32 = samples_int16.astype(np.float32) / 32768.0
+        self.vad.accept_waveform(samples_float32)
+
+        is_speech_detected = self.vad.is_speech_detected()
+        speech_started = is_speech_detected and not self.was_speech_detected
+        speech_segments = self._drain_completed_segments()
+        self.was_speech_detected = is_speech_detected
+        return speech_started, speech_segments
+
+    def _drain_completed_segments(self) -> list[bytes]:
+        """Drain completed VAD segments and encode them as WAV payloads."""
+        segments: list[bytes] = []
+
+        while not self.vad.empty():
+            segment = self.vad.front
+            self.vad.pop()
+
+            samples = np.asarray(segment.samples, dtype=np.float32)
+            duration_seconds = len(samples) / VAD_SAMPLE_RATE
+            if duration_seconds < MIN_ASR_SEGMENT_DURATION_SECONDS:
+                continue
+
+            segments.append(_float32_to_wav_bytes(samples))
+
+        return segments
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +341,95 @@ def _parse_asr_response(response: Any) -> AsrTranscribeResponse:
             status_code=502,
             detail=f"Unexpected ASR response format: {exc}",
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# WebSocket ASR with server-side VAD
+# ---------------------------------------------------------------------------
+
+
+@voice_router.websocket("/ws/voice/asr")
+async def asr_stream(websocket: WebSocket) -> None:
+    """Stream microphone PCM to backend VAD and return ASR transcripts."""
+    await websocket.accept()
+
+    try:
+        api_key = _get_dashscope_key()
+    except RuntimeError as exc:
+        await websocket.send_json({"type": "error", "message": str(exc)})
+        await websocket.close(code=1011, reason="ASR is not configured")
+        return
+
+    try:
+        vad_session = await asyncio.to_thread(StreamingVadSession)
+    except Exception as exc:
+        logger.error("Failed to initialize streaming VAD: %s", exc)
+        await websocket.send_json({
+            "type": "error",
+            "message": f"Failed to initialize voice activity detection: {exc}",
+        })
+        await websocket.close(code=1011, reason="VAD initialization failed")
+        return
+
+    model = os.environ.get("ASR_MODEL", "qwen3-asr-flash")
+    await websocket.send_json({"type": "ready"})
+
+    try:
+        while True:
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                raise WebSocketDisconnect
+
+            audio_bytes = message.get("bytes")
+            if audio_bytes is None:
+                continue
+
+            speech_started, wav_segments = vad_session.accept_audio(audio_bytes)
+            if speech_started:
+                await websocket.send_json({"type": "speech_start"})
+
+            for wav_bytes in wav_segments:
+                await websocket.send_json({"type": "transcribing"})
+                try:
+                    response: Any = await asyncio.to_thread(
+                        _call_dashscope_asr,
+                        api_key=api_key,
+                        model=model,
+                        audio_bytes=wav_bytes,
+                    )
+                    result = _parse_asr_response(response)
+                except HTTPException as exc:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": str(exc.detail),
+                    })
+                    continue
+                except Exception as exc:
+                    logger.error("Streaming ASR transcription failed: %s", exc)
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"ASR transcription failed: {exc}",
+                    })
+                    continue
+
+                await websocket.send_json({
+                    "type": "transcript",
+                    "text": result.text,
+                    "language": result.language,
+                    "duration_seconds": result.duration_seconds,
+                })
+    except WebSocketDisconnect:
+        logger.debug("Streaming ASR client disconnected")
+    except Exception as exc:
+        logger.error("Streaming ASR WebSocket error: %s", exc)
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Streaming ASR failed: {exc}",
+            })
+            await websocket.close(code=1011, reason="Streaming ASR failed")
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
