@@ -113,7 +113,7 @@ dev-local: check-ports
 
 # Backend only (Aegra dev server with hot reload)
 dev-backend: check-backend-port
-	$(AEGRA) dev --host $(BACKEND_HOST) --port $(BACKEND_PORT) --no-db-check
+	$(AEGRA) dev --host $(BACKEND_HOST) --port $(BACKEND_PORT)
 
 # Run both frontend and backend in local production mode
 prod: check-ports build-frontend
