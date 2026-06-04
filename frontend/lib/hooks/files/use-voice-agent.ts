@@ -22,6 +22,7 @@ import { VadManager, preloadSherpaOnnxModule, type SpeechSegment } from "@/lib/v
 import { KwsClient } from "@/lib/voice/kws/kws-client"
 import type { VoiceState } from "@/lib/voice/types"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
+import { getAudioContextConstructor, getVoiceSupportError, isVoiceSupported } from "@/lib/voice/utils/browser"
 
 // ============================================================================
 // Types
@@ -106,13 +107,7 @@ export function useVoiceAgent({
   // Start as false to match SSR; detect support after hydration to avoid mismatch
   const [isSupported, setIsSupported] = useState(false)
   useEffect(() => {
-    setIsSupported(
-      !!(
-        window.AudioContext &&
-        navigator.mediaDevices &&
-        window.WebAssembly
-      )
-    )
+    setIsSupported(isVoiceSupported())
   }, [])
 
   useEffect(() => {
@@ -463,8 +458,11 @@ export function useVoiceAgent({
     if (
       (voiceStateRef.current !== "idle" && voiceStateRef.current !== "kws") ||
       !isSupported
-    )
+    ) {
+      const supportError = getVoiceSupportError()
+      if (supportError) setError(supportError)
       return
+    }
 
     const sessionId = voiceSessionIdRef.current + 1
     voiceSessionIdRef.current = sessionId
@@ -494,7 +492,11 @@ export function useVoiceAgent({
       mediaStreamRef.current = stream
 
       // 2. Create AudioContext
-      const audioContext = new AudioContext()
+      const AudioContextCtor = getAudioContextConstructor()
+      if (!AudioContextCtor) {
+        throw new Error("Voice input is not supported in this browser")
+      }
+      const audioContext = new AudioContextCtor()
       if (!isCurrentSession()) {
         audioContext.close().catch(() => {})
         return

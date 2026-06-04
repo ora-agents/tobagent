@@ -16,6 +16,7 @@
  */
 
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { getAudioContextConstructor } from "@/lib/voice/utils/browser"
 import { KWS_WS_PATH } from "../utils/constants"
 
 /** Path to the shared AudioWorklet processor */
@@ -151,7 +152,11 @@ export class KwsClient {
       this.mediaStream = mediaStream
 
       // 2. Create AudioContext
-      const audioContext = new AudioContext()
+      const AudioContextCtor = getAudioContextConstructor()
+      if (!AudioContextCtor) {
+        throw new Error("Voice input is not supported in this browser")
+      }
+      const audioContext = new AudioContextCtor()
       if (!this.isCurrentGeneration(generation)) {
         audioContext.close().catch(() => {})
         return

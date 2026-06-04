@@ -16,6 +16,8 @@ import { SHERPA_ONNX_BASE_PATH } from "../utils/constants"
 let modulePromise: Promise<{ module: SherpaOnnxModule }> | null = null
 let preloadStarted = false
 
+const LOAD_TIMEOUT_MS = 30000
+
 /**
  * Shape of the sherpa-onnx Emscripten Module after initialization.
  * Only includes the APIs we actually use.
@@ -330,15 +332,33 @@ export function loadSherpaOnnxModule(): Promise<{ module: SherpaOnnxModule }> {
   if (modulePromise) return modulePromise
 
   preloadStarted = true
-  modulePromise = new Promise<{ module: SherpaOnnxModule }>((resolve, reject) => {
+  const promise = new Promise<{ module: SherpaOnnxModule }>((resolve, reject) => {
     const win = globalThis as unknown as Record<string, unknown>
+    let settled = false
+
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutId)
+      callback()
+    }
+
+    const timeoutId = globalThis.setTimeout(() => {
+      finish(() => {
+        reject(new Error("Timed out loading voice recognition model"))
+      })
+    }, LOAD_TIMEOUT_MS)
 
     // Configure Emscripten Module before the glue script loads
     win.Module = {
       locateFile: (path: string) => `${SHERPA_ONNX_BASE_PATH}/${path}`,
       onRuntimeInitialized: () => {
         const mod = win.Module as SherpaOnnxModule
-        resolve({ module: mod })
+        finish(() => resolve({ module: mod }))
+      },
+      onAbort: (reason: unknown) => {
+        const detail = typeof reason === "string" ? reason : "unknown error"
+        finish(() => reject(new Error(`Voice recognition model aborted: ${detail}`)))
       },
       setStatus: (status: string) => {
         if (status) {
@@ -350,8 +370,16 @@ export function loadSherpaOnnxModule(): Promise<{ module: SherpaOnnxModule }> {
     // Load the Emscripten glue code (triggers WASM + .data download)
     const glueScript = document.createElement("script")
     glueScript.src = `${SHERPA_ONNX_BASE_PATH}/sherpa-onnx-wasm-main-vad.js`
-    glueScript.onerror = () => reject(new Error("Failed to load sherpa-onnx WASM glue code"))
+    glueScript.onerror = () => {
+      finish(() => reject(new Error("Failed to load sherpa-onnx WASM glue code")))
+    }
     document.head.appendChild(glueScript)
+  })
+
+  modulePromise = promise.catch((err) => {
+    modulePromise = null
+    preloadStarted = false
+    throw err
   })
 
   return modulePromise
@@ -366,8 +394,6 @@ export function loadSherpaOnnxModule(): Promise<{ module: SherpaOnnxModule }> {
  */
 export function preloadSherpaOnnxModule(): void {
   if (preloadStarted || typeof window === "undefined") return
-
-  preloadStarted = true
 
   const start = () => {
     loadSherpaOnnxModule().catch((err) => {

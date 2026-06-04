@@ -12,6 +12,7 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import { AsrClient } from "@/lib/voice/asr-client"
 import { VadManager, preloadSherpaOnnxModule, type SpeechSegment } from "@/lib/voice/vad"
+import { getAudioContextConstructor, getVoiceSupportError, isVoiceSupported } from "@/lib/voice/utils/browser"
 
 // ============================================================================
 // Types
@@ -68,13 +69,7 @@ export function useCloudVoiceInput({
   // Start as false to match SSR; detect support after hydration to avoid mismatch
   const [isSupported, setIsSupported] = useState(false)
   useEffect(() => {
-    setIsSupported(
-      !!(
-        window.AudioContext &&
-        navigator.mediaDevices &&
-        window.WebAssembly
-      )
-    )
+    setIsSupported(isVoiceSupported())
   }, [])
 
   useEffect(() => {
@@ -142,7 +137,7 @@ export function useCloudVoiceInput({
   const startListening = useCallback(async () => {
     if (isListening || isLoading) return
     if (!isSupported) {
-      setError("Voice input is not supported in this browser")
+      setError(getVoiceSupportError() || "Voice input is not supported in this browser")
       return
     }
 
@@ -161,7 +156,11 @@ export function useCloudVoiceInput({
       mediaStreamRef.current = stream
 
       // 2. Create AudioContext
-      const audioContext = new AudioContext()
+      const AudioContextCtor = getAudioContextConstructor()
+      if (!AudioContextCtor) {
+        throw new Error("Voice input is not supported in this browser")
+      }
+      const audioContext = new AudioContextCtor()
       audioContextRef.current = audioContext
 
       // 3. Load AudioWorklet module
