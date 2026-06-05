@@ -306,7 +306,7 @@ CRITICAL:
 ### Writing Rules:
 
 1. **First sentence is bold and answers the question** - no preamble
-2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`npm install`)
+2. **Use `backticks` for inline code** - filenames (`langgraph.json`), config keys (`default_ttl`), commands (`bun install`)
 3. **Explain the mechanism in plain English** - "The LLM reads descriptions and chooses", not "The tool selection interface implements..."
 4. **Code comes after explanation** - context first, then solution
 5. **Use inline comments in code blocks** - `// 30 days` not separate explanation
@@ -453,7 +453,7 @@ DO:
 - **Search DIFFERENT pages in parallel** - "streaming" + "subgraphs" (two pages), NOT "streaming agents" + "subagent streaming" (same concept)
 - **Research with tools for ALL technical questions** - NEVER answer from memory (but answer greetings/clarifications immediately)
 - **Start with bold answer** - first sentence answers the question
-- **Use `backticks` for inline code** - `langgraph.json`, `default_ttl`, `npm install`
+- **Use `backticks` for inline code** - `langgraph.json`, `default_ttl`, `bun install`
 - **Use ## headers for sections** - when you have 2+ topics
 - **Explain the "how"** - mechanism in plain English
 - **Code with inline comments** - `// 30 days` not separate bullets
