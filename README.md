@@ -86,8 +86,8 @@ Use the local `POSTGRES_*` values from `.env.example`, which match the
 
 ```bash
 cd frontend
-npm ci
-npm run dev:local
+bun install
+bun run dev:local
 ```
 
 The frontend expects the Aegra/LangGraph server at `http://127.0.0.1:2025` by default. If you want trace sharing from the UI, set `LANGSMITH_API_KEY` in `frontend/.env.local`.

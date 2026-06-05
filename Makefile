@@ -23,11 +23,7 @@ TOB_AGENT_ID ?= cfd97b38-0751-4a88-b441-8424db410f81
 MESSAGE ?= 你可以调用子智能体吗？
 
 define run_frontend
-cd frontend && if command -v bun >/dev/null 2>&1; then \
-	bun run $(1); \
-else \
-	npm run $(1); \
-fi
+cd frontend && bun run $(1)
 endef
 
 define run_concurrent
@@ -109,7 +105,7 @@ dev-frontend: check-frontend-port
 
 # Frontend pointing to local backend
 dev-local: check-ports
-	@$(call run_concurrent,"$(MAKE)" dev-backend,(cd frontend && if command -v bun >/dev/null 2>&1; then bun run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT); else npm run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT); fi))
+	@$(call run_concurrent,"$(MAKE)" dev-backend,(cd frontend && bun run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT)))
 
 # Backend only (Aegra dev server with hot reload)
 dev-backend: check-backend-port
@@ -150,7 +146,7 @@ deploy-logs:
 install: install-frontend install-backend
 
 install-frontend:
-	cd frontend && if command -v bun >/dev/null 2>&1; then bun install; else npm install; fi
+	cd frontend && bun install
 
 install-backend:
 	uv sync
