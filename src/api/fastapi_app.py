@@ -383,6 +383,7 @@ class RobotPointListItem(BaseModel):
     y: float
     z: float
     rotation: float
+    position_json: dict = Field(alias="positionJson")
     robot_sn: str | None = Field(default=None, alias="robotSn")
 
 
@@ -729,10 +730,70 @@ async def list_robot_points(db: Session = Depends(get_db)):
             y=point.y,
             z=point.z,
             rotation=point.rotation,
+            positionJson=point.position_json,
             robotSn=point.robot_sn,
         )
         for point in points
     ]
+
+
+@app.put("/api/robot-points/{point_id}", response_model=RobotPointResponse)
+async def update_robot_point(
+    point_id: int,
+    point_data: RobotPointRequest,
+    db: Session = Depends(get_db),
+):
+    point_name = point_data.point_name.strip()
+    introduction = point_data.introduction.strip()
+    if not point_name:
+        raise HTTPException(status_code=400, detail="pointName is required")
+    if not introduction:
+        raise HTTPException(status_code=400, detail="introduction is required")
+
+    point = db.query(RobotPointTable).filter(RobotPointTable.id == point_id).first()
+    if not point:
+        raise HTTPException(status_code=404, detail="robot point not found")
+
+    duplicate = db.query(RobotPointTable).filter(
+        RobotPointTable.point_name == point_name,
+        RobotPointTable.id != point_id,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=409, detail="pointName already exists")
+
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    point.point_name = point_name
+    point.introduction = introduction
+    point.x = point_data.x
+    point.y = point_data.y
+    point.z = point_data.z
+    point.rotation = point_data.rotation
+    point.position_json = point_data.position_json
+    point.robot_sn = point_data.robot_sn
+    point.updated_at = now
+
+    db.commit()
+    db.refresh(point)
+    return RobotPointResponse(
+        id=point.id,
+        pointName=point.point_name,
+        createdAt=point.created_at,
+        updatedAt=point.updated_at,
+    )
+
+
+@app.delete("/api/robot-points/{point_id}")
+async def delete_robot_point(
+    point_id: int,
+    db: Session = Depends(get_db),
+):
+    point = db.query(RobotPointTable).filter(RobotPointTable.id == point_id).first()
+    if not point:
+        raise HTTPException(status_code=404, detail="robot point not found")
+
+    db.delete(point)
+    db.commit()
+    return {"status": "success", "message": f"Robot point {point_id} deleted"}
 
 
 @app.get("/api/robot/sse")
