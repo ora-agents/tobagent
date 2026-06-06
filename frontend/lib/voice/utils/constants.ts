@@ -44,7 +44,7 @@ export const VAD_WINDOW_SIZE = 256
 export const VAD_SAMPLE_RATE = 16000
 
 /** VAD detection threshold (lower = more sensitive) */
-export const VAD_THRESHOLD = 0.5
+export const VAD_THRESHOLD = 0.65
 
 /** Minimum silence duration (seconds) before VAD declares speech ended */
 export const VAD_MIN_SILENCE_DURATION = 0.5
