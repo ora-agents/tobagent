@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
+import Image from "next/image"
 import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -382,6 +383,14 @@ export const Sidebar = memo(function Sidebar({
             <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
               <PanelLeftClose className="w-5 h-5" />
             </Button>
+            <Image
+              src="/logo.png"
+              alt="WSIRI"
+              width={957}
+              height={613}
+              className="h-10 w-auto max-w-[128px] object-contain"
+              priority
+            />
           </div>
         </div>
 
