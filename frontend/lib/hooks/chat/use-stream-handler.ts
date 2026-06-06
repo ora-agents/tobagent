@@ -437,11 +437,24 @@ export function useStreamHandler({
       }
 
       // Build runtime context for the graph context_schema.
+      const isRobotEnvironment = (() => {
+        if (typeof window === "undefined") return false
+        const params = new URLSearchParams(window.location.search)
+        return (
+          params.get("robot_environment") === "1" ||
+          params.get("robot_environment") === "true" ||
+          Boolean((window as any).__TOB_ROBOT_ENV__)
+        )
+      })()
+
       const contextBase: Record<string, unknown> = { model, user_id: userId }
       if (isCustomProfile && agentProfile) {
         contextBase.agent_id = agentProfile.id
       } else if (repos.length > 0) {
         contextBase.repos = repos
+      }
+      if (isRobotEnvironment) {
+        contextBase.robot_environment = true
       }
 
       // Always inject user preferences and safety flag

@@ -1,5 +1,5 @@
 /** Built-in tool identifiers for generic agents. */
-export type BuiltinToolId = "rag_search" | "fetch"
+export type BuiltinToolId = "rag_search" | "fetch" | "navigate_robot_to_point"
 
 export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: string }[] = [
   {
@@ -11,6 +11,11 @@ export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: str
     id: "fetch",
     label: "Fetch URL",
     description: "Retrieve the content of any web page or API endpoint.",
+  },
+  {
+    id: "navigate_robot_to_point",
+    label: "Control Robot",
+    description: "Move the robot to a saved navigation point when running in the robot environment.",
   },
 ]
 

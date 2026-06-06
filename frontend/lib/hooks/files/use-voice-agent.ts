@@ -88,12 +88,29 @@ const WORKLET_PATH = "/voice/audio-processor.worklet.js"
 const NATIVE_VOICE_PROVIDER_PARAM = "native_voice_provider"
 const CSJ_NATIVE_VOICE_PROVIDER = "csj_sdk"
 
+declare global {
+  interface Window {
+    TobNativeVoice?: {
+      updateWakeWords?: (wakeWordsJson: string) => void
+      onAgentChanged?: (agentId: string, wakeWordsJson: string) => void
+    }
+    __TOB_NATIVE_VOICE__?: {
+      updateWakeWords?: (wakeWords: string[]) => void
+      onAgentChanged?: (agentId: string, wakeWords: string[]) => void
+    }
+  }
+}
+
 type NativeVoiceProvider = typeof CSJ_NATIVE_VOICE_PROVIDER
 
 type NativeVoiceEventPayload = {
   type?: unknown
   angle?: unknown
   text?: unknown
+  status?: unknown
+  state?: unknown
+  code?: unknown
+  message?: unknown
 }
 
 const getNativeVoiceProvider = (): NativeVoiceProvider | null => {
@@ -941,6 +958,28 @@ export function useVoiceAgent({
   useEffect(() => {
     if (!isNativeVoiceProvider || typeof window === "undefined") return
 
+    const keywords = wakeWordsRef.current
+      .map((word) => word.trim())
+      .filter(Boolean)
+
+    try {
+      if (window.__TOB_NATIVE_VOICE__?.onAgentChanged) {
+        window.__TOB_NATIVE_VOICE__.onAgentChanged("active", keywords)
+      } else if (window.TobNativeVoice?.onAgentChanged) {
+        window.TobNativeVoice.onAgentChanged("active", JSON.stringify(keywords))
+      } else if (window.__TOB_NATIVE_VOICE__?.updateWakeWords) {
+        window.__TOB_NATIVE_VOICE__.updateWakeWords(keywords)
+      } else if (window.TobNativeVoice?.updateWakeWords) {
+        window.TobNativeVoice.updateWakeWords(JSON.stringify(keywords))
+      }
+    } catch (err) {
+      console.error("[NativeVoice] failed to sync wake words:", err)
+    }
+  }, [isNativeVoiceProvider, wakeWordsKey])
+
+  useEffect(() => {
+    if (!isNativeVoiceProvider || typeof window === "undefined") return
+
     const handleNativeVoiceEvent = (event: Event) => {
       const payload = parseNativeVoiceEventPayload(
         (event as CustomEvent<unknown>).detail,
@@ -969,6 +1008,51 @@ export function useVoiceAgent({
           setVoiceStateSync("listening")
         }
         resetIdleTimer()
+        return
+      }
+
+      if (payload.type === "audio_ws") {
+        const status = typeof payload.status === "string" ? payload.status : ""
+        if (status === "connected" || status === "ready") {
+          setAsrConnected(true)
+          setError(null)
+          if (voiceStateRef.current === "idle") {
+            setVoiceStateSync("kws")
+          }
+        } else if (status === "closed" || status === "closing") {
+          setAsrConnected(false)
+        }
+        return
+      }
+
+      if (payload.type === "voice_state") {
+        const state = typeof payload.state === "string" ? payload.state : ""
+        if (state === "speech_start") {
+          resetIdleTimer()
+          if (
+            voiceStateRef.current === "processing" ||
+            voiceStateRef.current === "speaking"
+          ) {
+            interruptAndListen()
+          } else if (
+            voiceStateRef.current === "idle" ||
+            voiceStateRef.current === "kws"
+          ) {
+            voiceSessionIdRef.current += 1
+            setVoiceStateSync("listening")
+          }
+        } else if (state === "transcribing") {
+          setVoiceStateSync("transcribing")
+          setCurrentTranscript("...")
+          onInterimTranscriptRef.current?.("...")
+        }
+        return
+      }
+
+      if (payload.type === "error") {
+        const message =
+          typeof payload.message === "string" ? payload.message : "Native voice error"
+        setError(message)
         return
       }
 
