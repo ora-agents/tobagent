@@ -26,6 +26,7 @@ DEFAULT_CORS_ORIGINS: list[str] = [
     "http://127.0.0.1:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "https://wsrtob.s.odn.cc",
     "https://smith.langchain.com",
     "https://chat.langchain.com",
     "https://support.langchain.com",
@@ -156,7 +157,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=_get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
