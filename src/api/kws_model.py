@@ -26,6 +26,8 @@ MODEL_URL = (
 ENCODER_NAME = "encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx"
 DECODER_NAME = "decoder-epoch-13-avg-2-chunk-16-left-64.onnx"
 JOINER_NAME = "joiner-epoch-13-avg-2-chunk-16-left-64.int8.onnx"
+DEFAULT_KEYWORDS_THRESHOLD = 0.15
+DEFAULT_KEYWORDS_SCORE = 1.0
 
 
 def _get_model_dir() -> Path:
@@ -114,11 +116,17 @@ def create_kws_spotter(model_dir: Path):
         placeholder_kw.write_text("AA0 @placeholder\n")
 
     num_threads = int(os.getenv("KWS_NUM_THREADS", "2"))
+    keywords_threshold = float(
+        os.getenv("KWS_KEYWORDS_THRESHOLD", str(DEFAULT_KEYWORDS_THRESHOLD))
+    )
+    keywords_score = float(os.getenv("KWS_KEYWORDS_SCORE", str(DEFAULT_KEYWORDS_SCORE)))
 
     logger.info(
-        "Creating KeywordSpotter (encoder=%s, threads=%d)",
+        "Creating KeywordSpotter (encoder=%s, threads=%d, threshold=%.2f, score=%.2f)",
         ENCODER_NAME,
         num_threads,
+        keywords_threshold,
+        keywords_score,
     )
 
     spotter = sherpa_onnx.KeywordSpotter(
@@ -127,6 +135,8 @@ def create_kws_spotter(model_dir: Path):
         decoder=decoder_file,
         joiner=joiner_file,
         num_threads=num_threads,
+        keywords_score=keywords_score,
+        keywords_threshold=keywords_threshold,
         keywords_file=str(placeholder_kw),
         provider="cpu",
     )
