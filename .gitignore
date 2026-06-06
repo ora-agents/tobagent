@@ -185,7 +185,9 @@ lancedb_data
 .antigravitycli
 chat_langchain.db
 
-docs
+# Track hand-written docs while keeping generated/non-doc artifacts ignored.
+docs/*
+!docs/*.md
 
 # TTS model files (unused, replaced by DashScope cloud TTS)
 frontend/public/vits-melo-tts-zh_en/
