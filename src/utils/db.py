@@ -4,7 +4,7 @@ import logging
 import os
 from urllib.parse import quote_plus
 
-from sqlalchemy import JSON, Column, String, Text, create_engine
+from sqlalchemy import JSON, Column, Float, Integer, String, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -172,6 +172,23 @@ class KnowledgeBaseTable(Base):
     # files is a JSON list storing files uploaded to this KB,
     # e.g., [{"name": "file.pdf", "size": 12345, "uploadedAt": "2026-05-25..."}]
     files = Column(JSON, nullable=False, default=list)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
+class RobotPointTable(Base):
+    """Saved robot navigation point metadata."""
+    __tablename__ = "robot_points"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    point_name = Column(String(255), unique=True, index=True, nullable=False)
+    introduction = Column(Text, nullable=False)
+    x = Column(Float, nullable=False)
+    y = Column(Float, nullable=False)
+    z = Column(Float, nullable=False)
+    rotation = Column(Float, nullable=False)
+    position_json = Column(JSON, nullable=False)
+    robot_sn = Column(String(255), nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 

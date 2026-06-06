@@ -26,6 +26,7 @@ from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
 from src.utils.debug_logging import write_debug_event
 from src.utils.mcp import McpPoolManager
 from src.utils.runtime_context import get_runtime_context_value
+from src.tools.robot_control_tool import list_robot_points_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -468,6 +469,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
             thread_owner_user_id = _load_thread_owner_user_id(thread_id)
         owner_user_id = context_user_id or fallback_user_id or thread_owner_user_id
         enabled_tools = getattr(ctx, "enabled_tools", None)
+        robot_environment = bool(getattr(ctx, "robot_environment", False))
         linked_agent_tools: list[BaseTool] = []
         has_linked_skills = False
 
@@ -483,6 +485,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
             enabled_tools_set=_context_field_was_set(ctx, "enabled_tools"),
             agent_ids_set=_context_field_was_set(ctx, "agent_ids"),
             requested_model=getattr(ctx, "model", "") or "",
+            robot_environment=robot_environment,
         )
 
         if agent_id and agent_id != "default" and owner_user_id:
@@ -653,6 +656,15 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 "before proceeding.\n"
             )
 
+        if robot_environment and enabled_tools and "navigate_robot_to_point" in enabled_tools:
+            system_prompt += (
+                "\n\n## Robot Environment\n"
+                "The current conversation is running inside the robot Android WebView. "
+                "You may call `navigate_robot_to_point(point_id=...)` only when the user asks "
+                "the robot to move to a saved location. Available saved locations:\n"
+                f"{list_robot_points_for_prompt()}\n"
+            )
+
         if system_prompt:
             overrides["system_message"] = SystemMessage(content=system_prompt)
 
@@ -666,6 +678,8 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 tool_set.add("read_skill")
             else:
                 tool_set.discard("read_skill")
+            if not robot_environment:
+                tool_set.discard("navigate_robot_to_point")
             filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]
 
         # Inject the linked agent tools.
