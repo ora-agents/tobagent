@@ -820,6 +820,9 @@ export function ChatInterface({
     uiDispatch({ type: 'SET_STOPPING', payload: true })
     shouldInterruptRef.current = true
     voiceInterruptRef.current = true
+    messageQueueRef.current = []
+    isProcessingQueueRef.current = false
+    setQueuedMessagesDisplay([])
   }, [uiDispatch])
 
   // Keep voice agent stop ref in sync with actual handler

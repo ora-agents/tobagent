@@ -9,7 +9,7 @@
  * - State machine: idle/kws -> loading -> listening -> processing -> speaking -> loop
  * - Interruption: user can speak during TTS to interrupt the agent
  * - Auto-send: ASR final transcript is sent automatically
- * - Timeout: returns to kws (or idle) after 30s of inactivity
+ * - Timeout: returns to kws (or idle) after 10s of inactivity
  *
  * In web mode the browser streams 16kHz Int16 PCM and VAD runs on the backend.
  * In Android WebView native mode the app listens for `nativeVoiceEvent`.
@@ -93,10 +93,24 @@ declare global {
     TobNativeVoice?: {
       updateWakeWords?: (wakeWordsJson: string) => void
       onAgentChanged?: (agentId: string, wakeWordsJson: string) => void
+      startManualAsr?: () => string
+      startAsr?: () => string
+      onManualMicClick?: () => string
+      exitVoiceMode?: () => string
+      stopVoice?: () => string
+      stopAsr?: () => string
+      returnToKws?: () => string
     }
     __TOB_NATIVE_VOICE__?: {
       updateWakeWords?: (wakeWords: string[]) => void
       onAgentChanged?: (agentId: string, wakeWords: string[]) => void
+      startManualAsr?: () => string
+      startAsr?: () => string
+      onManualMicClick?: () => string
+      exitVoiceMode?: () => string
+      stopVoice?: () => string
+      stopAsr?: () => string
+      returnToKws?: () => string
     }
   }
 }
@@ -109,6 +123,7 @@ type NativeVoiceEventPayload = {
   text?: unknown
   status?: unknown
   state?: unknown
+  mode?: unknown
   code?: unknown
   message?: unknown
 }
@@ -359,6 +374,31 @@ export function useVoiceAgent({
     ttsActiveRef.current = false
   }, [cancelPlaybackEndTimer])
 
+  const requestNativeVoiceExit = useCallback(() => {
+    if (typeof window === "undefined") return
+
+    try {
+      const exitNativeVoice =
+        window.__TOB_NATIVE_VOICE__?.exitVoiceMode ||
+        window.__TOB_NATIVE_VOICE__?.stopVoice ||
+        window.__TOB_NATIVE_VOICE__?.stopAsr ||
+        window.__TOB_NATIVE_VOICE__?.returnToKws
+      const exitLegacyNativeVoice =
+        window.TobNativeVoice?.exitVoiceMode ||
+        window.TobNativeVoice?.stopVoice ||
+        window.TobNativeVoice?.stopAsr ||
+        window.TobNativeVoice?.returnToKws
+
+      if (exitNativeVoice) {
+        exitNativeVoice()
+      } else {
+        exitLegacyNativeVoice?.()
+      }
+    } catch (err) {
+      console.error("[NativeVoice] failed to exit native voice mode:", err)
+    }
+  }, [])
+
   /** Internal exit function (used by timeout and explicit exit) */
   const exitVoiceModeInternal = useCallback((restartKws = true) => {
     voiceSessionIdRef.current += 1
@@ -412,6 +452,10 @@ export function useVoiceAgent({
       restartKws && isNativeVoiceProviderRef.current ? "kws" : "idle",
     )
 
+    if (isNativeVoiceProviderRef.current) {
+      requestNativeVoiceExit()
+    }
+
     // Return to KWS listening if wake words configured, otherwise idle.
     // The Android WebView provider owns wake/ASR capture natively, so the web
     // app only keeps the passive KWS state and listens for native events.
@@ -422,7 +466,13 @@ export function useVoiceAgent({
     ) {
       startKwsListening()
     }
-  }, [stopIdleTimer, cancelPlaybackEndTimer, startKwsListening, setVoiceStateSync])
+  }, [
+    stopIdleTimer,
+    cancelPlaybackEndTimer,
+    startKwsListening,
+    requestNativeVoiceExit,
+    setVoiceStateSync,
+  ])
 
   /** Interrupt TTS and agent response when user speaks during playback */
   const interruptAndListen = useCallback(() => {
@@ -573,6 +623,24 @@ export function useVoiceAgent({
     setError(null)
 
     if (isNativeVoiceProvider) {
+      try {
+        const startNativeAsr =
+          window.__TOB_NATIVE_VOICE__?.startManualAsr ||
+          window.__TOB_NATIVE_VOICE__?.startAsr ||
+          window.__TOB_NATIVE_VOICE__?.onManualMicClick
+        const startLegacyNativeAsr =
+          window.TobNativeVoice?.startManualAsr ||
+          window.TobNativeVoice?.startAsr ||
+          window.TobNativeVoice?.onManualMicClick
+
+        if (startNativeAsr) {
+          startNativeAsr()
+        } else {
+          startLegacyNativeAsr?.()
+        }
+      } catch (err) {
+        console.error("[NativeVoice] failed to start manual ASR:", err)
+      }
       setAsrConnected(true)
       setCurrentTranscript("")
       onInterimTranscriptRef.current?.("")
@@ -631,6 +699,7 @@ export function useVoiceAgent({
         onDisconnected: () => {
           if (!isCurrentSession()) return
           setAsrConnected(false)
+          exitVoiceModeInternal(true)
         },
         onSpeechStart: () => {
           if (!isCurrentSession()) return
@@ -1013,6 +1082,7 @@ export function useVoiceAgent({
 
       if (payload.type === "audio_ws") {
         const status = typeof payload.status === "string" ? payload.status : ""
+        const mode = typeof payload.mode === "string" ? payload.mode : ""
         if (status === "connected" || status === "ready") {
           setAsrConnected(true)
           setError(null)
@@ -1021,6 +1091,17 @@ export function useVoiceAgent({
           }
         } else if (status === "closed" || status === "closing") {
           setAsrConnected(false)
+          if (mode === "asr") {
+            stopIdleTimer()
+            setCurrentTranscript("")
+            onInterimTranscriptRef.current?.("")
+            if (
+              voiceStateRef.current === "listening" ||
+              voiceStateRef.current === "transcribing"
+            ) {
+              setVoiceStateSync("kws")
+            }
+          }
         }
         return
       }
@@ -1045,6 +1126,25 @@ export function useVoiceAgent({
           setVoiceStateSync("transcribing")
           setCurrentTranscript("...")
           onInterimTranscriptRef.current?.("...")
+        } else if (state === "manual_interrupt" || state === "cancelled") {
+          stopCurrentTts()
+          onInterruptRef.current()
+          stopIdleTimer()
+          setCurrentTranscript("")
+          onInterimTranscriptRef.current?.("")
+          setAsrConnected(true)
+          setVoiceStateSync("kws")
+        } else if (state === "kws") {
+          stopIdleTimer()
+          setCurrentTranscript("")
+          onInterimTranscriptRef.current?.("")
+          setAsrConnected(true)
+          setVoiceStateSync("kws")
+        } else if (state === "idle" || state === "closed") {
+          stopIdleTimer()
+          setCurrentTranscript("")
+          onInterimTranscriptRef.current?.("")
+          setVoiceStateSync("idle")
         }
         return
       }
@@ -1083,6 +1183,8 @@ export function useVoiceAgent({
     interruptAndListen,
     isNativeVoiceProvider,
     resetIdleTimer,
+    stopIdleTimer,
+    stopCurrentTts,
     setVoiceStateSync,
   ])
 

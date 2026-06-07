@@ -27,7 +27,7 @@ export const DEFAULT_TTS_MODEL = "qwen3-tts-instruct-flash-realtime"
 export const DEFAULT_TTS_VOICE = "Cherry"
 
 /** Voice mode inactivity timeout (ms) before returning to idle */
-export const VOICE_IDLE_TIMEOUT_MS = 30000
+export const VOICE_IDLE_TIMEOUT_MS = 10000
 
 // ============================================================================
 // Client-side VAD (sherpa-onnx / Silero VAD) configuration
@@ -47,7 +47,7 @@ export const VAD_SAMPLE_RATE = 16000
 export const VAD_THRESHOLD = 0.65
 
 /** Minimum silence duration (seconds) before VAD declares speech ended */
-export const VAD_MIN_SILENCE_DURATION = 0.5
+export const VAD_MIN_SILENCE_DURATION = 0.35
 
 /** Minimum speech duration (seconds) to accept as real speech */
 export const VAD_MIN_SPEECH_DURATION = 0.25
