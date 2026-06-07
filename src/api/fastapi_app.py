@@ -1,10 +1,13 @@
 # FastAPI server for public Chat LangChain support endpoints
 import asyncio
+import copy
+import hashlib
 import json
 import logging
 import os
 import re
 import string
+import time
 from contextlib import asynccontextmanager, suppress
 
 import httpx
@@ -23,6 +26,10 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+_MODEL_LIST_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
+_MODEL_LIST_CACHE_LOCK = asyncio.Lock()
+_DEFAULT_MODEL_LIST_CACHE_TTL_SECONDS = 300.0
 
 DEFAULT_CORS_ORIGINS: list[str] = [
     "http://localhost:3000",
@@ -401,7 +408,6 @@ class RobotCommandResultRequest(BaseModel):
 # User Authentication Helpers & Routes
 # ---------------------------------------------------------------------------
 
-import hashlib
 import secrets
 import uuid
 from datetime import UTC, datetime
@@ -1749,6 +1755,31 @@ async def delete_mcp_server(
 # Model listing proxy (keeps API keys server-side)
 # ---------------------------------------------------------------------------
 
+
+def _get_model_list_cache_ttl_seconds() -> float:
+    """Return the configured model-list cache TTL in seconds."""
+    raw_ttl = os.getenv("MODEL_LIST_CACHE_TTL_SECONDS", "").strip()
+    if not raw_ttl:
+        return _DEFAULT_MODEL_LIST_CACHE_TTL_SECONDS
+
+    try:
+        return max(float(raw_ttl), 0.0)
+    except ValueError:
+        logger.warning("Invalid MODEL_LIST_CACHE_TTL_SECONDS=%r; using default", raw_ttl)
+        return _DEFAULT_MODEL_LIST_CACHE_TTL_SECONDS
+
+
+def _get_model_list_cache_key(base_url: str, api_key: str) -> tuple[str, str]:
+    """Build a cache key without storing the raw API key."""
+    api_key_hash = hashlib.sha256(api_key.encode("utf-8")).hexdigest() if api_key else ""
+    return (base_url.rstrip("/"), api_key_hash)
+
+
+def clear_model_list_cache() -> None:
+    """Clear the backend model-list cache."""
+    _MODEL_LIST_CACHE.clear()
+
+
 @app.get("/api/models")
 async def list_models():
     """Proxy to the OpenAI-compatible /models endpoint.
@@ -1769,16 +1800,36 @@ async def list_models():
     if not base_url:
         raise HTTPException(status_code=503, detail="OPENAI_BASE_URL is not configured on the server")
 
+    cache_ttl_seconds = _get_model_list_cache_ttl_seconds()
+    cache_key = _get_model_list_cache_key(base_url, api_key)
+    now = time.monotonic()
+    if cache_ttl_seconds > 0:
+        cached = _MODEL_LIST_CACHE.get(cache_key)
+        if cached and now - cached[0] < cache_ttl_seconds:
+            return copy.deepcopy(cached[1])
+
     url = f"{base_url.rstrip('/')}/models"
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
-            return resp.json()
+        async with _MODEL_LIST_CACHE_LOCK:
+            if cache_ttl_seconds > 0:
+                cached = _MODEL_LIST_CACHE.get(cache_key)
+                now = time.monotonic()
+                if cached and now - cached[0] < cache_ttl_seconds:
+                    return copy.deepcopy(cached[1])
+
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+                resp.raise_for_status()
+                payload = resp.json()
+
+            if cache_ttl_seconds > 0:
+                _MODEL_LIST_CACHE[cache_key] = (time.monotonic(), copy.deepcopy(payload))
+
+            return payload
     except httpx.HTTPStatusError as e:
         logger.error(f"Upstream /models returned {e.response.status_code}: {e.response.text[:200]}")
         raise HTTPException(status_code=e.response.status_code, detail="Upstream model list request failed")
