@@ -52,6 +52,7 @@ const zh = {
   // Chat input
   typeNextMessage: "输入下一条消息...",
   queued: "排队中",
+  sendMessage: "发送消息",
   enterToSend: "发送",
   shiftEnterNewLine: "换行",
 
@@ -276,6 +277,7 @@ const en = {
   // Chat input
   typeNextMessage: "Type your next message...",
   queued: "Queued",
+  sendMessage: "Send message",
   enterToSend: "to send",
   shiftEnterNewLine: "new line",
 

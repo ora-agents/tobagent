@@ -7,7 +7,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { LoaderCircle, Plus, Square } from "lucide-react"
+import { LoaderCircle, Plus, SendHorizontal, Square } from "lucide-react"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
@@ -85,6 +85,8 @@ export function ChatInput({
   queuedMessages = [],
 }: ChatInputProps) {
   const t = useT()
+  const hasText = input.trim().length > 0
+
   return (
     <div className="relative">
       {/* Enhanced visibility layer */}
@@ -201,7 +203,20 @@ export function ChatInput({
                     rows={1}
                   />
 
-                  {isVoiceSupported && onVoiceToggle && (
+                  {hasText ? (
+                    <Button
+                      onClick={onSend}
+                      variant="ghost"
+                      size="sm"
+                      disabled={!userId}
+                      className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary-active hover:text-primary-foreground border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                      type="button"
+                      title={t.sendMessage}
+                      aria-label={t.sendMessage}
+                    >
+                      <SendHorizontal className="w-4 h-4" strokeWidth={2.5} />
+                    </Button>
+                  ) : isVoiceSupported && onVoiceToggle && (
                     <VoiceInputButton
                       voiceState={voiceState}
                       isSupported={isVoiceSupported}

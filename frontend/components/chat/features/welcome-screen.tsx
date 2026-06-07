@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
-import { LoaderCircle, Plus, Square } from "lucide-react"
+import { LoaderCircle, Plus, SendHorizontal, Square } from "lucide-react"
 import { FilePreviewGrid } from "./file-preview-grid"
 import { VoiceInputButton } from "./voice-input-button"
 import type { ImageAttachment } from "@/lib/types"
@@ -104,6 +104,7 @@ export function WelcomeScreen({
   const t = useT()
   const { locale } = useI18n()
   const [availableModels, setAvailableModels] = useState<ModelOption[] | null>(null)
+  const hasText = input.trim().length > 0
 
   useEffect(() => {
     fetchAvailableModels().then(setAvailableModels)
@@ -222,7 +223,20 @@ export function WelcomeScreen({
                 rows={1}
               />
 
-              {isVoiceSupported && onVoiceToggle && (
+              {hasText ? (
+                <Button
+                  onClick={onSend}
+                  variant="ghost"
+                  size="sm"
+                  disabled={!userId || isAgentLoading || !hasActiveAgent}
+                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary-active hover:text-primary-foreground border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                  type="button"
+                  title={t.sendMessage}
+                  aria-label={t.sendMessage}
+                >
+                  <SendHorizontal className="w-4 h-4" strokeWidth={2.5} />
+                </Button>
+              ) : isVoiceSupported && onVoiceToggle && (
                 <VoiceInputButton
                   voiceState={voiceState}
                   isSupported={isVoiceSupported}
