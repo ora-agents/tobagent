@@ -17,7 +17,7 @@
 
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import { getAudioContextConstructor } from "@/lib/voice/utils/browser"
-import { KWS_WS_PATH } from "../utils/constants"
+import { VOICE_SESSION_WS_PATH } from "../utils/constants"
 
 /** Path to the shared AudioWorklet processor */
 const WORKLET_PATH = "/voice/audio-processor.worklet.js"
@@ -43,7 +43,7 @@ export interface KwsCallbacks {
 /** Build WebSocket URL for KWS endpoint */
 function getKwsWsUrl(): string {
   const base = LANGGRAPH_API_URL.replace(/^http/, "ws")
-  return `${base}${KWS_WS_PATH}`
+  return `${base}${VOICE_SESSION_WS_PATH}`
 }
 
 export class KwsClient {
@@ -196,6 +196,7 @@ export class KwsClient {
         ws.send(
           JSON.stringify({ type: "config", keywords: this.keywords }),
         )
+        ws.send(JSON.stringify({ type: "mode", mode: "kws" }))
 
         // Wire audio: mic -> worklet -> WebSocket
         this.sourceNode = audioContext.createMediaStreamSource(

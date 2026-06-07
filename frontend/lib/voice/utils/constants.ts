@@ -14,6 +14,9 @@ export const TTS_WS_PATH = "/ws/voice/tts"
 /** WebSocket path for KWS (Keyword Spotting) endpoint */
 export const KWS_WS_PATH = "/ws/voice/kws"
 
+/** Unified WebSocket path for KWS + backend VAD + ASR */
+export const VOICE_SESSION_WS_PATH = "/ws/voice/session"
+
 /** REST API path for ASR transcription */
 export const ASR_REST_PATH = "/api/asr/transcribe"
 

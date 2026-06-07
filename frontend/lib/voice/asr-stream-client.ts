@@ -6,7 +6,7 @@
  */
 
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
-import { ASR_WS_PATH } from "./utils/constants"
+import { VOICE_SESSION_WS_PATH } from "./utils/constants"
 
 export interface StreamingAsrCallbacks {
   onConnected?: () => void
@@ -26,7 +26,7 @@ type StreamingAsrMessage =
 
 function getAsrWsUrl(): string {
   const base = LANGGRAPH_API_URL.replace(/^http/, "ws")
-  return `${base}${ASR_WS_PATH}`
+  return `${base}${VOICE_SESSION_WS_PATH}`
 }
 
 export class StreamingAsrClient {
@@ -56,6 +56,7 @@ export class StreamingAsrClient {
       }
 
       this.ws.onopen = () => {
+        this.ws?.send(JSON.stringify({ type: "mode", mode: "asr" }))
         this.callbacks.onConnected?.()
         resolve()
       }
