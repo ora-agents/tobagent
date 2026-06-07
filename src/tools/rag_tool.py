@@ -13,6 +13,7 @@ Search = vector similarity with async-native LanceDB API (v0.14+).
   同样是原生 async，无需额外包裹。
 """
 import hashlib
+import json
 import logging
 import os
 import re
@@ -21,7 +22,7 @@ from pathlib import Path
 
 import lancedb
 from langchain_core.tools import BaseTool, tool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -330,23 +331,37 @@ def delete_documents(agent_id: str, source: str) -> None:
 # Async search
 # ---------------------------------------------------------------------------
 
+def _coerce_knowledge_base_ids(value: object) -> list[str] | None:
+    """Normalize KB id input from tool calls and direct Python callers."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            parsed = stripped
+        return _coerce_knowledge_base_ids(parsed)
+    if isinstance(value, (list, tuple, set)):
+        ids = [kb_id.strip() for kb_id in value if isinstance(kb_id, str) and kb_id.strip()]
+        return list(dict.fromkeys(ids)) or None
+    return None
+
+
 def _selected_linked_kb_ids(
     linked_kb_ids: list[str],
-    requested_kb_ids: list[str] | None,
+    requested_kb_ids: object,
 ) -> tuple[list[str], list[str]]:
     """Return linked KB ids selected by the request plus rejected ids."""
-    if not requested_kb_ids:
+    normalized_kb_ids = _coerce_knowledge_base_ids(requested_kb_ids)
+    if not normalized_kb_ids:
         return linked_kb_ids, []
 
-    requested = [
-        kb_id.strip()
-        for kb_id in requested_kb_ids
-        if isinstance(kb_id, str) and kb_id.strip()
-    ]
-    requested = list(dict.fromkeys(requested))
     linked = set(linked_kb_ids)
-    selected = [kb_id for kb_id in requested if kb_id in linked]
-    rejected = [kb_id for kb_id in requested if kb_id not in linked]
+    selected = [kb_id for kb_id in normalized_kb_ids if kb_id in linked]
+    rejected = [kb_id for kb_id in normalized_kb_ids if kb_id not in linked]
     return selected, rejected
 
 
@@ -505,6 +520,12 @@ class _RagInput(BaseModel):
             "Leave empty to search all knowledge bases linked to the agent."
         ),
     )
+
+    @field_validator("knowledge_base_ids", mode="before")
+    @classmethod
+    def _parse_knowledge_base_ids(cls, value: object) -> list[str] | None:
+        """Accept JSON-stringified KB id arrays emitted by some tool callers."""
+        return _coerce_knowledge_base_ids(value)
 
 
 class RagSearchTool(BaseTool):

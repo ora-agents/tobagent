@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from src.tools.rag_tool import _selected_linked_kb_ids, _table_name
+from src.tools.rag_tool import _RagInput, _selected_linked_kb_ids, _table_name
 from src.utils.assets_import import (
     _asset_kb_id,
     _remove_stale_kb_links,
@@ -43,6 +43,17 @@ def test_selected_linked_kb_ids_rejects_unlinked_kbs():
 
     assert selected == ["kb_b"]
     assert rejected == ["kb_missing"]
+
+
+def test_rag_input_accepts_json_string_knowledge_base_ids():
+    parsed = _RagInput.model_validate(
+        {
+            "query": "公司简介",
+            "knowledge_base_ids": '["asset_kb_a367bbc4355a"]',
+        }
+    )
+
+    assert parsed.knowledge_base_ids == ["asset_kb_a367bbc4355a"]
 
 
 def test_stale_empty_system_kb_is_selected_for_cleanup():
