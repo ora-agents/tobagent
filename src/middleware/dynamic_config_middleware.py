@@ -16,17 +16,17 @@ from langchain_core.messages import SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
-from sqlalchemy import text
+from sqlalchemy import or_, text
 
 from src.agent.config import (
     OPENAI_COMPATIBLE_API_KEY,
     OPENAI_COMPATIBLE_BASE_URL,
 )
-from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
+from src.tools.robot_control_tool import list_robot_points_for_prompt
+from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal, SkillTable
 from src.utils.debug_logging import write_debug_event
 from src.utils.mcp import McpPoolManager
 from src.utils.runtime_context import get_runtime_context_value
-from src.tools.robot_control_tool import list_robot_points_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     system_prompt = getattr(agent_row, "system_prompt", "")
     enabled_tools = getattr(agent_row, "enabled_tools", None)
     agent_ids = getattr(agent_row, "agent_ids", None)
+    knowledge_base_ids = getattr(agent_row, "knowledge_base_ids", None)
     skill_ids = getattr(agent_row, "skill_ids", None)
     persona_style = getattr(agent_row, "persona_style", None)
     boundary_mode = getattr(agent_row, "boundary_mode", None)
@@ -53,6 +54,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "system_prompt": system_prompt if isinstance(system_prompt, str) else "",
         "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
         "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
+        "knowledge_base_ids": list(knowledge_base_ids) if isinstance(knowledge_base_ids, list) else [],
         "skill_ids": list(skill_ids) if isinstance(skill_ids, list) else [],
         "role_template_id": role_template_id if isinstance(role_template_id, str) else "",
         "persona_style": persona_style if isinstance(persona_style, str) else "",
@@ -297,6 +299,7 @@ def _load_agent_runtime_resources(
                 "found": False,
                 "profile": None,
                 "skills": [],
+                "knowledge_bases": [],
                 "linked_agents": [],
                 "linked_ids": [],
             }
@@ -318,6 +321,31 @@ def _load_agent_runtime_resources(
             for s in skill_rows
         ]
 
+        knowledge_base_ids = list(agent_profile.knowledge_base_ids or [])
+        knowledge_base_rows = []
+        if knowledge_base_ids:
+            knowledge_base_rows = db.query(KnowledgeBaseTable).filter(
+                KnowledgeBaseTable.id.in_(knowledge_base_ids),
+                or_(
+                    KnowledgeBaseTable.owner_user_id == owner_user_id,
+                    KnowledgeBaseTable.owner_user_id.is_(None),
+                ),
+            ).all()
+            order = {kb_id: idx for idx, kb_id in enumerate(knowledge_base_ids)}
+            knowledge_base_rows = sorted(
+                knowledge_base_rows,
+                key=lambda kb: order.get(kb.id, len(order)),
+            )
+
+        knowledge_bases = [
+            {
+                "id": kb.id,
+                "name": kb.name,
+                "description": kb.description or "No description.",
+            }
+            for kb in knowledge_base_rows
+        ]
+
         linked_ids = (
             list(agent_ids_override)
             if agent_ids_override is not None
@@ -334,6 +362,7 @@ def _load_agent_runtime_resources(
             "found": True,
             "profile": profile_data,
             "skills": skills,
+            "knowledge_bases": knowledge_bases,
             "linked_agents": [_extract_agent_data(a) for a in linked_agent_rows],
             "linked_ids": linked_ids,
         }
@@ -517,6 +546,22 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     if not _context_field_was_set(ctx, "enabled_tools"):
                         enabled_tools = profile.get("enabled_tools", [])
                     system_prompt += _role_behavior_instructions(profile)
+
+                    # ---- Linked knowledge bases ----
+                    knowledge_bases = resources.get("knowledge_bases", [])
+                    if knowledge_bases:
+                        kb_instructions = (
+                            "\n\nYou have access to the following linked knowledge bases for `rag_search`. "
+                            "When the user asks to search a specific knowledge base or the request clearly maps "
+                            "to one listed below, pass its id in `knowledge_base_ids`. "
+                            "Leave `knowledge_base_ids` empty when the request should search all linked knowledge bases.\n"
+                            "Linked Knowledge Bases:\n"
+                        )
+                        for kb in knowledge_bases:
+                            kb_instructions += (
+                                f"- **{kb['name']}** (ID: `{kb['id']}`): {kb['description']}\n"
+                            )
+                        system_prompt += kb_instructions
 
                     # ---- Linked skills ----
                     skills = resources["skills"]

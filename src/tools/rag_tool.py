@@ -330,11 +330,37 @@ def delete_documents(agent_id: str, source: str) -> None:
 # Async search
 # ---------------------------------------------------------------------------
 
-async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
+def _selected_linked_kb_ids(
+    linked_kb_ids: list[str],
+    requested_kb_ids: list[str] | None,
+) -> tuple[list[str], list[str]]:
+    """Return linked KB ids selected by the request plus rejected ids."""
+    if not requested_kb_ids:
+        return linked_kb_ids, []
+
+    requested = [
+        kb_id.strip()
+        for kb_id in requested_kb_ids
+        if isinstance(kb_id, str) and kb_id.strip()
+    ]
+    requested = list(dict.fromkeys(requested))
+    linked = set(linked_kb_ids)
+    selected = [kb_id for kb_id in requested if kb_id in linked]
+    rejected = [kb_id for kb_id in requested if kb_id not in linked]
+    return selected, rejected
+
+
+async def search_rag_async(
+    query: str,
+    agent_id: str,
+    top_k: int = 5,
+    knowledge_base_ids: list[str] | None = None,
+) -> str:
     """Async: vector similarity search over all tables linked to agent_id.
 
     Searches both the agent's exclusive table (rag_{agent_id}) and any linked
     knowledge bases (rag_{kb_id}) configured in the PostgreSQL agent profile.
+    When knowledge_base_ids is provided, only those linked KB tables are searched.
     """
     try:
         db = await _get_async_db()
@@ -347,9 +373,10 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
         # Determine all target tables to search
         tables_to_search: list[tuple[str, str]] = []
 
-        # 1. Exclusive agent RAG table
+        # 1. Exclusive agent RAG table. When the caller narrows to specific
+        # KB ids, do not mix in the agent-private table.
         agent_table_name = _table_name(agent_id)
-        if agent_table_name in table_names:
+        if not knowledge_base_ids and agent_table_name in table_names:
             tables_to_search.append((agent_table_name, "Exclusive RAG"))
 
         # 2. Linked knowledge bases from PostgreSQL
@@ -358,7 +385,17 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
         owner_user_id = get_runtime_context_value("user_id", "") or ""
 
         kb_ids = await _linked_kb_ids_for_agent(agent_id, owner_user_id)
-        for kb_id in kb_ids:
+        selected_kb_ids, rejected_kb_ids = _selected_linked_kb_ids(
+            kb_ids,
+            knowledge_base_ids,
+        )
+        if rejected_kb_ids:
+            return (
+                "Requested knowledge base ids are not linked to this agent: "
+                + ", ".join(rejected_kb_ids)
+            )
+
+        for kb_id in selected_kb_ids:
             kb_tname = _table_name(kb_id)
             if kb_tname in table_names:
                 tables_to_search.append((kb_tname, f"KB: {kb_id}"))
@@ -413,13 +450,18 @@ async def search_rag_async(query: str, agent_id: str, top_k: int = 5) -> str:
 
 
 # Sync shim: kept for backward compatibility
-def search_rag(query: str, agent_id: str, top_k: int = 5) -> str:
+def search_rag(
+    query: str,
+    agent_id: str,
+    top_k: int = 5,
+    knowledge_base_ids: list[str] | None = None,
+) -> str:
     """Wrap ``search_rag_async`` for synchronous callers.
 
     Prefer ``search_rag_async`` from async code.
     """
     import asyncio
-    return asyncio.run(search_rag_async(query, agent_id, top_k))
+    return asyncio.run(search_rag_async(query, agent_id, top_k, knowledge_base_ids))
 
 
 # ---------------------------------------------------------------------------
@@ -431,13 +473,18 @@ def make_rag_tool(agent_id: str) -> BaseTool:
     _doc = (
         "Search the agent's private knowledge base for relevant information.\n\n"
         "Args:\n"
-        "    query: Natural language search query.\n\n"
+        "    query: Natural language search query.\n"
+        "    knowledge_base_ids: Optional list of linked knowledge base IDs to search.\n\n"
         "Returns:\n"
         "    Relevant document excerpts from the knowledge base."
     )
 
-    async def _asearch(query: str) -> str:
-        return await search_rag_async(query, agent_id=agent_id)
+    async def _asearch(query: str, knowledge_base_ids: list[str] | None = None) -> str:
+        return await search_rag_async(
+            query,
+            agent_id=agent_id,
+            knowledge_base_ids=knowledge_base_ids,
+        )
 
     _asearch.__name__ = "rag_search"
     _asearch.__doc__ = _doc
@@ -451,6 +498,13 @@ def make_rag_tool(agent_id: str) -> BaseTool:
 
 class _RagInput(BaseModel):
     query: str = Field(..., description="Natural language search query")
+    knowledge_base_ids: list[str] | None = Field(
+        default=None,
+        description=(
+            "Optional list of linked knowledge base IDs to search. "
+            "Leave empty to search all knowledge bases linked to the agent."
+        ),
+    )
 
 
 class RagSearchTool(BaseTool):
@@ -467,7 +521,8 @@ class RagSearchTool(BaseTool):
     name: str = "rag_search"
     description: str = (
         "Search the agent's private knowledge base for relevant information. "
-        "Use this to answer questions based on uploaded documents."
+        "Use this to answer questions based on uploaded documents. "
+        "When multiple knowledge bases are linked, pass knowledge_base_ids to search only specific linked KBs."
     )
     args_schema: type[BaseModel] = _RagInput
 
@@ -476,11 +531,31 @@ class RagSearchTool(BaseTool):
 
         return get_runtime_context_value("agent_id", "default")
 
-    def _run(self, query: str, **kwargs) -> str:
+    def _run(
+        self,
+        query: str,
+        knowledge_base_ids: list[str] | None = None,
+        **kwargs,
+    ) -> str:
         """Sync fallback — runs the async implementation in a new event loop."""
         import asyncio
-        return asyncio.run(search_rag_async(query, agent_id=self._get_agent_id(**kwargs)))
+        return asyncio.run(
+            search_rag_async(
+                query,
+                agent_id=self._get_agent_id(**kwargs),
+                knowledge_base_ids=knowledge_base_ids,
+            )
+        )
 
-    async def _arun(self, query: str, **kwargs) -> str:
+    async def _arun(
+        self,
+        query: str,
+        knowledge_base_ids: list[str] | None = None,
+        **kwargs,
+    ) -> str:
         """Preferred entry point: fully async, no blocking calls."""
-        return await search_rag_async(query, agent_id=self._get_agent_id(**kwargs))
+        return await search_rag_async(
+            query,
+            agent_id=self._get_agent_id(**kwargs),
+            knowledge_base_ids=knowledge_base_ids,
+        )

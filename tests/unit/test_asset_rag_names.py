@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from src.tools.rag_tool import _table_name
+from src.tools.rag_tool import _selected_linked_kb_ids, _table_name
 from src.utils.assets_import import (
     _asset_kb_id,
     _remove_stale_kb_links,
@@ -26,6 +26,23 @@ def test_table_name_replaces_unicode_agent_id_with_stable_ascii_hash():
 
 def test_table_name_preserves_supported_lancedb_characters():
     assert _table_name("agent-1.v2_docs") == "rag_agent-1.v2_docs"
+
+
+def test_selected_linked_kb_ids_defaults_to_all_linked_kbs():
+    selected, rejected = _selected_linked_kb_ids(["kb_a", "kb_b"], None)
+
+    assert selected == ["kb_a", "kb_b"]
+    assert rejected == []
+
+
+def test_selected_linked_kb_ids_rejects_unlinked_kbs():
+    selected, rejected = _selected_linked_kb_ids(
+        ["kb_a", "kb_b"],
+        ["kb_b", "kb_missing", "kb_b", " "],
+    )
+
+    assert selected == ["kb_b"]
+    assert rejected == ["kb_missing"]
 
 
 def test_stale_empty_system_kb_is_selected_for_cleanup():
