@@ -14,6 +14,7 @@ Security:
 import asyncio
 import base64
 import io
+import json
 import logging
 import os
 import tempfile
@@ -27,6 +28,8 @@ import websockets
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from websockets.asyncio.client import ClientConnection
+
+from src.api.kws_router import _create_keyword_stream, _process_audio_chunk
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +54,9 @@ TEN_VAD_DATA_START = 1076
 TEN_VAD_DATA_END = 333287
 
 voice_router = APIRouter()
+
+VOICE_MODE_KWS = "kws"
+VOICE_MODE_ASR = "asr"
 
 
 # ---------------------------------------------------------------------------
@@ -428,6 +434,237 @@ async def asr_stream(websocket: WebSocket) -> None:
                 "message": f"Streaming ASR failed: {exc}",
             })
             await websocket.close(code=1011, reason="Streaming ASR failed")
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Unified WebSocket KWS + VAD + ASR session
+# ---------------------------------------------------------------------------
+
+
+async def _send_asr_segments(
+    websocket: WebSocket,
+    *,
+    api_key: str,
+    model: str,
+    wav_segments: list[bytes],
+) -> None:
+    """Transcribe completed VAD segments and send transcript messages."""
+    for wav_bytes in wav_segments:
+        await websocket.send_json({"type": "transcribing", "mode": VOICE_MODE_ASR})
+        try:
+            response: Any = await asyncio.to_thread(
+                _call_dashscope_asr,
+                api_key=api_key,
+                model=model,
+                audio_bytes=wav_bytes,
+            )
+            result = _parse_asr_response(response)
+        except HTTPException as exc:
+            await websocket.send_json({
+                "type": "error",
+                "mode": VOICE_MODE_ASR,
+                "message": str(exc.detail),
+            })
+            continue
+        except Exception as exc:
+            logger.error("Voice session ASR transcription failed: %s", exc)
+            await websocket.send_json({
+                "type": "error",
+                "mode": VOICE_MODE_ASR,
+                "message": f"ASR transcription failed: {exc}",
+            })
+            continue
+
+        await websocket.send_json({
+            "type": "transcript",
+            "mode": VOICE_MODE_ASR,
+            "text": result.text,
+            "language": result.language,
+            "duration_seconds": result.duration_seconds,
+        })
+
+
+@voice_router.websocket("/ws/voice/session")
+async def voice_session(websocket: WebSocket) -> None:
+    """Unified voice session WebSocket for KWS + VAD + ASR.
+
+    Client protocol:
+    - {"type":"config","keywords":[...]} updates KWS wake words.
+    - {"type":"mode","mode":"kws"|"asr"} selects how binary PCM frames are handled.
+    - Binary frames are raw 16kHz mono Int16 PCM.
+
+    TTS intentionally remains on /ws/voice/tts.
+    """
+    await websocket.accept()
+
+    spotter = getattr(websocket.app.state, "kws_spotter", None)
+    keyword_processor = getattr(websocket.app.state, "kws_processor", None)
+    kws_stream = None
+    kws_keywords: list[str] = []
+    api_key: str | None = None
+    vad_session: StreamingVadSession | None = None
+    mode = VOICE_MODE_KWS
+    model = os.environ.get("ASR_MODEL", "qwen3-asr-flash")
+
+    await websocket.send_json({
+        "type": "ready",
+        "mode": mode,
+        "kws": spotter is not None,
+        "asr": True,
+    })
+
+    try:
+        while True:
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                raise WebSocketDisconnect
+
+            audio_bytes = message.get("bytes")
+            if audio_bytes is not None:
+                if mode == VOICE_MODE_ASR:
+                    if api_key is None or vad_session is None:
+                        await websocket.send_json({
+                            "type": "error",
+                            "mode": VOICE_MODE_ASR,
+                            "message": "ASR is not initialized",
+                        })
+                        continue
+                    speech_started, wav_segments = vad_session.accept_audio(audio_bytes)
+                    if speech_started:
+                        await websocket.send_json({
+                            "type": "speech_start",
+                            "mode": VOICE_MODE_ASR,
+                        })
+                    await _send_asr_segments(
+                        websocket,
+                        api_key=api_key,
+                        model=model,
+                        wav_segments=wav_segments,
+                    )
+                elif spotter is not None and kws_stream is not None:
+                    detected = await asyncio.to_thread(
+                        _process_audio_chunk, spotter, kws_stream, audio_bytes
+                    )
+                    if detected:
+                        logger.info("Voice session KWS detection: '%s'", detected)
+                        await websocket.send_json({
+                            "type": "detection",
+                            "mode": VOICE_MODE_KWS,
+                            "keyword": detected,
+                        })
+                continue
+
+            text = message.get("text")
+            if text is None:
+                continue
+
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Invalid JSON control message",
+                })
+                continue
+
+            payload_type = payload.get("type")
+            if payload_type == "mode":
+                next_mode = payload.get("mode")
+                if next_mode not in {VOICE_MODE_KWS, VOICE_MODE_ASR}:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Invalid voice mode",
+                    })
+                    continue
+                mode = next_mode
+                if mode == VOICE_MODE_ASR:
+                    try:
+                        api_key = _get_dashscope_key()
+                        vad_session = await asyncio.to_thread(StreamingVadSession)
+                    except RuntimeError as exc:
+                        await websocket.send_json({
+                            "type": "error",
+                            "mode": VOICE_MODE_ASR,
+                            "message": str(exc),
+                        })
+                        mode = VOICE_MODE_KWS
+                        continue
+                    except Exception as exc:
+                        logger.error("Failed to initialize voice session VAD: %s", exc)
+                        await websocket.send_json({
+                            "type": "error",
+                            "mode": VOICE_MODE_ASR,
+                            "message": (
+                                "Failed to initialize voice activity detection: "
+                                f"{exc}"
+                            ),
+                        })
+                        mode = VOICE_MODE_KWS
+                        continue
+                await websocket.send_json({"type": "mode", "mode": mode})
+                continue
+
+            if payload_type != "config":
+                continue
+
+            next_keywords = payload.get("keywords", [])
+            if not isinstance(next_keywords, list):
+                await websocket.send_json({
+                    "type": "error",
+                    "mode": VOICE_MODE_KWS,
+                    "message": "keywords must be a list",
+                })
+                continue
+
+            if spotter is None:
+                loading_task = getattr(websocket.app.state, "kws_loading_task", None)
+                message_text = (
+                    "KWS model is still loading on server"
+                    if loading_task and not loading_task.done()
+                    else "KWS model not available on server"
+                )
+                await websocket.send_json({
+                    "type": "error",
+                    "mode": VOICE_MODE_KWS,
+                    "message": message_text,
+                })
+                continue
+
+            next_stream, keywords_string = await _create_keyword_stream(
+                spotter, keyword_processor, [str(item) for item in next_keywords]
+            )
+            if next_stream is None or not keywords_string:
+                await websocket.send_json({
+                    "type": "error",
+                    "mode": VOICE_MODE_KWS,
+                    "message": "Failed to process keywords",
+                })
+                continue
+
+            kws_stream = next_stream
+            kws_keywords = [str(item) for item in next_keywords]
+            logger.info(
+                "Voice session KWS configured: keywords=%s, formatted=%s",
+                kws_keywords,
+                keywords_string[:100],
+            )
+            await websocket.send_json({
+                "type": "config",
+                "mode": VOICE_MODE_KWS,
+                "keywords": kws_keywords,
+            })
+    except WebSocketDisconnect:
+        logger.debug("Voice session client disconnected")
+    except Exception as exc:
+        logger.error("Voice session WebSocket error: %s", exc, exc_info=True)
+        try:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Voice session failed: {exc}",
+            })
+            await websocket.close(code=1011, reason="Voice session failed")
         except Exception:
             pass
 

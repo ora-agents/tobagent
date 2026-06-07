@@ -1805,6 +1805,7 @@ async def root():
             "mcp_servers": "/api/mcp-servers",
             "models": "/api/models",
             "voice_asr": "/api/asr/transcribe",
+            "voice_session": "/ws/voice/session",
             "voice_asr_stream": "/ws/voice/asr",
             "voice_tts": "/ws/voice/tts",
         },
