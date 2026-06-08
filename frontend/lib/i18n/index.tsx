@@ -171,8 +171,8 @@ const zh = {
   editMcpServer: "编辑 MCP 服务端",
   noMcpServers: "暂无已定义的 MCP 服务端。",
   selectOrCreateMcpToStart: "选择或创建 MCP 服务端以开始。",
-  mcpType: "传输类型",
-  sseTransport: "SSE",
+  mcpType: "传输协议",
+  sseTransport: "Streamable HTTP",
   streamableHttpTransport: "Streamable HTTP",
   sseServerUrl: "MCP 服务端 URL",
   customHeadersJson: "自定义 Header (JSON 格式)",
@@ -213,7 +213,7 @@ const zh = {
   selectKbToViewOrCreate: "选择一个知识库，或者创建一个新的知识库。",
 
   // Placeholders
-  mcpNamePlaceholder: "例如：天气 SSE 服务端",
+  mcpNamePlaceholder: "例如：天气 MCP 服务端",
   mcpUrlPlaceholder: "例如：http://localhost:8000/mcp",
   mcpHeadersPlaceholder: '例如：{\n  "Authorization": "Bearer 您的令牌"\n}',
   skillContentPlaceholder: "添加技能规则和模板文本...",
@@ -448,8 +448,8 @@ const en = {
   editMcpServer: "Edit MCP Server",
   noMcpServers: "No MCP servers defined yet.",
   selectOrCreateMcpToStart: "Select or create an MCP Server to get started",
-  mcpType: "Transport Type",
-  sseTransport: "SSE",
+  mcpType: "Transport",
+  sseTransport: "Streamable HTTP",
   streamableHttpTransport: "Streamable HTTP",
   sseServerUrl: "MCP Server URL",
   customHeadersJson: "Custom Headers (JSON Format)",
@@ -490,7 +490,7 @@ const en = {
   selectKbToViewOrCreate: "Select a Knowledge Base or create a new one.",
 
   // Placeholders
-  mcpNamePlaceholder: "e.g. Weather SSE Server",
+  mcpNamePlaceholder: "e.g. Weather MCP Server",
   mcpUrlPlaceholder: "e.g. http://localhost:8000/mcp",
   mcpHeadersPlaceholder: 'e.g. {\n  "Authorization": "Bearer YOUR_TOKEN"\n}',
   skillContentPlaceholder: "Add skill rules and template text...",

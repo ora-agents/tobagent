@@ -319,7 +319,7 @@ class AgentProfileSchema(BaseModel):
 class McpServerSchema(BaseModel):
     id: str
     name: str
-    type: str  # "sse" or "streamable_http"
+    type: str  # Always "streamable_http"; kept for API compatibility.
     url: str | None = None
     headers: dict[str, str] = {}
     createdAt: str
@@ -518,7 +518,7 @@ def _mcp_schema(server: McpServerTable) -> McpServerSchema:
     return McpServerSchema(
         id=server.id,
         name=server.name,
-        type=server.type,
+        type="streamable_http",
         url=server.url,
         headers=server.headers or {},
         createdAt=server.created_at,
@@ -1671,7 +1671,7 @@ async def create_mcp_server(
         id=server_data.id,
         owner_user_id=current_user.id,
         name=server_data.name,
-        type=server_data.type,
+        type="streamable_http",
         url=server_data.url,
         headers=server_data.headers,
         created_at=server_data.createdAt,
@@ -1707,7 +1707,7 @@ async def update_mcp_server(
         raise HTTPException(status_code=404, detail="MCP Server not found")
     
     server.name = server_data.name
-    server.type = server_data.type
+    server.type = "streamable_http"
     server.url = server_data.url
     server.headers = server_data.headers
     server.updated_at = server_data.updatedAt

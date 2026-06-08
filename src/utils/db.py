@@ -153,7 +153,7 @@ class McpServerTable(Base):
     id = Column(String(255), primary_key=True, index=True)
     owner_user_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
-    type = Column(String(50), nullable=False)  # e.g. "sse" or "streamable_http"
+    type = Column(String(50), nullable=False)  # Always "streamable_http"; kept for compatibility.
     url = Column(String(2048), nullable=True)
     headers = Column(JSON, nullable=True, default=dict)
     created_at = Column(String(50), nullable=False)

@@ -226,7 +226,7 @@ export interface KnowledgeBase {
 
 const KB_STORAGE_KEY = "knowledge-bases"
 
-type McpTransport = "sse" | "streamable_http"
+type McpTransport = "streamable_http"
 
 export interface McpServer {
   id: string
@@ -238,10 +238,7 @@ export interface McpServer {
   updatedAt: string
 }
 
-const normalizeMcpTransport = (type?: string): McpTransport =>
-  type === "http" || type === "streamable-http" || type === "streamable_http"
-    ? "streamable_http"
-    : "sse"
+const normalizeMcpTransport = (_type?: string): McpTransport => "streamable_http"
 
 // ---------------------------------------------------------------------------
 // Properties Interface
@@ -1073,7 +1070,7 @@ export function ManagementDashboard({
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold truncate">{mcp.name}</div>
                         <div className="text-xs text-muted-foreground/80 mt-0.5 uppercase tracking-wider font-mono">
-                          {mcp.type === "streamable_http" ? "HTTP" : "SSE"}
+                          Streamable HTTP
                         </div>
                       </div>
 
@@ -1162,7 +1159,7 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4">
                         <div className="space-y-1.5">
                           <Label htmlFor="mcp-name">{t.name}</Label>
                           <Input
@@ -1172,31 +1169,6 @@ export function ManagementDashboard({
                             placeholder={t.mcpNamePlaceholder}
                             className="bg-background border-border/80 rounded-lg"
                           />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="mcp-type">{t.mcpType}</Label>
-                          <Select
-                            value={mcpForm.type}
-                            onValueChange={value =>
-                              setMcpForm({
-                                ...mcpForm,
-                                type: normalizeMcpTransport(value)
-                              })
-                            }
-                          >
-                            <SelectTrigger
-                              id="mcp-type"
-                              className="w-full bg-background border-border/80 rounded-lg"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="streamable_http">
-                                {t.streamableHttpTransport}
-                              </SelectItem>
-                              <SelectItem value="sse">{t.sseTransport}</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
                       </div>
 
@@ -1236,9 +1208,7 @@ export function ManagementDashboard({
                           {selectedMcp.name}
                         </h2>
                         <div className="text-xs font-mono uppercase tracking-wider bg-muted text-muted-foreground px-2 py-0.5 rounded w-max mt-2">
-                          {selectedMcp.type === "streamable_http"
-                            ? t.streamableHttpTransport
-                            : t.sseTransport}
+                          {t.streamableHttpTransport}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -1998,7 +1968,7 @@ export function ManagementDashboard({
                                 </span>
                                 <div className="min-w-0">
                                   <div className="text-xs font-medium truncate">{mcp.name}</div>
-                                  <div className="text-[10px] text-muted-foreground truncate">{mcp.type.toUpperCase()} | {mcp.url}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">Streamable HTTP | {mcp.url}</div>
                                 </div>
                               </div>
                             )
@@ -2240,7 +2210,7 @@ export function ManagementDashboard({
                                     <Wrench className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                                     <div className="min-w-0">
                                       <div className="text-xs font-semibold text-foreground truncate">{mcp.name}</div>
-                                      <div className="text-[10px] text-muted-foreground truncate">{mcp.type.toUpperCase()} | {mcp.url}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">Streamable HTTP | {mcp.url}</div>
                                     </div>
                                   </div>
                                 ))}

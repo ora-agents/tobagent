@@ -20,9 +20,9 @@ def test_build_client_config_normalizes_streamable_http_aliases():
     }
 
 
-def test_build_client_config_forces_modelscope_to_streamable_http():
+def test_build_client_config_normalizes_legacy_sse_to_streamable_http():
     server = SimpleNamespace(
-        url="https://mcp.api-inference.modelscope.net/example/mcp",
+        url="https://example.com/sse",
         type="sse",
         headers=None,
     )
@@ -33,34 +33,12 @@ def test_build_client_config_forces_modelscope_to_streamable_http():
     assert config["headers"] == {}
 
 
-def test_streamable_http_retry_config_only_applies_to_sse_mcp_urls():
-    fallback = McpPoolManager._streamable_http_retry_config(
-        {"transport": "sse", "url": "http://localhost:8000/mcp", "headers": {}}
-    )
-    non_mcp_fallback = McpPoolManager._streamable_http_retry_config(
-        {"transport": "sse", "url": "http://localhost:8000/sse", "headers": {}}
-    )
-    already_http_fallback = McpPoolManager._streamable_http_retry_config(
-        {
-            "transport": "streamable_http",
-            "url": "http://localhost:8000/mcp",
-            "headers": {},
-        }
-    )
-
-    assert fallback["transport"] == "streamable_http"
-    assert non_mcp_fallback is None
-    assert already_http_fallback is None
-
-
-def test_get_tools_for_server_retries_sse_mcp_url_as_streamable_http():
+def test_get_tools_for_server_does_not_retry_legacy_transport():
     calls = []
 
     async def fake_fetch_tools(server_name, config):
         calls.append((server_name, config["transport"]))
-        if len(calls) == 1:
-            raise ExceptionGroup("mcp failed", [ValueError("bad content type")])
-        return ["tool"]
+        raise ExceptionGroup("mcp failed", [ValueError("bad content type")])
 
     original_fetch_tools = McpPoolManager._fetch_tools_for_config
     McpPoolManager._fetch_tools_for_config = staticmethod(fake_fetch_tools)
@@ -78,9 +56,9 @@ def test_get_tools_for_server_retries_sse_mcp_url_as_streamable_http():
     finally:
         McpPoolManager._fetch_tools_for_config = original_fetch_tools
 
-    assert tools == ["tool"]
-    assert failed is False
-    assert calls == [("local", "sse"), ("local", "streamable_http")]
+    assert tools == []
+    assert failed is True
+    assert calls == [("local", "sse")]
 
 
 def test_get_tools_for_agent_reuses_partial_cache_during_failed_server_cooldown():

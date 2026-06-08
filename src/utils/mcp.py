@@ -20,8 +20,6 @@ for module_name in (
     "langchain_mcp_adapters.client",
     "mcp",
     "mcp.client",
-    "mcp.client.sse",
-    "mcp.client.stdio",
     "mcp.client.streamable_http",
 ):
     try:
@@ -150,27 +148,6 @@ class McpPoolManager:
         try:
             return await cls._fetch_tools_for_config(server_name, config), False
         except Exception as first_error:
-            fallback_config = cls._streamable_http_retry_config(config)
-            if fallback_config:
-                logger.warning(
-                    "MCP server '%s' failed as SSE (%s): %s. Retrying as streamable_http.",
-                    server_name,
-                    cls._safe_url(config.get("url")),
-                    cls._format_exception(first_error),
-                )
-                try:
-                    return await cls._fetch_tools_for_config(server_name, fallback_config), False
-                except Exception as retry_error:
-                    logger.exception(
-                        "MCP server '%s' failed after streamable_http retry (%s). "
-                        "SSE error: %s; streamable_http error: %s",
-                        server_name,
-                        cls._safe_url(config.get("url")),
-                        cls._format_exception(first_error),
-                        cls._format_exception(retry_error),
-                    )
-                    return [], True
-
             logger.exception(
                 "MCP server '%s' failed to initialize (transport=%s, url=%s): %s",
                 server_name,
@@ -190,7 +167,7 @@ class McpPoolManager:
         if not server.url:
             return None
 
-        transport = cls._normalize_transport(server.type, server.url)
+        transport = cls._normalize_transport(server.type)
         headers = server.headers if isinstance(server.headers, dict) else {}
 
         return {
@@ -200,34 +177,14 @@ class McpPoolManager:
         }
 
     @classmethod
-    def _normalize_transport(cls, transport: str | None, url: str | None) -> str:
-        # ModelScope remote MCP servers use Streamable HTTP at /mcp. Treating them
-        # as SSE produces a content-type mismatch before tools can be listed.
-        if url and "mcp.api-inference.modelscope.net" in url:
-            return "streamable_http"
-
-        normalized = (transport or "sse").strip().lower()
-        if normalized in cls._STREAMABLE_TRANSPORTS:
-            return "streamable_http"
-        if normalized in {"sse", "websocket"}:
-            return normalized
-
-        logger.warning("Unsupported MCP transport '%s'; defaulting to SSE", transport)
-        return "sse"
-
-    @classmethod
-    def _streamable_http_retry_config(cls, config: dict) -> dict | None:
-        if config.get("transport") != "sse":
-            return None
-
-        url = config.get("url")
-        if not isinstance(url, str):
-            return None
-
-        if urlsplit(url).path.rstrip("/") != "/mcp":
-            return None
-
-        return {**config, "transport": "streamable_http"}
+    def _normalize_transport(cls, transport: str | None) -> str:
+        normalized = (transport or "").strip().lower()
+        if normalized and normalized not in cls._STREAMABLE_TRANSPORTS:
+            logger.info(
+                "MCP transport '%s' is deprecated; using streamable_http",
+                transport,
+            )
+        return "streamable_http"
 
     @staticmethod
     def _safe_url(url: object) -> str:
