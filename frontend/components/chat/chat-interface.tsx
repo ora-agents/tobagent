@@ -258,6 +258,16 @@ export function ChatInterface({
   // Textarea ref for auto-focus
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  useEffect(() => {
+    return () => {
+      shouldInterruptRef.current = true
+      voiceInterruptRef.current = true
+      messageQueueRef.current = []
+      isProcessingQueueRef.current = false
+      voiceAgent.stopVoiceMode()
+    }
+  }, [voiceAgent.stopVoiceMode])
+
   // Track previous loading state to detect completion of AI response
   const prevIsLoadingRef = useRef(false)
 

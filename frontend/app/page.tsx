@@ -95,6 +95,7 @@ function DashboardContent() {
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
+  const [chatSessionKey, setChatSessionKey] = useState(0)
 
   // Agent profiles (custom configurable agents)
   const {
@@ -185,6 +186,7 @@ function DashboardContent() {
   // Create a new thread
   const handleNewChat = () => {
     // Switch back to chat view
+    setChatSessionKey(prev => prev + 1)
     setCurrentView("chat")
     setInitialPrompt(null)
     setThreadId(null)
@@ -600,6 +602,7 @@ function DashboardContent() {
               onOpenAgentSettings={handleOpenActiveAgentSettings}
             />
             <ChatInterface
+              key={chatSessionKey}
               showToolCalls={showToolCalls}
               threadId={activeThreadId}
               onCreateThread={handleCreateThreadForSend}

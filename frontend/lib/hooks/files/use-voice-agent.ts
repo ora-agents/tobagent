@@ -63,6 +63,8 @@ export interface UseVoiceAgentReturn {
   enterVoiceMode: () => void
   /** Exit voice mode (stop everything, return to idle) */
   exitVoiceMode: () => void
+  /** Stop voice mode and wake-word listening without restarting passive KWS. */
+  stopVoiceMode: () => void
   /** Toggle voice mode */
   toggleVoiceMode: () => void
 
@@ -833,6 +835,11 @@ export function useVoiceAgent({
     exitVoiceModeInternal()
   }, [exitVoiceModeInternal])
 
+  const stopVoiceMode = useCallback(() => {
+    stopKwsListening()
+    exitVoiceModeInternal(false)
+  }, [exitVoiceModeInternal, stopKwsListening])
+
   const toggleVoiceMode = useCallback(() => {
     if (voiceState === "idle" || voiceState === "kws") {
       enterVoiceMode()
@@ -1313,6 +1320,7 @@ export function useVoiceAgent({
     error,
     enterVoiceMode,
     exitVoiceMode,
+    stopVoiceMode,
     toggleVoiceMode,
     feedTtsChunk,
     onAgentStreamEnd,
