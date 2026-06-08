@@ -92,7 +92,11 @@ declare global {
   interface Window {
     TobNativeVoice?: {
       updateWakeWords?: (wakeWordsJson: string) => void
-      onAgentChanged?: (agentId: string, wakeWordsJson: string) => void
+      onAgentChanged?: (
+        agentId: string,
+        wakeWordsJson: string,
+        ttsVoice: string,
+      ) => void
       startManualAsr?: () => string
       startAsr?: () => string
       onManualMicClick?: () => string
@@ -103,7 +107,11 @@ declare global {
     }
     __TOB_NATIVE_VOICE__?: {
       updateWakeWords?: (wakeWords: string[]) => void
-      onAgentChanged?: (agentId: string, wakeWords: string[]) => void
+      onAgentChanged?: (
+        agentId: string,
+        wakeWords: string[],
+        ttsVoice: string | null,
+      ) => void
       startManualAsr?: () => string
       startAsr?: () => string
       onManualMicClick?: () => string
@@ -1037,9 +1045,13 @@ export function useVoiceAgent({
 
     try {
       if (window.__TOB_NATIVE_VOICE__?.onAgentChanged) {
-        window.__TOB_NATIVE_VOICE__.onAgentChanged("active", keywords)
+        window.__TOB_NATIVE_VOICE__.onAgentChanged("active", keywords, ttsVoice || null)
       } else if (window.TobNativeVoice?.onAgentChanged) {
-        window.TobNativeVoice.onAgentChanged("active", JSON.stringify(keywords))
+        window.TobNativeVoice.onAgentChanged(
+          "active",
+          JSON.stringify(keywords),
+          ttsVoice || "",
+        )
       } else if (window.__TOB_NATIVE_VOICE__?.updateWakeWords) {
         window.__TOB_NATIVE_VOICE__.updateWakeWords(keywords)
       } else if (window.TobNativeVoice?.updateWakeWords) {
@@ -1048,7 +1060,7 @@ export function useVoiceAgent({
     } catch (err) {
       console.error("[NativeVoice] failed to sync wake words:", err)
     }
-  }, [isNativeVoiceProvider, wakeWordsKey])
+  }, [isNativeVoiceProvider, wakeWordsKey, ttsVoice])
 
   useEffect(() => {
     if (!isNativeVoiceProvider || typeof window === "undefined") return
