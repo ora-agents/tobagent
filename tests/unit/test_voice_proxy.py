@@ -7,6 +7,14 @@ import pytest
 from src.api import voice_proxy
 
 
+def test_coerce_tts_voice_accepts_only_non_empty_strings():
+    """Client TTS voice config should not replace defaults with blank values."""
+    assert voice_proxy._coerce_tts_voice(" Ethan ") == "Ethan"
+    assert voice_proxy._coerce_tts_voice("") is None
+    assert voice_proxy._coerce_tts_voice("   ") is None
+    assert voice_proxy._coerce_tts_voice(None) is None
+
+
 @pytest.mark.anyio
 async def test_asr_transcribe_runs_blocking_request_in_thread(monkeypatch):
     """ASR endpoint must keep blocking file/SDK work off the event loop."""

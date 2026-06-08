@@ -404,7 +404,7 @@ export function useVoiceAgent({
         },
       })
       kwsClientRef.current = kwsClient
-      await kwsClient.start(kw)
+      await kwsClient.start(kw, ttsVoice)
     } catch (err) {
       // Mic permission denied or other failure — graceful degradation
       console.warn("[KWS] Cannot start:", err)
@@ -413,6 +413,7 @@ export function useVoiceAgent({
     cancelPlaybackEndTimer,
     resetIdleTimer,
     setVoiceStateSync,
+    ttsVoice,
   ])
 
   /** Stop KWS listening */
@@ -535,7 +536,7 @@ export function useVoiceAgent({
       kwsClientRef.current?.isActive &&
       wakeWordsRef.current.length
     ) {
-      kwsClientRef.current.updateKeywords(wakeWordsRef.current)
+      kwsClientRef.current.updateKeywords(wakeWordsRef.current, ttsVoice)
       kwsClientRef.current.setMode("kws")
       setVoiceStateSync("kws")
       return
@@ -557,6 +558,7 @@ export function useVoiceAgent({
     startKwsListening,
     requestNativeVoiceExit,
     setVoiceStateSync,
+    ttsVoice,
   ])
 
   /** Interrupt TTS and agent response when user speaks during playback */
@@ -1261,7 +1263,7 @@ export function useVoiceAgent({
       if (voiceStateRef.current === "idle") {
         startKwsListening()
       } else if (voiceStateRef.current === "kws") {
-        kwsClientRef.current?.updateKeywords(wakeWordsRef.current)
+        kwsClientRef.current?.updateKeywords(wakeWordsRef.current, ttsVoice)
       }
     }
 
@@ -1275,6 +1277,7 @@ export function useVoiceAgent({
     wakeWordsKey,
     isNativeVoiceProvider,
     isSupported,
+    ttsVoice,
     startKwsListening,
     stopKwsListening,
   ])

@@ -66,6 +66,14 @@ WAKE_ACK_PURPOSE = "wake_ack"
 # ---------------------------------------------------------------------------
 
 
+def _coerce_tts_voice(value: Any) -> str | None:
+    """Return a non-empty TTS voice id from a client config value."""
+    if not isinstance(value, str):
+        return None
+    voice = value.strip()
+    return voice or None
+
+
 def _get_dashscope_key() -> str:
     """Retrieve DASHSCOPE_API_KEY from environment."""
     key = os.environ.get("DASHSCOPE_API_KEY", "").strip()
@@ -773,6 +781,11 @@ async def voice_session(websocket: WebSocket) -> None:
                 continue
 
             next_keywords = payload.get("keywords", [])
+            next_tts_voice = _coerce_tts_voice(
+                payload.get("ttsVoice", payload.get("tts_voice"))
+            )
+            if next_tts_voice:
+                tts_voice = next_tts_voice
             if not isinstance(next_keywords, list):
                 await send_json({
                     "type": "error",

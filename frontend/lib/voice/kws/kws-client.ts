@@ -66,6 +66,7 @@ export class KwsClient {
   private sourceNode: MediaStreamAudioSourceNode | null = null
   private callbacks: KwsCallbacks
   private keywords: string[] = []
+  private ttsVoice: string | null = null
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private intentionalStop = false
@@ -80,12 +81,13 @@ export class KwsClient {
    * Start KWS listening.
    * Requests microphone access, sets up AudioWorklet, and opens WebSocket.
    */
-  async start(keywords: string[]): Promise<void> {
+  async start(keywords: string[], ttsVoice?: string | null): Promise<void> {
     this.stop()
 
     if (!keywords.length) return
 
     this.keywords = keywords
+    this.ttsVoice = ttsVoice || null
     this.intentionalStop = false
     this.reconnectAttempts = 0
     this.isStarting = true
@@ -115,8 +117,9 @@ export class KwsClient {
   }
 
   /** Update wake words without restarting microphone capture when connected. */
-  updateKeywords(keywords: string[]): void {
+  updateKeywords(keywords: string[], ttsVoice?: string | null): void {
     this.keywords = keywords
+    this.ttsVoice = ttsVoice || null
 
     if (!keywords.length) {
       this.stop()
@@ -125,7 +128,11 @@ export class KwsClient {
 
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(
-        JSON.stringify({ type: "config", keywords: this.keywords }),
+        JSON.stringify({
+          type: "config",
+          keywords: this.keywords,
+          ttsVoice: this.ttsVoice,
+        }),
       )
     }
   }
@@ -213,7 +220,11 @@ export class KwsClient {
         }
         // Send config message with keywords
         ws.send(
-          JSON.stringify({ type: "config", keywords: this.keywords }),
+          JSON.stringify({
+            type: "config",
+            keywords: this.keywords,
+            ttsVoice: this.ttsVoice,
+          }),
         )
         ws.send(JSON.stringify({ type: "mode", mode: "kws" }))
 
