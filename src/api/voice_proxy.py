@@ -57,6 +57,8 @@ voice_router = APIRouter()
 
 VOICE_MODE_KWS = "kws"
 VOICE_MODE_ASR = "asr"
+WAKE_ACK_TEXT = os.environ.get("WAKE_ACK_TEXT", "我在")
+WAKE_ACK_PURPOSE = "wake_ack"
 
 
 # ---------------------------------------------------------------------------
@@ -449,10 +451,20 @@ async def _send_asr_segments(
     api_key: str,
     model: str,
     wav_segments: list[bytes],
+    send_lock: asyncio.Lock | None = None,
 ) -> None:
     """Transcribe completed VAD segments and send transcript messages."""
+
+    async def send_json(payload: dict[str, Any]) -> None:
+        if send_lock is None:
+            await websocket.send_json(payload)
+            return
+
+        async with send_lock:
+            await websocket.send_json(payload)
+
     for wav_bytes in wav_segments:
-        await websocket.send_json({"type": "transcribing", "mode": VOICE_MODE_ASR})
+        await send_json({"type": "transcribing", "mode": VOICE_MODE_ASR})
         try:
             response: Any = await asyncio.to_thread(
                 _call_dashscope_asr,
@@ -462,7 +474,7 @@ async def _send_asr_segments(
             )
             result = _parse_asr_response(response)
         except HTTPException as exc:
-            await websocket.send_json({
+            await send_json({
                 "type": "error",
                 "mode": VOICE_MODE_ASR,
                 "message": str(exc.detail),
@@ -470,20 +482,114 @@ async def _send_asr_segments(
             continue
         except Exception as exc:
             logger.error("Voice session ASR transcription failed: %s", exc)
-            await websocket.send_json({
+            await send_json({
                 "type": "error",
                 "mode": VOICE_MODE_ASR,
                 "message": f"ASR transcription failed: {exc}",
             })
             continue
 
-        await websocket.send_json({
+        await send_json({
             "type": "transcript",
             "mode": VOICE_MODE_ASR,
             "text": result.text,
             "language": result.language,
             "duration_seconds": result.duration_seconds,
         })
+
+
+async def _send_wake_ack_tts(
+    websocket: WebSocket,
+    *,
+    text: str,
+    voice: str,
+    send_lock: asyncio.Lock,
+) -> None:
+    """Synthesize and stream the short wake acknowledgement over session WS."""
+    if not text.strip():
+        return
+
+    try:
+        headers = _upstream_headers()
+    except RuntimeError as exc:
+        logger.warning("Wake acknowledgement TTS skipped: %s", exc)
+        return
+
+    tts_model = os.environ.get(
+        "TTS_MODEL", "qwen3-tts-instruct-flash-realtime"
+    )
+    upstream_url = f"{DASHSCOPE_WS_BASE}?model={tts_model}"
+
+    async def send_json(payload: dict[str, Any]) -> None:
+        async with send_lock:
+            await websocket.send_json(payload)
+
+    try:
+        async with websockets.connect(
+            upstream_url,
+            additional_headers=headers,
+        ) as upstream:
+            event_id = f"wake_ack_{int(asyncio.get_running_loop().time() * 1000)}"
+            await upstream.send(json.dumps({
+                "type": "session.update",
+                "event_id": f"{event_id}_session",
+                "session": {
+                    "voice": voice,
+                    "response_format": "pcm",
+                    "sample_rate": 24000,
+                    "mode": "server_commit",
+                },
+            }))
+            await upstream.send(json.dumps({
+                "type": "input_text_buffer.append",
+                "event_id": f"{event_id}_append",
+                "text": text,
+            }))
+            await upstream.send(json.dumps({
+                "type": "session.finish",
+                "event_id": f"{event_id}_finish",
+            }))
+
+            await send_json({
+                "type": "tts_start",
+                "purpose": WAKE_ACK_PURPOSE,
+                "text": text,
+                "sample_rate": 24000,
+                "format": "pcm",
+            })
+
+            async for raw_message in upstream:
+                if not isinstance(raw_message, str):
+                    continue
+                try:
+                    message = json.loads(raw_message)
+                except json.JSONDecodeError:
+                    continue
+
+                message_type = message.get("type")
+                if message_type == "response.audio.delta":
+                    delta = message.get("delta")
+                    if isinstance(delta, str) and delta:
+                        await send_json({
+                            "type": "tts_audio",
+                            "purpose": WAKE_ACK_PURPOSE,
+                            "format": "pcm",
+                            "sample_rate": 24000,
+                            "delta": delta,
+                        })
+                elif message_type == "session.finished":
+                    break
+                elif message_type == "error":
+                    error = message.get("error")
+                    logger.warning("Wake acknowledgement TTS error: %s", error)
+                    break
+
+            await send_json({
+                "type": "tts_done",
+                "purpose": WAKE_ACK_PURPOSE,
+            })
+    except Exception as exc:
+        logger.warning("Wake acknowledgement TTS failed: %s", exc)
 
 
 @voice_router.websocket("/ws/voice/session")
@@ -507,8 +613,56 @@ async def voice_session(websocket: WebSocket) -> None:
     vad_session: StreamingVadSession | None = None
     mode = VOICE_MODE_KWS
     model = os.environ.get("ASR_MODEL", "qwen3-asr-flash")
+    tts_voice = os.environ.get("TTS_VOICE", "Cherry")
+    send_lock = asyncio.Lock()
+    wake_ack_tasks: set[asyncio.Task[None]] = set()
+    preroll_audio = bytearray()
+    preroll_max_bytes = VAD_SAMPLE_RATE * 2 * 2
 
-    await websocket.send_json({
+    async def send_json(payload: dict[str, Any]) -> None:
+        async with send_lock:
+            await websocket.send_json(payload)
+
+    def append_preroll(audio_bytes: bytes) -> None:
+        nonlocal preroll_audio
+        if not audio_bytes:
+            return
+        preroll_audio.extend(audio_bytes)
+        if len(preroll_audio) > preroll_max_bytes:
+            preroll_audio = preroll_audio[-preroll_max_bytes:]
+
+    async def ensure_asr_session() -> bool:
+        nonlocal api_key, vad_session, mode
+        if api_key is not None and vad_session is not None:
+            mode = VOICE_MODE_ASR
+            return True
+
+        try:
+            api_key = _get_dashscope_key()
+            vad_session = await asyncio.to_thread(StreamingVadSession)
+            mode = VOICE_MODE_ASR
+            return True
+        except RuntimeError as exc:
+            await send_json({
+                "type": "error",
+                "mode": VOICE_MODE_ASR,
+                "message": str(exc),
+            })
+        except Exception as exc:
+            logger.error("Failed to initialize voice session VAD: %s", exc)
+            await send_json({
+                "type": "error",
+                "mode": VOICE_MODE_ASR,
+                "message": (
+                    "Failed to initialize voice activity detection: "
+                    f"{exc}"
+                ),
+            })
+
+        mode = VOICE_MODE_KWS
+        return False
+
+    await send_json({
         "type": "ready",
         "mode": mode,
         "kws": spotter is not None,
@@ -523,9 +677,10 @@ async def voice_session(websocket: WebSocket) -> None:
 
             audio_bytes = message.get("bytes")
             if audio_bytes is not None:
+                append_preroll(audio_bytes)
                 if mode == VOICE_MODE_ASR:
                     if api_key is None or vad_session is None:
-                        await websocket.send_json({
+                        await send_json({
                             "type": "error",
                             "mode": VOICE_MODE_ASR,
                             "message": "ASR is not initialized",
@@ -533,7 +688,7 @@ async def voice_session(websocket: WebSocket) -> None:
                         continue
                     speech_started, wav_segments = vad_session.accept_audio(audio_bytes)
                     if speech_started:
-                        await websocket.send_json({
+                        await send_json({
                             "type": "speech_start",
                             "mode": VOICE_MODE_ASR,
                         })
@@ -542,6 +697,7 @@ async def voice_session(websocket: WebSocket) -> None:
                         api_key=api_key,
                         model=model,
                         wav_segments=wav_segments,
+                        send_lock=send_lock,
                     )
                 elif spotter is not None and kws_stream is not None:
                     detected = await asyncio.to_thread(
@@ -549,11 +705,39 @@ async def voice_session(websocket: WebSocket) -> None:
                     )
                     if detected:
                         logger.info("Voice session KWS detection: '%s'", detected)
-                        await websocket.send_json({
+                        await send_json({
                             "type": "detection",
                             "mode": VOICE_MODE_KWS,
                             "keyword": detected,
                         })
+                        if await ensure_asr_session():
+                            await send_json({"type": "mode", "mode": mode})
+                            if vad_session is not None and preroll_audio:
+                                speech_started, wav_segments = vad_session.accept_audio(
+                                    bytes(preroll_audio)
+                                )
+                                if speech_started:
+                                    await send_json({
+                                        "type": "speech_start",
+                                        "mode": VOICE_MODE_ASR,
+                                    })
+                                await _send_asr_segments(
+                                    websocket,
+                                    api_key=api_key or "",
+                                    model=model,
+                                    wav_segments=wav_segments,
+                                    send_lock=send_lock,
+                                )
+                            task = asyncio.create_task(
+                                _send_wake_ack_tts(
+                                    websocket,
+                                    text=WAKE_ACK_TEXT,
+                                    voice=tts_voice,
+                                    send_lock=send_lock,
+                                )
+                            )
+                            wake_ack_tasks.add(task)
+                            task.add_done_callback(wake_ack_tasks.discard)
                 continue
 
             text = message.get("text")
@@ -563,7 +747,7 @@ async def voice_session(websocket: WebSocket) -> None:
             try:
                 payload = json.loads(text)
             except json.JSONDecodeError:
-                await websocket.send_json({
+                await send_json({
                     "type": "error",
                     "message": "Invalid JSON control message",
                 })
@@ -573,37 +757,16 @@ async def voice_session(websocket: WebSocket) -> None:
             if payload_type == "mode":
                 next_mode = payload.get("mode")
                 if next_mode not in {VOICE_MODE_KWS, VOICE_MODE_ASR}:
-                    await websocket.send_json({
+                    await send_json({
                         "type": "error",
                         "message": "Invalid voice mode",
                     })
                     continue
                 mode = next_mode
                 if mode == VOICE_MODE_ASR:
-                    try:
-                        api_key = _get_dashscope_key()
-                        vad_session = await asyncio.to_thread(StreamingVadSession)
-                    except RuntimeError as exc:
-                        await websocket.send_json({
-                            "type": "error",
-                            "mode": VOICE_MODE_ASR,
-                            "message": str(exc),
-                        })
-                        mode = VOICE_MODE_KWS
+                    if not await ensure_asr_session():
                         continue
-                    except Exception as exc:
-                        logger.error("Failed to initialize voice session VAD: %s", exc)
-                        await websocket.send_json({
-                            "type": "error",
-                            "mode": VOICE_MODE_ASR,
-                            "message": (
-                                "Failed to initialize voice activity detection: "
-                                f"{exc}"
-                            ),
-                        })
-                        mode = VOICE_MODE_KWS
-                        continue
-                await websocket.send_json({"type": "mode", "mode": mode})
+                await send_json({"type": "mode", "mode": mode})
                 continue
 
             if payload_type != "config":
@@ -611,7 +774,7 @@ async def voice_session(websocket: WebSocket) -> None:
 
             next_keywords = payload.get("keywords", [])
             if not isinstance(next_keywords, list):
-                await websocket.send_json({
+                await send_json({
                     "type": "error",
                     "mode": VOICE_MODE_KWS,
                     "message": "keywords must be a list",
@@ -625,7 +788,7 @@ async def voice_session(websocket: WebSocket) -> None:
                     if loading_task and not loading_task.done()
                     else "KWS model not available on server"
                 )
-                await websocket.send_json({
+                await send_json({
                     "type": "error",
                     "mode": VOICE_MODE_KWS,
                     "message": message_text,
@@ -636,7 +799,7 @@ async def voice_session(websocket: WebSocket) -> None:
                 spotter, keyword_processor, [str(item) for item in next_keywords]
             )
             if next_stream is None or not keywords_string:
-                await websocket.send_json({
+                await send_json({
                     "type": "error",
                     "mode": VOICE_MODE_KWS,
                     "message": "Failed to process keywords",
@@ -650,7 +813,7 @@ async def voice_session(websocket: WebSocket) -> None:
                 kws_keywords,
                 keywords_string[:100],
             )
-            await websocket.send_json({
+            await send_json({
                 "type": "config",
                 "mode": VOICE_MODE_KWS,
                 "keywords": kws_keywords,
@@ -660,13 +823,16 @@ async def voice_session(websocket: WebSocket) -> None:
     except Exception as exc:
         logger.error("Voice session WebSocket error: %s", exc, exc_info=True)
         try:
-            await websocket.send_json({
+            await send_json({
                 "type": "error",
                 "message": f"Voice session failed: {exc}",
             })
             await websocket.close(code=1011, reason="Voice session failed")
         except Exception:
             pass
+    finally:
+        for task in wake_ack_tasks:
+            task.cancel()
 
 
 # ---------------------------------------------------------------------------
