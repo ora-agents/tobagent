@@ -32,6 +32,18 @@ const RECONNECT_BASE_DELAY_MS = 1000
 export interface KwsCallbacks {
   /** Wake word detected */
   onDetection: (keyword: string) => void
+  /** Backend voice mode changed */
+  onMode?: (mode: "kws" | "asr") => void
+  /** Backend VAD detected speech start */
+  onSpeechStart?: () => void
+  /** Backend started transcribing a completed speech segment */
+  onTranscribing?: () => void
+  /** Backend ASR produced final transcript */
+  onTranscript?: (text: string) => void
+  /** Backend TTS audio chunk for short session sounds */
+  onTtsAudio?: (purpose: string, pcmBase64: string) => void
+  /** Backend TTS stream finished */
+  onTtsDone?: (purpose: string) => void
   /** Connection error or server error */
   onError?: (error: string) => void
   /** WebSocket connected and streaming */
@@ -115,6 +127,13 @@ export class KwsClient {
       this.ws.send(
         JSON.stringify({ type: "config", keywords: this.keywords }),
       )
+    }
+  }
+
+  /** Switch how the unified backend session handles subsequent audio frames. */
+  setMode(mode: "kws" | "asr"): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: "mode", mode }))
     }
   }
 
@@ -228,6 +247,29 @@ export class KwsClient {
           if (msg.type === "detection") {
             console.log("[KWS] Detection event:", msg.keyword)
             this.callbacks.onDetection(msg.keyword)
+          } else if (msg.type === "mode") {
+            if (msg.mode === "kws" || msg.mode === "asr") {
+              this.callbacks.onMode?.(msg.mode)
+            }
+          } else if (msg.type === "speech_start") {
+            this.callbacks.onSpeechStart?.()
+          } else if (msg.type === "transcribing") {
+            this.callbacks.onTranscribing?.()
+          } else if (msg.type === "transcript") {
+            if (typeof msg.text === "string") {
+              this.callbacks.onTranscript?.(msg.text)
+            }
+          } else if (msg.type === "tts_audio") {
+            if (
+              typeof msg.purpose === "string" &&
+              typeof msg.delta === "string"
+            ) {
+              this.callbacks.onTtsAudio?.(msg.purpose, msg.delta)
+            }
+          } else if (msg.type === "tts_done") {
+            if (typeof msg.purpose === "string") {
+              this.callbacks.onTtsDone?.(msg.purpose)
+            }
           } else if (msg.type === "error") {
             console.error("[KWS] Server error:", msg.message)
             this.callbacks.onError?.(msg.message)

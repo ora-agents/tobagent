@@ -121,6 +121,10 @@ type NativeVoiceEventPayload = {
   type?: unknown
   angle?: unknown
   text?: unknown
+  delta?: unknown
+  purpose?: unknown
+  sample_rate?: unknown
+  sampleRate?: unknown
   status?: unknown
   state?: unknown
   mode?: unknown
@@ -173,7 +177,6 @@ export function useVoiceAgent({
   const [currentTranscript, setCurrentTranscript] = useState("")
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [nativeWakeAckTick, setNativeWakeAckTick] = useState(0)
   const [nativeVoiceProvider, setNativeVoiceProvider] =
     useState<NativeVoiceProvider | null>(null)
   const isNativeVoiceProvider = nativeVoiceProvider === CSJ_NATIVE_VOICE_PROVIDER
@@ -216,6 +219,8 @@ export function useVoiceAgent({
 
   // Ref for enterVoiceMode to avoid stale closure in KWS callback
   const enterVoiceModeRef = useRef<() => void>(() => {})
+  const handleFinalTranscriptRef = useRef<(text: string) => void>(() => {})
+  const stopCurrentTtsRef = useRef<() => void>(() => {})
 
   // Refs for callbacks to avoid stale closures
   const onSendMessageRef = useRef(onSendMessage)
@@ -319,13 +324,71 @@ export function useVoiceAgent({
     try {
       const kwsClient = new KwsClient({
         onDetection: (_keyword) => {
-          // Wake word detected — stop KWS and enter full voice mode
-          if (kwsClientRef.current) {
-            kwsClientRef.current.stop()
-            kwsClientRef.current = null
+          // Backend keeps the same session open and switches it to ASR.
+          voiceSessionIdRef.current += 1
+          wakeAcknowledgementPendingRef.current = false
+          setError(null)
+          setCurrentTranscript("")
+          onInterimTranscriptRef.current?.("")
+          setAsrConnected(true)
+          setVoiceStateSync("listening")
+          resetIdleTimer()
+        },
+        onMode: (mode) => {
+          setAsrConnected(mode === "asr")
+          if (mode === "kws" && voiceStateRef.current !== "kws") {
+            setVoiceStateSync("kws")
           }
-          wakeAcknowledgementPendingRef.current = true
-          enterVoiceModeRef.current()
+        },
+        onSpeechStart: () => {
+          resetIdleTimer()
+          if (
+            voiceStateRef.current === "processing" ||
+            voiceStateRef.current === "speaking"
+          ) {
+            stopCurrentTtsRef.current()
+            onInterruptRef.current()
+            setVoiceStateSync("listening")
+          }
+        },
+        onTranscribing: () => {
+          setVoiceStateSync("transcribing")
+          setCurrentTranscript("...")
+          onInterimTranscriptRef.current?.("...")
+        },
+        onTranscript: (text) => {
+          handleFinalTranscriptRef.current(text)
+        },
+        onTtsAudio: (purpose, pcmBase64) => {
+          if (purpose !== "wake_ack") return
+          cancelPlaybackEndTimer()
+          if (!ttsPlayerRef.current) {
+            const player = new TtsPlayer({
+              onPlaybackStart: () => {
+                setIsSpeaking(true)
+                setVoiceStateSync("speaking")
+              },
+              onPlaybackEnd: () => {
+                setIsSpeaking(false)
+                if (voiceStateRef.current === "speaking") {
+                  setVoiceStateSync("listening")
+                  resetIdleTimer()
+                }
+              },
+            })
+            ttsPlayerRef.current = player
+          }
+          ttsPlayerRef.current?.init().then(() => {
+            ttsPlayerRef.current?.enqueueAudio(pcmBase64)
+          })
+        },
+        onTtsDone: (purpose) => {
+          if (purpose !== "wake_ack") return
+          if (!ttsPlayerRef.current?.playing && voiceStateRef.current === "speaking") {
+            setIsSpeaking(false)
+            setVoiceStateSync("listening")
+            resetIdleTimer()
+          }
         },
         onError: (err) => {
           console.warn("[KWS] Error:", err)
@@ -346,7 +409,11 @@ export function useVoiceAgent({
       // Mic permission denied or other failure — graceful degradation
       console.warn("[KWS] Cannot start:", err)
     }
-  }, [setVoiceStateSync]) // enterVoiceMode accessed via ref to avoid stale closure
+  }, [
+    cancelPlaybackEndTimer,
+    resetIdleTimer,
+    setVoiceStateSync,
+  ])
 
   /** Stop KWS listening */
   const stopKwsListening = useCallback(() => {
@@ -374,6 +441,10 @@ export function useVoiceAgent({
     setTtsConnected(false)
     ttsActiveRef.current = false
   }, [cancelPlaybackEndTimer])
+
+  useEffect(() => {
+    stopCurrentTtsRef.current = stopCurrentTts
+  }, [stopCurrentTts])
 
   const requestNativeVoiceExit = useCallback(() => {
     if (typeof window === "undefined") return
@@ -458,6 +529,18 @@ export function useVoiceAgent({
       requestNativeVoiceExit()
     }
 
+    if (
+      restartKws &&
+      !isNativeVoiceProviderRef.current &&
+      kwsClientRef.current?.isActive &&
+      wakeWordsRef.current.length
+    ) {
+      kwsClientRef.current.updateKeywords(wakeWordsRef.current)
+      kwsClientRef.current.setMode("kws")
+      setVoiceStateSync("kws")
+      return
+    }
+
     // Return to KWS listening if wake words configured, otherwise idle.
     // The Android WebView provider owns wake/ASR capture natively, so the web
     // app only keeps the passive KWS state and listens for native events.
@@ -522,115 +605,9 @@ export function useVoiceAgent({
     stopIdleTimer()
   }, [resetIdleTimer, setVoiceStateSync, stopCurrentTts, stopIdleTimer])
 
-  /** Speak a short acknowledgement immediately after KWS wakes voice mode. */
-  const speakWakeAcknowledgement = useCallback(async (sessionId: number) => {
-    const isCurrentSession = () => voiceSessionIdRef.current === sessionId
-
-    if (ttsClientRef.current) {
-      ttsClientRef.current.disconnect()
-      ttsClientRef.current = null
-    }
-
-    ttsStreamEndedRef.current = false
-    ttsActiveRef.current = true
-    setVoiceStateSync("speaking")
-
-    const finishAcknowledgement = () => {
-      if (!isCurrentSession()) return
-      ttsStreamEndedRef.current = true
-      ttsActiveRef.current = false
-
-      if (ttsClientRef.current) {
-        ttsClientRef.current.disconnect()
-        ttsClientRef.current = null
-      }
-
-      if (!ttsPlayerRef.current?.playing && voiceStateRef.current === "speaking") {
-        setIsSpeaking(false)
-        setVoiceStateSync("listening")
-        resetIdleTimer()
-      }
-    }
-
-    const ttsClient = new TtsClient({
-      onAudioChunk: (pcmBase64) => {
-        if (!isCurrentSession()) return
-        cancelPlaybackEndTimer()
-        if (!ttsPlayerRef.current) {
-          const player = new TtsPlayer({
-            onPlaybackStart: () => {
-              if (!isCurrentSession()) return
-              cancelPlaybackEndTimer()
-              setIsSpeaking(true)
-              setVoiceStateSync("speaking")
-            },
-            onPlaybackEnd: () => {
-              if (!isCurrentSession()) return
-              if (ttsStreamEndedRef.current) {
-                schedulePlaybackEndTransition()
-              }
-            },
-          })
-          ttsPlayerRef.current = player
-        }
-        ttsPlayerRef.current?.init().then(() => {
-          if (!isCurrentSession()) return
-          ttsPlayerRef.current?.enqueueAudio(pcmBase64)
-        })
-      },
-      onFinished: finishAcknowledgement,
-      onError: (errMsg) => {
-        if (!isCurrentSession()) return
-        console.warn("Wake acknowledgement TTS skipped:", errMsg)
-        finishAcknowledgement()
-      },
-      onConnected: () => {
-        if (!isCurrentSession()) return
-        setTtsConnected(true)
-      },
-      onDisconnected: () => {
-        if (!isCurrentSession()) return
-        setTtsConnected(false)
-      },
-    }, ttsVoice || undefined, { quiet: true })
-
-    ttsClientRef.current = ttsClient
-
-    try {
-      await ttsClient.connect()
-      if (!isCurrentSession()) {
-        ttsClient.disconnect()
-        return
-      }
-      ttsClient.appendText("我在")
-      ttsClient.finish()
-    } catch (err) {
-      if (!isCurrentSession()) return
-      console.warn("Wake acknowledgement TTS unavailable:", err)
-      finishAcknowledgement()
-    }
-  }, [
-    ttsVoice,
-    resetIdleTimer,
-    cancelPlaybackEndTimer,
-    setVoiceStateSync,
-  ])
-
   useEffect(() => {
-    if (!isNativeVoiceProvider) return
-    if (!wakeAcknowledgementPendingRef.current) return
-    if (!asrConnected) return
-    if (voiceState !== "listening" && voiceState !== "kws") return
-
-    wakeAcknowledgementPendingRef.current = false
-    void speakWakeAcknowledgement(voiceSessionIdRef.current)
-  }, [
-    asrConnected,
-    isNativeVoiceProvider,
-    nativeWakeAckTick,
-    speakWakeAcknowledgement,
-    voiceState,
-  ])
+    handleFinalTranscriptRef.current = handleFinalTranscript
+  }, [handleFinalTranscript])
 
   /** Start voice mode: set up audio capture, VAD, and ASR */
   const enterVoiceMode = useCallback(async () => {
@@ -793,12 +770,6 @@ export function useVoiceAgent({
       })
       ttsPlayerRef.current = ttsPlayer
 
-      const shouldSpeakWakeAcknowledgement = wakeAcknowledgementPendingRef.current
-      if (shouldSpeakWakeAcknowledgement) {
-        wakeAcknowledgementPendingRef.current = false
-        void speakWakeAcknowledgement(sessionId)
-      }
-
       // 8. Connect backend ASR/VAD stream
       await asrClient.connect()
       if (!isCurrentSession()) return
@@ -819,9 +790,7 @@ export function useVoiceAgent({
 
       // 11. Ready — transition to listening
       if (!isCurrentSession()) return
-      if (!shouldSpeakWakeAcknowledgement) {
-        setVoiceStateSync("listening")
-      }
+      setVoiceStateSync("listening")
       resetIdleTimer()
     } catch (err) {
       const msg =
@@ -841,7 +810,6 @@ export function useVoiceAgent({
     exitVoiceModeInternal,
     cancelPlaybackEndTimer,
     schedulePlaybackEndTransition,
-    speakWakeAcknowledgement,
     handleFinalTranscript,
     setVoiceStateSync,
   ])
@@ -1104,11 +1072,10 @@ export function useVoiceAgent({
         }
 
         voiceSessionIdRef.current += 1
-        wakeAcknowledgementPendingRef.current = true
+        wakeAcknowledgementPendingRef.current = false
         if (voiceStateRef.current === "idle" || voiceStateRef.current === "kws") {
           setVoiceStateSync("listening")
         }
-        setNativeWakeAckTick((tick) => tick + 1)
         resetIdleTimer()
         return
       }
@@ -1187,6 +1154,49 @@ export function useVoiceAgent({
         return
       }
 
+      if (payload.type === "tts_audio") {
+        const purpose =
+          typeof payload.purpose === "string" ? payload.purpose : ""
+        const delta = typeof payload.delta === "string" ? payload.delta : ""
+        if (purpose !== "wake_ack" || !delta) return
+
+        wakeAcknowledgementPendingRef.current = false
+        cancelPlaybackEndTimer()
+        if (!ttsPlayerRef.current) {
+          const player = new TtsPlayer({
+            onPlaybackStart: () => {
+              setIsSpeaking(true)
+              setVoiceStateSync("speaking")
+            },
+            onPlaybackEnd: () => {
+              setIsSpeaking(false)
+              if (voiceStateRef.current === "speaking") {
+                setVoiceStateSync("listening")
+                resetIdleTimer()
+              }
+            },
+          })
+          ttsPlayerRef.current = player
+        }
+        ttsPlayerRef.current?.init().then(() => {
+          ttsPlayerRef.current?.enqueueAudio(delta)
+        })
+        return
+      }
+
+      if (payload.type === "tts_done") {
+        const purpose =
+          typeof payload.purpose === "string" ? payload.purpose : ""
+        if (purpose !== "wake_ack") return
+        wakeAcknowledgementPendingRef.current = false
+        if (!ttsPlayerRef.current?.playing && voiceStateRef.current === "speaking") {
+          setIsSpeaking(false)
+          setVoiceStateSync("listening")
+          resetIdleTimer()
+        }
+        return
+      }
+
       if (payload.type === "error") {
         const message =
           typeof payload.message === "string" ? payload.message : "Native voice error"
@@ -1218,11 +1228,11 @@ export function useVoiceAgent({
       window.removeEventListener("nativeVoiceEvent", handleNativeVoiceEvent)
     }
   }, [
+    cancelPlaybackEndTimer,
     handleFinalTranscript,
     interruptAndListen,
     isNativeVoiceProvider,
     resetIdleTimer,
-    speakWakeAcknowledgement,
     stopIdleTimer,
     stopCurrentTts,
     setVoiceStateSync,
