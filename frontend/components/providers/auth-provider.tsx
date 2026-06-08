@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { LANGGRAPH_API_URL } from '@/lib/constants/api'
+import { useT } from '@/lib/i18n'
 
 // ============================================================================
 // Types & Interfaces
@@ -50,6 +51,7 @@ export function useAuth() {
 const USER_SESSION_KEY = 'chat-langchain-auth-user'
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const t = useT()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
@@ -89,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!resp.ok) {
         const data = await resp.json()
-        throw new Error(data.detail || 'Failed to login')
+        throw new Error(data.detail || t.loginFailed)
       }
 
       const loggedInUser = (await resp.json()) as User
@@ -98,12 +100,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info('[Auth] Login successful:', loggedInUser.username)
     } catch (err: any) {
       console.error('[Auth] Login error:', err)
-      setError(err.message || 'An error occurred during login')
+      setError(err.message || t.loginError)
       throw err
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t.loginError, t.loginFailed])
 
   // 3. Register function
   const register = useCallback(async (username: string, password: string, email?: string) => {
@@ -118,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!resp.ok) {
         const data = await resp.json()
-        throw new Error(data.detail || 'Registration failed')
+        throw new Error(data.detail || t.registrationFailed)
       }
 
       const registeredUser = (await resp.json()) as User
@@ -127,12 +129,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info('[Auth] Registration successful:', registeredUser.username)
     } catch (err: any) {
       console.error('[Auth] Registration error:', err)
-      setError(err.message || 'An error occurred during registration')
+      setError(err.message || t.registrationError)
       throw err
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t.registrationError, t.registrationFailed])
 
   // 4. Logout function
   const logout = useCallback(() => {
@@ -145,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = useCallback(async (
     data: Partial<Pick<User, 'username' | 'email' | 'preferences' | 'safetyEnabled'>>
   ): Promise<User> => {
-    if (!user) throw new Error('Not logged in')
+    if (!user) throw new Error(t.notLoggedIn)
     setLoading(true)
     setError(null)
     try {
@@ -157,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (!resp.ok) {
-        let detail = `Server error (${resp.status})`
+        let detail = `${t.serverError} (${resp.status})`
         try {
           const errData = await resp.json()
           detail = errData.detail || detail
@@ -174,12 +176,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return updatedUser
     } catch (err: any) {
       console.error('[Auth] Profile update error:', err)
-      setError(err.message || 'An error occurred while updating profile')
+      setError(err.message || t.profileUpdateError)
       throw err
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [user, t.notLoggedIn, t.profileUpdateError, t.serverError])
 
   // Compute final userId. Anonymous access is intentionally disabled.
   const userId = user ? user.id : null
