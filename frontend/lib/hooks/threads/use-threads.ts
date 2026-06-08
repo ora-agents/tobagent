@@ -5,7 +5,7 @@
  * - Fetches threads filtered by user ID
  * - Supports CRUD operations (create, read, update, delete)
  * - Implements optimistic updates for better UX
- * - Auto-filters empty threads (except the most recent)
+ * - Loads all persisted threads returned by the backend
  */
 
 'use client'
@@ -66,7 +66,6 @@ export interface Thread {
  *
  * Features:
  * - Auto-loads threads when userId is available
- * - Filters out empty threads (except most recent)
  * - Optimistic updates for instant UI feedback
  * - Server-side storage via LangGraph
  *
@@ -89,7 +88,6 @@ export function useThreads(userId: string | undefined) {
 
   /**
    * Fetch all threads for a specific user from LangGraph backend.
-   * Filters out empty threads except the most recent one.
    * 
    * @param id - User ID to fetch threads for
    * @param silent - If true, skip setting loading state (for background refetches)
@@ -111,20 +109,7 @@ export function useThreads(userId: string | undefined) {
 
       logger.info('Fetched threads:', userThreads.length)
 
-      if (userThreads.length > 0) {
-        // Keep the last thread even if empty (user might be actively using it)
-        const lastThread = userThreads[0]
-        const otherThreads = userThreads.slice(1)
-
-        // Filter out empty threads (no messages) except the most recent one
-        const filteredThreads = otherThreads.filter(
-          (thread) => thread.values && Object.keys(thread.values).length > 0,
-        )
-
-        setThreads([lastThread, ...filteredThreads])
-      } else {
-        setThreads([])
-      }
+      setThreads(userThreads)
     } catch (error) {
       logger.error('Error fetching threads:', error)
       setThreads([])
