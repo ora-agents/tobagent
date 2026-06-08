@@ -4,6 +4,8 @@
 
 This repository contains a LangGraph documentation agent with a Next.js chat UI. Backend code lives in `src/`: `src/agent/` defines graph and agent configuration, `src/api/` exposes FastAPI/LangGraph endpoints, `src/tools/` contains agent tools, `src/middleware/` holds runtime middleware, and `src/prompts/` stores prompts. Tests are under `tests/unit/` and `tests/evals/`. The frontend is in `frontend/`, with routes in `frontend/app/`, React components in `frontend/components/`, client logic in `frontend/lib/`, and browser assets in `frontend/public/`. Domain documents and local model artifacts live in `assets/` and `models/`.
 
+安卓软件地址：C:\Users\wrsi\Documents\wsrtobandroid
+
 ## Build, Test, and Development Commands
 
 - `make install` installs backend dependencies with `uv` and frontend dependencies with Bun.
