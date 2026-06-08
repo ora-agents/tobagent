@@ -76,6 +76,16 @@ elif command -v powershell >/dev/null 2>&1; then \
 	powershell -NoProfile -ExecutionPolicy Bypass -Command '& { $$port = [int]$($(1)); $$conns = @(Get-NetTCPConnection -LocalPort $$port -State Listen -ErrorAction SilentlyContinue); $$ownerIds = @($$conns | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $$_ -gt 0 }); foreach ($$ownerId in $$ownerIds) { $$children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$$ownerId" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ProcessId); $$targets = @($$ownerId) + $$children | Select-Object -Unique; foreach ($$target in $$targets) { try { Stop-Process -Id $$target -Force -ErrorAction Stop; Write-Host "Stopped $(2) service on port $$port (PID $$target)." } catch {} } } }'; \
 else \
 	echo "Warning: cannot automatically clear port $($(1)); install lsof or PowerShell."; \
+	fi
+endef
+
+define stop_backend_processes
+@pids=$$(ps -eo pid=,args= | awk '/[u]vicorn aegra_api[.]main:app --host $(BACKEND_HOST) --port $(BACKEND_PORT)/ { print $$1 }' | sort -u); \
+if [ -n "$$pids" ]; then \
+	echo "Stopping stale backend process(es) on port $(BACKEND_PORT) (PID $$pids)."; \
+	kill $$pids 2>/dev/null || true; \
+	sleep 1; \
+	kill -9 $$pids 2>/dev/null || true; \
 fi
 endef
 
@@ -89,6 +99,7 @@ check-ports: check-backend-port check-frontend-port
 
 stop-backend-port:
 	$(call stop_port,BACKEND_PORT,Backend)
+	$(call stop_backend_processes)
 
 stop-frontend-port:
 	$(call stop_port,FRONTEND_PORT,Frontend)
