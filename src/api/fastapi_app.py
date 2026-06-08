@@ -806,6 +806,9 @@ async def delete_robot_point(
 async def robot_sse(clientId: str = "robot-display"):
     async def event_stream():
         async for event in register_robot_client(clientId.strip() or "robot-display"):
+            if event.get("type") == "heartbeat":
+                yield f": heartbeat {event.get('timestamp')}\n\n"
+                continue
             yield f"event: {event.get('type', 'message')}\n"
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 

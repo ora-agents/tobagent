@@ -26,6 +26,7 @@ class PendingRobotCommand:
 _robot_clients: dict[str, asyncio.Queue[dict[str, Any]]] = {}
 _pending_commands: dict[str, PendingRobotCommand] = {}
 _lock = asyncio.Lock()
+ROBOT_SSE_HEARTBEAT_INTERVAL_SECONDS = 25.0
 
 
 def _format_point(point: RobotPointTable) -> str:
@@ -59,7 +60,17 @@ async def register_robot_client(client_id: str) -> AsyncIterator[dict[str, Any]]
             "timestamp": int(time.time() * 1000),
         }
         while True:
-            yield await queue.get()
+            try:
+                yield await asyncio.wait_for(
+                    queue.get(),
+                    timeout=ROBOT_SSE_HEARTBEAT_INTERVAL_SECONDS,
+                )
+            except TimeoutError:
+                yield {
+                    "type": "heartbeat",
+                    "clientId": client_id,
+                    "timestamp": int(time.time() * 1000),
+                }
     finally:
         async with _lock:
             if _robot_clients.get(client_id) is queue:
