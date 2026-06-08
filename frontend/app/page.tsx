@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useState, useEffect, useRef, useMemo } from "react"
+import Image from "next/image"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -8,7 +9,7 @@ import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
-import { AuthDialog } from "@/components/layout/auth-dialog"
+import { AuthPanel } from "@/components/layout/auth-panel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -160,7 +161,7 @@ function DashboardContent() {
     fetchAvailableModels().then(setAvailableModels)
   }, [])
 
-  // Load threads from LangGraph backend
+  // Load account-scoped conversation threads.
   const {
     threads,
     isLoading: threadsLoading,
@@ -483,8 +484,83 @@ function DashboardContent() {
 
   if (!user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <AuthDialog open={true} onOpenChange={() => {}} />
+      <div className="h-screen overflow-hidden bg-background text-foreground">
+        <div className="relative mx-auto grid h-full w-full max-w-7xl grid-cols-1 lg:grid-cols-[1fr_0.9fr]">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -left-28 top-16 h-72 w-72 rounded-full bg-[#164199]/10 blur-[96px]" />
+            <div className="absolute right-10 top-1/3 h-64 w-64 rounded-full bg-primary/10 blur-[96px]" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(22,65,153,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(204,120,92,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_70%_60%_at_35%_40%,#000_45%,transparent_100%)]" />
+          </div>
+
+          <main className="relative hidden min-h-0 flex-col justify-between px-6 py-7 sm:px-10 lg:flex lg:px-14 lg:py-10">
+            <div className="flex items-center gap-3">
+              <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" />
+              <div>
+                <div className="text-sm font-medium tracking-tight">{t.loginBrandName}</div>
+                <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>
+              </div>
+            </div>
+
+            <section className="max-w-2xl py-8">
+              <div className="mb-5 inline-flex rounded-full border border-border bg-[#efe9de] px-3 py-1.5 text-xs font-medium tracking-[0.12em] text-muted-foreground dark:bg-card">
+                {t.loginBadge}
+              </div>
+              <h1 className="font-display text-[4.8rem] font-medium leading-[0.95] tracking-[-0.045em] text-foreground">
+                {t.loginHeadline}
+              </h1>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
+                {t.loginDescription}
+              </p>
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-3">
+              {[
+                [t.loginMetricScene, t.loginMetricSceneDesc],
+                [t.loginMetricKnowledge, t.loginMetricKnowledgeDesc],
+                [t.loginMetricTools, t.loginMetricToolsDesc],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-xl border border-border bg-[#efe9de] p-4 dark:bg-card">
+                  <div className="font-mono text-xs text-primary">{label}</div>
+                  <div className="mt-2 text-sm text-muted-foreground">{value}</div>
+                </div>
+              ))}
+            </section>
+          </main>
+
+          <aside className="relative flex min-h-0 items-center justify-center px-5 py-5 sm:px-8 lg:px-12 lg:py-10">
+            <div className="absolute inset-y-10 left-0 hidden w-px bg-border lg:block" />
+            <div className="w-full max-w-[31rem] space-y-4">
+              <div className="flex items-center gap-3 lg:hidden">
+                <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" />
+                <div>
+                  <div className="text-sm font-medium">{t.loginBrandName}</div>
+                  <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>
+                </div>
+              </div>
+
+              <div className="hidden rounded-2xl bg-[#181715] p-5 text-[#faf9f5] shadow-depth-lg sm:block">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#164199]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#5db8a6]" />
+                  </div>
+                  <span className="font-mono text-xs text-[#a09d96]">{t.loginConsoleTitle}</span>
+                </div>
+                <div className="rounded-xl bg-[#1f1e1b] p-4 font-mono text-xs leading-6 text-[#a09d96]">
+                  <div>{t.loginConsoleIdentity}</div>
+                  <div>{t.loginConsoleKnowledge}</div>
+                  <div>{t.loginConsoleAction}</div>
+                  <div className="mt-3 rounded-lg bg-[#252320] px-3 py-2 text-[#faf9f5]">
+                    {t.loginConsoleStatus}
+                  </div>
+                </div>
+              </div>
+
+              <AuthPanel open={true} onOpenChange={() => {}} inline />
+            </div>
+          </aside>
+        </div>
       </div>
     )
   }

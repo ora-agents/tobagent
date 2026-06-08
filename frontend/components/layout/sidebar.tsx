@@ -10,7 +10,7 @@ import type { Thread } from "@/lib/hooks/threads"
 import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/components/providers/auth-provider"
-import { AuthDialog } from "./auth-dialog"
+import { AuthPanel } from "./auth-panel"
 
 const scrollbarStyles = `
   .custom-scrollbar {
@@ -552,7 +552,7 @@ export const Sidebar = memo(function Sidebar({
         <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => onViewChange?.("settings")} />
       </div>
 
-      <AuthDialog open={isAuthOpen} onOpenChange={setIsAuthOpen} />
+      <AuthPanel open={isAuthOpen} onOpenChange={setIsAuthOpen} />
     </aside>
     </>
   )
