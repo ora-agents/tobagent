@@ -260,6 +260,12 @@
   min-width: 2.75rem;
 }
 
+.elder-optimized-ui .chat-message-textarea {
+  min-height: 1.55em !important;
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+}
+
 
 /* ============================================================
    Markdown prose — light defaults, dark overrides

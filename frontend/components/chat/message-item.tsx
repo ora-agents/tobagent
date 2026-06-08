@@ -437,7 +437,7 @@ export const MessageItem = memo(function MessageItem({
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   onKeyDown={handleEditKeyDown}
-                  className="min-h-0 w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                  className="chat-message-textarea min-h-0 w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                   rows={1}
                 />
               </div>
