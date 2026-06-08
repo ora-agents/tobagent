@@ -87,14 +87,14 @@ export function UserSettingsPage({ onBackToChat, elderOptimized, onElderOptimize
   const zh = locale === "zh"
   const switchSize = elderOptimized
     ? {
-        track: "h-8 w-14",
-        knob: "h-7 w-7",
+        track: "h-[32px] min-h-[32px] w-[56px] min-w-[56px]",
+        knob: "h-[28px] min-h-[28px] w-[28px] min-w-[28px]",
         knobOn: "translate-x-[26px]",
         knobOff: "translate-x-[2px]",
       }
     : {
-        track: "h-[22px] w-10",
-        knob: "h-[18px] w-[18px]",
+        track: "h-[22px] min-h-[22px] w-[40px] min-w-[40px]",
+        knob: "h-[18px] min-h-[18px] w-[18px] min-w-[18px]",
         knobOn: "translate-x-[20px]",
         knobOff: "translate-x-[2px]",
       }
