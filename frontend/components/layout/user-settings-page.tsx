@@ -222,11 +222,11 @@ export function UserSettingsPage({ onBackToChat, elderOptimized, onElderOptimize
                 </div>
               )}
 
-              {/* Elder Optimized Display Section */}
+              {/* Optimized Display Section */}
               <div className={`${elderOptimized ? "space-y-5 rounded-xl p-6" : "space-y-4 rounded-xl p-5"} border border-primary/20 bg-primary/5`}>
                 <h3 className={`${elderOptimized ? "text-base" : "text-xs uppercase tracking-wider"} font-bold text-muted-foreground flex items-center gap-1.5`}>
                   <Accessibility className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} text-primary`} />
-                  {zh ? "老人优化显示" : "Senior-friendly Display"}
+                  {zh ? "优化显示" : "Optimized Display"}
                 </h3>
 
                 <button
@@ -238,12 +238,12 @@ export function UserSettingsPage({ onBackToChat, elderOptimized, onElderOptimize
                 >
                   <div className="flex-shrink-0 mt-0.5">
                     <div
-                      className={`relative rounded-full transition-colors duration-200 ${switchSize.track} ${
+                      className={`relative overflow-hidden rounded-full transition-colors duration-200 ${switchSize.track} ${
                         elderOptimized ? "bg-primary" : "bg-muted-foreground/30"
                       }`}
                     >
                       <div
-                        className={`absolute top-[2px] rounded-full bg-white shadow-sm transition-transform duration-200 ${switchSize.knob} ${
+                        className={`absolute left-0 top-[2px] rounded-full bg-white shadow-sm transition-transform duration-200 ${switchSize.knob} ${
                           elderOptimized ? switchSize.knobOn : switchSize.knobOff
                         }`}
                       />
@@ -363,12 +363,12 @@ export function UserSettingsPage({ onBackToChat, elderOptimized, onElderOptimize
                   {/* Toggle Switch */}
                   <div className="flex-shrink-0 mt-0.5">
                     <div
-                      className={`relative rounded-full transition-colors duration-200 ${switchSize.track} ${
+                      className={`relative overflow-hidden rounded-full transition-colors duration-200 ${switchSize.track} ${
                         safetyEnabled ? "bg-primary" : "bg-muted-foreground/30"
                       }`}
                     >
                       <div
-                        className={`absolute top-[2px] rounded-full bg-white shadow-sm transition-transform duration-200 ${switchSize.knob} ${
+                        className={`absolute left-0 top-[2px] rounded-full bg-white shadow-sm transition-transform duration-200 ${switchSize.knob} ${
                           safetyEnabled ? switchSize.knobOn : switchSize.knobOff
                         }`}
                       />
