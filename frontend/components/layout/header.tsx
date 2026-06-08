@@ -1,9 +1,10 @@
 "use client"
 
-import { Settings } from "lucide-react"
+import { LoaderCircle, Plus, Settings } from "lucide-react"
 import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
+import { cn } from "@/lib/utils"
 
 interface HeaderProps {
   showToolCalls?: boolean
@@ -15,6 +16,11 @@ interface HeaderProps {
   forceShowTooltip?: number
   /** Currently selected custom agent profile (null = default docs agent). */
   selectedAgentProfile?: AgentProfile | null
+  agentProfiles?: AgentProfile[]
+  agentProfilesLoaded?: boolean
+  selectedAgentProfileId?: string | null
+  onAgentProfileChange?: (id: string | null) => void
+  onCreateAgent?: () => void
   /** Callback to open agent profiles configuration dialog. */
   onOpenAgentSettings?: () => void
 }
@@ -28,27 +34,81 @@ export function Header({
   onShowShortcuts,
   forceShowTooltip,
   selectedAgentProfile,
+  agentProfiles = [],
+  agentProfilesLoaded = true,
+  selectedAgentProfileId,
+  onAgentProfileChange,
+  onCreateAgent,
   onOpenAgentSettings,
 }: HeaderProps) {
   const t = useT()
   const { locale } = useI18n()
 
   const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
+  const canSwitchAgents = !!onAgentProfileChange && agentProfiles.length > 0
 
   return (
     <header className="bg-background h-16 flex items-center">
       <div className="flex items-center justify-between w-full px-4 sm:px-6">
-        {/* Current agent name display — purely static, no prefix */}
-        <div className="flex items-center gap-1.5">
-          <span
-            className="text-base font-sans font-semibold tracking-tight text-foreground select-none"
-            style={{ letterSpacing: "-0.01em" }}
-          >
-            {agentLabel}
-          </span>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {agentProfilesLoaded ? (
+            canSwitchAgents ? (
+              <div
+                className="flex min-w-0 max-w-[calc(100vw-11rem)] items-center gap-1.5 overflow-x-auto pr-2 md:max-w-[48rem]"
+                aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
+              >
+                {agentProfiles.map((profile) => {
+                  const isActive = selectedAgentProfileId === profile.id
+
+                  return (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => onAgentProfileChange(profile.id)}
+                      aria-pressed={isActive}
+                      title={profile.name}
+                      className={cn(
+                        "h-9 max-w-36 shrink-0 rounded-lg border px-3 text-sm font-medium transition-colors",
+                        "truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                        isActive
+                          ? "border-primary bg-primary text-primary-foreground shadow-depth-xs"
+                          : "border-border/70 bg-card/70 text-foreground/80 hover:border-primary/45 hover:bg-primary/10 hover:text-foreground"
+                      )}
+                    >
+                      {profile.name}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <span
+                className="truncate text-base font-sans font-semibold text-foreground select-none"
+                style={{ letterSpacing: "-0.01em" }}
+              >
+                {agentLabel}
+              </span>
+            )
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              <span>{t.loadingAgents}</span>
+            </div>
+          )}
+
+          {onCreateAgent && (
+            <button
+              type="button"
+              onClick={onCreateAgent}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition-colors hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
+              title={t.addAgent}
+              aria-label={t.addAgent}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           {/* Agent configuration button */}
           {onOpenAgentSettings && (
             <button

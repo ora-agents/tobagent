@@ -58,8 +58,6 @@ interface WelcomeScreenProps {
   onAgentConfigChange?: (config: AgentConfig) => void
   agentProfile?: AgentProfile | null
   agentProfilesLoaded?: boolean
-  agentProfiles?: AgentProfile[]
-  onAgentProfileChange?: (id: string | null) => void
   onCreateAgent?: () => void
 }
 
@@ -98,8 +96,6 @@ export function WelcomeScreen({
   onAgentConfigChange,
   agentProfile,
   agentProfilesLoaded = true,
-  agentProfiles,
-  onAgentProfileChange,
   onCreateAgent,
 }: WelcomeScreenProps) {
   const t = useT()
@@ -284,9 +280,8 @@ export function WelcomeScreen({
             </div>
           )}
 
-          {/* Model & Agent Comboboxes - positioned underneath chatbox in bottom left */}
+          {/* Model combobox - positioned underneath chatbox in bottom left */}
           <div className="flex flex-wrap gap-3 justify-start mt-2 px-2 h-8 items-center">
-            {/* Model Combobox */}
             {agentConfig && onAgentConfigChange && (
               <div className="flex items-center">
                 {availableModels === null ? (
@@ -303,26 +298,6 @@ export function WelcomeScreen({
                     autoFocusSearch={!suppressAndroidVoiceAutoFocus}
                   />
                 ) : null}
-              </div>
-            )}
-
-            {/* Agent Combobox */}
-            {agentProfiles && onAgentProfileChange && (
-              <div className="flex items-center border-l border-border/40 pl-3">
-                {isAgentLoading ? (
-                  <ComboboxSkeleton label={t.loadingAgents} />
-                ) : (
-                  <Combobox
-                    options={agentProfiles.map((p) => ({ value: p.id, label: p.name }))}
-                    value={agentProfile?.id || ""}
-                    onValueChange={onAgentProfileChange}
-                    prefix={locale === "zh" ? "角色：" : "Agent: "}
-                    placeholder={locale === "zh" ? "选择角色..." : "Select agent..."}
-                    searchPlaceholder={locale === "zh" ? "搜索角色..." : "Search agent..."}
-                    emptyText={locale === "zh" ? "未找到该角色" : "No agent found."}
-                    autoFocusSearch={!suppressAndroidVoiceAutoFocus}
-                  />
-                )}
               </div>
             )}
           </div>

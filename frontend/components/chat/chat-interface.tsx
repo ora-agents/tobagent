@@ -69,8 +69,6 @@ interface ChatInterfaceProps {
   autoSend?: boolean
   /** Called after auto-send completes (use to clear URL params, etc.) */
   onInitialMessageSent?: () => void
-  agentProfiles?: AgentProfile[]
-  onAgentProfileChange?: (id: string | null) => void
   onCreateAgent?: () => void
 }
 
@@ -102,8 +100,6 @@ export function ChatInterface({
   isNewThread = false,
   autoSend = false,
   onInitialMessageSent,
-  agentProfiles,
-  onAgentProfileChange,
   onCreateAgent,
 }: ChatInterfaceProps) {
   const t = useT()
@@ -1076,8 +1072,6 @@ export function ChatInterface({
             onAgentConfigChange={onAgentConfigChange}
             agentProfile={agentProfile}
             agentProfilesLoaded={agentProfilesLoaded}
-            agentProfiles={agentProfiles}
-            onAgentProfileChange={onAgentProfileChange}
             onCreateAgent={onCreateAgent}
           />
         ) : (

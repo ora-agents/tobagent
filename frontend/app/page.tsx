@@ -599,6 +599,11 @@ function DashboardContent() {
               onShowShortcuts={() => setShowShortcutsDialog(true)}
               forceShowTooltip={forceShowTooltip}
               selectedAgentProfile={selectedAgentProfile}
+              agentProfiles={agentProfiles}
+              agentProfilesLoaded={agentProfilesLoaded}
+              selectedAgentProfileId={selectedAgentProfileId}
+              onAgentProfileChange={setSelectedAgentProfileId}
+              onCreateAgent={() => setCurrentView("agents")}
               onOpenAgentSettings={handleOpenActiveAgentSettings}
             />
             <ChatInterface
@@ -612,8 +617,6 @@ function DashboardContent() {
               onAgentConfigChange={setAgentConfig}
               agentProfile={selectedAgentProfile}
               agentProfilesLoaded={agentProfilesLoaded}
-              agentProfiles={agentProfiles}
-              onAgentProfileChange={setSelectedAgentProfileId}
               onCreateAgent={() => setCurrentView("agents")}
               isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
               initialMessage={initialPrompt}
