@@ -367,3 +367,49 @@ async def test_dynamic_config_middleware_resolves_mcp_tool_call_by_name():
 
     mock_request.override.assert_called_once_with(tool=mcp_tool)
     assert result == mock_overridden_request
+
+
+@pytest.mark.anyio
+async def test_dynamic_config_middleware_resolves_mcp_tool_call_from_thread_owner():
+    """SDK tool execution may not preserve context.user_id; recover it from the thread."""
+    mcp_tool = SimpleNamespace(name="create_order")
+
+    mock_ctx = SimpleNamespace(
+        agent_id="agent_123",
+        user_id="",
+    )
+
+    mock_request = MagicMock()
+    mock_request.runtime.context = mock_ctx
+    mock_request.tool_call = {"name": "create_order"}
+
+    mock_overridden_request = MagicMock()
+    mock_request.override.return_value = mock_overridden_request
+
+    async def mock_handler(req):
+        return req
+
+    with patch(
+        "src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent",
+        return_value=[mcp_tool],
+    ) as get_tools, \
+        patch(
+            "src.middleware.dynamic_config_middleware.get_runtime_context_value",
+            return_value="",
+        ), \
+        patch(
+            "src.middleware.dynamic_config_middleware._get_current_config_metadata",
+            return_value={"thread_id": "thread_123"},
+        ), \
+        patch(
+            "src.middleware.dynamic_config_middleware._load_thread_owner_user_id",
+            return_value="user_123",
+        ):
+        result = await dynamic_config_middleware.awrap_tool_call(
+            mock_request,
+            mock_handler,
+        )
+
+    get_tools.assert_called_once_with("agent_123", "user_123")
+    mock_request.override.assert_called_once_with(tool=mcp_tool)
+    assert result == mock_overridden_request

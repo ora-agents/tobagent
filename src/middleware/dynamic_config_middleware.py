@@ -161,6 +161,26 @@ def _load_thread_owner_user_id(thread_id: str) -> str:
     return ""
 
 
+def _resolve_owner_user_id(ctx: Any) -> tuple[str, dict[str, Any]]:
+    """Resolve the authenticated resource owner for dynamic runtime resources."""
+    context_user_id = getattr(ctx, "user_id", "") or ""
+    fallback_user_id = get_runtime_context_value("user_id", "") or ""
+    config_metadata = _get_current_config_metadata()
+    thread_id = config_metadata.get("thread_id", "")
+    thread_owner_user_id = ""
+    if not context_user_id and not fallback_user_id and isinstance(thread_id, str):
+        thread_owner_user_id = _load_thread_owner_user_id(thread_id)
+
+    owner_user_id = context_user_id or fallback_user_id or thread_owner_user_id
+    return owner_user_id, {
+        "context_user_id": context_user_id,
+        "fallback_user_id": fallback_user_id,
+        "thread_id": thread_id,
+        "thread_owner_user_id": thread_owner_user_id,
+        "owner_user_id": owner_user_id,
+    }
+
+
 def _make_subagent_tool(
     agent_data: dict,
     tool_name: str,
@@ -489,14 +509,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
         # Dynamic system prompt
         system_prompt = getattr(ctx, "system_prompt", "")
         agent_id = getattr(ctx, "agent_id", None)
-        context_user_id = getattr(ctx, "user_id", "") or ""
-        fallback_user_id = get_runtime_context_value("user_id", "") or ""
-        config_metadata = _get_current_config_metadata()
-        thread_id = config_metadata.get("thread_id", "")
-        thread_owner_user_id = ""
-        if not context_user_id and not fallback_user_id and isinstance(thread_id, str):
-            thread_owner_user_id = _load_thread_owner_user_id(thread_id)
-        owner_user_id = context_user_id or fallback_user_id or thread_owner_user_id
+        owner_user_id, owner_resolution = _resolve_owner_user_id(ctx)
         enabled_tools = getattr(ctx, "enabled_tools", None)
         robot_environment = bool(getattr(ctx, "robot_environment", False))
         linked_agent_tools: list[BaseTool] = []
@@ -505,11 +518,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
         write_debug_event(
             "middleware.model_call.context",
             agent_id=agent_id,
-            context_user_id=context_user_id,
-            fallback_user_id=fallback_user_id,
-            thread_id=thread_id,
-            thread_owner_user_id=thread_owner_user_id,
-            owner_user_id=owner_user_id,
+            **owner_resolution,
             system_prompt_set=_context_field_was_set(ctx, "system_prompt"),
             enabled_tools_set=_context_field_was_set(ctx, "enabled_tools"),
             agent_ids_set=_context_field_was_set(ctx, "agent_ids"),
@@ -776,10 +785,15 @@ class DynamicConfigMiddleware(AgentMiddleware):
         """Intercept and execute dynamically created tools."""
         ctx = request.runtime.context if request.runtime else None
         agent_id = getattr(ctx, "agent_id", None)
-        owner_user_id = (
-            getattr(ctx, "user_id", "") or get_runtime_context_value("user_id", "") or ""
-        )
+        owner_user_id, owner_resolution = _resolve_owner_user_id(ctx)
         tool_name = request.tool_call.get("name", "")
+
+        write_debug_event(
+            "middleware.tool_call.context",
+            agent_id=agent_id,
+            tool_name=tool_name,
+            **owner_resolution,
+        )
 
         if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("call_agent_"):
             # Fast path: reuse cached tool from awrap_model_call.
