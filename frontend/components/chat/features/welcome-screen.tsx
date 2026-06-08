@@ -18,6 +18,7 @@ import {
   getModelDisplayName,
   type ModelOption,
 } from "@/lib/config/deployment-config"
+import { isAndroidWebView } from "@/lib/voice/utils/browser"
 import { useT, useI18n } from "@/lib/i18n"
 
 interface WelcomeScreenProps {
@@ -105,6 +106,7 @@ export function WelcomeScreen({
   const { locale } = useI18n()
   const [availableModels, setAvailableModels] = useState<ModelOption[] | null>(null)
   const hasText = input.trim().length > 0
+  const suppressAndroidVoiceAutoFocus = isAndroidWebView() && voiceState !== "idle"
 
   useEffect(() => {
     fetchAvailableModels().then(setAvailableModels)
@@ -298,6 +300,7 @@ export function WelcomeScreen({
                     placeholder={locale === "zh" ? "选择模型..." : "Select model..."}
                     searchPlaceholder={locale === "zh" ? "搜索模型..." : "Search model..."}
                     emptyText={locale === "zh" ? "未找到该模型" : "No model found."}
+                    autoFocusSearch={!suppressAndroidVoiceAutoFocus}
                   />
                 ) : null}
               </div>
@@ -317,6 +320,7 @@ export function WelcomeScreen({
                     placeholder={locale === "zh" ? "选择角色..." : "Select agent..."}
                     searchPlaceholder={locale === "zh" ? "搜索角色..." : "Search agent..."}
                     emptyText={locale === "zh" ? "未找到该角色" : "No agent found."}
+                    autoFocusSearch={!suppressAndroidVoiceAutoFocus}
                   />
                 )}
               </div>

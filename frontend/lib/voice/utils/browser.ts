@@ -38,3 +38,24 @@ export function getVoiceSupportError(): string | null {
 export function isVoiceSupported(): boolean {
   return getVoiceSupportError() === null
 }
+
+export function isAndroidWebView(): boolean {
+  if (typeof window === "undefined") {
+    return false
+  }
+
+  const userAgent = window.navigator.userAgent
+  const android = /Android/i.test(userAgent)
+  if (!android) {
+    return false
+  }
+
+  const webViewUserAgent = /\bwv\b/i.test(userAgent) || /Version\/[\d.]+.*Chrome/i.test(userAgent)
+  const nativeBridge = Boolean(
+    (window as any).__TOB_NATIVE_VOICE__ ||
+      (window as any).TobNativeVoice ||
+      (window as any).__TOB_ROBOT_ENV__
+  )
+
+  return webViewUserAgent || nativeBridge
+}

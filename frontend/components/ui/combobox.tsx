@@ -18,6 +18,7 @@ interface ComboboxProps {
   emptyText?: string
   className?: string
   prefix?: string
+  autoFocusSearch?: boolean
 }
 
 export function Combobox({
@@ -29,6 +30,7 @@ export function Combobox({
   emptyText = "No option found.",
   className,
   prefix,
+  autoFocusSearch = true,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
@@ -91,7 +93,7 @@ export function Combobox({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="flex h-7 w-full rounded-md bg-transparent text-xs outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed disabled:opacity-50"
-              autoFocus
+              autoFocus={autoFocusSearch}
             />
           </div>
           <div className="max-h-[220px] overflow-y-auto p-1 custom-scrollbar">

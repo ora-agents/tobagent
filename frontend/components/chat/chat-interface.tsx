@@ -22,6 +22,7 @@ import {
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
 } from "@/lib/constants/features"
+import { isAndroidWebView } from "@/lib/voice/utils/browser"
 import { useT } from "@/lib/i18n"
 
 // Enhanced scrollbar styles with smooth transitions
@@ -237,6 +238,7 @@ export function ChatInterface({
     wakeWords: agentProfile?.wakeWords || [],
     ttsVoice: agentProfile?.ttsVoice || null,
   })
+  const suppressAndroidVoiceAutoFocus = isAndroidWebView() && voiceAgent.voiceState !== "idle"
   // ============================================================================
   // Refs
   // ============================================================================
@@ -580,17 +582,25 @@ export function ChatInterface({
 
   // Auto-focus textarea when loading completes and userId is available
   useEffect(() => {
+    if (suppressAndroidVoiceAutoFocus) return
+
     if (!uiState.isLoadingThread && userId && textareaRef.current) {
       // Small delay to ensure DOM is ready
       const timeoutId = setTimeout(() => {
+        if (suppressAndroidVoiceAutoFocus) return
         textareaRef.current?.focus()
       }, 100)
       return () => clearTimeout(timeoutId)
     }
-  }, [uiState.isLoadingThread, userId])
+  }, [uiState.isLoadingThread, userId, suppressAndroidVoiceAutoFocus])
 
   // Auto-focus textarea after AI finishes responding
   useEffect(() => {
+    if (suppressAndroidVoiceAutoFocus) {
+      prevIsLoadingRef.current = uiState.isLoading || uiState.isRegenerating
+      return
+    }
+
     // Detect transition from loading (true) to not loading (false)
     const wasLoading = prevIsLoadingRef.current
     const isCurrentlyLoading = uiState.isLoading || uiState.isRegenerating
@@ -602,11 +612,12 @@ export function ChatInterface({
     if (wasLoading && !isCurrentlyLoading && userId && textareaRef.current && messages.length > 0) {
       // Small delay to ensure DOM is ready and smooth transition
       const timeoutId = setTimeout(() => {
+        if (suppressAndroidVoiceAutoFocus) return
         textareaRef.current?.focus()
       }, 100)
       return () => clearTimeout(timeoutId)
     }
-  }, [uiState.isLoading, uiState.isRegenerating, userId, messages.length])
+  }, [uiState.isLoading, uiState.isRegenerating, userId, messages.length, suppressAndroidVoiceAutoFocus])
 
   // ============================================================================
   // Event Handlers
