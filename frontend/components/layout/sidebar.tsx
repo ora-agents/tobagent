@@ -242,19 +242,19 @@ export const Sidebar = memo(function Sidebar({
     if (groupThreads.length === 0) return null
 
     return (
-      <div className="mt-4 px-3 first:mt-0">
-        <h3 className="px-3 text-xs font-semibold text-sidebar-accent-foreground uppercase tracking-wider mb-2 shadow-inset-light">{label}</h3>
-        <div className="space-y-2">
+      <div className="mt-3 px-3 first:mt-0">
+        <h3 className="px-3 text-xs font-semibold text-sidebar-accent-foreground uppercase tracking-wider mb-1 shadow-inset-light">{label}</h3>
+        <div className="space-y-1">
           {groupThreads.map((thread) => {
             const title = thread.metadata?.title || "New conversation"
 
             return (
               <div
                 key={thread.thread_id}
-                className={`group flex items-center gap-3 px-3 py-2.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer shadow-depth-xs border ${
+                className={`group flex items-center gap-2 px-3 py-1.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer border ${
                   thread.thread_id === currentThreadId
                     ? "bg-primary/15 text-sidebar-foreground border-primary/30"
-                    : "text-sidebar-foreground border-transparent"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
               >
@@ -422,19 +422,19 @@ export const Sidebar = memo(function Sidebar({
 
       <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-sidebar-accent/5 via-transparent to-sidebar-accent/10 custom-scrollbar">
         {isLoading ? (
-          <div className="px-3 py-3">
-            <div className="px-3 pb-3">
+          <div className="mt-3 px-3">
+            <div className="px-3 mb-1.5">
               <LoadingPlaceholder className="h-2.5 w-24" label={t.loadingConversations} />
             </div>
-            <div className="space-y-1.5 px-1">
+            <div className="space-y-1">
               <ThreadSkeleton />
               <ThreadSkeleton />
               <ThreadSkeleton />
             </div>
-            <div className="px-3 pb-3 pt-5">
+            <div className="px-3 mb-1.5 mt-4">
               <LoadingPlaceholder className="h-2.5 w-20" />
             </div>
-            <div className="space-y-1.5 px-1">
+            <div className="space-y-1">
               <ThreadSkeleton />
               <ThreadSkeleton />
               <ThreadSkeleton />

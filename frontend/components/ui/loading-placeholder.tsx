@@ -34,15 +34,13 @@ export function LoadingPlaceholder({ className, label, variant = "text" }: Loadi
 export function ThreadSkeleton({ label }: { label?: string }) {
   return (
     <div
-      className="flex h-10 items-center gap-2.5 rounded-lg border border-transparent px-3"
+      className="flex h-[34px] items-center rounded-lg border border-transparent px-3"
       aria-busy={label ? true : undefined}
       aria-label={label}
       role={label ? "status" : undefined}
     >
-      <LoadingPlaceholder variant="avatar" className="size-5 flex-shrink-0 opacity-80" />
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <LoadingPlaceholder className="h-2.5 w-full" />
-        <LoadingPlaceholder className="h-2 w-2/3 opacity-70" />
+      <div className="min-w-0 flex-1">
+        <LoadingPlaceholder className="h-3 w-3/4 opacity-80" />
       </div>
     </div>
   )
