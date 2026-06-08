@@ -41,15 +41,26 @@ export interface TtsCallbacks {
   onDisconnected?: () => void
 }
 
+export interface TtsClientOptions {
+  /** Suppress console error logging for transient connect failures. */
+  quiet?: boolean
+}
+
 export class TtsClient {
   private ws: WebSocket | null = null
   private callbacks: TtsCallbacks
   private voice: string
   private eventCounter: number = 0
+  private quiet: boolean
 
-  constructor(callbacks: TtsCallbacks = {}, voice?: string) {
+  constructor(
+    callbacks: TtsCallbacks = {},
+    voice?: string,
+    options: TtsClientOptions = {},
+  ) {
     this.callbacks = callbacks
     this.voice = voice || DEFAULT_TTS_VOICE
+    this.quiet = !!options.quiet
   }
 
   /** Generate a unique event_id for client messages */
@@ -107,7 +118,9 @@ export class TtsClient {
 
       this.ws.onerror = (event: Event) => {
         const errorMsg = "TTS WebSocket error"
-        console.error(errorMsg, event)
+        if (!this.quiet) {
+          console.error(errorMsg, event)
+        }
         this.callbacks.onError?.(errorMsg)
         reject(new Error(errorMsg))
       }
