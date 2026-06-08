@@ -19,5 +19,5 @@ export const IMAGE_UNSUPPORTED_MODEL_MESSAGE = "Selected model does not support 
 export const STORAGE_KEYS = {
   CLIENT_PROFILE: "client-profile",
   DRAFT_PREFIX: "draft-",
+  ELDER_OPTIMIZED_DISPLAY: "user-settings-elder-optimized",
 } as const
-

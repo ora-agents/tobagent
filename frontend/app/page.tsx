@@ -28,6 +28,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
+import { STORAGE_KEYS } from "@/lib/constants/features"
 
 function DashboardFallback() {
   return (
@@ -96,6 +97,7 @@ function DashboardContent() {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
   const [chatSessionKey, setChatSessionKey] = useState(0)
+  const [elderOptimized, setElderOptimized] = useState(false)
 
   // Agent profiles (custom configurable agents)
   const {
@@ -161,6 +163,14 @@ function DashboardContent() {
   useEffect(() => {
     fetchAvailableModels().then(setAvailableModels)
   }, [])
+
+  useEffect(() => {
+    setElderOptimized(localStorage.getItem(STORAGE_KEYS.ELDER_OPTIMIZED_DISPLAY) === "true")
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.ELDER_OPTIMIZED_DISPLAY, String(elderOptimized))
+  }, [elderOptimized])
 
   // Load account-scoped conversation threads.
   const {
@@ -573,7 +583,7 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className="flex h-screen bg-background">
+      <div className={`flex h-screen bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -628,6 +638,8 @@ function DashboardContent() {
         {currentView === "settings" ? (
           <UserSettingsPage
             onBackToChat={() => setCurrentView("chat")}
+            elderOptimized={elderOptimized}
+            onElderOptimizedChange={setElderOptimized}
           />
         ) : currentView !== "chat" ? (
           <ManagementDashboard

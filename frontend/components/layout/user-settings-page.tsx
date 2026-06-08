@@ -12,6 +12,8 @@ import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 interface UserSettingsPageProps {
   onBackToChat: () => void
+  elderOptimized: boolean
+  onElderOptimizedChange: (enabled: boolean) => void
 }
 
 interface UserApiKey {
@@ -22,9 +24,7 @@ interface UserApiKey {
   lastUsedAt: string | null
 }
 
-const ELDER_OPTIMIZED_STORAGE_KEY = "user-settings-elder-optimized"
-
-export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
+export function UserSettingsPage({ onBackToChat, elderOptimized, onElderOptimizedChange }: UserSettingsPageProps) {
   const { user, updateProfile } = useAuth()
   const { locale } = useI18n()
 
@@ -41,7 +41,6 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
   const [apiKeysLoading, setApiKeysLoading] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [elderOptimized, setElderOptimized] = useState(false)
 
   // Sync form state when user changes
   useEffect(() => {
@@ -54,14 +53,6 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
       setSaved(false)
     }
   }, [user])
-
-  useEffect(() => {
-    setElderOptimized(localStorage.getItem(ELDER_OPTIMIZED_STORAGE_KEY) === "true")
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem(ELDER_OPTIMIZED_STORAGE_KEY, String(elderOptimized))
-  }, [elderOptimized])
 
   useEffect(() => {
     if (!user) return
@@ -242,7 +233,7 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
                   type="button"
                   role="switch"
                   aria-checked={elderOptimized}
-                  onClick={() => setElderOptimized((enabled) => !enabled)}
+                  onClick={() => onElderOptimizedChange(!elderOptimized)}
                   className={`${elderOptimized ? "items-center gap-5 p-5" : "items-start gap-3 p-3.5"} flex w-full rounded-xl border border-primary/25 bg-background/70 text-left transition-all duration-200 hover:border-primary/45 hover:bg-background focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none`}
                 >
                   <div className="flex-shrink-0 mt-0.5">
@@ -261,12 +252,12 @@ export function UserSettingsPage({ onBackToChat }: UserSettingsPageProps) {
 
                   <div className="flex-1 min-w-0">
                     <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
-                      {zh ? "放大设置界面" : "Enlarge This Settings Page"}
+                      {zh ? "放大全部界面" : "Enlarge The Whole App"}
                     </div>
                     <div className={`${elderOptimized ? "text-base mt-2 leading-7" : "text-xs mt-1 leading-relaxed"} text-muted-foreground`}>
                       {zh
-                        ? "开启后会放大本页面的文字、输入框、按钮和开关，让点击和阅读更轻松，同时保留当前的温暖配色和简洁布局。"
-                        : "Increases text, inputs, buttons, and switches on this page while keeping the current warm palette and clean layout."}
+                        ? "开启后会放大全部界面的文字、输入框、按钮、开关和对话内容，让点击和阅读更轻松，同时保留当前的温暖配色和简洁布局。"
+                        : "Increases text, inputs, buttons, switches, and chat content across the app while keeping the current warm palette and clean layout."}
                     </div>
                   </div>
                 </button>

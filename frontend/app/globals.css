@@ -190,6 +190,76 @@
   }
 }
 
+/* ============================================================
+   Senior-friendly display mode
+   ============================================================ */
+.elder-optimized-ui {
+  font-size: 17px;
+}
+
+.elder-optimized-ui :where(button, [role="button"], [role="switch"]) {
+  min-height: 2.75rem;
+  font-size: 1rem !important;
+  line-height: 1.35 !important;
+}
+
+.elder-optimized-ui :where(button, [role="button"]) {
+  min-width: 2.75rem;
+}
+
+.elder-optimized-ui :where(input, textarea, select) {
+  min-height: 3.25rem;
+  font-size: 1.125rem !important;
+  line-height: 1.65 !important;
+}
+
+.elder-optimized-ui :where(label) {
+  font-size: 1rem !important;
+  line-height: 1.45 !important;
+}
+
+.elder-optimized-ui :where(.prose) {
+  font-size: 1.125rem !important;
+  line-height: 1.8 !important;
+}
+
+.elder-optimized-ui :where(.prose p, .prose li, .prose td, .prose th) {
+  font-size: 1.125rem !important;
+  line-height: 1.8 !important;
+}
+
+.elder-optimized-ui :where(.prose code) {
+  font-size: 1rem !important;
+}
+
+.elder-optimized-ui :where(pre, pre code) {
+  font-size: 0.975rem !important;
+  line-height: 1.75 !important;
+}
+
+.elder-optimized-ui :where(.text-\[10px\], .text-\[11px\], .text-xs) {
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+}
+
+.elder-optimized-ui :where(.text-sm) {
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+}
+
+.elder-optimized-ui :where(.text-base) {
+  font-size: 1.125rem !important;
+  line-height: 1.55 !important;
+}
+
+.elder-optimized-ui :where(.h-8, .h-9, .h-10) {
+  min-height: 2.75rem;
+}
+
+.elder-optimized-ui :where(.w-8, .w-9, .w-10) {
+  min-width: 2.75rem;
+}
+
 
 /* ============================================================
    Markdown prose — light defaults, dark overrides
