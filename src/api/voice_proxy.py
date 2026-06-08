@@ -19,6 +19,7 @@ import logging
 import os
 import tempfile
 import wave
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,30 @@ VAD_MIN_SPEECH_DURATION = 0.25
 VAD_MAX_SPEECH_DURATION = 20.0
 VAD_WINDOW_SIZE = 256
 MIN_ASR_SEGMENT_DURATION_SECONDS = 0.3
+EPSILON = 1e-8
+AUDIO_GATE_ENABLED = os.environ.get("VOICE_AUDIO_GATE_ENABLED", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
+AUDIO_GATE_MIN_RMS_DBFS = float(os.environ.get("VOICE_GATE_MIN_RMS_DBFS", "-38"))
+AUDIO_GATE_MIN_PEAK_DBFS = float(os.environ.get("VOICE_GATE_MIN_PEAK_DBFS", "-28"))
+AUDIO_GATE_MIN_SNR_DB = float(os.environ.get("VOICE_GATE_MIN_SNR_DB", "8"))
+AUDIO_GATE_NOISE_EMA = float(os.environ.get("VOICE_GATE_NOISE_EMA", "0.95"))
+DEFAULT_NOISE_RMS = float(os.environ.get("VOICE_GATE_DEFAULT_NOISE_RMS", "0.003"))
+SPEAKER_BINDING_ENABLED = os.environ.get(
+    "VOICE_SPEAKER_BINDING_ENABLED", "false"
+).lower() in {"1", "true", "yes"}
+SPEAKER_MODEL_PATH = os.environ.get("VOICE_SPEAKER_MODEL_PATH", "").strip()
+SPEAKER_BINDING_THRESHOLD = float(
+    os.environ.get("VOICE_SPEAKER_BINDING_THRESHOLD", "0.72")
+)
+SPEAKER_BINDING_MIN_ENROLL_SECONDS = float(
+    os.environ.get("VOICE_SPEAKER_MIN_ENROLL_SECONDS", "0.8")
+)
+SPEAKER_BINDING_MIN_VERIFY_SECONDS = float(
+    os.environ.get("VOICE_SPEAKER_MIN_VERIFY_SECONDS", "0.8")
+)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VAD_DATA_PATH = (
     REPO_ROOT
@@ -59,6 +84,26 @@ VOICE_MODE_KWS = "kws"
 VOICE_MODE_ASR = "asr"
 WAKE_ACK_TEXT = os.environ.get("WAKE_ACK_TEXT", "我在")
 WAKE_ACK_PURPOSE = "wake_ack"
+
+
+@dataclass(frozen=True)
+class AudioStats:
+    """Signal quality metrics for a candidate ASR segment."""
+
+    rms_dbfs: float
+    peak_dbfs: float
+    noise_dbfs: float
+    snr_db: float
+
+
+@dataclass(frozen=True)
+class AsrAudioSegment:
+    """VAD-completed audio segment plus metrics for downstream gates."""
+
+    wav_bytes: bytes
+    samples: np.ndarray
+    duration_seconds: float
+    stats: AudioStats
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +161,51 @@ def _float32_to_wav_bytes(samples: np.ndarray, sample_rate: int = VAD_SAMPLE_RAT
     return buffer.getvalue()
 
 
+def _audio_rms(samples: np.ndarray) -> float:
+    """Return root-mean-square amplitude for float32 PCM samples."""
+    if len(samples) == 0:
+        return 0.0
+    return float(np.sqrt(np.mean(np.square(samples)) + EPSILON))
+
+
+def _dbfs(amplitude: float) -> float:
+    """Convert a linear amplitude in [-1, 1] to dBFS."""
+    return float(20.0 * np.log10(max(amplitude, EPSILON)))
+
+
+def _audio_stats(samples: np.ndarray, noise_rms: float) -> AudioStats:
+    """Compute signal quality metrics relative to the current noise floor."""
+    rms = _audio_rms(samples)
+    peak = float(np.max(np.abs(samples))) if len(samples) else 0.0
+    rms_dbfs = _dbfs(rms)
+    noise_dbfs = _dbfs(noise_rms)
+    return AudioStats(
+        rms_dbfs=rms_dbfs,
+        peak_dbfs=_dbfs(peak),
+        noise_dbfs=noise_dbfs,
+        snr_db=rms_dbfs - noise_dbfs,
+    )
+
+
+def _passes_audio_gate(stats: AudioStats) -> bool:
+    """Return whether a VAD segment is loud and clean enough for ASR."""
+    if not AUDIO_GATE_ENABLED:
+        return True
+    return (
+        stats.rms_dbfs >= AUDIO_GATE_MIN_RMS_DBFS
+        and stats.peak_dbfs >= AUDIO_GATE_MIN_PEAK_DBFS
+        and stats.snr_db >= AUDIO_GATE_MIN_SNR_DB
+    )
+
+
+def _int16_bytes_to_float32(audio_bytes: bytes) -> np.ndarray:
+    """Decode little-endian Int16 PCM bytes into float32 samples."""
+    samples_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
+    if len(samples_int16) == 0:
+        return np.asarray([], dtype=np.float32)
+    return samples_int16.astype(np.float32) / 32768.0
+
+
 class StreamingVadSession:
     """Run sherpa-onnx VAD for one browser audio stream."""
 
@@ -140,25 +230,38 @@ class StreamingVadSession:
         )
         self.vad = sherpa_onnx.VoiceActivityDetector(config, 30)
         self.was_speech_detected = False
+        self.noise_rms = DEFAULT_NOISE_RMS
 
-    def accept_audio(self, audio_bytes: bytes) -> tuple[bool, list[bytes]]:
-        """Accept Int16 PCM bytes and return speech-start plus completed WAVs."""
-        samples_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
-        if len(samples_int16) == 0:
+    def accept_audio(self, audio_bytes: bytes) -> tuple[bool, list[AsrAudioSegment]]:
+        """Accept Int16 PCM bytes and return speech-start plus ASR segments."""
+        samples_float32 = _int16_bytes_to_float32(audio_bytes)
+        if len(samples_float32) == 0:
             return False, []
 
-        samples_float32 = samples_int16.astype(np.float32) / 32768.0
         self.vad.accept_waveform(samples_float32)
 
         is_speech_detected = self.vad.is_speech_detected()
+        if not is_speech_detected:
+            self._update_noise_floor(samples_float32)
+
         speech_started = is_speech_detected and not self.was_speech_detected
         speech_segments = self._drain_completed_segments()
         self.was_speech_detected = is_speech_detected
         return speech_started, speech_segments
 
-    def _drain_completed_segments(self) -> list[bytes]:
-        """Drain completed VAD segments and encode them as WAV payloads."""
-        segments: list[bytes] = []
+    def _update_noise_floor(self, samples: np.ndarray) -> None:
+        """Update the rolling noise-floor estimate from a non-speech frame."""
+        frame_rms = _audio_rms(samples)
+        if frame_rms <= 0:
+            return
+        self.noise_rms = (
+            AUDIO_GATE_NOISE_EMA * self.noise_rms
+            + (1.0 - AUDIO_GATE_NOISE_EMA) * frame_rms
+        )
+
+    def _drain_completed_segments(self) -> list[AsrAudioSegment]:
+        """Drain completed VAD segments and encode accepted ASR payloads."""
+        segments: list[AsrAudioSegment] = []
 
         while not self.vad.empty():
             segment = self.vad.front
@@ -169,9 +272,126 @@ class StreamingVadSession:
             if duration_seconds < MIN_ASR_SEGMENT_DURATION_SECONDS:
                 continue
 
-            segments.append(_float32_to_wav_bytes(samples))
+            stats = _audio_stats(samples, self.noise_rms)
+            if not _passes_audio_gate(stats):
+                logger.info(
+                    "Dropped ASR segment by audio gate: duration=%.2fs "
+                    "rms=%.1fdBFS peak=%.1fdBFS noise=%.1fdBFS snr=%.1fdB",
+                    duration_seconds,
+                    stats.rms_dbfs,
+                    stats.peak_dbfs,
+                    stats.noise_dbfs,
+                    stats.snr_db,
+                )
+                continue
+
+            segments.append(
+                AsrAudioSegment(
+                    wav_bytes=_float32_to_wav_bytes(samples),
+                    samples=samples,
+                    duration_seconds=duration_seconds,
+                    stats=stats,
+                )
+            )
 
         return segments
+
+
+class WakeSpeakerVerifier:
+    """Bind an ASR turn to the speaker who triggered the wake word."""
+
+    def __init__(self, model_path: str) -> None:
+        """Create a sherpa-onnx speaker embedding extractor."""
+        import sherpa_onnx
+
+        config = sherpa_onnx.SpeakerEmbeddingExtractorConfig(
+            model=model_path,
+            num_threads=1,
+            provider="cpu",
+            debug=False,
+        )
+        config.validate()
+        self.extractor = sherpa_onnx.SpeakerEmbeddingExtractor(config)
+        self.target_embedding: np.ndarray | None = None
+
+    def bind_from_pcm(self, audio_bytes: bytes) -> bool:
+        """Use wake-word preroll audio as the target speaker for this turn."""
+        samples = _int16_bytes_to_float32(audio_bytes)
+        duration_seconds = len(samples) / VAD_SAMPLE_RATE
+        if duration_seconds < SPEAKER_BINDING_MIN_ENROLL_SECONDS:
+            logger.info(
+                "Skipped wake speaker binding: preroll too short %.2fs",
+                duration_seconds,
+            )
+            return False
+
+        embedding = self._compute_embedding(samples)
+        if embedding is None:
+            return False
+
+        self.target_embedding = embedding
+        logger.info("Wake speaker bound from %.2fs preroll", duration_seconds)
+        return True
+
+    def verify(self, samples: np.ndarray) -> tuple[bool, float | None]:
+        """Return whether the segment matches the bound wake speaker."""
+        if self.target_embedding is None:
+            return True, None
+
+        duration_seconds = len(samples) / VAD_SAMPLE_RATE
+        if duration_seconds < SPEAKER_BINDING_MIN_VERIFY_SECONDS:
+            logger.info(
+                "Skipped speaker verification for short segment %.2fs",
+                duration_seconds,
+            )
+            return True, None
+
+        embedding = self._compute_embedding(samples)
+        if embedding is None:
+            return True, None
+
+        score = _cosine_similarity(self.target_embedding, embedding)
+        return score >= SPEAKER_BINDING_THRESHOLD, score
+
+    def _compute_embedding(self, samples: np.ndarray) -> np.ndarray | None:
+        """Extract a speaker embedding from mono float32 PCM samples."""
+        stream = self.extractor.create_stream()
+        stream.accept_waveform(VAD_SAMPLE_RATE, samples)
+        if not self.extractor.is_ready(stream):
+            logger.info("Speaker embedding stream is not ready")
+            return None
+
+        embedding = self.extractor.compute(stream)
+        return np.asarray(embedding, dtype=np.float32)
+
+
+def _cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
+    """Compute cosine similarity for two embedding vectors."""
+    denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
+    if denominator <= EPSILON:
+        return 0.0
+    return float(np.dot(left, right) / denominator)
+
+
+def _create_wake_speaker_verifier() -> WakeSpeakerVerifier | None:
+    """Create the optional wake-speaker verifier when configured."""
+    if not SPEAKER_BINDING_ENABLED:
+        return None
+    if not SPEAKER_MODEL_PATH:
+        logger.warning(
+            "VOICE_SPEAKER_BINDING_ENABLED is true but "
+            "VOICE_SPEAKER_MODEL_PATH is not set"
+        )
+        return None
+    if not Path(SPEAKER_MODEL_PATH).exists():
+        logger.warning("Speaker model not found: %s", SPEAKER_MODEL_PATH)
+        return None
+
+    try:
+        return WakeSpeakerVerifier(SPEAKER_MODEL_PATH)
+    except Exception as exc:
+        logger.warning("Failed to initialize speaker verifier: %s", exc)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -400,18 +620,18 @@ async def asr_stream(websocket: WebSocket) -> None:
             if audio_bytes is None:
                 continue
 
-            speech_started, wav_segments = vad_session.accept_audio(audio_bytes)
+            speech_started, segments = vad_session.accept_audio(audio_bytes)
             if speech_started:
                 await websocket.send_json({"type": "speech_start"})
 
-            for wav_bytes in wav_segments:
+            for segment in segments:
                 await websocket.send_json({"type": "transcribing"})
                 try:
                     response: Any = await asyncio.to_thread(
                         _call_dashscope_asr,
                         api_key=api_key,
                         model=model,
-                        audio_bytes=wav_bytes,
+                        audio_bytes=segment.wav_bytes,
                     )
                     result = _parse_asr_response(response)
                 except HTTPException as exc:
@@ -458,8 +678,9 @@ async def _send_asr_segments(
     *,
     api_key: str,
     model: str,
-    wav_segments: list[bytes],
+    segments: list[AsrAudioSegment],
     send_lock: asyncio.Lock | None = None,
+    speaker_verifier: WakeSpeakerVerifier | None = None,
 ) -> None:
     """Transcribe completed VAD segments and send transcript messages."""
 
@@ -471,14 +692,33 @@ async def _send_asr_segments(
         async with send_lock:
             await websocket.send_json(payload)
 
-    for wav_bytes in wav_segments:
+    for segment in segments:
+        if speaker_verifier is not None:
+            speaker_accepted, speaker_score = await asyncio.to_thread(
+                speaker_verifier.verify, segment.samples
+            )
+            if not speaker_accepted:
+                logger.info(
+                    "Dropped ASR segment by speaker gate: "
+                    "duration=%.2fs score=%.3f threshold=%.3f",
+                    segment.duration_seconds,
+                    speaker_score if speaker_score is not None else -1,
+                    SPEAKER_BINDING_THRESHOLD,
+                )
+                await send_json({
+                    "type": "speaker_rejected",
+                    "mode": VOICE_MODE_ASR,
+                    "score": speaker_score,
+                })
+                continue
+
         await send_json({"type": "transcribing", "mode": VOICE_MODE_ASR})
         try:
             response: Any = await asyncio.to_thread(
                 _call_dashscope_asr,
                 api_key=api_key,
                 model=model,
-                audio_bytes=wav_bytes,
+                audio_bytes=segment.wav_bytes,
             )
             result = _parse_asr_response(response)
         except HTTPException as exc:
@@ -626,6 +866,7 @@ async def voice_session(websocket: WebSocket) -> None:
     wake_ack_tasks: set[asyncio.Task[None]] = set()
     preroll_audio = bytearray()
     preroll_max_bytes = VAD_SAMPLE_RATE * 2 * 2
+    speaker_verifier = await asyncio.to_thread(_create_wake_speaker_verifier)
 
     async def send_json(payload: dict[str, Any]) -> None:
         async with send_lock:
@@ -694,7 +935,7 @@ async def voice_session(websocket: WebSocket) -> None:
                             "message": "ASR is not initialized",
                         })
                         continue
-                    speech_started, wav_segments = vad_session.accept_audio(audio_bytes)
+                    speech_started, segments = vad_session.accept_audio(audio_bytes)
                     if speech_started:
                         await send_json({
                             "type": "speech_start",
@@ -704,8 +945,9 @@ async def voice_session(websocket: WebSocket) -> None:
                         websocket,
                         api_key=api_key,
                         model=model,
-                        wav_segments=wav_segments,
+                        segments=segments,
                         send_lock=send_lock,
+                        speaker_verifier=speaker_verifier,
                     )
                 elif spotter is not None and kws_stream is not None:
                     detected = await asyncio.to_thread(
@@ -713,15 +955,22 @@ async def voice_session(websocket: WebSocket) -> None:
                     )
                     if detected:
                         logger.info("Voice session KWS detection: '%s'", detected)
+                        speaker_bound = False
+                        if speaker_verifier is not None and preroll_audio:
+                            speaker_bound = await asyncio.to_thread(
+                                speaker_verifier.bind_from_pcm,
+                                bytes(preroll_audio),
+                            )
                         await send_json({
                             "type": "detection",
                             "mode": VOICE_MODE_KWS,
                             "keyword": detected,
+                            "speaker_bound": speaker_bound,
                         })
                         if await ensure_asr_session():
                             await send_json({"type": "mode", "mode": mode})
                             if vad_session is not None and preroll_audio:
-                                speech_started, wav_segments = vad_session.accept_audio(
+                                speech_started, segments = vad_session.accept_audio(
                                     bytes(preroll_audio)
                                 )
                                 if speech_started:
@@ -733,8 +982,9 @@ async def voice_session(websocket: WebSocket) -> None:
                                     websocket,
                                     api_key=api_key or "",
                                     model=model,
-                                    wav_segments=wav_segments,
+                                    segments=segments,
                                     send_lock=send_lock,
+                                    speaker_verifier=speaker_verifier,
                                 )
                             task = asyncio.create_task(
                                 _send_wake_ack_tts(

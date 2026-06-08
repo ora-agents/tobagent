@@ -15,6 +15,54 @@ def test_coerce_tts_voice_accepts_only_non_empty_strings():
     assert voice_proxy._coerce_tts_voice(None) is None
 
 
+def test_audio_gate_accepts_loud_clean_segments(monkeypatch):
+    """Audio quality gate should accept loud speech above the noise floor."""
+    monkeypatch.setattr(voice_proxy, "AUDIO_GATE_ENABLED", True)
+
+    stats = voice_proxy.AudioStats(
+        rms_dbfs=-25.0,
+        peak_dbfs=-15.0,
+        noise_dbfs=-45.0,
+        snr_db=20.0,
+    )
+
+    assert voice_proxy._passes_audio_gate(stats)
+
+
+def test_audio_gate_rejects_low_snr_segments(monkeypatch):
+    """Audio quality gate should reject speech-like segments buried in noise."""
+    monkeypatch.setattr(voice_proxy, "AUDIO_GATE_ENABLED", True)
+
+    stats = voice_proxy.AudioStats(
+        rms_dbfs=-30.0,
+        peak_dbfs=-18.0,
+        noise_dbfs=-35.0,
+        snr_db=5.0,
+    )
+
+    assert not voice_proxy._passes_audio_gate(stats)
+
+
+def test_audio_stats_reports_snr_relative_to_noise_floor():
+    """Audio stats should compute dBFS and SNR from float32 samples."""
+    samples = voice_proxy.np.full(16000, 0.1, dtype=voice_proxy.np.float32)
+
+    stats = voice_proxy._audio_stats(samples, noise_rms=0.01)
+
+    assert stats.rms_dbfs == pytest.approx(-20.0, abs=0.2)
+    assert stats.peak_dbfs == pytest.approx(-20.0, abs=0.2)
+    assert stats.noise_dbfs == pytest.approx(-40.0, abs=0.2)
+    assert stats.snr_db == pytest.approx(20.0, abs=0.3)
+
+
+def test_speaker_verifier_is_disabled_without_config(monkeypatch):
+    """Wake speaker binding should degrade safely when no model is configured."""
+    monkeypatch.setattr(voice_proxy, "SPEAKER_BINDING_ENABLED", False)
+    monkeypatch.setattr(voice_proxy, "SPEAKER_MODEL_PATH", "")
+
+    assert voice_proxy._create_wake_speaker_verifier() is None
+
+
 @pytest.mark.anyio
 async def test_asr_transcribe_runs_blocking_request_in_thread(monkeypatch):
     """ASR endpoint must keep blocking file/SDK work off the event loop."""
