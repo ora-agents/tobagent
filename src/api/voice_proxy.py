@@ -1508,42 +1508,45 @@ async def voice_session(websocket: WebSocket) -> None:
             if payload_type != "config":
                 continue
 
-            speaker_config = payload.get("speakerVerification")
-            if isinstance(speaker_config, dict):
-                agent_id = str(speaker_config.get("agentId") or "").strip()
-                user_id = str(speaker_config.get("userId") or "").strip()
-                if agent_id and user_id:
-                    try:
-                        profile_speaker_gate = await asyncio.to_thread(
-                            _load_profile_speaker_gate,
-                            agent_id,
-                            user_id,
-                        )
-                        await send_json({
-                            "type": "speaker_config",
-                            "mode": VOICE_MODE_ASR,
-                            "enabled": profile_speaker_gate is not None,
-                            "bound": profile_speaker_gate is not None,
-                            "threshold": SPEAKER_PROFILE_THRESHOLD,
-                        })
-                    except ValueError as exc:
+            if "speakerVerification" in payload:
+                speaker_config = payload.get("speakerVerification")
+                if isinstance(speaker_config, dict):
+                    agent_id = str(speaker_config.get("agentId") or "").strip()
+                    user_id = str(speaker_config.get("userId") or "").strip()
+                    if agent_id and user_id:
+                        try:
+                            profile_speaker_gate = await asyncio.to_thread(
+                                _load_profile_speaker_gate,
+                                agent_id,
+                                user_id,
+                            )
+                            await send_json({
+                                "type": "speaker_config",
+                                "mode": VOICE_MODE_ASR,
+                                "enabled": profile_speaker_gate is not None,
+                                "bound": profile_speaker_gate is not None,
+                                "threshold": SPEAKER_PROFILE_THRESHOLD,
+                            })
+                        except ValueError as exc:
+                            profile_speaker_gate = None
+                            await send_json({
+                                "type": "speaker_config",
+                                "mode": VOICE_MODE_ASR,
+                                "enabled": True,
+                                "bound": False,
+                                "message": str(exc),
+                                "threshold": SPEAKER_PROFILE_THRESHOLD,
+                            })
+                        except Exception as exc:
+                            profile_speaker_gate = None
+                            logger.error("Failed to load profile speaker gate: %s", exc)
+                            await send_json({
+                                "type": "error",
+                                "mode": VOICE_MODE_ASR,
+                                "message": f"Failed to load speaker verification: {exc}",
+                            })
+                    else:
                         profile_speaker_gate = None
-                        await send_json({
-                            "type": "speaker_config",
-                            "mode": VOICE_MODE_ASR,
-                            "enabled": True,
-                            "bound": False,
-                            "message": str(exc),
-                            "threshold": SPEAKER_PROFILE_THRESHOLD,
-                        })
-                    except Exception as exc:
-                        profile_speaker_gate = None
-                        logger.error("Failed to load profile speaker gate: %s", exc)
-                        await send_json({
-                            "type": "error",
-                            "mode": VOICE_MODE_ASR,
-                            "message": f"Failed to load speaker verification: {exc}",
-                        })
                 else:
                     profile_speaker_gate = None
 
