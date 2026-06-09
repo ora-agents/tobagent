@@ -420,17 +420,17 @@ export function ManagementDashboard({
   // Opening the role manager should select the active role for context, but only
   // the header role settings action should jump directly into the edit form.
   useEffect(() => {
-    if (activeTab === "agents") {
-      if (isSavingRef.current) {
-        isSavingRef.current = false
-        return
-      }
-
-      setSelectedAgentId(selectedAgentProfileId)
-      setIsEditingAgent(false)
-      setIsCreatingAgent(false)
+    if (activeTab !== "agents") return
+    if (isSavingRef.current) {
+      isSavingRef.current = false
+      return
     }
-  }, [selectedAgentProfileId, activeTab, agentProfiles])
+    if (isEditingAgent || isCreatingAgent) return
+
+    setSelectedAgentId(selectedAgentProfileId)
+    setIsEditingAgent(false)
+    setIsCreatingAgent(false)
+  }, [selectedAgentProfileId, activeTab, isEditingAgent, isCreatingAgent])
 
   useEffect(() => {
     if (activeTab !== "agents" || !editAgentIdOnOpen) return
