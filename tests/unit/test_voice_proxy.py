@@ -1,6 +1,7 @@
 """Tests for the voice proxy endpoints."""
 
 import base64
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -64,6 +65,61 @@ def test_vad_segments_use_retained_input_audio_when_vad_samples_are_invalid(monk
 
     assert len(segments) == 1
     assert segments[0].samples.tolist() == pytest.approx(retained_samples.tolist())
+
+
+def test_vad_segments_skip_empty_vad_segments_without_warning(caplog, monkeypatch):
+    """Empty VAD segments are bookkeeping noise and should not warn as bad audio."""
+    monkeypatch.setattr(voice_proxy, "MIN_ASR_SEGMENT_DURATION_SECONDS", 0.0)
+
+    class FakeVad:
+        def __init__(self) -> None:
+            self._segments = [
+                SimpleNamespace(
+                    start=10,
+                    samples=voice_proxy.np.asarray([], dtype=voice_proxy.np.float32),
+                ),
+            ]
+
+        def empty(self) -> bool:
+            return not self._segments
+
+        @property
+        def front(self):
+            return self._segments[0]
+
+        def pop(self) -> None:
+            self._segments.pop(0)
+
+    session = voice_proxy.StreamingVadSession.__new__(voice_proxy.StreamingVadSession)
+    session.vad = FakeVad()
+    session._history = voice_proxy.np.zeros(5, dtype=voice_proxy.np.float32)
+    session._history_start_sample = 10
+    session._total_samples_seen = 15
+
+    with caplog.at_level(logging.WARNING, logger=voice_proxy.logger.name):
+        segments = session._drain_completed_segments()
+
+    assert segments == []
+    assert "VAD segment fell outside retained audio history" not in caplog.text
+    assert "Dropped invalid VAD segment samples" not in caplog.text
+
+
+def test_speechbrain_device_uses_indexed_cuda_device(monkeypatch):
+    """SpeechBrain expects indexed CUDA device strings like cuda:0."""
+    import torch
+
+    class FakeCuda:
+        @staticmethod
+        def is_available() -> bool:
+            return True
+
+        @staticmethod
+        def current_device() -> int:
+            return 2
+
+    monkeypatch.setattr(torch, "cuda", FakeCuda)
+
+    assert voice_proxy._speechbrain_device() == "cuda:2"
 
 
 def test_speaker_enrollment_quality_accepts_clean_speech(monkeypatch):

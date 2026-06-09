@@ -14,7 +14,11 @@ export interface StreamingAsrCallbacks {
   onSpeechStart?: () => void
   onTranscribing?: () => void
   onTranscript?: (text: string) => void
-  onSpeakerRejected?: (score?: number | null) => void
+  onSpeakerRejected?: (
+    score?: number | null,
+    threshold?: number | null,
+    reason?: string,
+  ) => void
   onError?: (error: string) => void
 }
 
@@ -30,7 +34,12 @@ type StreamingAsrMessage =
   | { type: "speech_start" }
   | { type: "transcribing" }
   | { type: "transcript"; text: string }
-  | { type: "speaker_rejected"; score?: number | null }
+  | {
+      type: "speaker_rejected"
+      score?: number | null
+      threshold?: number | null
+      reason?: string
+    }
   | { type: "speaker_config"; message?: string }
   | { type: "error"; message: string }
 
@@ -133,7 +142,11 @@ export class StreamingAsrClient {
         this.callbacks.onTranscript?.(data.text)
         break
       case "speaker_rejected":
-        this.callbacks.onSpeakerRejected?.(data.score ?? null)
+        this.callbacks.onSpeakerRejected?.(
+          data.score ?? null,
+          data.threshold ?? null,
+          data.reason,
+        )
         break
       case "speaker_config":
         if (data.message) {

@@ -150,6 +150,9 @@ type NativeVoiceEventPayload = {
   mode?: unknown
   code?: unknown
   message?: unknown
+  score?: unknown
+  threshold?: unknown
+  reason?: unknown
 }
 
 const getNativeVoiceProvider = (): NativeVoiceProvider | null => {
@@ -178,6 +181,24 @@ const parseNativeVoiceEventPayload = (
   return detail && typeof detail === "object"
     ? (detail as NativeVoiceEventPayload)
     : null
+}
+
+const formatVoiceprintRejection = (
+  score?: number | null,
+  threshold?: number | null,
+  reason?: string,
+): string => {
+  const detail = reason?.trim()
+  if (detail) return `声纹验证失败：${detail}`
+
+  const metrics =
+    typeof score === "number" && typeof threshold === "number"
+      ? `（分数 ${score.toFixed(3)}，阈值 ${threshold.toFixed(3)}）`
+      : typeof score === "number"
+        ? `（分数 ${score.toFixed(3)}）`
+        : ""
+
+  return `声纹验证失败${metrics}，请用已绑定的声音重试，或重新绑定声纹。`
 }
 
 // ============================================================================
@@ -391,8 +412,8 @@ export function useVoiceAgent({
         onTranscript: (text) => {
           handleFinalTranscriptRef.current(text)
         },
-        onSpeakerRejected: () => {
-          setError("Voiceprint verification failed.")
+        onSpeakerRejected: (score, threshold, reason) => {
+          setError(formatVoiceprintRejection(score, threshold, reason))
           setVoiceStateSync("listening")
           resetIdleTimer()
         },
@@ -679,7 +700,7 @@ export function useVoiceAgent({
     setError(null)
 
     if (speakerVerificationEnabled && !speakerVerificationBound) {
-      setError("Voiceprint verification is enabled, but no voiceprint is bound.")
+      setError("已启用声纹验证，但当前角色还没有绑定声纹。")
       return
     }
 
@@ -782,9 +803,9 @@ export function useVoiceAgent({
           if (!isCurrentSession()) return
           handleFinalTranscript(text)
         },
-        onSpeakerRejected: () => {
+        onSpeakerRejected: (score, threshold, reason) => {
           if (!isCurrentSession()) return
-          setError("Voiceprint verification failed.")
+          setError(formatVoiceprintRejection(score, threshold, reason))
           setVoiceStateSync("listening")
           resetIdleTimer()
         },
@@ -1272,8 +1293,13 @@ export function useVoiceAgent({
       }
 
       if (payload.type === "speaker_rejected") {
+        const score = typeof payload.score === "number" ? payload.score : null
+        const threshold =
+          typeof payload.threshold === "number" ? payload.threshold : null
+        const reason =
+          typeof payload.reason === "string" ? payload.reason : undefined
         wakeAcknowledgementPendingRef.current = false
-        setError("Voiceprint verification failed.")
+        setError(formatVoiceprintRejection(score, threshold, reason))
         setVoiceStateSync("listening")
         resetIdleTimer()
         return

@@ -41,7 +41,11 @@ export interface KwsCallbacks {
   /** Backend ASR produced final transcript */
   onTranscript?: (text: string) => void
   /** Backend rejected speech because it did not match the bound speaker */
-  onSpeakerRejected?: (score?: number | null) => void
+  onSpeakerRejected?: (
+    score?: number | null,
+    threshold?: number | null,
+    reason?: string,
+  ) => void
   /** Backend TTS audio chunk for short session sounds */
   onTtsAudio?: (purpose: string, pcmBase64: string) => void
   /** Backend TTS stream finished */
@@ -293,6 +297,8 @@ export class KwsClient {
           } else if (msg.type === "speaker_rejected") {
             this.callbacks.onSpeakerRejected?.(
               typeof msg.score === "number" ? msg.score : null,
+              typeof msg.threshold === "number" ? msg.threshold : null,
+              typeof msg.reason === "string" ? msg.reason : undefined,
             )
           } else if (msg.type === "tts_audio") {
             if (

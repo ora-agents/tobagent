@@ -329,6 +329,17 @@ class StreamingVadSession:
             self.vad.pop()
 
             vad_samples = np.asarray(segment.samples, dtype=np.float32)
+            if len(vad_samples) == 0:
+                logger.debug(
+                    "Skipped empty VAD segment: start=%d history_start=%d "
+                    "history_count=%d total_seen=%d",
+                    int(segment.start),
+                    self._history_start_sample,
+                    len(self._history),
+                    self._total_samples_seen,
+                )
+                continue
+
             samples = self._segment_samples_from_history(
                 start_sample=int(segment.start),
                 sample_count=len(vad_samples),
@@ -657,10 +668,20 @@ async def _get_speechbrain_classifier() -> Any:
             return EncoderClassifier.from_hparams(
                 source=SPEAKER_PROFILE_MODEL_SOURCE,
                 savedir=SPEAKER_PROFILE_MODEL_DIR,
+                run_opts={"device": _speechbrain_device()},
             )
 
         _speechbrain_classifier = await asyncio.to_thread(load_classifier)
         return _speechbrain_classifier
+
+
+def _speechbrain_device() -> str:
+    """Return a SpeechBrain-compatible torch device string."""
+    import torch
+
+    if torch.cuda.is_available():
+        return f"cuda:{torch.cuda.current_device()}"
+    return "cpu"
 
 
 def _speechbrain_embedding_sync(
