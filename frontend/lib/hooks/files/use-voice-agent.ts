@@ -106,6 +106,7 @@ declare global {
         agentId: string,
         wakeWordsJson: string,
         ttsVoice: string,
+        speakerVerificationJson: string,
       ) => void
       startManualAsr?: () => string
       startAsr?: () => string
@@ -121,6 +122,7 @@ declare global {
         agentId: string,
         wakeWords: string[],
         ttsVoice: string | null,
+        speakerVerification: { agentId: string; userId: string } | null,
       ) => void
       startManualAsr?: () => string
       startAsr?: () => string
@@ -1097,12 +1099,18 @@ export function useVoiceAgent({
 
     try {
       if (window.__TOB_NATIVE_VOICE__?.onAgentChanged) {
-        window.__TOB_NATIVE_VOICE__.onAgentChanged("active", keywords, ttsVoice || null)
+        window.__TOB_NATIVE_VOICE__.onAgentChanged(
+          agentId || "",
+          keywords,
+          ttsVoice || null,
+          speakerVerification,
+        )
       } else if (window.TobNativeVoice?.onAgentChanged) {
         window.TobNativeVoice.onAgentChanged(
-          "active",
+          agentId || "",
           JSON.stringify(keywords),
           ttsVoice || "",
+          JSON.stringify(speakerVerification),
         )
       } else if (window.__TOB_NATIVE_VOICE__?.updateWakeWords) {
         window.__TOB_NATIVE_VOICE__.updateWakeWords(keywords)
@@ -1112,7 +1120,7 @@ export function useVoiceAgent({
     } catch (err) {
       console.error("[NativeVoice] failed to sync wake words:", err)
     }
-  }, [isNativeVoiceProvider, wakeWordsKey, ttsVoice])
+  }, [agentId, isNativeVoiceProvider, speakerVerification, wakeWordsKey, ttsVoice])
 
   useEffect(() => {
     if (!isNativeVoiceProvider || typeof window === "undefined") return
@@ -1260,6 +1268,14 @@ export function useVoiceAgent({
           setVoiceStateSync("listening")
           resetIdleTimer()
         }
+        return
+      }
+
+      if (payload.type === "speaker_rejected") {
+        wakeAcknowledgementPendingRef.current = false
+        setError("Voiceprint verification failed.")
+        setVoiceStateSync("listening")
+        resetIdleTimer()
         return
       }
 
