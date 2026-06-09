@@ -699,6 +699,7 @@ export function ManagementDashboard({
 
     speakerRecorderRef.current = null
     setIsRecordingSpeaker(false)
+    const sampleRate = recorder.context.sampleRate
     recorder.processor.disconnect()
     recorder.source.disconnect()
     recorder.stream.getTracks().forEach(track => track.stop())
@@ -712,7 +713,7 @@ export function ManagementDashboard({
       offset += chunk.length
     }
 
-    if (pcm.length < 16000) {
+    if (pcm.length < sampleRate * 2) {
       setSpeakerBindingStatus(locale === "zh" ? "录音太短，请至少朗读 2 秒。" : "Recording is too short. Please read for at least 2 seconds.")
       return
     }
@@ -723,7 +724,7 @@ export function ManagementDashboard({
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
-          audio: int16PcmToWavDataUri(pcm, 16000),
+          audio: int16PcmToWavDataUri(pcm, sampleRate),
           sampleText: locale === "zh"
             ? "请用自然语速朗读：我是本智能体的授权使用者，正在完成声纹绑定。"
             : "Please read naturally: I am the authorized user of this agent and I am completing voiceprint binding.",
@@ -782,7 +783,7 @@ export function ManagementDashboard({
       processor.connect(context.destination)
       speakerRecorderRef.current = { stream, context, source, processor, chunks }
       setIsRecordingSpeaker(true)
-      setSpeakerBindingStatus(locale === "zh" ? "正在录音，请朗读指定文本。" : "Recording. Please read the sample text.")
+      setSpeakerBindingStatus(locale === "zh" ? "正在录音，请连续朗读指定文本至少 2 秒。" : "Recording. Please read the sample text continuously for at least 2 seconds.")
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setSpeakerBindingStatus(`${locale === "zh" ? "无法开始录音" : "Cannot start recording"}: ${message}`)
