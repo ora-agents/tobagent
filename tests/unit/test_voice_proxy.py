@@ -196,10 +196,8 @@ async def test_profile_speaker_verification_uses_shorter_verify_minimum(monkeypa
     ]
 
 
-def test_speaker_enrollment_quality_accepts_clean_speech(monkeypatch):
-    """Enrollment quality gate should accept loud non-clipped speech with VAD speech."""
-    monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 1.8)
-
+def test_speaker_enrollment_quality_accepts_clean_speech():
+    """Enrollment quality gate should accept loud non-clipped speech."""
     t = voice_proxy.np.linspace(0, 2.0, 32000, endpoint=False, dtype=voice_proxy.np.float32)
     samples = (0.08 * voice_proxy.np.sin(2 * voice_proxy.np.pi * 220 * t)).astype(
         voice_proxy.np.float32
@@ -208,15 +206,14 @@ def test_speaker_enrollment_quality_accepts_clean_speech(monkeypatch):
     quality = voice_proxy._evaluate_speaker_enrollment_quality(samples, 16000)
 
     assert quality.accepted
-    assert quality.effective_speech_seconds == pytest.approx(1.8)
+    assert quality.effective_speech_seconds == pytest.approx(2.0)
+    assert quality.active_audio_ratio == pytest.approx(1.0)
     assert quality.rms >= voice_proxy.SPEAKER_ENROLL_MIN_RMS
     assert quality.clipping_ratio == pytest.approx(0.0)
 
 
-def test_speaker_enrollment_quality_rejects_silent_audio(monkeypatch):
+def test_speaker_enrollment_quality_rejects_silent_audio():
     """Enrollment quality gate should reject recordings with no usable speech."""
-    monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 0.0)
-
     samples = voice_proxy.np.zeros(32000, dtype=voice_proxy.np.float32)
 
     quality = voice_proxy._evaluate_speaker_enrollment_quality(samples, 16000)
@@ -224,13 +221,11 @@ def test_speaker_enrollment_quality_rejects_silent_audio(monkeypatch):
     assert not quality.accepted
     assert "Audio volume is too low." in quality.errors
     assert "Audio contains too much silence." in quality.errors
-    assert "Voice activity detection found too little speech." in quality.errors
+    assert "Recording contains too little active audio." in quality.errors
 
 
-def test_speaker_enrollment_quality_rejects_clipped_audio(monkeypatch):
+def test_speaker_enrollment_quality_rejects_clipped_audio():
     """Enrollment quality gate should reject heavily clipped recordings."""
-    monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 1.8)
-
     samples = voice_proxy.np.full(32000, 1.0, dtype=voice_proxy.np.float32)
 
     quality = voice_proxy._evaluate_speaker_enrollment_quality(samples, 16000)

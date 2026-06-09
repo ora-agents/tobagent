@@ -92,8 +92,8 @@ SPEAKER_ENROLL_MAX_CLIPPING_RATIO = float(
 SPEAKER_ENROLL_MAX_SILENCE_RATIO = float(
     os.environ.get("VOICE_SPEAKER_ENROLL_MAX_SILENCE_RATIO", "0.65")
 )
-SPEAKER_ENROLL_MIN_VAD_SPEECH_RATIO = float(
-    os.environ.get("VOICE_SPEAKER_ENROLL_MIN_VAD_SPEECH_RATIO", "0.35")
+SPEAKER_ENROLL_MIN_ACTIVE_AUDIO_RATIO = float(
+    os.environ.get("VOICE_SPEAKER_ENROLL_MIN_ACTIVE_AUDIO_RATIO", "0.35")
 )
 SPEAKER_ENROLL_SILENCE_RMS = float(
     os.environ.get("VOICE_SPEAKER_ENROLL_SILENCE_RMS", "0.006")
@@ -141,7 +141,7 @@ class SpeakerEnrollmentQuality:
     rms: float
     clipping_ratio: float
     silence_ratio: float
-    vad_speech_ratio: float
+    active_audio_ratio: float
     errors: tuple[str, ...] = ()
 
     @property
@@ -538,45 +538,6 @@ def _frame_rms_values(samples: np.ndarray, sample_rate: int) -> np.ndarray:
     return np.asarray(values, dtype=np.float32)
 
 
-def _estimate_vad_speech_seconds(samples: np.ndarray) -> float:
-    """Estimate speech duration using the bundled Ten VAD model."""
-    import sherpa_onnx
-
-    model_path = _ensure_ten_vad_model()
-    config = sherpa_onnx.VadModelConfig(
-        ten_vad=sherpa_onnx.TenVadModelConfig(
-            model=str(model_path),
-            threshold=VAD_THRESHOLD,
-            min_silence_duration=VAD_MIN_SILENCE_DURATION,
-            min_speech_duration=VAD_MIN_SPEECH_DURATION,
-            window_size=VAD_WINDOW_SIZE,
-            max_speech_duration=VAD_MAX_SPEECH_DURATION,
-        ),
-        sample_rate=VAD_SAMPLE_RATE,
-        num_threads=1,
-        provider="cpu",
-        debug=False,
-    )
-    vad = sherpa_onnx.VoiceActivityDetector(config, 30)
-    vad.accept_waveform(samples.astype(np.float32))
-
-    # Give the detector enough trailing silence to close the final utterance.
-    trailing_silence = np.zeros(
-        int((VAD_MIN_SILENCE_DURATION + 0.2) * VAD_SAMPLE_RATE),
-        dtype=np.float32,
-    )
-    vad.accept_waveform(trailing_silence)
-    if hasattr(vad, "flush"):
-        vad.flush()
-
-    speech_seconds = 0.0
-    while not vad.empty():
-        segment = vad.front
-        vad.pop()
-        speech_seconds += len(segment.samples) / VAD_SAMPLE_RATE
-    return speech_seconds
-
-
 def _evaluate_speaker_enrollment_quality(
     samples: np.ndarray,
     sample_rate: int,
@@ -591,7 +552,7 @@ def _evaluate_speaker_enrollment_quality(
             rms=0.0,
             clipping_ratio=0.0,
             silence_ratio=1.0,
-            vad_speech_ratio=0.0,
+            active_audio_ratio=0.0,
             errors=("Audio is empty or contains invalid samples.",),
         )
 
@@ -603,12 +564,8 @@ def _evaluate_speaker_enrollment_quality(
         if len(frame_rms)
         else 1.0
     )
-    effective_speech_seconds = _estimate_vad_speech_seconds(normalized)
-    vad_speech_ratio = (
-        effective_speech_seconds / duration_seconds
-        if duration_seconds > 0
-        else 0.0
-    )
+    active_audio_ratio = 1.0 - silence_ratio
+    effective_speech_seconds = duration_seconds * active_audio_ratio
 
     errors: list[str] = []
     if duration_seconds < SPEAKER_PROFILE_MIN_SECONDS:
@@ -628,8 +585,8 @@ def _evaluate_speaker_enrollment_quality(
         errors.append("Audio is clipped; move farther from the microphone.")
     if silence_ratio > SPEAKER_ENROLL_MAX_SILENCE_RATIO:
         errors.append("Audio contains too much silence.")
-    if vad_speech_ratio < SPEAKER_ENROLL_MIN_VAD_SPEECH_RATIO:
-        errors.append("Voice activity detection found too little speech.")
+    if active_audio_ratio < SPEAKER_ENROLL_MIN_ACTIVE_AUDIO_RATIO:
+        errors.append("Recording contains too little active audio.")
 
     return SpeakerEnrollmentQuality(
         duration_seconds=duration_seconds,
@@ -637,7 +594,7 @@ def _evaluate_speaker_enrollment_quality(
         rms=rms,
         clipping_ratio=clipping_ratio,
         silence_ratio=silence_ratio,
-        vad_speech_ratio=vad_speech_ratio,
+        active_audio_ratio=active_audio_ratio,
         errors=tuple(errors),
     )
 
@@ -650,7 +607,7 @@ def _format_enrollment_quality_error(quality: SpeakerEnrollmentQuality) -> str:
         f"rms={quality.rms:.4f}, "
         f"clipping={quality.clipping_ratio:.2%}, "
         f"silence={quality.silence_ratio:.2%}, "
-        f"vad={quality.vad_speech_ratio:.2%}"
+        f"active={quality.active_audio_ratio:.2%}"
     )
     return "Voiceprint enrollment audio quality is too low: " + (
         "; ".join(quality.errors) + f" ({metrics})"
@@ -962,7 +919,7 @@ async def enroll_agent_speaker(
     db.commit()
     logger.info(
         "Speaker voiceprint enrolled: agent_id=%s user_id=%s duration=%.2fs "
-        "speech=%.2fs rms=%.4f clipping=%.2f silence=%.2f vad=%.2f",
+        "speech=%.2fs rms=%.4f clipping=%.2f silence=%.2f active=%.2f",
         agent_id,
         user_id,
         quality.duration_seconds,
@@ -970,7 +927,7 @@ async def enroll_agent_speaker(
         quality.rms,
         quality.clipping_ratio,
         quality.silence_ratio,
-        quality.vad_speech_ratio,
+        quality.active_audio_ratio,
     )
 
     return SpeakerEnrollmentResponse(
