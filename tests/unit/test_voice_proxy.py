@@ -1,6 +1,7 @@
 """Tests for the voice proxy endpoints."""
 
 import base64
+from types import SimpleNamespace
 
 import pytest
 
@@ -15,52 +16,97 @@ def test_coerce_tts_voice_accepts_only_non_empty_strings():
     assert voice_proxy._coerce_tts_voice(None) is None
 
 
-def test_audio_gate_accepts_loud_clean_segments(monkeypatch):
-    """Audio quality gate should accept loud speech above the noise floor."""
-    monkeypatch.setattr(voice_proxy, "AUDIO_GATE_ENABLED", True)
+def test_int16_decoder_rejects_malformed_pcm_chunks(monkeypatch):
+    """Streaming audio input should reject malformed PCM before sherpa sees it."""
+    assert len(voice_proxy._int16_bytes_to_float32(b"\x00")) == 0
 
-    stats = voice_proxy.AudioStats(
-        rms_dbfs=-25.0,
-        peak_dbfs=-15.0,
-        noise_dbfs=-45.0,
-        snr_db=20.0,
+    monkeypatch.setattr(voice_proxy, "MAX_PCM_CHUNK_BYTES", 4)
+    assert len(voice_proxy._int16_bytes_to_float32(b"\x00\x00\x00\x00\x00\x00")) == 0
+
+
+def test_vad_segments_use_retained_input_audio_when_vad_samples_are_invalid(monkeypatch):
+    """Completed VAD segments should not trust corrupt samples returned by VAD."""
+    monkeypatch.setattr(voice_proxy, "MIN_ASR_SEGMENT_DURATION_SECONDS", 0.0)
+
+    retained_samples = voice_proxy.np.asarray(
+        [0.0, 0.1, -0.2, 0.25, -0.3],
+        dtype=voice_proxy.np.float32,
+    )
+    corrupt_vad_samples = voice_proxy.np.full(
+        len(retained_samples),
+        66148.0,
+        dtype=voice_proxy.np.float32,
     )
 
-    assert voice_proxy._passes_audio_gate(stats)
+    class FakeVad:
+        def __init__(self) -> None:
+            self._segments = [
+                SimpleNamespace(start=10, samples=corrupt_vad_samples),
+            ]
+
+        def empty(self) -> bool:
+            return not self._segments
+
+        @property
+        def front(self):
+            return self._segments[0]
+
+        def pop(self) -> None:
+            self._segments.pop(0)
+
+    session = voice_proxy.StreamingVadSession.__new__(voice_proxy.StreamingVadSession)
+    session.vad = FakeVad()
+    session._history = retained_samples
+    session._history_start_sample = 10
+    session._total_samples_seen = 15
+
+    segments = session._drain_completed_segments()
+
+    assert len(segments) == 1
+    assert segments[0].samples.tolist() == pytest.approx(retained_samples.tolist())
 
 
-def test_audio_gate_rejects_low_snr_segments(monkeypatch):
-    """Audio quality gate should reject speech-like segments buried in noise."""
-    monkeypatch.setattr(voice_proxy, "AUDIO_GATE_ENABLED", True)
+def test_speaker_enrollment_quality_accepts_clean_speech(monkeypatch):
+    """Enrollment quality gate should accept loud non-clipped speech with VAD speech."""
+    monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 1.8)
 
-    stats = voice_proxy.AudioStats(
-        rms_dbfs=-30.0,
-        peak_dbfs=-18.0,
-        noise_dbfs=-35.0,
-        snr_db=5.0,
+    t = voice_proxy.np.linspace(0, 2.0, 32000, endpoint=False, dtype=voice_proxy.np.float32)
+    samples = (0.08 * voice_proxy.np.sin(2 * voice_proxy.np.pi * 220 * t)).astype(
+        voice_proxy.np.float32
     )
 
-    assert not voice_proxy._passes_audio_gate(stats)
+    quality = voice_proxy._evaluate_speaker_enrollment_quality(samples, 16000)
+
+    assert quality.accepted
+    assert quality.effective_speech_seconds == pytest.approx(1.8)
+    assert quality.rms >= voice_proxy.SPEAKER_ENROLL_MIN_RMS
+    assert quality.clipping_ratio == pytest.approx(0.0)
 
 
-def test_audio_stats_reports_snr_relative_to_noise_floor():
-    """Audio stats should compute dBFS and SNR from float32 samples."""
-    samples = voice_proxy.np.full(16000, 0.1, dtype=voice_proxy.np.float32)
+def test_speaker_enrollment_quality_rejects_silent_audio(monkeypatch):
+    """Enrollment quality gate should reject recordings with no usable speech."""
+    monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 0.0)
 
-    stats = voice_proxy._audio_stats(samples, noise_rms=0.01)
+    samples = voice_proxy.np.zeros(32000, dtype=voice_proxy.np.float32)
 
-    assert stats.rms_dbfs == pytest.approx(-20.0, abs=0.2)
-    assert stats.peak_dbfs == pytest.approx(-20.0, abs=0.2)
-    assert stats.noise_dbfs == pytest.approx(-40.0, abs=0.2)
-    assert stats.snr_db == pytest.approx(20.0, abs=0.3)
+    quality = voice_proxy._evaluate_speaker_enrollment_quality(samples, 16000)
+
+    assert not quality.accepted
+    assert "Audio volume is too low." in quality.errors
+    assert "Audio contains too much silence." in quality.errors
+    assert "Voice activity detection found too little speech." in quality.errors
 
 
-def test_speaker_verifier_is_disabled_without_config(monkeypatch):
-    """Wake speaker binding should degrade safely when no model is configured."""
-    monkeypatch.setattr(voice_proxy, "SPEAKER_BINDING_ENABLED", False)
-    monkeypatch.setattr(voice_proxy, "SPEAKER_MODEL_PATH", "")
+def test_speaker_enrollment_quality_rejects_clipped_audio(monkeypatch):
+    """Enrollment quality gate should reject heavily clipped recordings."""
+    monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 1.8)
 
-    assert voice_proxy._create_wake_speaker_verifier() is None
+    samples = voice_proxy.np.full(32000, 1.0, dtype=voice_proxy.np.float32)
+
+    quality = voice_proxy._evaluate_speaker_enrollment_quality(samples, 16000)
+
+    assert not quality.accepted
+    assert "Audio is clipped; move farther from the microphone." in quality.errors
 
 
 @pytest.mark.anyio
