@@ -246,6 +246,9 @@ const normalizeMcpTransport = (_type?: string): McpTransport => "streamable_http
 
 type SpeakerRecordingMode = "web" | "native"
 
+const SPEAKER_AUDIO_ACCEPT = "audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.webm,.flac"
+const SPEAKER_AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".webm", ".flac"]
+
 type NativeSpeakerEnrollmentEvent = {
   type?: unknown
   requestId?: unknown
@@ -261,6 +264,43 @@ type NativeSpeakerEnrollmentEvent = {
 const SPEAKER_SAMPLE_TEXT = {
   zh: "请用自然语速朗读：我是本智能体的授权使用者，正在完成声纹绑定。",
   en: "Please read naturally: I am the authorized user of this agent and I am completing voiceprint binding.",
+}
+
+async function audioFileToWavDataUri(file: File): Promise<string> {
+  const fileName = file.name.toLowerCase()
+  const isAudioFile =
+    file.type.startsWith("audio/") ||
+    SPEAKER_AUDIO_EXTENSIONS.some(extension => fileName.endsWith(extension))
+  if (!isAudioFile) {
+    throw new Error("Unsupported audio file type")
+  }
+
+  const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext
+  if (!AudioContextCtor) {
+    throw new Error("Audio decoding is not supported in this browser")
+  }
+
+  const context = new AudioContextCtor()
+  try {
+    const arrayBuffer = await file.arrayBuffer()
+    const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0))
+    const channelCount = audioBuffer.numberOfChannels
+    const frameCount = audioBuffer.length
+    const pcm = new Int16Array(frameCount)
+
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      let mixedSample = 0
+      for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+        mixedSample += audioBuffer.getChannelData(channelIndex)[frameIndex] || 0
+      }
+      const sample = Math.max(-1, Math.min(1, mixedSample / Math.max(channelCount, 1)))
+      pcm[frameIndex] = sample < 0 ? sample * 32768 : sample * 32767
+    }
+
+    return int16PcmToWavDataUri(pcm, audioBuffer.sampleRate)
+  } finally {
+    await context.close().catch(() => {})
+  }
 }
 
 function getNativeSpeakerEnrollmentBridge() {
@@ -416,6 +456,7 @@ export function ManagementDashboard({
   const [newWakeWord, setNewWakeWord] = useState("")
   const [speakerBindingStatus, setSpeakerBindingStatus] = useState<string | null>(null)
   const [isRecordingSpeaker, setIsRecordingSpeaker] = useState(false)
+  const speakerAudioInputRef = useRef<HTMLInputElement>(null)
   const speakerRecordingModeRef = useRef<SpeakerRecordingMode | null>(null)
   const nativeSpeakerEnrollmentRequestIdRef = useRef<string | null>(null)
   const speakerRecorderRef = useRef<{
@@ -760,6 +801,38 @@ export function ManagementDashboard({
     })
   }
 
+  const enrollSpeakerWithAudio = useCallback(async (audioDataUri: string) => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !activeEditingAgentId) return
+
+    setSpeakerBindingStatus(locale === "zh" ? "正在生成声纹..." : "Creating voiceprint...")
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${activeEditingAgentId}/speaker/enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({
+          audio: audioDataUri,
+          sampleText: SPEAKER_SAMPLE_TEXT[locale],
+        }),
+      })
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "")
+        throw new Error(text || `HTTP ${resp.status}`)
+      }
+      const result = await resp.json()
+      setSpeakerBindingStatus(locale === "zh" ? "声纹已绑定。" : "Voiceprint bound.")
+      updateAgentProfile(activeEditingAgentId, {
+        speakerVerificationEnabled: true,
+        speakerVerificationBound: true,
+        speakerSampleText: result.sampleText,
+        speakerEnrolledAt: result.enrolledAt,
+      } as any)
+      setAgentForm(prev => ({ ...prev, speakerVerificationEnabled: true }))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSpeakerBindingStatus(`${locale === "zh" ? "声纹绑定失败" : "Voiceprint binding failed"}: ${message}`)
+    }
+  }, [activeEditingAgentId, authHeaders, locale, updateAgentProfile])
+
   const stopSpeakerRecording = useCallback(async () => {
     if (speakerRecordingModeRef.current === "native") {
       const requestId = nativeSpeakerEnrollmentRequestIdRef.current
@@ -816,34 +889,8 @@ export function ManagementDashboard({
       return
     }
 
-    setSpeakerBindingStatus(locale === "zh" ? "正在生成声纹..." : "Creating voiceprint...")
-    try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${activeEditingAgentId}/speaker/enroll`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({
-          audio: int16PcmToWavDataUri(pcm, sampleRate),
-          sampleText: SPEAKER_SAMPLE_TEXT[locale],
-        }),
-      })
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => "")
-        throw new Error(text || `HTTP ${resp.status}`)
-      }
-      const result = await resp.json()
-      setSpeakerBindingStatus(locale === "zh" ? "声纹已绑定。" : "Voiceprint bound.")
-      updateAgentProfile(activeEditingAgentId, {
-        speakerVerificationEnabled: true,
-        speakerVerificationBound: true,
-        speakerSampleText: result.sampleText,
-        speakerEnrolledAt: result.enrolledAt,
-      } as any)
-      setAgentForm(prev => ({ ...prev, speakerVerificationEnabled: true }))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setSpeakerBindingStatus(`${locale === "zh" ? "声纹绑定失败" : "Voiceprint binding failed"}: ${message}`)
-    }
-  }, [activeEditingAgentId, authHeaders, locale, updateAgentProfile])
+    await enrollSpeakerWithAudio(int16PcmToWavDataUri(pcm, sampleRate))
+  }, [activeEditingAgentId, authHeaders, enrollSpeakerWithAudio, locale, updateAgentProfile])
 
   const startSpeakerRecording = useCallback(async () => {
     if (!activeEditingAgentId) {
@@ -920,6 +967,26 @@ export function ManagementDashboard({
       void startSpeakerRecording()
     }
   }, [isRecordingSpeaker, startSpeakerRecording, stopSpeakerRecording])
+
+  const handleSpeakerAudioUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+    if (!file) return
+
+    if (!activeEditingAgentId) {
+      setSpeakerBindingStatus(locale === "zh" ? "请先保存角色，再绑定声纹。" : "Save the role before binding a voiceprint.")
+      return
+    }
+
+    try {
+      setSpeakerBindingStatus(locale === "zh" ? "正在读取音频文件..." : "Reading audio file...")
+      const audioDataUri = await audioFileToWavDataUri(file)
+      await enrollSpeakerWithAudio(audioDataUri)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSpeakerBindingStatus(`${locale === "zh" ? "音频文件无法用于声纹绑定" : "Audio file cannot be used for voiceprint binding"}: ${message}`)
+    }
+  }, [activeEditingAgentId, enrollSpeakerWithAudio, locale])
 
   const handleApplyRoleTemplate = (templateId: string) => {
     const template = ROLE_TEMPLATES.find(item => item.id === templateId)
@@ -2066,7 +2133,14 @@ export function ManagementDashboard({
                           <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm leading-relaxed">
                             {SPEAKER_SAMPLE_TEXT[locale]}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <input
+                            ref={speakerAudioInputRef}
+                            type="file"
+                            accept={SPEAKER_AUDIO_ACCEPT}
+                            onChange={handleSpeakerAudioUpload}
+                            className="hidden"
+                          />
+                          <div className="flex flex-wrap items-center gap-2">
                             <Button
                               type="button"
                               variant={isRecordingSpeaker ? "destructive" : "outline"}
@@ -2079,6 +2153,17 @@ export function ManagementDashboard({
                               {isRecordingSpeaker
                                 ? (locale === "zh" ? "停止并绑定" : "Stop and bind")
                                 : (locale === "zh" ? "录制绑定" : "Record binding")}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => speakerAudioInputRef.current?.click()}
+                              disabled={isCreatingAgent || isRecordingSpeaker}
+                              className="gap-1.5 rounded-lg"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              {locale === "zh" ? "上传音频绑定" : "Upload audio"}
                             </Button>
                             {activeEditingAgentId && agentProfiles.find(p => p.id === activeEditingAgentId)?.speakerVerificationBound && (
                               <span className="text-xs font-medium text-primary">

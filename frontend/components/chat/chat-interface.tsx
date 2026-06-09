@@ -1017,6 +1017,8 @@ export function ChatInterface({
   const maxDisplayInputLength = Math.max(0, MAX_INPUT_CHARS - attachedTextLength)
   const cappedDisplayInput = uiState.input.slice(0, maxDisplayInputLength)
   inputLengthRef.current = cappedDisplayInput.length
+  const shouldFollowVoiceMessages =
+    voiceAgent.voiceState !== "idle" && voiceAgent.voiceState !== "kws"
 
   // ============================================================================
   // Render
@@ -1029,6 +1031,7 @@ export function ChatInterface({
         <MessageList
           messages={messages}
           showToolCalls={showToolCalls}
+          forceAutoScroll={shouldFollowVoiceMessages}
           isRegenerating={uiState.isRegenerating}
           copiedId={uiState.copiedId}
           onCopy={handleCopy}

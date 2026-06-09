@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n"
 interface MessageListProps {
   messages: Message[]
   showToolCalls?: boolean
+  forceAutoScroll?: boolean
   isRegenerating: boolean
   copiedId: string | null
   onCopy: (content: string, messageId: string) => void
@@ -17,6 +18,7 @@ interface MessageListProps {
 export const MessageList = memo(function MessageList({
   messages,
   showToolCalls,
+  forceAutoScroll = false,
   isRegenerating,
   copiedId,
   onCopy,
@@ -237,6 +239,18 @@ export const MessageList = memo(function MessageList({
     return distanceFromBottom < 1
   }, [])
 
+  useEffect(() => {
+    if (!forceAutoScroll || !scrollRef.current) return
+
+    shouldAutoScrollRef.current = true
+    setShowScrollButton(false)
+    scrollToAbsoluteBottom()
+
+    requestAnimationFrame(() => {
+      scrollToAbsoluteBottom()
+    })
+  }, [forceAutoScroll, messages.length, scrollToAbsoluteBottom])
+
   /**
    * Handles user scroll events
    * - Detects upward scrolling during auto-scroll and cancels it
@@ -276,8 +290,10 @@ export const MessageList = memo(function MessageList({
     const isNewMessage = messages.length > lastMessageCountRef.current
     const isStreaming = currentContent !== lastContentRef.current && !isNewMessage
 
-    if (shouldAutoScrollRef.current && (isNewMessage || isStreaming)) {
+    if ((forceAutoScroll || shouldAutoScrollRef.current) && (isNewMessage || isStreaming)) {
       isProgrammaticScrollRef.current = true
+      shouldAutoScrollRef.current = true
+      setShowScrollButton(false)
 
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
@@ -291,7 +307,7 @@ export const MessageList = memo(function MessageList({
 
     lastMessageCountRef.current = messages.length
     lastContentRef.current = currentContent
-  }, [messages])
+  }, [messages, forceAutoScroll])
 
   /**
    * Scrolls to bottom when user clicks the scroll-to-bottom button
