@@ -13,6 +13,7 @@ Protocol:
 import asyncio
 import json
 import logging
+import os
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -20,6 +21,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 logger = logging.getLogger(__name__)
 
 kws_router = APIRouter()
+KWS_SAMPLE_RATE = 16000
+MAX_PCM_CHUNK_SECONDS = float(os.environ.get("VOICE_MAX_PCM_CHUNK_SECONDS", "5"))
+MAX_PCM_CHUNK_BYTES = int(KWS_SAMPLE_RATE * 2 * MAX_PCM_CHUNK_SECONDS)
 
 
 def _process_audio_chunk(spotter, stream, audio_bytes: bytes) -> str | None:
@@ -35,6 +39,17 @@ def _process_audio_chunk(spotter, stream, audio_bytes: bytes) -> str | None:
     Returns:
         Detected keyword string, or None.
     """
+    if len(audio_bytes) % 2 != 0:
+        logger.warning("Dropped malformed KWS PCM chunk with odd byte length: %d", len(audio_bytes))
+        return None
+    if len(audio_bytes) > MAX_PCM_CHUNK_BYTES:
+        logger.warning(
+            "Dropped oversized KWS PCM chunk: bytes=%d max_bytes=%d",
+            len(audio_bytes),
+            MAX_PCM_CHUNK_BYTES,
+        )
+        return None
+
     # Convert Int16 bytes to float32 numpy array [-1, 1]
     samples_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
     if len(samples_int16) == 0:
@@ -43,7 +58,7 @@ def _process_audio_chunk(spotter, stream, audio_bytes: bytes) -> str | None:
     samples_float32 = samples_int16.astype(np.float32) / 32768.0
 
     # Feed audio to the stream
-    stream.accept_waveform(16000, samples_float32)
+    stream.accept_waveform(KWS_SAMPLE_RATE, samples_float32)
 
     # Decode and check for detections
     while spotter.is_ready(stream):
