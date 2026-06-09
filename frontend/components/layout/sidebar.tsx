@@ -38,6 +38,17 @@ const scrollbarStyles = `
   }
 `
 
+const DEFAULT_ADMIN_URL = "http://114.55.10.54:8000/static/admin.html"
+
+function openAdminDashboard() {
+  const url = process.env.NEXT_PUBLIC_ADMIN_URL || DEFAULT_ADMIN_URL
+  if ((window as any).__TOB_ROBOT_ENV__?.enabled) {
+    window.location.assign(url)
+    return
+  }
+  window.open(url, "_blank", "noopener,noreferrer")
+}
+
 interface SidebarProps {
   isCollapsed: boolean
   onToggle: () => void
@@ -349,10 +360,7 @@ export const Sidebar = memo(function Sidebar({
             </div>
           )}
           <button
-            onClick={() => {
-              const url = process.env.NEXT_PUBLIC_ADMIN_URL || "https://admin.example.com"
-              window.open(url, "_blank", "noopener,noreferrer")
-            }}
+            onClick={openAdminDashboard}
             className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
             title={t.backend}
           >
@@ -524,10 +532,7 @@ export const Sidebar = memo(function Sidebar({
           </div>
         )}
         <button
-          onClick={() => {
-            const url = process.env.NEXT_PUBLIC_ADMIN_URL || "https://admin.example.com"
-            window.open(url, "_blank", "noopener,noreferrer")
-          }}
+          onClick={openAdminDashboard}
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground group"
         >
           <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
