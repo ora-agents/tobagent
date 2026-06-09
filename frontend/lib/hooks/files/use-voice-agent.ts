@@ -115,6 +115,8 @@ declare global {
       stopVoice?: () => string
       stopAsr?: () => string
       returnToKws?: () => string
+      startSpeakerEnrollment?: (requestJson: string) => string
+      stopSpeakerEnrollment?: (requestId: string) => string
     }
     __TOB_NATIVE_VOICE__?: {
       updateWakeWords?: (wakeWords: string[]) => void
@@ -131,6 +133,13 @@ declare global {
       stopVoice?: () => string
       stopAsr?: () => string
       returnToKws?: () => string
+      startSpeakerEnrollment?: (request: {
+        requestId: string
+        agentId: string
+        userId: string
+        sampleText: string
+      }) => string
+      stopSpeakerEnrollment?: (requestId: string) => string
     }
   }
 }
