@@ -74,6 +74,9 @@ SPEAKER_PROFILE_SAMPLE_TEXT = os.environ.get(
 SPEAKER_PROFILE_MIN_SECONDS = float(
     os.environ.get("VOICE_SPEAKER_PROFILE_MIN_SECONDS", "1.5")
 )
+SPEAKER_VERIFY_MIN_SECONDS = float(
+    os.environ.get("VOICE_SPEAKER_VERIFY_MIN_SECONDS", "0.5")
+)
 SPEAKER_ENROLL_MIN_EFFECTIVE_SPEECH_SECONDS = float(
     os.environ.get("VOICE_SPEAKER_ENROLL_MIN_EFFECTIVE_SPEECH_SECONDS", "1.2")
 )
@@ -156,7 +159,12 @@ class ProfileSpeakerGate:
 
     async def verify(self, samples: np.ndarray) -> tuple[bool, float | None]:
         """Return whether the segment matches the profile voiceprint."""
-        embedding = await _compute_speechbrain_embedding(samples, VAD_SAMPLE_RATE)
+        embedding = await _compute_speechbrain_embedding(
+            samples,
+            VAD_SAMPLE_RATE,
+            min_seconds=SPEAKER_VERIFY_MIN_SECONDS,
+            purpose="speaker verification",
+        )
         score = _cosine_similarity(self.target_embedding, embedding)
         return score >= self.threshold, score
 
@@ -701,13 +709,15 @@ def _speechbrain_embedding_sync(
 async def _compute_speechbrain_embedding(
     samples: np.ndarray,
     sample_rate: int,
+    *,
+    min_seconds: float = SPEAKER_PROFILE_MIN_SECONDS,
+    purpose: str = "speaker binding",
 ) -> np.ndarray:
     """Compute an ECAPA-TDNN speaker embedding for PCM samples."""
     duration_seconds = len(samples) / max(sample_rate, 1)
-    if duration_seconds < SPEAKER_PROFILE_MIN_SECONDS:
+    if duration_seconds < min_seconds:
         raise ValueError(
-            f"Audio is too short for speaker binding; need at least "
-            f"{SPEAKER_PROFILE_MIN_SECONDS:.1f}s"
+            f"Audio is too short for {purpose}; need at least {min_seconds:.1f}s"
         )
 
     samples = _resample_mono_float32(samples, sample_rate, VAD_SAMPLE_RATE)
@@ -719,10 +729,20 @@ async def _compute_speechbrain_embedding(
     )
 
 
-async def _embedding_from_data_uri(data_uri: str) -> np.ndarray:
+async def _embedding_from_data_uri(
+    data_uri: str,
+    *,
+    min_seconds: float = SPEAKER_PROFILE_MIN_SECONDS,
+    purpose: str = "speaker binding",
+) -> np.ndarray:
     """Decode a WAV data URI and compute a SpeechBrain speaker embedding."""
     samples, sample_rate = _decode_wav_data_uri_to_float32(data_uri)
-    return await _compute_speechbrain_embedding(samples, sample_rate)
+    return await _compute_speechbrain_embedding(
+        samples,
+        sample_rate,
+        min_seconds=min_seconds,
+        purpose=purpose,
+    )
 
 
 async def _enrollment_embedding_from_data_uri(
@@ -733,7 +753,12 @@ async def _enrollment_embedding_from_data_uri(
     quality = _evaluate_speaker_enrollment_quality(samples, sample_rate)
     if not quality.accepted:
         raise ValueError(_format_enrollment_quality_error(quality))
-    embedding = await _compute_speechbrain_embedding(samples, sample_rate)
+    embedding = await _compute_speechbrain_embedding(
+        samples,
+        sample_rate,
+        min_seconds=SPEAKER_PROFILE_MIN_SECONDS,
+        purpose="speaker binding",
+    )
     return embedding, quality
 
 
@@ -766,7 +791,11 @@ async def _verify_profile_speaker(
             bound=False,
         )
 
-    probe_embedding = await _embedding_from_data_uri(audio_data_uri)
+    probe_embedding = await _embedding_from_data_uri(
+        audio_data_uri,
+        min_seconds=SPEAKER_VERIFY_MIN_SECONDS,
+        purpose="speaker verification",
+    )
     score = _cosine_similarity(target_embedding, probe_embedding)
     return SpeakerVerificationResponse(
         accepted=score >= SPEAKER_PROFILE_THRESHOLD,

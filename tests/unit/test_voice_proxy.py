@@ -122,6 +122,80 @@ def test_speechbrain_device_uses_indexed_cuda_device(monkeypatch):
     assert voice_proxy._speechbrain_device() == "cuda:2"
 
 
+@pytest.mark.anyio
+async def test_profile_speaker_gate_uses_verification_min_seconds(monkeypatch):
+    """Runtime speaker checks should not reuse the longer enrollment minimum."""
+    calls = []
+
+    async def fake_compute(samples, sample_rate, *, min_seconds, purpose):
+        calls.append((len(samples), sample_rate, min_seconds, purpose))
+        return voice_proxy.np.asarray([1.0, 0.0], dtype=voice_proxy.np.float32)
+
+    monkeypatch.setattr(voice_proxy, "_compute_speechbrain_embedding", fake_compute)
+
+    gate = voice_proxy.ProfileSpeakerGate(
+        target_embedding=voice_proxy.np.asarray([1.0, 0.0], dtype=voice_proxy.np.float32)
+    )
+
+    accepted, score = await gate.verify(
+        voice_proxy.np.zeros(
+            int(voice_proxy.SPEAKER_VERIFY_MIN_SECONDS * voice_proxy.VAD_SAMPLE_RATE),
+            dtype=voice_proxy.np.float32,
+        )
+    )
+
+    assert accepted
+    assert score == pytest.approx(1.0)
+    assert calls == [
+        (
+            int(voice_proxy.SPEAKER_VERIFY_MIN_SECONDS * voice_proxy.VAD_SAMPLE_RATE),
+            voice_proxy.VAD_SAMPLE_RATE,
+            voice_proxy.SPEAKER_VERIFY_MIN_SECONDS,
+            "speaker verification",
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_profile_speaker_verification_uses_shorter_verify_minimum(monkeypatch):
+    """REST speaker verification should allow shorter samples than enrollment."""
+    calls = []
+
+    async def fake_embedding_from_data_uri(data_uri, *, min_seconds, purpose):
+        calls.append((data_uri, min_seconds, purpose))
+        return voice_proxy.np.asarray([1.0, 0.0], dtype=voice_proxy.np.float32)
+
+    monkeypatch.setattr(
+        voice_proxy,
+        "_embedding_from_data_uri",
+        fake_embedding_from_data_uri,
+    )
+
+    profile = voice_proxy.AgentProfileTable(
+        id="agent-1",
+        name="Agent",
+        speaker_verification_enabled=True,
+        speaker_embedding=[1.0, 0.0],
+        created_at="now",
+        updated_at="now",
+    )
+
+    response = await voice_proxy._verify_profile_speaker(
+        profile=profile,
+        audio_data_uri="data:audio/wav;base64,test",
+    )
+
+    assert response.accepted
+    assert response.score == pytest.approx(1.0)
+    assert calls == [
+        (
+            "data:audio/wav;base64,test",
+            voice_proxy.SPEAKER_VERIFY_MIN_SECONDS,
+            "speaker verification",
+        )
+    ]
+
+
 def test_speaker_enrollment_quality_accepts_clean_speech(monkeypatch):
     """Enrollment quality gate should accept loud non-clipped speech with VAD speech."""
     monkeypatch.setattr(voice_proxy, "_estimate_vad_speech_seconds", lambda _samples: 1.8)
