@@ -40,6 +40,8 @@ export interface KwsCallbacks {
   onTranscribing?: () => void
   /** Backend ASR produced final transcript */
   onTranscript?: (text: string) => void
+  /** Backend rejected speech because it did not match the bound speaker */
+  onSpeakerRejected?: (score?: number | null) => void
   /** Backend TTS audio chunk for short session sounds */
   onTtsAudio?: (purpose: string, pcmBase64: string) => void
   /** Backend TTS stream finished */
@@ -50,6 +52,11 @@ export interface KwsCallbacks {
   onConnected?: () => void
   /** WebSocket disconnected */
   onDisconnected?: () => void
+}
+
+interface SpeakerVerificationConfig {
+  agentId: string
+  userId: string
 }
 
 /** Build WebSocket URL for KWS endpoint */
@@ -67,6 +74,7 @@ export class KwsClient {
   private callbacks: KwsCallbacks
   private keywords: string[] = []
   private ttsVoice: string | null = null
+  private speakerVerification: SpeakerVerificationConfig | null = null
   private reconnectAttempts = 0
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private intentionalStop = false
@@ -81,13 +89,18 @@ export class KwsClient {
    * Start KWS listening.
    * Requests microphone access, sets up AudioWorklet, and opens WebSocket.
    */
-  async start(keywords: string[], ttsVoice?: string | null): Promise<void> {
+  async start(
+    keywords: string[],
+    ttsVoice?: string | null,
+    speakerVerification?: SpeakerVerificationConfig | null,
+  ): Promise<void> {
     this.stop()
 
     if (!keywords.length) return
 
     this.keywords = keywords
     this.ttsVoice = ttsVoice || null
+    this.speakerVerification = speakerVerification || null
     this.intentionalStop = false
     this.reconnectAttempts = 0
     this.isStarting = true
@@ -117,9 +130,14 @@ export class KwsClient {
   }
 
   /** Update wake words without restarting microphone capture when connected. */
-  updateKeywords(keywords: string[], ttsVoice?: string | null): void {
+  updateKeywords(
+    keywords: string[],
+    ttsVoice?: string | null,
+    speakerVerification?: SpeakerVerificationConfig | null,
+  ): void {
     this.keywords = keywords
     this.ttsVoice = ttsVoice || null
+    this.speakerVerification = speakerVerification || null
 
     if (!keywords.length) {
       this.stop()
@@ -132,6 +150,7 @@ export class KwsClient {
           type: "config",
           keywords: this.keywords,
           ttsVoice: this.ttsVoice,
+          speakerVerification: this.speakerVerification,
         }),
       )
     }
@@ -224,6 +243,7 @@ export class KwsClient {
             type: "config",
             keywords: this.keywords,
             ttsVoice: this.ttsVoice,
+            speakerVerification: this.speakerVerification,
           }),
         )
         ws.send(JSON.stringify({ type: "mode", mode: "kws" }))
@@ -270,6 +290,10 @@ export class KwsClient {
             if (typeof msg.text === "string") {
               this.callbacks.onTranscript?.(msg.text)
             }
+          } else if (msg.type === "speaker_rejected") {
+            this.callbacks.onSpeakerRejected?.(
+              typeof msg.score === "number" ? msg.score : null,
+            )
           } else if (msg.type === "tts_audio") {
             if (
               typeof msg.purpose === "string" &&

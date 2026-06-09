@@ -20,17 +20,27 @@ import os
 import tempfile
 import wave
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import dashscope  # type: ignore[import-untyped]
 import numpy as np
 import websockets
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from websockets.asyncio.client import ClientConnection
 
 from src.api.kws_router import _create_keyword_stream, _process_audio_chunk
+from src.utils.db import AgentProfileTable, SessionLocal, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +76,24 @@ SPEAKER_BINDING_MIN_ENROLL_SECONDS = float(
 SPEAKER_BINDING_MIN_VERIFY_SECONDS = float(
     os.environ.get("VOICE_SPEAKER_MIN_VERIFY_SECONDS", "0.8")
 )
+SPEAKER_PROFILE_MODEL_SOURCE = os.environ.get(
+    "VOICE_SPEAKER_PROFILE_MODEL_SOURCE",
+    "speechbrain/spkrec-ecapa-voxceleb",
+)
+SPEAKER_PROFILE_MODEL_DIR = os.environ.get(
+    "VOICE_SPEAKER_PROFILE_MODEL_DIR",
+    str(Path(tempfile.gettempdir()) / "speechbrain-spkrec-ecapa-voxceleb"),
+)
+SPEAKER_PROFILE_THRESHOLD = float(
+    os.environ.get("VOICE_SPEAKER_PROFILE_THRESHOLD", "0.72")
+)
+SPEAKER_PROFILE_SAMPLE_TEXT = os.environ.get(
+    "VOICE_SPEAKER_PROFILE_SAMPLE_TEXT",
+    "请用自然语速朗读：我是本智能体的授权使用者，正在完成声纹绑定。",
+)
+SPEAKER_PROFILE_MIN_SECONDS = float(
+    os.environ.get("VOICE_SPEAKER_PROFILE_MIN_SECONDS", "1.5")
+)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VAD_DATA_PATH = (
     REPO_ROOT
@@ -79,6 +107,8 @@ TEN_VAD_DATA_START = 1076
 TEN_VAD_DATA_END = 333287
 
 voice_router = APIRouter()
+_speechbrain_classifier: Any | None = None
+_speechbrain_lock = asyncio.Lock()
 
 VOICE_MODE_KWS = "kws"
 VOICE_MODE_ASR = "asr"
@@ -104,6 +134,20 @@ class AsrAudioSegment:
     samples: np.ndarray
     duration_seconds: float
     stats: AudioStats
+
+
+@dataclass(frozen=True)
+class ProfileSpeakerGate:
+    """Persisted voiceprint gate for a selected agent profile."""
+
+    target_embedding: np.ndarray
+    threshold: float = SPEAKER_PROFILE_THRESHOLD
+
+    async def verify(self, samples: np.ndarray) -> tuple[bool, float | None]:
+        """Return whether the segment matches the profile voiceprint."""
+        embedding = await _compute_speechbrain_embedding(samples, VAD_SAMPLE_RATE)
+        score = _cosine_similarity(self.target_embedding, embedding)
+        return score >= self.threshold, score
 
 
 # ---------------------------------------------------------------------------
@@ -416,6 +460,227 @@ class AsrTranscribeResponse(BaseModel):
     duration_seconds: float | None = None
 
 
+class SpeakerEnrollmentRequest(BaseModel):
+    """Persist a voiceprint embedding for an agent profile."""
+
+    audio: str
+    sampleText: str | None = None
+
+
+class SpeakerEnrollmentResponse(BaseModel):
+    """Voiceprint enrollment result."""
+
+    bound: bool
+    sampleText: str
+    enrolledAt: str
+
+
+class SpeakerVerificationRequest(BaseModel):
+    """Verify a speech segment against an agent profile voiceprint."""
+
+    audio: str
+    agentId: str
+
+
+class SpeakerVerificationResponse(BaseModel):
+    """Speaker verification result."""
+
+    accepted: bool
+    enabled: bool
+    bound: bool
+    score: float | None = None
+    threshold: float = SPEAKER_PROFILE_THRESHOLD
+
+
+def _extract_bearer_user_id(authorization: str | None) -> str:
+    """Extract the bearer user id used by the app's lightweight auth."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user_id = authorization.strip()
+    if user_id.lower().startswith("bearer "):
+        user_id = user_id.split(" ", 1)[1].strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user_id
+
+
+def _require_agent_profile(
+    db: Session,
+    *,
+    agent_id: str,
+    user_id: str,
+) -> AgentProfileTable:
+    """Return an agent profile owned by the current user."""
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == agent_id,
+        AgentProfileTable.owner_user_id == user_id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+    return profile
+
+
+def _decode_wav_data_uri_to_float32(data_uri: str) -> tuple[np.ndarray, int]:
+    """Decode a mono/stereo PCM WAV data URI into mono float32 samples."""
+    if not data_uri.startswith("data:audio/"):
+        raise ValueError("Expected data:audio/...;base64,...")
+
+    audio_bytes = _decode_data_uri(data_uri)
+    with wave.open(io.BytesIO(audio_bytes), "rb") as wav_file:
+        channels = wav_file.getnchannels()
+        sample_width = wav_file.getsampwidth()
+        sample_rate = wav_file.getframerate()
+        frames = wav_file.readframes(wav_file.getnframes())
+
+    if sample_width != 2:
+        raise ValueError("Only 16-bit PCM WAV audio is supported")
+
+    samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    if channels > 1:
+        samples = samples.reshape(-1, channels).mean(axis=1)
+    return samples.astype(np.float32), sample_rate
+
+
+def _resample_mono_float32(
+    samples: np.ndarray,
+    source_rate: int,
+    target_rate: int = VAD_SAMPLE_RATE,
+) -> np.ndarray:
+    """Resample mono float32 audio with linear interpolation."""
+    if source_rate == target_rate or len(samples) == 0:
+        return samples.astype(np.float32)
+
+    duration = len(samples) / source_rate
+    target_length = max(1, int(round(duration * target_rate)))
+    source_positions = np.linspace(0.0, duration, num=len(samples), endpoint=False)
+    target_positions = np.linspace(0.0, duration, num=target_length, endpoint=False)
+    return np.interp(target_positions, source_positions, samples).astype(np.float32)
+
+
+async def _get_speechbrain_classifier() -> Any:
+    """Load SpeechBrain ECAPA-TDNN once and reuse it across requests."""
+    global _speechbrain_classifier
+    if _speechbrain_classifier is not None:
+        return _speechbrain_classifier
+
+    async with _speechbrain_lock:
+        if _speechbrain_classifier is not None:
+            return _speechbrain_classifier
+
+        def load_classifier() -> Any:
+            try:
+                from speechbrain.inference.speaker import EncoderClassifier
+            except ImportError:
+                from speechbrain.pretrained import EncoderClassifier
+
+            return EncoderClassifier.from_hparams(
+                source=SPEAKER_PROFILE_MODEL_SOURCE,
+                savedir=SPEAKER_PROFILE_MODEL_DIR,
+            )
+
+        _speechbrain_classifier = await asyncio.to_thread(load_classifier)
+        return _speechbrain_classifier
+
+
+def _speechbrain_embedding_sync(
+    classifier: Any,
+    samples: np.ndarray,
+) -> np.ndarray:
+    """Extract a normalized speaker embedding with SpeechBrain."""
+    import torch
+    import torch.nn.functional as F
+
+    waveform = torch.from_numpy(samples).float().unsqueeze(0)
+    embedding = classifier.encode_batch(waveform, wav_lens=None)
+    embedding = F.normalize(embedding.squeeze(), dim=0)
+    return embedding.detach().cpu().numpy().astype(np.float32)
+
+
+async def _compute_speechbrain_embedding(
+    samples: np.ndarray,
+    sample_rate: int,
+) -> np.ndarray:
+    """Compute an ECAPA-TDNN speaker embedding for PCM samples."""
+    duration_seconds = len(samples) / max(sample_rate, 1)
+    if duration_seconds < SPEAKER_PROFILE_MIN_SECONDS:
+        raise ValueError(
+            f"Audio is too short for speaker binding; need at least "
+            f"{SPEAKER_PROFILE_MIN_SECONDS:.1f}s"
+        )
+
+    samples = _resample_mono_float32(samples, sample_rate, VAD_SAMPLE_RATE)
+    classifier = await _get_speechbrain_classifier()
+    return await asyncio.to_thread(
+        _speechbrain_embedding_sync,
+        classifier,
+        samples,
+    )
+
+
+async def _embedding_from_data_uri(data_uri: str) -> np.ndarray:
+    """Decode a WAV data URI and compute a SpeechBrain speaker embedding."""
+    samples, sample_rate = _decode_wav_data_uri_to_float32(data_uri)
+    return await _compute_speechbrain_embedding(samples, sample_rate)
+
+
+def _profile_embedding(profile: AgentProfileTable) -> np.ndarray | None:
+    """Return a stored profile embedding if one exists."""
+    embedding = profile.speaker_embedding
+    if not isinstance(embedding, list) or not embedding:
+        return None
+    return np.asarray(embedding, dtype=np.float32)
+
+
+async def _verify_profile_speaker(
+    *,
+    profile: AgentProfileTable,
+    audio_data_uri: str,
+) -> SpeakerVerificationResponse:
+    """Verify a data URI against a profile voiceprint."""
+    enabled = bool(profile.speaker_verification_enabled)
+    target_embedding = _profile_embedding(profile)
+    if not enabled:
+        return SpeakerVerificationResponse(
+            accepted=True,
+            enabled=False,
+            bound=target_embedding is not None,
+        )
+    if target_embedding is None:
+        return SpeakerVerificationResponse(
+            accepted=False,
+            enabled=True,
+            bound=False,
+        )
+
+    probe_embedding = await _embedding_from_data_uri(audio_data_uri)
+    score = _cosine_similarity(target_embedding, probe_embedding)
+    return SpeakerVerificationResponse(
+        accepted=score >= SPEAKER_PROFILE_THRESHOLD,
+        enabled=True,
+        bound=True,
+        score=score,
+    )
+
+
+def _load_profile_speaker_gate(agent_id: str, user_id: str) -> ProfileSpeakerGate | None:
+    """Load a persisted speaker gate for a WebSocket voice session."""
+    db = SessionLocal()
+    try:
+        profile = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id == agent_id,
+            AgentProfileTable.owner_user_id == user_id,
+        ).first()
+        if not profile or not profile.speaker_verification_enabled:
+            return None
+
+        embedding = _profile_embedding(profile)
+        if embedding is None:
+            raise ValueError("Speaker verification is enabled but no voiceprint is bound")
+        return ProfileSpeakerGate(target_embedding=embedding)
+    finally:
+        db.close()
+
+
 def _decode_data_uri(data_uri: str) -> bytes:
     """Extract raw bytes from a ``data:`` URI.
 
@@ -511,6 +776,94 @@ async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse
         raise HTTPException(
             status_code=500,
             detail=f"ASR transcription failed: {exc}",
+        ) from exc
+
+
+@voice_router.get("/api/speaker-profiles/sample-text")
+async def get_speaker_profile_sample_text() -> dict[str, str]:
+    """Return the sentence users should read for voiceprint enrollment."""
+    return {"sampleText": SPEAKER_PROFILE_SAMPLE_TEXT}
+
+
+@voice_router.post(
+    "/api/agent-profiles/{agent_id}/speaker/enroll",
+    response_model=SpeakerEnrollmentResponse,
+)
+async def enroll_agent_speaker(
+    agent_id: str,
+    request: SpeakerEnrollmentRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> SpeakerEnrollmentResponse:
+    """Bind a SpeechBrain ECAPA-TDNN voiceprint to an agent profile."""
+    user_id = _extract_bearer_user_id(authorization)
+    profile = _require_agent_profile(db, agent_id=agent_id, user_id=user_id)
+
+    try:
+        embedding = await _embedding_from_data_uri(request.audio)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Speaker enrollment failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Speaker enrollment failed: {exc}",
+        ) from exc
+
+    enrolled_at = datetime.utcnow().isoformat()
+    sample_text = (request.sampleText or SPEAKER_PROFILE_SAMPLE_TEXT).strip()
+    profile.speaker_embedding = embedding.astype(float).tolist()
+    profile.speaker_sample_text = sample_text
+    profile.speaker_enrolled_at = enrolled_at
+    profile.updated_at = enrolled_at
+    db.commit()
+
+    return SpeakerEnrollmentResponse(
+        bound=True,
+        sampleText=sample_text,
+        enrolledAt=enrolled_at,
+    )
+
+
+@voice_router.delete("/api/agent-profiles/{agent_id}/speaker")
+async def delete_agent_speaker_binding(
+    agent_id: str,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    """Remove a stored speaker voiceprint from an agent profile."""
+    user_id = _extract_bearer_user_id(authorization)
+    profile = _require_agent_profile(db, agent_id=agent_id, user_id=user_id)
+    profile.speaker_embedding = None
+    profile.speaker_sample_text = None
+    profile.speaker_enrolled_at = None
+    profile.updated_at = datetime.utcnow().isoformat()
+    db.commit()
+    return {"bound": False}
+
+
+@voice_router.post(
+    "/api/speaker-profiles/verify",
+    response_model=SpeakerVerificationResponse,
+)
+async def verify_agent_speaker(
+    request: SpeakerVerificationRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> SpeakerVerificationResponse:
+    """Verify a speech sample against the selected agent's voiceprint."""
+    user_id = _extract_bearer_user_id(authorization)
+    profile = _require_agent_profile(db, agent_id=request.agentId, user_id=user_id)
+
+    try:
+        return await _verify_profile_speaker(profile=profile, audio_data_uri=request.audio)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Speaker verification failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Speaker verification failed: {exc}",
         ) from exc
 
 
@@ -681,6 +1034,7 @@ async def _send_asr_segments(
     segments: list[AsrAudioSegment],
     send_lock: asyncio.Lock | None = None,
     speaker_verifier: WakeSpeakerVerifier | None = None,
+    profile_speaker_gate: ProfileSpeakerGate | None = None,
 ) -> None:
     """Transcribe completed VAD segments and send transcript messages."""
 
@@ -709,6 +1063,45 @@ async def _send_asr_segments(
                     "type": "speaker_rejected",
                     "mode": VOICE_MODE_ASR,
                     "score": speaker_score,
+                })
+                continue
+
+        if profile_speaker_gate is not None:
+            try:
+                profile_accepted, profile_score = await profile_speaker_gate.verify(
+                    segment.samples
+                )
+            except ValueError as exc:
+                logger.info("Dropped ASR segment by profile speaker gate: %s", exc)
+                await send_json({
+                    "type": "speaker_rejected",
+                    "mode": VOICE_MODE_ASR,
+                    "reason": str(exc),
+                    "threshold": profile_speaker_gate.threshold,
+                })
+                continue
+            except Exception as exc:
+                logger.error("Profile speaker verification failed: %s", exc)
+                await send_json({
+                    "type": "error",
+                    "mode": VOICE_MODE_ASR,
+                    "message": f"Speaker verification failed: {exc}",
+                })
+                continue
+
+            if not profile_accepted:
+                logger.info(
+                    "Dropped ASR segment by profile speaker gate: "
+                    "duration=%.2fs score=%.3f threshold=%.3f",
+                    segment.duration_seconds,
+                    profile_score if profile_score is not None else -1,
+                    profile_speaker_gate.threshold,
+                )
+                await send_json({
+                    "type": "speaker_rejected",
+                    "mode": VOICE_MODE_ASR,
+                    "score": profile_score,
+                    "threshold": profile_speaker_gate.threshold,
                 })
                 continue
 
@@ -867,6 +1260,7 @@ async def voice_session(websocket: WebSocket) -> None:
     preroll_audio = bytearray()
     preroll_max_bytes = VAD_SAMPLE_RATE * 2 * 2
     speaker_verifier = await asyncio.to_thread(_create_wake_speaker_verifier)
+    profile_speaker_gate: ProfileSpeakerGate | None = None
 
     async def send_json(payload: dict[str, Any]) -> None:
         async with send_lock:
@@ -948,6 +1342,7 @@ async def voice_session(websocket: WebSocket) -> None:
                         segments=segments,
                         send_lock=send_lock,
                         speaker_verifier=speaker_verifier,
+                        profile_speaker_gate=profile_speaker_gate,
                     )
                 elif spotter is not None and kws_stream is not None:
                     detected = await asyncio.to_thread(
@@ -985,6 +1380,7 @@ async def voice_session(websocket: WebSocket) -> None:
                                     segments=segments,
                                     send_lock=send_lock,
                                     speaker_verifier=speaker_verifier,
+                                    profile_speaker_gate=profile_speaker_gate,
                                 )
                             task = asyncio.create_task(
                                 _send_wake_ack_tts(
@@ -1030,6 +1426,45 @@ async def voice_session(websocket: WebSocket) -> None:
             if payload_type != "config":
                 continue
 
+            speaker_config = payload.get("speakerVerification")
+            if isinstance(speaker_config, dict):
+                agent_id = str(speaker_config.get("agentId") or "").strip()
+                user_id = str(speaker_config.get("userId") or "").strip()
+                if agent_id and user_id:
+                    try:
+                        profile_speaker_gate = await asyncio.to_thread(
+                            _load_profile_speaker_gate,
+                            agent_id,
+                            user_id,
+                        )
+                        await send_json({
+                            "type": "speaker_config",
+                            "mode": VOICE_MODE_ASR,
+                            "enabled": profile_speaker_gate is not None,
+                            "bound": profile_speaker_gate is not None,
+                            "threshold": SPEAKER_PROFILE_THRESHOLD,
+                        })
+                    except ValueError as exc:
+                        profile_speaker_gate = None
+                        await send_json({
+                            "type": "speaker_config",
+                            "mode": VOICE_MODE_ASR,
+                            "enabled": True,
+                            "bound": False,
+                            "message": str(exc),
+                            "threshold": SPEAKER_PROFILE_THRESHOLD,
+                        })
+                    except Exception as exc:
+                        profile_speaker_gate = None
+                        logger.error("Failed to load profile speaker gate: %s", exc)
+                        await send_json({
+                            "type": "error",
+                            "mode": VOICE_MODE_ASR,
+                            "message": f"Failed to load speaker verification: {exc}",
+                        })
+                else:
+                    profile_speaker_gate = None
+
             next_keywords = payload.get("keywords", [])
             next_tts_voice = _coerce_tts_voice(
                 payload.get("ttsVoice", payload.get("tts_voice"))
@@ -1042,6 +1477,8 @@ async def voice_session(websocket: WebSocket) -> None:
                     "mode": VOICE_MODE_KWS,
                     "message": "keywords must be a list",
                 })
+                continue
+            if not next_keywords:
                 continue
 
             if spotter is None:

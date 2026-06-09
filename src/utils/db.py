@@ -4,7 +4,16 @@ import logging
 import os
 from urllib.parse import quote_plus
 
-from sqlalchemy import JSON, Column, Float, Integer, String, Text, create_engine
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Float,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -129,6 +138,11 @@ class AgentProfileTable(Base):
     persona_style = Column(String(50), nullable=True)
     boundary_mode = Column(String(50), nullable=True)
     tts_voice = Column(String(100), nullable=True)
+    # Persisted voiceprint binding for optional per-agent speaker verification.
+    speaker_verification_enabled = Column(Boolean, nullable=False, default=False)
+    speaker_embedding = Column(JSON, nullable=True)
+    speaker_sample_text = Column(Text, nullable=True)
+    speaker_enrolled_at = Column(String(50), nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 

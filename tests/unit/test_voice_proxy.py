@@ -64,6 +64,50 @@ def test_speaker_verifier_is_disabled_without_config(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_profile_speaker_verification_disabled_accepts_without_embedding():
+    """Disabled profile speaker verification should not block ASR."""
+    profile = voice_proxy.AgentProfileTable(
+        id="agent-1",
+        name="Agent",
+        speaker_verification_enabled=False,
+        speaker_embedding=None,
+        created_at="now",
+        updated_at="now",
+    )
+
+    response = await voice_proxy._verify_profile_speaker(
+        profile=profile,
+        audio_data_uri="data:audio/wav;base64,",
+    )
+
+    assert response.accepted
+    assert not response.enabled
+    assert not response.bound
+
+
+@pytest.mark.anyio
+async def test_profile_speaker_verification_enabled_rejects_when_unbound():
+    """Enabled profile speaker verification should require an enrolled voiceprint."""
+    profile = voice_proxy.AgentProfileTable(
+        id="agent-1",
+        name="Agent",
+        speaker_verification_enabled=True,
+        speaker_embedding=None,
+        created_at="now",
+        updated_at="now",
+    )
+
+    response = await voice_proxy._verify_profile_speaker(
+        profile=profile,
+        audio_data_uri="data:audio/wav;base64,",
+    )
+
+    assert not response.accepted
+    assert response.enabled
+    assert not response.bound
+
+
+@pytest.mark.anyio
 async def test_asr_transcribe_runs_blocking_request_in_thread(monkeypatch):
     """ASR endpoint must keep blocking file/SDK work off the event loop."""
     calls = []

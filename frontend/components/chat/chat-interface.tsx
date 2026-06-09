@@ -103,6 +103,8 @@ export function ChatInterface({
   onCreateAgent,
 }: ChatInterfaceProps) {
   const t = useT()
+  const userId = useUserId()
+  const { user: authUser } = useAuth()
   // ============================================================================
   // State Management
   // ============================================================================
@@ -233,6 +235,10 @@ export function ChatInterface({
     },
     wakeWords: agentProfile?.wakeWords || [],
     ttsVoice: agentProfile?.ttsVoice || null,
+    agentId: agentProfile?.id || null,
+    userId,
+    speakerVerificationEnabled: agentProfile?.speakerVerificationEnabled || false,
+    speakerVerificationBound: agentProfile?.speakerVerificationBound || false,
   })
   const suppressAndroidVoiceAutoFocus = isAndroidWebView() && voiceAgent.voiceState !== "idle"
   // ============================================================================
@@ -272,8 +278,6 @@ export function ChatInterface({
   // ============================================================================
 
   // Get user information for tracking in LangSmith
-  const userId = useUserId()
-
   // Create stable client instance with user authentication
   // Recreate when userId changes to update auth headers
   const client = useMemo(() => {
@@ -305,7 +309,6 @@ export function ChatInterface({
   )
 
   // Get user preferences from auth context for prompt injection
-  const { user: authUser } = useAuth()
   const userPreferences = authUser?.preferences || null
   const safetyEnabled = authUser?.safetyEnabled || false
 

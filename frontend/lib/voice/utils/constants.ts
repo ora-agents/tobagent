@@ -20,6 +20,9 @@ export const VOICE_SESSION_WS_PATH = "/ws/voice/session"
 /** REST API path for ASR transcription */
 export const ASR_REST_PATH = "/api/asr/transcribe"
 
+/** REST API path for speaker verification */
+export const SPEAKER_VERIFY_REST_PATH = "/api/speaker-profiles/verify"
+
 /** WebSocket path for backend VAD + ASR streaming */
 export const ASR_WS_PATH = "/ws/voice/asr"
 

@@ -14,7 +14,15 @@ export interface StreamingAsrCallbacks {
   onSpeechStart?: () => void
   onTranscribing?: () => void
   onTranscript?: (text: string) => void
+  onSpeakerRejected?: (score?: number | null) => void
   onError?: (error: string) => void
+}
+
+interface StreamingAsrOptions {
+  speakerVerification?: {
+    agentId: string
+    userId: string
+  } | null
 }
 
 type StreamingAsrMessage =
@@ -22,6 +30,8 @@ type StreamingAsrMessage =
   | { type: "speech_start" }
   | { type: "transcribing" }
   | { type: "transcript"; text: string }
+  | { type: "speaker_rejected"; score?: number | null }
+  | { type: "speaker_config"; message?: string }
   | { type: "error"; message: string }
 
 function getAsrWsUrl(): string {
@@ -32,9 +42,11 @@ function getAsrWsUrl(): string {
 export class StreamingAsrClient {
   private ws: WebSocket | null = null
   private callbacks: StreamingAsrCallbacks
+  private options: StreamingAsrOptions
 
-  constructor(callbacks: StreamingAsrCallbacks = {}) {
+  constructor(callbacks: StreamingAsrCallbacks = {}, options: StreamingAsrOptions = {}) {
     this.callbacks = callbacks
+    this.options = options
   }
 
   get isConnected(): boolean {
@@ -56,6 +68,13 @@ export class StreamingAsrClient {
       }
 
       this.ws.onopen = () => {
+        if (this.options.speakerVerification) {
+          this.ws?.send(JSON.stringify({
+            type: "config",
+            keywords: [],
+            speakerVerification: this.options.speakerVerification,
+          }))
+        }
         this.ws?.send(JSON.stringify({ type: "mode", mode: "asr" }))
         this.callbacks.onConnected?.()
         resolve()
@@ -112,6 +131,14 @@ export class StreamingAsrClient {
         break
       case "transcript":
         this.callbacks.onTranscript?.(data.text)
+        break
+      case "speaker_rejected":
+        this.callbacks.onSpeakerRejected?.(data.score ?? null)
+        break
+      case "speaker_config":
+        if (data.message) {
+          this.callbacks.onError?.(data.message)
+        }
         break
       case "error":
         this.callbacks.onError?.(data.message)

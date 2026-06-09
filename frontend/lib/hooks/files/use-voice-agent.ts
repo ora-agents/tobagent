@@ -15,7 +15,7 @@
  * In Android WebView native mode the app listens for `nativeVoiceEvent`.
  */
 
-import { useState, useCallback, useRef, useEffect } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { StreamingAsrClient } from "@/lib/voice/asr-stream-client"
 import { TtsClient } from "@/lib/voice/tts-client"
 import { TtsPlayer } from "@/lib/voice/tts-player"
@@ -39,6 +39,14 @@ interface UseVoiceAgentOptions {
   wakeWords?: string[]
   /** DashScope TTS voice id used for spoken replies */
   ttsVoice?: string | null
+  /** Current agent id for optional server-side speaker verification */
+  agentId?: string | null
+  /** Current logged-in user id for optional server-side speaker verification */
+  userId?: string | null
+  /** Whether the selected agent requires a matching bound voiceprint */
+  speakerVerificationEnabled?: boolean
+  /** Whether the selected agent already has a voiceprint binding */
+  speakerVerificationBound?: boolean
 }
 
 export interface UseVoiceAgentReturn {
@@ -180,6 +188,10 @@ export function useVoiceAgent({
   onInterimTranscript,
   wakeWords = [],
   ttsVoice,
+  agentId,
+  userId,
+  speakerVerificationEnabled = false,
+  speakerVerificationBound = false,
 }: UseVoiceAgentOptions): UseVoiceAgentReturn {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle")
   const [asrConnected, setAsrConnected] = useState(false)
@@ -217,6 +229,14 @@ export function useVoiceAgent({
   const kwsClientRef = useRef<KwsClient | null>(null)
   const wakeAcknowledgementPendingRef = useRef(false)
   const wakeWordsKey = wakeWords.filter(Boolean).join("\u0000")
+  const speakerVerification = useMemo(
+    () => (
+      speakerVerificationEnabled && speakerVerificationBound && agentId && userId
+        ? { agentId, userId }
+        : null
+    ),
+    [agentId, speakerVerificationBound, speakerVerificationEnabled, userId],
+  )
   // Ref for wakeWords to avoid stale closures
   const wakeWordsRef = useRef(wakeWords)
   useEffect(() => {
@@ -369,6 +389,11 @@ export function useVoiceAgent({
         onTranscript: (text) => {
           handleFinalTranscriptRef.current(text)
         },
+        onSpeakerRejected: () => {
+          setError("Voiceprint verification failed.")
+          setVoiceStateSync("listening")
+          resetIdleTimer()
+        },
         onTtsAudio: (purpose, pcmBase64) => {
           if (purpose !== "wake_ack") return
           cancelPlaybackEndTimer()
@@ -414,7 +439,7 @@ export function useVoiceAgent({
         },
       })
       kwsClientRef.current = kwsClient
-      await kwsClient.start(kw, ttsVoice)
+      await kwsClient.start(kw, ttsVoice, speakerVerification)
     } catch (err) {
       // Mic permission denied or other failure — graceful degradation
       console.warn("[KWS] Cannot start:", err)
@@ -422,6 +447,7 @@ export function useVoiceAgent({
   }, [
     cancelPlaybackEndTimer,
     resetIdleTimer,
+    speakerVerification,
     setVoiceStateSync,
     ttsVoice,
   ])
@@ -546,7 +572,11 @@ export function useVoiceAgent({
       kwsClientRef.current?.isActive &&
       wakeWordsRef.current.length
     ) {
-      kwsClientRef.current.updateKeywords(wakeWordsRef.current, ttsVoice)
+      kwsClientRef.current.updateKeywords(
+        wakeWordsRef.current,
+        ttsVoice,
+        speakerVerification,
+      )
       kwsClientRef.current.setMode("kws")
       setVoiceStateSync("kws")
       return
@@ -568,6 +598,7 @@ export function useVoiceAgent({
     startKwsListening,
     requestNativeVoiceExit,
     setVoiceStateSync,
+    speakerVerification,
     ttsVoice,
   ])
 
@@ -644,6 +675,11 @@ export function useVoiceAgent({
     }
 
     setError(null)
+
+    if (speakerVerificationEnabled && !speakerVerificationBound) {
+      setError("Voiceprint verification is enabled, but no voiceprint is bound.")
+      return
+    }
 
     if (isNativeVoiceProvider) {
       try {
@@ -744,6 +780,12 @@ export function useVoiceAgent({
           if (!isCurrentSession()) return
           handleFinalTranscript(text)
         },
+        onSpeakerRejected: () => {
+          if (!isCurrentSession()) return
+          setError("Voiceprint verification failed.")
+          setVoiceStateSync("listening")
+          resetIdleTimer()
+        },
         onError: (errMsg) => {
           if (!isCurrentSession()) return
           setError(errMsg)
@@ -756,7 +798,7 @@ export function useVoiceAgent({
             resetIdleTimer()
           }
         },
-      })
+      }, { speakerVerification })
       asrClientRef.current = asrClient
 
       // 5. Show loading state while backend ASR/VAD WebSocket connects
@@ -817,12 +859,15 @@ export function useVoiceAgent({
   }, [
     isNativeVoiceProvider,
     isSupported,
+    speakerVerificationEnabled,
+    speakerVerificationBound,
     resetIdleTimer,
     interruptAndListen,
     exitVoiceModeInternal,
     cancelPlaybackEndTimer,
     schedulePlaybackEndTransition,
     handleFinalTranscript,
+    speakerVerification,
     setVoiceStateSync,
   ])
 
@@ -1282,7 +1327,11 @@ export function useVoiceAgent({
       if (voiceStateRef.current === "idle") {
         startKwsListening()
       } else if (voiceStateRef.current === "kws") {
-        kwsClientRef.current?.updateKeywords(wakeWordsRef.current, ttsVoice)
+        kwsClientRef.current?.updateKeywords(
+          wakeWordsRef.current,
+          ttsVoice,
+          speakerVerification,
+        )
       }
     }
 
@@ -1297,6 +1346,7 @@ export function useVoiceAgent({
     isNativeVoiceProvider,
     isSupported,
     ttsVoice,
+    speakerVerification,
     startKwsListening,
     stopKwsListening,
   ])
