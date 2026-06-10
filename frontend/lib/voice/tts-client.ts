@@ -52,6 +52,10 @@ export class TtsClient {
   private voice: string
   private eventCounter: number = 0
   private quiet: boolean
+  /** Text buffered while WebSocket was disconnected (auto-reconnect) */
+  private _pendingTextBuffer: string[] = []
+  /** Set to true when explicitly discarded — prevents auto-reconnect */
+  private _discarded: boolean = false
 
   constructor(
     callbacks: TtsCallbacks = {},
@@ -61,6 +65,8 @@ export class TtsClient {
     this.callbacks = callbacks
     this.voice = voice || DEFAULT_TTS_VOICE
     this.quiet = !!options.quiet
+    this._pendingTextBuffer = []
+    this._discarded = false
   }
 
   /** Generate a unique event_id for client messages */
@@ -109,6 +115,15 @@ export class TtsClient {
         }
         this.ws!.send(JSON.stringify(sessionUpdate))
         this.callbacks.onConnected?.()
+
+        // Flush any text buffered during disconnection
+        if (this._pendingTextBuffer.length > 0) {
+          for (const bufferedText of this._pendingTextBuffer) {
+            this.appendText(bufferedText)
+          }
+          this._pendingTextBuffer = []
+        }
+
         resolve()
       }
 
@@ -126,8 +141,8 @@ export class TtsClient {
       }
 
       this.ws.onclose = () => {
-        this.callbacks.onDisconnected?.()
         this.ws = null
+        this.callbacks.onDisconnected?.()
       }
     })
   }
@@ -135,16 +150,39 @@ export class TtsClient {
   /**
    * Append text for synthesis (streaming input).
    * Call multiple times as text chunks arrive from the agent.
+   * If disconnected, buffers text and attempts auto-reconnect.
    */
   appendText(text: string): void {
-    if (!this.isConnected || !text) return
+    if (!text) return
 
-    const event = {
-      type: "input_text_buffer.append",
-      event_id: this.nextEventId(),
-      text: text,
+    if (this.isConnected) {
+      const event = {
+        type: "input_text_buffer.append",
+        event_id: this.nextEventId(),
+        text: text,
+      }
+      this.ws!.send(JSON.stringify(event))
+      return
     }
-    this.ws!.send(JSON.stringify(event))
+
+    // Buffer text and attempt auto-reconnect
+    this._pendingTextBuffer.push(text)
+    this._autoReconnect()
+  }
+
+  /**
+   * Attempt to reconnect after unexpected disconnection.
+   * Fire-and-forget — buffered text will be flushed on successful reconnect.
+   */
+  private _autoReconnect(): void {
+    if (this._discarded || this.ws !== null || this._pendingTextBuffer.length === 0) return
+
+    this.connect().catch((err) => {
+      if (!this.quiet) {
+        console.warn("[TtsClient] Auto-reconnect failed:", err)
+      }
+      this._pendingTextBuffer = []
+    })
   }
 
   /**
@@ -163,8 +201,10 @@ export class TtsClient {
     this.ws!.send(JSON.stringify(event))
   }
 
-  /** Disconnect the WebSocket */
+  /** Disconnect the WebSocket. Clears pending text buffer and prevents auto-reconnect. */
   disconnect(): void {
+    this._discarded = true
+    this._pendingTextBuffer = []
     if (this.ws) {
       this.ws.close()
       this.ws = null

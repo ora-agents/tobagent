@@ -1042,6 +1042,13 @@ export function useVoiceAgent({
         }
       }
 
+      // No connection in progress — discard stale disconnected client if any
+      if (ttsClientRef.current && !ttsClientRef.current.isConnected) {
+        ttsClientRef.current.disconnect()
+        ttsClientRef.current = null
+        ttsActiveRef.current = false
+      }
+
       // Start new connection
       const connectPromise = (async () => {
         const ttsClient = new TtsClient({
