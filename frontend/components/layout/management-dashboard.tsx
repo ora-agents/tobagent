@@ -21,8 +21,7 @@ import {
   File,
   Cpu,
   Copy,
-  Mic,
-  Square,
+  Settings,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,8 +47,6 @@ import {
 } from "@/lib/types/role-templates"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
-import { int16PcmToWavDataUri } from "@/lib/voice/utils/audio-encoder"
-import { isAndroidWebView } from "@/lib/voice/utils/browser"
 
 // ---------------------------------------------------------------------------
 // Skills Data Types & Storage
@@ -244,110 +241,6 @@ export interface McpServer {
 
 const normalizeMcpTransport = (_type?: string): McpTransport => "streamable_http"
 
-type SpeakerRecordingMode = "web" | "native"
-
-const SPEAKER_AUDIO_ACCEPT = "audio/*,.wav,.mp3,.m4a,.aac,.ogg,.oga,.opus,.webm,.flac"
-const SPEAKER_AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".webm", ".flac"]
-
-type NativeSpeakerEnrollmentEvent = {
-  type?: unknown
-  requestId?: unknown
-  success?: unknown
-  status?: unknown
-  message?: unknown
-  result?: {
-    sampleText?: string
-    enrolledAt?: string
-  }
-}
-
-const SPEAKER_SAMPLE_TEXT = {
-  zh: "请用自然语速朗读：我是本智能体的授权使用者，正在完成声纹绑定。",
-  en: "Please read naturally: I am the authorized user of this agent and I am completing voiceprint binding.",
-}
-
-async function audioFileToWavDataUri(file: File): Promise<string> {
-  const fileName = file.name.toLowerCase()
-  const isAudioFile =
-    file.type.startsWith("audio/") ||
-    SPEAKER_AUDIO_EXTENSIONS.some(extension => fileName.endsWith(extension))
-  if (!isAudioFile) {
-    throw new Error("Unsupported audio file type")
-  }
-
-  const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext
-  if (!AudioContextCtor) {
-    throw new Error("Audio decoding is not supported in this browser")
-  }
-
-  const context = new AudioContextCtor()
-  try {
-    const arrayBuffer = await file.arrayBuffer()
-    const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0))
-    const channelCount = audioBuffer.numberOfChannels
-    const frameCount = audioBuffer.length
-    const pcm = new Int16Array(frameCount)
-
-    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-      let mixedSample = 0
-      for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
-        mixedSample += audioBuffer.getChannelData(channelIndex)[frameIndex] || 0
-      }
-      const sample = Math.max(-1, Math.min(1, mixedSample / Math.max(channelCount, 1)))
-      pcm[frameIndex] = sample < 0 ? sample * 32768 : sample * 32767
-    }
-
-    return int16PcmToWavDataUri(pcm, audioBuffer.sampleRate)
-  } finally {
-    await context.close().catch(() => {})
-  }
-}
-
-function getNativeSpeakerEnrollmentBridge() {
-  if (typeof window === "undefined" || !isAndroidWebView()) return null
-  const nativeVoice = window.__TOB_NATIVE_VOICE__
-  if (nativeVoice?.startSpeakerEnrollment && nativeVoice.stopSpeakerEnrollment) {
-    return {
-      start: (request: { requestId: string; agentId: string; userId: string; sampleText: string }) =>
-        nativeVoice.startSpeakerEnrollment?.(request),
-      stop: (requestId: string) => nativeVoice.stopSpeakerEnrollment?.(requestId),
-    }
-  }
-  const tobNativeVoice = window.TobNativeVoice
-  if (tobNativeVoice?.startSpeakerEnrollment && tobNativeVoice.stopSpeakerEnrollment) {
-    return {
-      start: (request: { requestId: string; agentId: string; userId: string; sampleText: string }) =>
-        tobNativeVoice.startSpeakerEnrollment?.(JSON.stringify(request)),
-      stop: (requestId: string) => tobNativeVoice.stopSpeakerEnrollment?.(requestId),
-    }
-  }
-  return null
-}
-
-function waitForNativeSpeakerEnrollment(requestId: string): Promise<NativeSpeakerEnrollmentEvent> {
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      window.removeEventListener("nativeVoiceEvent", handleEvent)
-      reject(new Error("Native voiceprint binding timed out"))
-    }, 150_000)
-
-    const handleEvent = (event: Event) => {
-      const payload = (event as CustomEvent<unknown>).detail as NativeSpeakerEnrollmentEvent | null
-      if (!payload || payload.type !== "speaker_enrollment" || payload.requestId !== requestId) return
-      if (payload.status !== "bound" && payload.status !== "failed") return
-      window.clearTimeout(timeout)
-      window.removeEventListener("nativeVoiceEvent", handleEvent)
-      if (payload.success && payload.status === "bound") {
-        resolve(payload)
-      } else {
-        reject(new Error(typeof payload.message === "string" ? payload.message : "Native voiceprint binding failed"))
-      }
-    }
-
-    window.addEventListener("nativeVoiceEvent", handleEvent)
-  })
-}
-
 // ---------------------------------------------------------------------------
 // Properties Interface
 // ---------------------------------------------------------------------------
@@ -363,6 +256,9 @@ interface ManagementDashboardProps {
   deleteAgentProfile: (id: string) => void
   editAgentIdOnOpen?: string | null
   onEditAgentIdHandled?: () => void
+  // User voiceprints
+  userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
+  onNavigateToUserSettings: () => void
 }
 
 export function ManagementDashboard({
@@ -375,7 +271,9 @@ export function ManagementDashboard({
   updateAgentProfile,
   deleteAgentProfile,
   editAgentIdOnOpen,
-  onEditAgentIdHandled
+  onEditAgentIdHandled,
+  userVoiceprints,
+  onNavigateToUserSettings,
 }: ManagementDashboardProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -430,6 +328,7 @@ export function ManagementDashboard({
     ttsVoice: string
     voiceInterruptionEnabled: boolean
     speakerVerificationEnabled: boolean
+    userVoiceprintId: string | null
   }>({
     name: "",
     description: "",
@@ -445,7 +344,8 @@ export function ManagementDashboard({
     boundaryMode: "business_only",
     ttsVoice: "Cherry",
     voiceInterruptionEnabled: true,
-    speakerVerificationEnabled: false
+    speakerVerificationEnabled: false,
+    userVoiceprintId: null
   })
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
@@ -456,18 +356,6 @@ export function ManagementDashboard({
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
-  const [speakerBindingStatus, setSpeakerBindingStatus] = useState<string | null>(null)
-  const [isRecordingSpeaker, setIsRecordingSpeaker] = useState(false)
-  const speakerAudioInputRef = useRef<HTMLInputElement>(null)
-  const speakerRecordingModeRef = useRef<SpeakerRecordingMode | null>(null)
-  const nativeSpeakerEnrollmentRequestIdRef = useRef<string | null>(null)
-  const speakerRecorderRef = useRef<{
-    stream: MediaStream
-    context: AudioContext
-    source: MediaStreamAudioSourceNode
-    processor: ScriptProcessorNode
-    chunks: Int16Array[]
-  } | null>(null)
   const activeEditingAgentId = selectedAgentId
 
   // ---------------------------------------------------------------------------
@@ -551,17 +439,6 @@ export function ManagementDashboard({
     }
     onEditAgentIdHandled?.()
   }, [activeTab, editAgentIdOnOpen, agentProfiles, onEditAgentIdHandled])
-
-  useEffect(() => {
-    return () => {
-      const recorder = speakerRecorderRef.current
-      if (!recorder) return
-      recorder.processor.disconnect()
-      recorder.source.disconnect()
-      recorder.stream.getTracks().forEach(track => track.stop())
-      recorder.context.close().catch(() => {})
-    }
-  }, [])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -705,10 +582,10 @@ export function ManagementDashboard({
       boundaryMode: "business_only",
       ttsVoice: "Cherry",
       voiceInterruptionEnabled: true,
-      speakerVerificationEnabled: false
+      speakerVerificationEnabled: false,
+      userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-    setSpeakerBindingStatus(null)
   }
 
   const handleStartEditAgent = (profile: AgentProfile) => {
@@ -730,10 +607,10 @@ export function ManagementDashboard({
       boundaryMode: (profile.boundaryMode || "business_only") as BoundaryMode,
       ttsVoice: profile.ttsVoice || "Cherry",
       voiceInterruptionEnabled: profile.voiceInterruptionEnabled !== false,
-      speakerVerificationEnabled: profile.speakerVerificationEnabled || false
+      speakerVerificationEnabled: profile.speakerVerificationEnabled || false,
+      userVoiceprintId: (profile as any).userVoiceprintId || null
     })
     setDeleteConfirmId(null)
-    setSpeakerBindingStatus(null)
   }
 
   const handleCopyAgentId = async (id: string) => {
@@ -764,7 +641,8 @@ export function ManagementDashboard({
       boundaryMode: agentForm.boundaryMode,
       ttsVoice: agentForm.ttsVoice,
       voiceInterruptionEnabled: agentForm.voiceInterruptionEnabled,
-      speakerVerificationEnabled: agentForm.speakerVerificationEnabled
+      speakerVerificationEnabled: agentForm.speakerVerificationEnabled,
+      userVoiceprintId: agentForm.userVoiceprintId
     }
 
     if (isCreatingAgent) {
@@ -805,193 +683,6 @@ export function ManagementDashboard({
       return { ...prev, enabledTools: nextTools }
     })
   }
-
-  const enrollSpeakerWithAudio = useCallback(async (audioDataUri: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !activeEditingAgentId) return
-
-    setSpeakerBindingStatus(locale === "zh" ? "正在生成声纹..." : "Creating voiceprint...")
-    try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${activeEditingAgentId}/speaker/enroll`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({
-          audio: audioDataUri,
-          sampleText: SPEAKER_SAMPLE_TEXT[locale],
-        }),
-      })
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => "")
-        throw new Error(text || `HTTP ${resp.status}`)
-      }
-      const result = await resp.json()
-      setSpeakerBindingStatus(locale === "zh" ? "声纹已绑定。" : "Voiceprint bound.")
-      updateAgentProfile(activeEditingAgentId, {
-        speakerVerificationEnabled: true,
-        speakerVerificationBound: true,
-        speakerSampleText: result.sampleText,
-        speakerEnrolledAt: result.enrolledAt,
-      } as any)
-      setAgentForm(prev => ({ ...prev, speakerVerificationEnabled: true }))
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setSpeakerBindingStatus(`${locale === "zh" ? "声纹绑定失败" : "Voiceprint binding failed"}: ${message}`)
-    }
-  }, [activeEditingAgentId, authHeaders, locale, updateAgentProfile])
-
-  const stopSpeakerRecording = useCallback(async () => {
-    if (speakerRecordingModeRef.current === "native") {
-      const requestId = nativeSpeakerEnrollmentRequestIdRef.current
-      const bridge = getNativeSpeakerEnrollmentBridge()
-      if (!requestId || !bridge || !activeEditingAgentId) return
-
-      setIsRecordingSpeaker(false)
-      setSpeakerBindingStatus(locale === "zh" ? "正在生成声纹..." : "Creating voiceprint...")
-      try {
-        const resultPromise = waitForNativeSpeakerEnrollment(requestId)
-        bridge.stop(requestId)
-        const payload = await resultPromise
-        const result = payload.result || {}
-        setSpeakerBindingStatus(locale === "zh" ? "声纹已绑定。" : "Voiceprint bound.")
-        updateAgentProfile(activeEditingAgentId, {
-          speakerVerificationEnabled: true,
-          speakerVerificationBound: true,
-          speakerSampleText: result.sampleText || SPEAKER_SAMPLE_TEXT[locale],
-          speakerEnrolledAt: result.enrolledAt || new Date().toISOString(),
-        } as any)
-        setAgentForm(prev => ({ ...prev, speakerVerificationEnabled: true }))
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        setSpeakerBindingStatus(`${locale === "zh" ? "声纹绑定失败" : "Voiceprint binding failed"}: ${message}`)
-      } finally {
-        speakerRecordingModeRef.current = null
-        nativeSpeakerEnrollmentRequestIdRef.current = null
-      }
-      return
-    }
-
-    const recorder = speakerRecorderRef.current
-    if (!recorder || !LANGGRAPH_API_URL || !authHeaders || !activeEditingAgentId) return
-
-    speakerRecorderRef.current = null
-    speakerRecordingModeRef.current = null
-    setIsRecordingSpeaker(false)
-    const sampleRate = recorder.context.sampleRate
-    recorder.processor.disconnect()
-    recorder.source.disconnect()
-    recorder.stream.getTracks().forEach(track => track.stop())
-    await recorder.context.close().catch(() => {})
-
-    const totalLength = recorder.chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-    const pcm = new Int16Array(totalLength)
-    let offset = 0
-    for (const chunk of recorder.chunks) {
-      pcm.set(chunk, offset)
-      offset += chunk.length
-    }
-
-    if (pcm.length < sampleRate * 2) {
-      setSpeakerBindingStatus(locale === "zh" ? "录音太短，请至少朗读 2 秒。" : "Recording is too short. Please read for at least 2 seconds.")
-      return
-    }
-
-    await enrollSpeakerWithAudio(int16PcmToWavDataUri(pcm, sampleRate))
-  }, [activeEditingAgentId, authHeaders, enrollSpeakerWithAudio, locale, updateAgentProfile])
-
-  const startSpeakerRecording = useCallback(async () => {
-    if (!activeEditingAgentId) {
-      setSpeakerBindingStatus(locale === "zh" ? "请先保存角色，再绑定声纹。" : "Save the role before binding a voiceprint.")
-      return
-    }
-    if (!user?.id) {
-      setSpeakerBindingStatus(locale === "zh" ? "请先登录，再绑定声纹。" : "Sign in before binding a voiceprint.")
-      return
-    }
-
-    const nativeBridge = getNativeSpeakerEnrollmentBridge()
-    if (nativeBridge) {
-      try {
-        const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-        nativeBridge.start({
-          requestId,
-          agentId: activeEditingAgentId,
-          userId: user.id,
-          sampleText: SPEAKER_SAMPLE_TEXT[locale],
-        })
-        nativeSpeakerEnrollmentRequestIdRef.current = requestId
-        speakerRecordingModeRef.current = "native"
-        setIsRecordingSpeaker(true)
-        setSpeakerBindingStatus(locale === "zh" ? "正在录音，请连续朗读指定文本至少 2 秒。" : "Recording. Please read the sample text continuously for at least 2 seconds.")
-        return
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        setSpeakerBindingStatus(`${locale === "zh" ? "无法开始原生录音" : "Cannot start native recording"}: ${message}`)
-        return
-      }
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      })
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext
-      const context = new AudioContextCtor({ sampleRate: 16000 })
-      const source = context.createMediaStreamSource(stream)
-      const processor = context.createScriptProcessor(4096, 1, 1)
-      const chunks: Int16Array[] = []
-
-      processor.onaudioprocess = (event) => {
-        const input = event.inputBuffer.getChannelData(0)
-        const chunk = new Int16Array(input.length)
-        for (let i = 0; i < input.length; i += 1) {
-          const sample = Math.max(-1, Math.min(1, input[i]))
-          chunk[i] = sample < 0 ? sample * 32768 : sample * 32767
-        }
-        chunks.push(chunk)
-      }
-
-      source.connect(processor)
-      processor.connect(context.destination)
-      speakerRecorderRef.current = { stream, context, source, processor, chunks }
-      speakerRecordingModeRef.current = "web"
-      setIsRecordingSpeaker(true)
-      setSpeakerBindingStatus(locale === "zh" ? "正在录音，请连续朗读指定文本至少 2 秒。" : "Recording. Please read the sample text continuously for at least 2 seconds.")
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setSpeakerBindingStatus(`${locale === "zh" ? "无法开始录音" : "Cannot start recording"}: ${message}`)
-    }
-  }, [activeEditingAgentId, locale, user?.id])
-
-  const handleSpeakerRecordingClick = useCallback(() => {
-    if (isRecordingSpeaker) {
-      void stopSpeakerRecording()
-    } else {
-      void startSpeakerRecording()
-    }
-  }, [isRecordingSpeaker, startSpeakerRecording, stopSpeakerRecording])
-
-  const handleSpeakerAudioUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ""
-    if (!file) return
-
-    if (!activeEditingAgentId) {
-      setSpeakerBindingStatus(locale === "zh" ? "请先保存角色，再绑定声纹。" : "Save the role before binding a voiceprint.")
-      return
-    }
-
-    try {
-      setSpeakerBindingStatus(locale === "zh" ? "正在读取音频文件..." : "Reading audio file...")
-      const audioDataUri = await audioFileToWavDataUri(file)
-      await enrollSpeakerWithAudio(audioDataUri)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setSpeakerBindingStatus(`${locale === "zh" ? "音频文件无法用于声纹绑定" : "Audio file cannot be used for voiceprint binding"}: ${message}`)
-    }
-  }, [activeEditingAgentId, enrollSpeakerWithAudio, locale])
 
   const handleApplyRoleTemplate = (templateId: string) => {
     const template = ROLE_TEMPLATES.find(item => item.id === templateId)
@@ -2163,57 +1854,41 @@ export function ManagementDashboard({
                       {agentForm.speakerVerificationEnabled && (
                         <div className="space-y-2 pt-2 border-t border-border/40">
                           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            {locale === "zh" ? "指定朗读文本" : "Sample Text"}
+                            {locale === "zh" ? "选择声纹" : "Select Voiceprint"}
                           </Label>
-                          <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm leading-relaxed">
-                            {SPEAKER_SAMPLE_TEXT[locale]}
-                          </div>
-                          <input
-                            ref={speakerAudioInputRef}
-                            type="file"
-                            accept={SPEAKER_AUDIO_ACCEPT}
-                            onChange={handleSpeakerAudioUpload}
-                            className="hidden"
-                          />
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              type="button"
-                              variant={isRecordingSpeaker ? "destructive" : "outline"}
-                              size="sm"
-                              onClick={handleSpeakerRecordingClick}
-                              disabled={isCreatingAgent}
-                              className="gap-1.5 rounded-lg"
+                          {userVoiceprints.length > 0 ? (
+                            <Select
+                              value={agentForm.userVoiceprintId || ""}
+                              onValueChange={(value) => setAgentForm(prev => ({ ...prev, userVoiceprintId: value || null }))}
                             >
-                              {isRecordingSpeaker ? <Square className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                              {isRecordingSpeaker
-                                ? (locale === "zh" ? "停止并绑定" : "Stop and bind")
-                                : (locale === "zh" ? "录制绑定" : "Record binding")}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => speakerAudioInputRef.current?.click()}
-                              disabled={isCreatingAgent || isRecordingSpeaker}
-                              className="gap-1.5 rounded-lg"
-                            >
-                              <Upload className="w-3.5 h-3.5" />
-                              {locale === "zh" ? "上传音频绑定" : "Upload audio"}
-                            </Button>
-                            {activeEditingAgentId && agentProfiles.find(p => p.id === activeEditingAgentId)?.speakerVerificationBound && (
-                              <span className="text-xs font-medium text-primary">
-                                {locale === "zh" ? "已绑定" : "Bound"}
-                              </span>
-                            )}
-                          </div>
-                          {speakerBindingStatus && (
-                            <p className="text-xs text-muted-foreground">{speakerBindingStatus}</p>
-                          )}
-                          {isCreatingAgent && (
+                              <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                                <SelectValue placeholder={locale === "zh" ? "选择一个声纹" : "Select a voiceprint"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {userVoiceprints.map((vp) => (
+                                  <SelectItem key={vp.id} value={vp.id}>
+                                    {vp.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
                             <p className="text-xs text-muted-foreground">
-                              {locale === "zh" ? "新建角色保存后才能绑定声纹。" : "Save the new role before binding a voiceprint."}
+                              {locale === "zh"
+                                ? "还没有声纹，请到用户设置中注册。"
+                                : "No voiceprints registered yet. Please register one in User Settings."}
                             </p>
                           )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={onNavigateToUserSettings}
+                            className="gap-1.5 rounded-lg"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                            {locale === "zh" ? "前往用户设置注册声纹" : "Go to User Settings to register"}
+                          </Button>
                         </div>
                       )}
                     </div>

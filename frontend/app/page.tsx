@@ -29,6 +29,7 @@ import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 function DashboardFallback() {
   return (
@@ -97,6 +98,7 @@ function DashboardContent() {
   const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
   const [chatSessionKey, setChatSessionKey] = useState(0)
   const [elderOptimized, setElderOptimized] = useState(false)
+  const [userVoiceprints, setUserVoiceprints] = useState<import("@/components/layout/user-settings-page").UserVoiceprint[]>([])
 
   // Agent profiles (custom configurable agents)
   const {
@@ -170,6 +172,20 @@ function DashboardContent() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ELDER_OPTIMIZED_DISPLAY, String(elderOptimized))
   }, [elderOptimized])
+
+  // Fetch user voiceprints
+  useEffect(() => {
+    if (!user) {
+      setUserVoiceprints([])
+      return
+    }
+    fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints`, {
+      headers: { Authorization: `Bearer ${user.id}` },
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((vps) => setUserVoiceprints(vps))
+      .catch(() => setUserVoiceprints([]))
+  }, [user])
 
   // Load account-scoped conversation threads.
   const {
@@ -636,6 +652,8 @@ function DashboardContent() {
             onBackToChat={() => setCurrentView("chat")}
             elderOptimized={elderOptimized}
             onElderOptimizedChange={setElderOptimized}
+            voiceprints={userVoiceprints}
+            onVoiceprintsChange={setUserVoiceprints}
           />
         ) : currentView !== "chat" ? (
           <ManagementDashboard
@@ -646,6 +664,8 @@ function DashboardContent() {
             setSelectedAgentProfileId={setSelectedAgentProfileId}
             createAgentProfile={createAgentProfile}
             updateAgentProfile={updateAgentProfile}
+            userVoiceprints={userVoiceprints}
+            onNavigateToUserSettings={() => setCurrentView("settings")}
             deleteAgentProfile={deleteAgentProfile}
             editAgentIdOnOpen={editAgentIdOnOpen}
             onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}

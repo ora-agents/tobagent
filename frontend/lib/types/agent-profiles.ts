@@ -42,6 +42,7 @@ export interface AgentProfile {
   speakerVerificationBound?: boolean
   speakerSampleText?: string | null
   speakerEnrolledAt?: string | null
+  userVoiceprintId?: string | null
   createdAt: string
   updatedAt: string
 }
