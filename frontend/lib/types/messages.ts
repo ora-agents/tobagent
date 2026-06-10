@@ -34,7 +34,6 @@ export interface Message {
 
   // Thinking/streaming state
   isThinking?: boolean
-  thinkingSteps?: string[]
   processSteps?: ProcessStep[]
   thinkingStartTime?: number
   thinkingDuration?: number
