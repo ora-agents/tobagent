@@ -41,6 +41,7 @@ from websockets.asyncio.client import ClientConnection
 
 from src.api.kws_router import _create_keyword_stream, _process_audio_chunk
 from src.utils.db import AgentProfileTable, SessionLocal, get_db
+from src.utils.voice_audio_logger import VoiceAudioLogger
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ TEN_VAD_DATA_END = 333287
 voice_router = APIRouter()
 _speechbrain_classifier: Any | None = None
 _speechbrain_lock = asyncio.Lock()
+_audio_logger = VoiceAudioLogger.from_env()
 
 VOICE_MODE_KWS = "kws"
 VOICE_MODE_ASR = "asr"
@@ -1063,11 +1065,14 @@ async def asr_stream(websocket: WebSocket) -> None:
     """Stream microphone PCM to backend VAD and return ASR transcripts."""
     await websocket.accept()
 
+    audio_log_session_id = _audio_logger.new_session()
+
     try:
         api_key = _get_dashscope_key()
     except RuntimeError as exc:
         await websocket.send_json({"type": "error", "message": str(exc)})
         await websocket.close(code=1011, reason="ASR is not configured")
+        _audio_logger.end_session(audio_log_session_id)
         return
 
     try:
@@ -1079,6 +1084,7 @@ async def asr_stream(websocket: WebSocket) -> None:
             "message": f"Failed to initialize voice activity detection: {exc}",
         })
         await websocket.close(code=1011, reason="VAD initialization failed")
+        _audio_logger.end_session(audio_log_session_id)
         return
 
     model = os.environ.get("ASR_MODEL", "qwen3-asr-flash")
@@ -1094,11 +1100,16 @@ async def asr_stream(websocket: WebSocket) -> None:
             if audio_bytes is None:
                 continue
 
+            _audio_logger.log_raw_pcm(audio_log_session_id, audio_bytes)
+
             speech_started, segments = vad_session.accept_audio(audio_bytes)
             if speech_started:
                 await websocket.send_json({"type": "speech_start"})
 
             for segment in segments:
+                _audio_logger.log_vad_segment(
+                    audio_log_session_id, segment.wav_bytes,
+                )
                 await websocket.send_json({"type": "transcribing"})
                 try:
                     response: Any = await asyncio.to_thread(
@@ -1140,6 +1151,8 @@ async def asr_stream(websocket: WebSocket) -> None:
             await websocket.close(code=1011, reason="Streaming ASR failed")
         except Exception:
             pass
+    finally:
+        _audio_logger.end_session(audio_log_session_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1155,6 +1168,7 @@ async def _send_asr_segments(
     segments: list[AsrAudioSegment],
     send_lock: asyncio.Lock | None = None,
     profile_speaker_gate: ProfileSpeakerGate | None = None,
+    audio_log_session_id: str = "",
 ) -> None:
     """Transcribe completed VAD segments and send transcript messages."""
 
@@ -1167,6 +1181,7 @@ async def _send_asr_segments(
             await websocket.send_json(payload)
 
     for segment in segments:
+        _audio_logger.log_vad_segment(audio_log_session_id, segment.wav_bytes)
         if profile_speaker_gate is not None:
             try:
                 profile_accepted, profile_score = await profile_speaker_gate.verify(
@@ -1246,6 +1261,7 @@ async def _send_wake_ack_tts(
     text: str,
     voice: str,
     send_lock: asyncio.Lock,
+    audio_log_session_id: str = "",
 ) -> None:
     """Synthesize and stream the short wake acknowledgement over session WS."""
     if not text.strip():
@@ -1300,6 +1316,8 @@ async def _send_wake_ack_tts(
                 "format": "pcm",
             })
 
+            _audio_logger.start_tts_accumulation(audio_log_session_id)
+
             async for raw_message in upstream:
                 if not isinstance(raw_message, str):
                     continue
@@ -1312,6 +1330,7 @@ async def _send_wake_ack_tts(
                 if message_type == "response.audio.delta":
                     delta = message.get("delta")
                     if isinstance(delta, str) and delta:
+                        _audio_logger.log_tts_chunk(audio_log_session_id, delta)
                         await send_json({
                             "type": "tts_audio",
                             "purpose": WAKE_ACK_PURPOSE,
@@ -1325,6 +1344,8 @@ async def _send_wake_ack_tts(
                     error = message.get("error")
                     logger.warning("Wake acknowledgement TTS error: %s", error)
                     break
+
+            _audio_logger.flush_tts(audio_log_session_id)
 
             await send_json({
                 "type": "tts_done",
@@ -1346,6 +1367,8 @@ async def voice_session(websocket: WebSocket) -> None:
     TTS intentionally remains on /ws/voice/tts.
     """
     await websocket.accept()
+
+    audio_log_session_id = _audio_logger.new_session()
 
     spotter = getattr(websocket.app.state, "kws_spotter", None)
     keyword_processor = getattr(websocket.app.state, "kws_processor", None)
@@ -1421,6 +1444,7 @@ async def voice_session(websocket: WebSocket) -> None:
             audio_bytes = message.get("bytes")
             if audio_bytes is not None:
                 append_preroll(audio_bytes)
+                _audio_logger.log_raw_pcm(audio_log_session_id, audio_bytes)
                 if mode == VOICE_MODE_ASR:
                     if api_key is None or vad_session is None:
                         await send_json({
@@ -1442,6 +1466,7 @@ async def voice_session(websocket: WebSocket) -> None:
                         segments=segments,
                         send_lock=send_lock,
                         profile_speaker_gate=profile_speaker_gate,
+                        audio_log_session_id=audio_log_session_id,
                     )
                 elif spotter is not None and kws_stream is not None:
                     detected = await asyncio.to_thread(
@@ -1472,6 +1497,7 @@ async def voice_session(websocket: WebSocket) -> None:
                                     segments=segments,
                                     send_lock=send_lock,
                                     profile_speaker_gate=profile_speaker_gate,
+                                    audio_log_session_id=audio_log_session_id,
                                 )
                             task = asyncio.create_task(
                                 _send_wake_ack_tts(
@@ -1479,6 +1505,7 @@ async def voice_session(websocket: WebSocket) -> None:
                                     text=WAKE_ACK_TEXT,
                                     voice=tts_voice,
                                     send_lock=send_lock,
+                                    audio_log_session_id=audio_log_session_id,
                                 )
                             )
                             wake_ack_tasks.add(task)
@@ -1625,6 +1652,7 @@ async def voice_session(websocket: WebSocket) -> None:
         except Exception:
             pass
     finally:
+        _audio_logger.end_session(audio_log_session_id)
         for task in wake_ack_tasks:
             task.cancel()
 
@@ -1650,6 +1678,8 @@ TTS_UPSTREAM_KEEPALIVE_SECONDS = float(
 async def _relay(
     client_ws: WebSocket,
     upstream_ws: ClientConnection,
+    *,
+    audio_log_session_id: str = "",
 ) -> None:
     """Bidirectional relay between client WebSocket and upstream WebSocket.
 
@@ -1672,6 +1702,19 @@ async def _relay(
             while True:
                 data = await client_ws.receive_text()
                 last_activity = asyncio.get_event_loop().time()
+                # Start TTS accumulation when new text is appended
+                if audio_log_session_id:
+                    try:
+                        msg = json.loads(data)
+                        if (
+                            msg.get("type") == "input_text_buffer.append"
+                            and msg.get("text")
+                        ):
+                            _audio_logger.start_tts_accumulation(
+                                audio_log_session_id,
+                            )
+                    except (json.JSONDecodeError, TypeError):
+                        pass
                 async with upstream_send_lock:
                     await upstream_ws.send(data)
         except WebSocketDisconnect:
@@ -1688,6 +1731,21 @@ async def _relay(
         try:
             async for message in upstream_ws:
                 if isinstance(message, str):
+                    # Intercept TTS audio for logging
+                    if audio_log_session_id:
+                        try:
+                            msg = json.loads(message)
+                            msg_type = msg.get("type")
+                            if msg_type == "response.audio.delta":
+                                delta = msg.get("delta")
+                                if isinstance(delta, str) and delta:
+                                    _audio_logger.log_tts_chunk(
+                                        audio_log_session_id, delta,
+                                    )
+                            elif msg_type in ("response.done", "session.finished"):
+                                _audio_logger.flush_tts(audio_log_session_id)
+                        except (json.JSONDecodeError, TypeError):
+                            pass
                     await client_ws.send_text(message)
                 else:
                     await client_ws.send_bytes(message)
@@ -1699,6 +1757,8 @@ async def _relay(
                 "code=%s reason=%s",
                 exc.code, exc.reason,
             )
+            # Flush any remaining TTS audio on unexpected close
+            _audio_logger.flush_tts(audio_log_session_id)
 
     async def keepalive() -> None:
         """Send periodic heartbeat to DashScope to prevent idle timeout.
@@ -1754,6 +1814,8 @@ async def tts_proxy(websocket: WebSocket) -> None:
     await websocket.accept()
     logger.info("[TTS proxy] Client accepted from %s", client_addr)
 
+    audio_log_session_id = _audio_logger.new_session()
+
     tts_model = os.environ.get(
         "TTS_MODEL", "qwen3-tts-instruct-flash-realtime"
     )
@@ -1765,6 +1827,7 @@ async def tts_proxy(websocket: WebSocket) -> None:
     except RuntimeError as exc:
         logger.error("[TTS proxy] Cannot start — DASHSCOPE_API_KEY missing: %s", exc)
         await websocket.close(code=1011, reason=str(exc))
+        _audio_logger.end_session(audio_log_session_id)
         return
 
     try:
@@ -1774,7 +1837,10 @@ async def tts_proxy(websocket: WebSocket) -> None:
             additional_headers=headers,
         ) as upstream:
             logger.info("[TTS proxy] Upstream connected OK — starting relay")
-            await _relay(websocket, upstream)
+            await _relay(
+                websocket, upstream,
+                audio_log_session_id=audio_log_session_id,
+            )
             logger.info("[TTS proxy] Relay finished (normal)")
     except websockets.InvalidStatus as exc:
         logger.error(
@@ -1798,3 +1864,5 @@ async def tts_proxy(websocket: WebSocket) -> None:
             await websocket.close(code=1011, reason="Internal proxy error")
         except Exception:
             pass
+    finally:
+        _audio_logger.end_session(audio_log_session_id)
