@@ -276,6 +276,7 @@ export function useVoiceAgent({
   )
   // Ref for wakeWords to avoid stale closures
   const wakeWordsRef = useRef(wakeWords)
+  const prevWakeWordsKeyRef = useRef(wakeWordsKey)
   useEffect(() => {
     wakeWordsRef.current = wakeWordsKey ? wakeWordsKey.split("\u0000") : []
   }, [wakeWordsKey])
@@ -591,6 +592,37 @@ export function useVoiceAgent({
       console.error("[NativeVoice] failed to exit native voice mode:", err)
     }
   }, [])
+
+  // Reset active voice conversation when wake words change.
+  // On web: stop TTS and interrupt the agent response.
+  // On Android: exit native voice mode; the subsequent onAgentChanged
+  // effect syncs new wake words to the native bridge.
+  useEffect(() => {
+    const prevKey = prevWakeWordsKeyRef.current
+    prevWakeWordsKeyRef.current = wakeWordsKey
+
+    if (prevKey === wakeWordsKey) return
+
+    const state = voiceStateRef.current
+    const isActiveVoiceSession =
+      state === "speaking" ||
+      state === "processing" ||
+      state === "listening" ||
+      state === "transcribing"
+
+    if (!isActiveVoiceSession) return
+
+    console.log("[VoiceAgent] wake words changed, resetting voice conversation")
+
+    if (isNativeVoiceProviderRef.current) {
+      requestNativeVoiceExit()
+    } else {
+      stopCurrentTts()
+      onInterruptRef.current?.()
+    }
+
+    setVoiceStateSync("idle")
+  }, [wakeWordsKey, stopCurrentTts, setVoiceStateSync, requestNativeVoiceExit])
 
   /** Internal exit function (used by timeout and explicit exit) */
   const exitVoiceModeInternal = useCallback((restartKws = true) => {
