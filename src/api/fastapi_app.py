@@ -88,6 +88,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona_style VARCHAR(50)",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS boundary_mode VARCHAR(50)",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS tts_voice VARCHAR(100)",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS voice_interruption_enabled BOOLEAN DEFAULT TRUE",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_verification_enabled BOOLEAN DEFAULT FALSE",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_embedding JSON",
             "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_sample_text TEXT",
@@ -316,6 +317,7 @@ class AgentProfileSchema(BaseModel):
     personaStyle: str | None = None
     boundaryMode: str | None = None
     ttsVoice: str | None = None
+    voiceInterruptionEnabled: bool = True
     speakerVerificationEnabled: bool = False
     speakerVerificationBound: bool = False
     speakerSampleText: str | None = None
@@ -494,6 +496,7 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         personaStyle=profile.persona_style,
         boundaryMode=profile.boundary_mode,
         ttsVoice=profile.tts_voice,
+        voiceInterruptionEnabled=profile.voice_interruption_enabled is not False,
         speakerVerificationEnabled=bool(profile.speaker_verification_enabled),
         speakerVerificationBound=bool(profile.speaker_embedding),
         speakerSampleText=profile.speaker_sample_text,
@@ -1128,6 +1131,7 @@ async def create_agent_profile(
         persona_style=profile_data.personaStyle,
         boundary_mode=profile_data.boundaryMode,
         tts_voice=profile_data.ttsVoice,
+        voice_interruption_enabled=profile_data.voiceInterruptionEnabled,
         speaker_verification_enabled=profile_data.speakerVerificationEnabled,
         created_at=profile_data.createdAt,
         updated_at=profile_data.updatedAt,
@@ -1167,6 +1171,7 @@ async def update_agent_profile(
     profile.persona_style = profile_data.personaStyle
     profile.boundary_mode = profile_data.boundaryMode
     profile.tts_voice = profile_data.ttsVoice
+    profile.voice_interruption_enabled = profile_data.voiceInterruptionEnabled
     profile.speaker_verification_enabled = profile_data.speakerVerificationEnabled
     profile.updated_at = profile_data.updatedAt
     

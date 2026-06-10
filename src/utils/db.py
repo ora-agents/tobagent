@@ -138,6 +138,7 @@ class AgentProfileTable(Base):
     persona_style = Column(String(50), nullable=True)
     boundary_mode = Column(String(50), nullable=True)
     tts_voice = Column(String(100), nullable=True)
+    voice_interruption_enabled = Column(Boolean, nullable=False, default=True)
     # Persisted voiceprint binding for optional per-agent speaker verification.
     speaker_verification_enabled = Column(Boolean, nullable=False, default=False)
     speaker_embedding = Column(JSON, nullable=True)
