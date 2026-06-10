@@ -44,6 +44,15 @@ from src.utils.db import AgentProfileTable, SessionLocal, get_db
 
 logger = logging.getLogger(__name__)
 
+# Dedicated file handler for voice proxy diagnostics
+_LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+_file_handler = logging.FileHandler(_LOG_DIR / "voice_proxy.log", encoding="utf-8")
+_file_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+)
+logger.addHandler(_file_handler)
+
 DASHSCOPE_WS_BASE = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 VAD_SAMPLE_RATE = 16000
 VAD_THRESHOLD = 0.8
@@ -1633,29 +1642,46 @@ def _upstream_headers() -> dict[str, str]:
     }
 
 
+TTS_UPSTREAM_KEEPALIVE_SECONDS = float(
+    os.environ.get("TTS_UPSTREAM_KEEPALIVE_SECONDS", "5")
+)
+
+
 async def _relay(
     client_ws: WebSocket,
     upstream_ws: ClientConnection,
 ) -> None:
     """Bidirectional relay between client WebSocket and upstream WebSocket.
 
-    Runs two concurrent tasks:
+    Runs three concurrent tasks:
     - client_to_upstream: forward messages from browser to DashScope
     - upstream_to_client: forward messages from DashScope to browser
+    - keepalive: send periodic heartbeat to DashScope to prevent
+      application-level idle timeout during agent processing gaps
+      (e.g. tool calls) when no text chunks are being forwarded
 
-    When either side disconnects, the other task is cancelled.
+    When either relay direction disconnects, all tasks are cancelled.
     """
+    upstream_send_lock = asyncio.Lock()
+    last_activity = asyncio.get_event_loop().time()
 
     async def client_to_upstream() -> None:
         """Forward messages from the browser client to DashScope."""
+        nonlocal last_activity
         try:
             while True:
                 data = await client_ws.receive_text()
-                await upstream_ws.send(data)
+                last_activity = asyncio.get_event_loop().time()
+                async with upstream_send_lock:
+                    await upstream_ws.send(data)
         except WebSocketDisconnect:
-            logger.debug("Client disconnected (client_to_upstream)")
-        except websockets.ConnectionClosed:
-            logger.debug("Upstream closed (client_to_upstream)")
+            logger.info("[TTS relay] Client disconnected (client_to_upstream)")
+        except websockets.ConnectionClosed as exc:
+            logger.info(
+                "[TTS relay] Upstream closed (client_to_upstream) "
+                "code=%s reason=%s",
+                exc.code, exc.reason,
+            )
 
     async def upstream_to_client() -> None:
         """Forward messages from DashScope to the browser client."""
@@ -1666,14 +1692,47 @@ async def _relay(
                 else:
                     await client_ws.send_bytes(message)
         except WebSocketDisconnect:
-            logger.debug("Client disconnected (upstream_to_client)")
-        except websockets.ConnectionClosed:
-            logger.debug("Upstream closed (upstream_to_client)")
+            logger.info("[TTS relay] Client disconnected (upstream_to_client)")
+        except websockets.ConnectionClosed as exc:
+            logger.info(
+                "[TTS relay] Upstream closed (upstream_to_client) "
+                "code=%s reason=%s",
+                exc.code, exc.reason,
+            )
 
+    async def keepalive() -> None:
+        """Send periodic heartbeat to DashScope to prevent idle timeout.
+
+        During agent processing gaps (tool calls, extended thinking), no
+        text chunks flow upstream. DashScope Realtime API may close the
+        session after an application-level idle timeout. This heartbeat
+        sends empty ``input_text_buffer.append`` messages to keep the
+        session alive.
+        """
+        nonlocal last_activity
+        try:
+            while True:
+                await asyncio.sleep(TTS_UPSTREAM_KEEPALIVE_SECONDS)
+                now = asyncio.get_event_loop().time()
+                if now - last_activity >= TTS_UPSTREAM_KEEPALIVE_SECONDS:
+                    async with upstream_send_lock:
+                        await upstream_ws.send(json.dumps({
+                            "type": "input_text_buffer.append",
+                            "text": "",
+                        }))
+                    last_activity = now
+                    logger.info("[TTS keepalive] Sent (idle %.1fs)", now - last_activity)
+        except websockets.ConnectionClosed as exc:
+            logger.info("[TTS keepalive] Connection closed code=%s reason=%s", exc.code, exc.reason)
+        except asyncio.CancelledError:
+            pass
+
+    logger.info("[TTS relay] Started")
     done, pending = await asyncio.wait(
         [
             asyncio.create_task(client_to_upstream()),
             asyncio.create_task(upstream_to_client()),
+            asyncio.create_task(keepalive()),
         ],
         return_when=asyncio.FIRST_COMPLETED,
     )
@@ -1690,32 +1749,51 @@ async def tts_proxy(websocket: WebSocket) -> None:
     Forwards text input (input_text_buffer.append) and audio output
     (response.audio.delta) bidirectionally.
     """
+    client_addr = websocket.client.host if websocket.client else "unknown"
+    logger.info("[TTS proxy] Client connecting from %s", client_addr)
     await websocket.accept()
+    logger.info("[TTS proxy] Client accepted from %s", client_addr)
 
     tts_model = os.environ.get(
         "TTS_MODEL", "qwen3-tts-instruct-flash-realtime"
     )
     upstream_url = f"{DASHSCOPE_WS_BASE}?model={tts_model}"
+    logger.info("[TTS proxy] Upstream URL: %s", upstream_url)
 
     try:
         headers = _upstream_headers()
     except RuntimeError as exc:
-        logger.error("TTS proxy cannot start: %s", exc)
+        logger.error("[TTS proxy] Cannot start — DASHSCOPE_API_KEY missing: %s", exc)
         await websocket.close(code=1011, reason=str(exc))
         return
 
     try:
+        logger.info("[TTS proxy] Connecting to DashScope upstream...")
         async with websockets.connect(
             upstream_url,
             additional_headers=headers,
         ) as upstream:
-            logger.info("TTS proxy connected to upstream: %s", upstream_url)
+            logger.info("[TTS proxy] Upstream connected OK — starting relay")
             await _relay(websocket, upstream)
+            logger.info("[TTS proxy] Relay finished (normal)")
     except websockets.InvalidStatus as exc:
-        logger.error("Upstream TTS rejected connection: %s", exc)
+        logger.error(
+            "[TTS proxy] Upstream REJECTED connection: status=%s response=%s",
+            getattr(exc, "response", None), exc,
+        )
         await websocket.close(code=1011, reason=f"Upstream error: {exc}")
+    except websockets.ConnectionClosed as exc:
+        logger.error(
+            "[TTS proxy] Upstream connection CLOSED during handshake: "
+            "code=%s reason=%s",
+            exc.code, exc.reason,
+        )
+        try:
+            await websocket.close(code=1011, reason=f"Upstream closed: {exc.code}")
+        except Exception:
+            pass
     except Exception as exc:
-        logger.error("TTS proxy error: %s", exc)
+        logger.error("[TTS proxy] Unexpected error: %s: %s", type(exc).__name__, exc, exc_info=True)
         try:
             await websocket.close(code=1011, reason="Internal proxy error")
         except Exception:
