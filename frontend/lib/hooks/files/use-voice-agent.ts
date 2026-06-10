@@ -376,7 +376,7 @@ export function useVoiceAgent({
         setTtsConnected(false)
         ttsActiveRef.current = false
       }
-    }, 800) // 800ms grace period for inter-chunk gaps
+    }, 2000) // 800ms grace period for inter-chunk gaps
   }, [cancelPlaybackEndTimer, resetIdleTimer, setVoiceStateSync])
 
   /** Stop the idle timer */
