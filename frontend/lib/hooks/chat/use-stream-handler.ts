@@ -908,11 +908,25 @@ export function useStreamHandler({
     const wasInterrupted = shouldInterruptRef?.current || false
 
     // Mark as complete after stream ends
+    // Explicitly include processSteps and toolCalls to prevent data loss
+    // when the RAF-scheduled queueMessageUpdate races with this final setMessages call.
     setMessages((prev) => {
       const existing = prev.find((m) => m.id === assistantMessageId)
       const thinkingDuration = existing?.thinkingStartTime
         ? Date.now() - existing.thinkingStartTime
         : undefined
+
+      // Use whichever processSteps/toolCalls source is more complete:
+      // prefer the locally-accumulated ones (assistantProcessSteps/assistantToolCalls)
+      // but fall back to whatever is already on the message if we somehow have more there.
+      const finalProcessSteps =
+        assistantProcessSteps.length > 0
+          ? assistantProcessSteps
+          : (existing?.processSteps ?? [])
+      const finalToolCalls =
+        assistantToolCalls.length > 0
+          ? assistantToolCalls
+          : (existing?.toolCalls ?? [])
 
       return prev.map((m) =>
         m.id === assistantMessageId
@@ -926,6 +940,8 @@ export function useStreamHandler({
               runId,
               checkpointId: finalAssistantCheckpointId,
               parentCheckpointId: currentUserCheckpointId,
+              processSteps: finalProcessSteps.length > 0 ? finalProcessSteps : m.processSteps,
+              toolCalls: finalToolCalls.length > 0 ? finalToolCalls : m.toolCalls,
               subgraphOutputs: undefined,
               wasInterrupted,
             }
