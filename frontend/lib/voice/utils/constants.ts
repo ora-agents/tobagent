@@ -17,14 +17,8 @@ export const KWS_WS_PATH = "/ws/voice/kws"
 /** Unified WebSocket path for KWS + backend VAD + ASR */
 export const VOICE_SESSION_WS_PATH = "/ws/voice/session"
 
-/** REST API path for ASR transcription */
-export const ASR_REST_PATH = "/api/asr/transcribe"
-
 /** REST API path for speaker verification */
 export const SPEAKER_VERIFY_REST_PATH = "/api/speaker-profiles/verify"
-
-/** WebSocket path for backend VAD + ASR streaming */
-export const ASR_WS_PATH = "/ws/voice/asr"
 
 /** Default TTS model */
 export const DEFAULT_TTS_MODEL = "qwen3-tts-instruct-flash-realtime"
@@ -35,25 +29,3 @@ export const DEFAULT_TTS_VOICE = "Cherry"
 /** Voice mode inactivity timeout (ms) before returning to idle */
 export const VOICE_IDLE_TIMEOUT_MS = 10000
 
-// ============================================================================
-// Client-side VAD (sherpa-onnx / Silero VAD) configuration
-// ============================================================================
-
-/** Path to sherpa-onnx VAD-only WASM resources in public/ */
-export const SHERPA_ONNX_BASE_PATH =
-  "/sherpa-onnx-wasm-simd-v1.13.2-ten-vad"
-
-/** VAD window size in samples (16ms at 16kHz for Ten VAD) */
-export const VAD_WINDOW_SIZE = 256
-
-/** VAD sample rate (Hz) */
-export const VAD_SAMPLE_RATE = 16000
-
-/** VAD detection threshold (lower = more sensitive) */
-export const VAD_THRESHOLD = 0.65
-
-/** Minimum silence duration (seconds) before VAD declares speech ended */
-export const VAD_MIN_SILENCE_DURATION = 0.35
-
-/** Minimum speech duration (seconds) to accept as real speech */
-export const VAD_MIN_SPEECH_DURATION = 0.25
