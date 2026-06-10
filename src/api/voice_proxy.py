@@ -56,7 +56,7 @@ logger.addHandler(_file_handler)
 
 DASHSCOPE_WS_BASE = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 VAD_SAMPLE_RATE = 16000
-VAD_THRESHOLD = 0.8
+VAD_THRESHOLD = 0.5
 VAD_MIN_SILENCE_DURATION = 0.35
 VAD_MIN_SPEECH_DURATION = 0.25
 VAD_MAX_SPEECH_DURATION = 20.0
