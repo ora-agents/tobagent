@@ -6,7 +6,6 @@ import { useT } from "@/lib/i18n"
 
 interface MessageListProps {
   messages: Message[]
-  showToolCalls?: boolean
   forceAutoScroll?: boolean
   isRegenerating: boolean
   copiedId: string | null
@@ -17,7 +16,6 @@ interface MessageListProps {
 
 export const MessageList = memo(function MessageList({
   messages,
-  showToolCalls,
   forceAutoScroll = false,
   isRegenerating,
   copiedId,
@@ -388,7 +386,6 @@ export const MessageList = memo(function MessageList({
               >
               <MessageItem
                 message={message}
-                showToolCalls={showToolCalls}
                 isLastAssistant={message.id === lastAssistantId}
                 isRegenerating={isRegenerating}
                 copiedId={copiedId}

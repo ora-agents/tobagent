@@ -51,7 +51,6 @@ const scrollbarStyles = `
 `
 
 interface ChatInterfaceProps {
-  showToolCalls?: boolean
   threadId: string | null
   onCreateThread?: () => string
   onThreadUpdate?: (threadId: string, title: string, lastMessage: string, client?: ClientProfile, messageCount?: number) => void
@@ -86,7 +85,6 @@ const toLangGraphMessages = (messages: Message[]) =>
   }))
 
 export function ChatInterface({
-  showToolCalls = false,
   threadId,
   onCreateThread,
   onThreadUpdate,
@@ -1087,7 +1085,6 @@ export function ChatInterface({
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <MessageList
           messages={messages}
-          showToolCalls={showToolCalls}
           forceAutoScroll={shouldFollowVoiceMessages}
           isRegenerating={uiState.isRegenerating}
           copiedId={uiState.copiedId}

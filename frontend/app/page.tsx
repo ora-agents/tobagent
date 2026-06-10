@@ -91,7 +91,6 @@ function DashboardContent() {
   const { user, loading: authLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings">("chat")
-  const [showToolCalls, setShowToolCalls] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
@@ -601,8 +600,6 @@ function DashboardContent() {
           aria-hidden={currentView !== "chat"}
         >
             <Header
-              showToolCalls={showToolCalls}
-              onToggleToolCalls={() => setShowToolCalls(!showToolCalls)}
               onNewChat={handleNewChat}
               agentConfig={agentConfig}
               onAgentConfigChange={setAgentConfig}
@@ -618,7 +615,6 @@ function DashboardContent() {
             />
             <ChatInterface
               key={chatSessionKey}
-              showToolCalls={showToolCalls}
               threadId={activeThreadId}
               onCreateThread={handleCreateThreadForSend}
               onThreadUpdate={handleThreadUpdate}

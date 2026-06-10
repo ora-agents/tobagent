@@ -7,8 +7,6 @@ import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
 
 interface HeaderProps {
-  showToolCalls?: boolean
-  onToggleToolCalls?: () => void
   onNewChat?: () => void
   agentConfig?: AgentConfig
   onAgentConfigChange?: (config: AgentConfig) => void
@@ -26,8 +24,6 @@ interface HeaderProps {
 }
 
 export function Header({
-  showToolCalls = false,
-  onToggleToolCalls,
   onNewChat,
   agentConfig,
   onAgentConfigChange,

@@ -189,7 +189,6 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
 
 interface MessageItemProps {
   message: Message
-  showToolCalls?: boolean
   isLastAssistant: boolean
   isRegenerating: boolean
   copiedId: string | null
@@ -200,7 +199,6 @@ interface MessageItemProps {
 
 export const MessageItem = memo(function MessageItem({
   message,
-  showToolCalls,
   isLastAssistant,
   isRegenerating,
   copiedId,
@@ -231,10 +229,7 @@ export const MessageItem = memo(function MessageItem({
   // - When thinking transitions to done AND we have process steps: keep open so
   //   the user can see the result without having to click.
   // - The user can still manually toggle by clicking the <summary>.
-  const hasProcessContent =
-    !!(message.thinkingSteps && message.thinkingSteps.length > 0) ||
-    !!(message.processSteps && message.processSteps.length > 0) ||
-    !!(message.toolCalls && message.toolCalls.length > 0)
+  const hasProcessContent = !!(message.processSteps && message.processSteps.length > 0)
 
   const [detailsOpen, setDetailsOpen] = useState(
     () => !!message.isThinking || hasProcessContent
@@ -252,15 +247,11 @@ export const MessageItem = memo(function MessageItem({
       setDetailsOpen(true)
     } else if (wasThinking && !message.isThinking) {
       // Thinking just finished — keep open so the user sees the process result
-      const nowHasContent =
-        !!(message.thinkingSteps && message.thinkingSteps.length > 0) ||
-        !!(message.processSteps && message.processSteps.length > 0) ||
-        !!(message.toolCalls && message.toolCalls.length > 0)
-      if (nowHasContent) {
+      if (message.processSteps && message.processSteps.length > 0) {
         setDetailsOpen(true)
       }
     }
-  }, [message.isThinking, message.thinkingSteps, message.processSteps, message.toolCalls])
+  }, [message.isThinking, message.processSteps])
 
   // Memoize markdown components to prevent button remounting during streaming
   const markdownComponents = useMemo(() => ({
@@ -362,8 +353,8 @@ export const MessageItem = memo(function MessageItem({
             contain: 'layout style paint',
           }}
         >
-          {/* Thinking indicator and Process - only for assistant messages */}
-          {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0) || (message.toolCalls && message.toolCalls.length > 0) || (message.processSteps && message.processSteps.length > 0)) && (
+          {/* Process panel - only shown when there are intermediate process steps */}
+          {message.role === "assistant" && message.processSteps && message.processSteps.length > 0 && (
             <details
               open={detailsOpen}
               onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
@@ -386,19 +377,7 @@ export const MessageItem = memo(function MessageItem({
                   isThinking={!!message.isThinking}
                 />
               </summary>
-              {message.thinkingSteps && message.thinkingSteps.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5 text-muted-foreground">
-                  {message.thinkingSteps.map((step, idx) => (
-                    <span
-                      key={`${message.id}-step-${idx}`}
-                      className="rounded-full border border-border/70 bg-background/55 px-2 py-0.5 leading-5"
-                    >
-                      {step}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {message.processSteps && message.processSteps.length > 0 ? (
+              {message.processSteps && message.processSteps.length > 0 && (
                 <div className="mt-3 space-y-3">
                   {message.processSteps.map((step, idx) => {
                     if (step.type === "text" && step.content) {
@@ -447,45 +426,6 @@ export const MessageItem = memo(function MessageItem({
                     return null
                   })}
                 </div>
-              ) : (
-                showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {message.toolCalls.map((tool) => (
-                      <div
-                        key={tool.id}
-                        className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-primary">
-                            {t.tool}: {tool.name}
-                          </span>
-                        </div>
-                        <div className="text-xs font-mono text-muted-foreground">
-                          <details>
-                            <summary className="cursor-pointer hover:opacity-80">
-                              {t.viewArguments}
-                            </summary>
-                            <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                              {JSON.stringify(tool.args, null, 2)}
-                            </pre>
-                          </details>
-                          {tool.output && (
-                            <details className="mt-2">
-                              <summary className="cursor-pointer hover:opacity-80">
-                                {t.viewOutput}
-                              </summary>
-                              <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                                {typeof tool.output === "string"
-                                  ? tool.output
-                                  : JSON.stringify(tool.output, null, 2)}
-                              </pre>
-                            </details>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
               )}
             </details>
           )}
@@ -658,7 +598,6 @@ export const MessageItem = memo(function MessageItem({
 
   // Other props that affect rendering
   const otherPropsChanged =
-    prevProps.showToolCalls !== nextProps.showToolCalls ||
     prevProps.isRegenerating !== nextProps.isRegenerating ||
     prevProps.isLastAssistant !== nextProps.isLastAssistant
 
