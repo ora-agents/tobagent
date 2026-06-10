@@ -481,48 +481,104 @@ export function ChatInterface({
           console.warn("Failed to load checkpoint metadata for thread history:", error)
         }
 
-        const convertedMessages: Message[] = threadMessages
-          .filter((msg: any) => {
-            const msgType = msg.type || msg.role
-            return ["human", "user", "ai", "assistant"].includes(msgType)
-          })
-          .map((msg: any, idx: number) => {
-            // Create a stable ID for historical messages
-            const messageId = msg.id || `history-${currentThreadId}-${idx}-${msg.content?.slice(0, 20)}`
+        // Build a map of tool outputs from ToolMessages
+        const toolOutputsById = new Map<string, string>()
+        threadMessages.forEach((msg: any) => {
+          if (msg.type === "tool" && msg.tool_call_id) {
+            toolOutputsById.set(
+              msg.tool_call_id,
+              typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+            )
+          }
+        })
 
-            const role = (msg.type === "ai" || msg.role === "assistant") ? "assistant" : "user"
-
-            const checkpointInfo =
-              checkpointsByMessageId.get(messageId) ||
-              checkpointsByContent.get(`${role}:${extractTextFromContent(msg.content)}`)
-
-            return {
+        const convertedMessages: Message[] = []
+        
+        threadMessages.forEach((msg: any, idx: number) => {
+          const msgType = msg.type || msg.role
+          
+          if (msgType === "human" || msgType === "user") {
+            const messageId = msg.id || `history-${currentThreadId}-${idx}-user`
+            convertedMessages.push({
               id: messageId,
-              role,
+              role: "user",
               content: extractTextFromContent(msg.content),
               timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-              toolCalls: msg.tool_calls,
-              runId: msg.run_id,
-              checkpointId: checkpointInfo?.checkpointId,
-              parentCheckpointId: checkpointInfo?.parentCheckpointId,
-              thinkingDuration: msg.response_metadata?.thinking_duration,
-              // Preserve images/attachments
               images: msg.images,
-            }
-          })
-          .filter((msg: Message) => msg.content.trim().length > 0)
-          .reduce((acc: Message[], msg: Message, idx: number, arr: Message[]) => {
-            // For consecutive AI messages, only keep the LAST one in the group
-            if (msg.role === "assistant") {
-              const nextMsg = arr[idx + 1]
-              if (nextMsg && nextMsg.role === "assistant") {
-                return acc
-              }
-            }
-            return [...acc, msg]
-          }, [])
+            })
+          } else if (msgType === "ai" || msgType === "assistant") {
+            const content = extractTextFromContent(msg.content)
+            const role = "assistant"
+            const messageId = msg.id || `history-${currentThreadId}-${idx}-ai`
+            const checkpointInfo =
+              checkpointsByMessageId.get(messageId) ||
+              checkpointsByContent.get(`${role}:${content}`)
 
-        console.log(`SUCCESS: Loaded ${convertedMessages.length} messages from thread history`)
+            const lastMsg = convertedMessages[convertedMessages.length - 1]
+            
+            if (lastMsg && lastMsg.role === "assistant") {
+              // Merge into previous assistant message
+              if (!lastMsg.processSteps) lastMsg.processSteps = []
+              
+              if (lastMsg.content.trim() && lastMsg.content !== content) {
+                lastMsg.processSteps.push({ type: "text", content: lastMsg.content })
+              }
+              
+              if (msg.tool_calls && msg.tool_calls.length > 0) {
+                msg.tool_calls.forEach((tc: any) => {
+                   const tool = {
+                     ...tc,
+                     output: tc.output || toolOutputsById.get(tc.id)
+                   }
+                   lastMsg.processSteps!.push({ type: "tool", tool })
+                   if (!lastMsg.toolCalls) lastMsg.toolCalls = []
+                   lastMsg.toolCalls.push(tool)
+                })
+              }
+              
+              lastMsg.content = content
+              if (msg.run_id) lastMsg.runId = msg.run_id
+              if (msg.response_metadata?.thinking_duration) lastMsg.thinkingDuration = msg.response_metadata.thinking_duration
+            } else {
+              // Create new assistant message
+              const newMsg: Message = {
+                id: messageId,
+                role: "assistant",
+                content: content,
+                timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+                runId: msg.run_id,
+                checkpointId: checkpointInfo?.checkpointId,
+                parentCheckpointId: checkpointInfo?.parentCheckpointId,
+                thinkingDuration: msg.response_metadata?.thinking_duration,
+                toolCalls: [],
+                processSteps: [],
+                images: msg.images,
+              }
+              
+              if (msg.tool_calls && msg.tool_calls.length > 0) {
+                msg.tool_calls.forEach((tc: any) => {
+                   const tool = {
+                     ...tc,
+                     output: tc.output || toolOutputsById.get(tc.id)
+                   }
+                   newMsg.processSteps!.push({ type: "tool", tool })
+                   newMsg.toolCalls!.push(tool)
+                })
+              }
+              
+              convertedMessages.push(newMsg)
+            }
+          }
+        })
+        
+        const finalMessages = convertedMessages.filter(msg => 
+          msg.role === "user" || 
+          msg.content.trim().length > 0 || 
+          (msg.processSteps && msg.processSteps.length > 0) ||
+          (msg.toolCalls && msg.toolCalls.length > 0)
+        )
+
+        console.log(`SUCCESS: Loaded ${finalMessages.length} messages from thread history`)
 
         // Only set messages if we're still on the same thread (prevent race conditions)
         if (currentThreadId === threadId) {
@@ -545,7 +601,7 @@ export function ChatInterface({
               ])
             )
 
-            return convertedMessages.map((msg, idx) => {
+            return finalMessages.map((msg, idx) => {
               // Try to find existing metadata by ID first, then by runId, then by content
               const existingByIdMatch = existingById.get(msg.id)
               const existingByRunIdMatch = msg.runId ? existingByRunId.get(msg.runId) : undefined

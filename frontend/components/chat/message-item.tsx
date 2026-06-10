@@ -326,8 +326,8 @@ export const MessageItem = memo(function MessageItem({
             contain: 'layout style paint',
           }}
         >
-          {/* Thinking indicator - only for assistant messages */}
-          {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0)) && (
+          {/* Thinking indicator and Process - only for assistant messages */}
+          {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0) || (message.toolCalls && message.toolCalls.length > 0) || (message.processSteps && message.processSteps.length > 0)) && (
             <details open={message.isThinking} className="mb-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-xs">
               <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors marker:text-muted-foreground">
                 {message.isThinking && (
@@ -357,6 +357,95 @@ export const MessageItem = memo(function MessageItem({
                     </span>
                   ))}
                 </div>
+              )}
+              {message.processSteps && message.processSteps.length > 0 ? (
+                <div className="mt-3 space-y-3">
+                  {message.processSteps.map((step, idx) => {
+                    if (step.type === "text" && step.content) {
+                      return (
+                        <div key={`ps-${idx}`} className="px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap bg-muted/20 rounded-lg border border-border/30">
+                          {step.content}
+                        </div>
+                      )
+                    } else if (step.type === "tool" && step.tool) {
+                      const tool = step.tool
+                      return (
+                        <div
+                          key={`ps-${idx}-${tool.id}`}
+                          className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-primary">
+                              {t.tool}: {tool.name}
+                            </span>
+                          </div>
+                          <div className="text-xs font-mono text-muted-foreground">
+                            <details>
+                              <summary className="cursor-pointer hover:opacity-80">
+                                {t.viewArguments}
+                              </summary>
+                              <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
+                                {JSON.stringify(tool.args, null, 2)}
+                              </pre>
+                            </details>
+                            {tool.output && (
+                              <details className="mt-2">
+                                <summary className="cursor-pointer hover:opacity-80">
+                                  {t.viewOutput}
+                                </summary>
+                                <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
+                                  {typeof tool.output === "string"
+                                    ? tool.output
+                                    : JSON.stringify(tool.output, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  })}
+                </div>
+              ) : (
+                showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {message.toolCalls.map((tool) => (
+                      <div
+                        key={tool.id}
+                        className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-primary">
+                            {t.tool}: {tool.name}
+                          </span>
+                        </div>
+                        <div className="text-xs font-mono text-muted-foreground">
+                          <details>
+                            <summary className="cursor-pointer hover:opacity-80">
+                              {t.viewArguments}
+                            </summary>
+                            <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
+                              {JSON.stringify(tool.args, null, 2)}
+                            </pre>
+                          </details>
+                          {tool.output && (
+                            <details className="mt-2">
+                              <summary className="cursor-pointer hover:opacity-80">
+                                {t.viewOutput}
+                              </summary>
+                              <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
+                                {typeof tool.output === "string"
+                                  ? tool.output
+                                  : JSON.stringify(tool.output, null, 2)}
+                              </pre>
+                            </details>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </details>
           )}
@@ -507,44 +596,7 @@ export const MessageItem = memo(function MessageItem({
 
             </div>
 
-            {showToolCalls && message.toolCalls && message.toolCalls.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {message.toolCalls.map((tool) => (
-                  <div
-                    key={tool.id}
-                    className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-primary">
-                        {t.tool}: {tool.name}
-                      </span>
-                    </div>
-                    <div className="text-xs font-mono text-muted-foreground">
-                      <details>
-                        <summary className="cursor-pointer hover:opacity-80">
-                          {t.viewArguments}
-                        </summary>
-                        <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                          {JSON.stringify(tool.args, null, 2)}
-                        </pre>
-                      </details>
-                      {tool.output && (
-                        <details className="mt-2">
-                          <summary className="cursor-pointer hover:opacity-80">
-                            {t.viewOutput}
-                          </summary>
-                          <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                            {typeof tool.output === "string"
-                              ? tool.output
-                              : JSON.stringify(tool.output, null, 2)}
-                          </pre>
-                        </details>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+
 
           </>
         )}
