@@ -41,7 +41,6 @@ import type { AgentProfile } from "../../types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
 
 const BRIEF_AGENT_STEPS = {
-  thinking: "Understanding request",
   context: "Checking context",
   subagents: "Consulting linked agents",
 } as const
@@ -78,7 +77,7 @@ function getChunkToolCalls(chunk: any): any[] {
 }
 
 function isSubagentToolName(name?: string): boolean {
-  return name === "task" || !!name?.startsWith("call_agent_")
+  return name === "task" || name === "read_skill" || !!name?.startsWith("call_agent_")
 }
 
 function getStreamMessageMetadata(data: any, chunk?: any): Record<string, any> {
@@ -418,6 +417,7 @@ export function useStreamHandler({
 
       let assistantContent = ""
       let assistantToolCalls: ToolCall[] = []
+      let assistantProcessSteps: any[] = []
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
       let currentUserCheckpointId: string | undefined = options?.checkpointId
@@ -487,6 +487,9 @@ export function useStreamHandler({
       })
 
       // Restore tool calls from existing message
+      if (existingMessage?.processSteps) {
+        assistantProcessSteps = [...existingMessage.processSteps]
+      }
       if (existingMessage?.toolCalls) {
         assistantToolCalls = existingMessage.toolCalls.filter(
           (toolCall) => !isSubagentToolName(toolCall.name)
@@ -496,6 +499,7 @@ export function useStreamHandler({
         setMessages((prev) =>
           updateMessageInList(prev, assistantMessageId, {
             toolCalls: assistantToolCalls.length > 0 ? assistantToolCalls : undefined,
+            processSteps: assistantProcessSteps.length > 0 ? assistantProcessSteps : undefined,
             subgraphOutputs: undefined,
           })
         )
@@ -670,15 +674,7 @@ export function useStreamHandler({
             }
           }
 
-          // Check for AI thinking
-          if (
-            (eventType === "updates" || baseEvent === "updates") &&
-            (data?.agent || data?.model) &&
-            !data?.tools
-          ) {
-            hasNewSteps =
-              addBriefStep(thinkingSteps, BRIEF_AGENT_STEPS.thinking) || hasNewSteps
-          }
+          // Removed general AI thinking check that added "Understanding request"
 
         // Detect subagent execution (single or parallel)
         const agentMessages = data?.agent?.messages || data?.model?.messages
@@ -838,19 +834,52 @@ export function useStreamHandler({
         }
       }
 
-      // Capture tool calls (NOT content - content comes from "values" event)
+      // Capture intermediate text and tool calls into processSteps
       // Support both agent (deepagent) and model (create_agent) nodes
       const agentMessages = data?.agent?.messages || data?.model?.messages
-      if ((eventType === "updates" || baseEvent === "updates") && agentMessages && Array.isArray(agentMessages)) {
-        agentMessages.forEach((msg: any) => {
-          if (msg.type === "ai" && msg.tool_calls?.length > 0) {
-            assistantToolCalls = msg.tool_calls.filter(
-              (toolCall: any) => !isSubagentToolName(toolCall.name)
-            )
-          }
-        })
+      if ((eventType === "updates" || baseEvent === "updates") && data) {
+        if (agentMessages && Array.isArray(agentMessages)) {
+          agentMessages.forEach((msg: any) => {
+            if (msg.type === "ai" || msg.role === "assistant") {
+              const hasToolCallsInMsg = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0
 
-        if (assistantToolCalls.length > 0) {
+              // Only capture text as intermediate processStep when the same AI message
+              // also contains tool_calls — this is thinking/reasoning text BEFORE tool execution.
+              // Text in AI messages WITHOUT tool_calls is the final response, not a process step.
+              if (hasToolCallsInMsg && msg.content && typeof msg.content === "string" && msg.content.trim()) {
+                const textContent = msg.content.trim()
+                if (!assistantProcessSteps.find(s => s.type === "text" && s.content === textContent)) {
+                  assistantProcessSteps.push({ type: "text", content: textContent })
+                }
+              }
+
+              if (hasToolCallsInMsg) {
+                const newTools = msg.tool_calls.filter((toolCall: any) => !isSubagentToolName(toolCall.name))
+                if (newTools.length > 0) {
+                  assistantToolCalls = newTools
+                  newTools.forEach((tc: any) => {
+                    if (!assistantProcessSteps.find(s => s.type === "tool" && s.tool?.id === tc.id)) {
+                      assistantProcessSteps.push({ type: "tool", tool: tc })
+                    }
+                  })
+                }
+              }
+            }
+          })
+        }
+        
+        if (data.tools?.messages && Array.isArray(data.tools.messages)) {
+          data.tools.messages.forEach((msg: any) => {
+            if (msg.type === "tool" && msg.tool_call_id) {
+              const psTool = assistantProcessSteps.find(s => s.type === "tool" && s.tool?.id === msg.tool_call_id)?.tool
+              if (psTool) {
+                psTool.output = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+              }
+            }
+          })
+        }
+
+        if (assistantProcessSteps.length > 0 || assistantToolCalls.length > 0) {
           queueMessageUpdate((prev) => {
             const baseMessage: Message = {
               id: assistantMessageId,
@@ -858,12 +887,14 @@ export function useStreamHandler({
               content: "",
               timestamp: new Date(),
               toolCalls: assistantToolCalls,
+              processSteps: assistantProcessSteps,
               isThinking: true,
             }
 
             const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
             return updateMessageInList(withMessage, assistantMessageId, {
               toolCalls: assistantToolCalls,
+              processSteps: assistantProcessSteps,
               isThinking: true,
             })
           })

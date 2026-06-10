@@ -8,6 +8,12 @@ import type { ToolCall } from "./tools"
 import type { SubgraphOutput } from "./tools"
 import type { ImageAttachment } from "./images"
 
+export interface ProcessStep {
+  type: "text" | "tool"
+  content?: string
+  tool?: ToolCall
+}
+
 /**
  * Represents a chat message from either user or assistant.
  * Contains metadata for streaming, tool calls, and tracing.
@@ -29,6 +35,7 @@ export interface Message {
   // Thinking/streaming state
   isThinking?: boolean
   thinkingSteps?: string[]
+  processSteps?: ProcessStep[]
   thinkingStartTime?: number
   thinkingDuration?: number
 
