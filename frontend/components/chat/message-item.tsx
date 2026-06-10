@@ -8,7 +8,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { ThinkingTimer } from "./animations/thinking-timer"
 import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message } from "@/lib/types"
-import { useState, useMemo, useCallback, memo, useRef } from "react"
+import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react"
 import { useT } from "@/lib/i18n"
 
 // ============================================================================
@@ -226,6 +226,42 @@ export const MessageItem = memo(function MessageItem({
   // Reset counter before each render so code blocks get consistent indices
   codeBlockIndexRef.current = 0
 
+  // Control the open state of the Process details panel.
+  // - While thinking: keep open.
+  // - When thinking transitions to done AND we have process steps: keep open so
+  //   the user can see the result without having to click.
+  // - The user can still manually toggle by clicking the <summary>.
+  const hasProcessContent =
+    !!(message.thinkingSteps && message.thinkingSteps.length > 0) ||
+    !!(message.processSteps && message.processSteps.length > 0) ||
+    !!(message.toolCalls && message.toolCalls.length > 0)
+
+  const [detailsOpen, setDetailsOpen] = useState(
+    () => !!message.isThinking || hasProcessContent
+  )
+
+  // Sync open state when isThinking changes:
+  // - thinking starts  → open
+  // - thinking ends    → stay open if there is content to show
+  const prevIsThinkingRef = useRef(message.isThinking)
+  useEffect(() => {
+    const wasThinking = prevIsThinkingRef.current
+    prevIsThinkingRef.current = message.isThinking
+    if (message.isThinking) {
+      // Agent started (re-)thinking — open the panel
+      setDetailsOpen(true)
+    } else if (wasThinking && !message.isThinking) {
+      // Thinking just finished — keep open so the user sees the process result
+      const nowHasContent =
+        !!(message.thinkingSteps && message.thinkingSteps.length > 0) ||
+        !!(message.processSteps && message.processSteps.length > 0) ||
+        !!(message.toolCalls && message.toolCalls.length > 0)
+      if (nowHasContent) {
+        setDetailsOpen(true)
+      }
+    }
+  }, [message.isThinking, message.thinkingSteps, message.processSteps, message.toolCalls])
+
   // Memoize markdown components to prevent button remounting during streaming
   const markdownComponents = useMemo(() => ({
     // Custom link renderer - opens in new tab
@@ -328,7 +364,11 @@ export const MessageItem = memo(function MessageItem({
         >
           {/* Thinking indicator and Process - only for assistant messages */}
           {message.role === "assistant" && (message.isThinking || message.thinkingStartTime || (message.thinkingSteps && message.thinkingSteps.length > 0) || (message.toolCalls && message.toolCalls.length > 0) || (message.processSteps && message.processSteps.length > 0)) && (
-            <details open={message.isThinking} className="mb-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-xs">
+            <details
+              open={detailsOpen}
+              onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
+              className="mb-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-xs"
+            >
               <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors marker:text-muted-foreground">
                 {message.isThinking && (
                   <span className="relative flex h-2.5 w-2.5 shrink-0">
