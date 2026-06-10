@@ -13,6 +13,7 @@ import type { VoiceState } from "@/lib/voice/types"
 interface VoiceMiniPanelProps {
   voiceState: VoiceState
   isSpeaking: boolean
+  voiceInterruptionEnabled?: boolean
   onExit: () => void
 }
 
@@ -39,6 +40,7 @@ const stateHints: Record<VoiceState, string> = {
 export function VoiceMiniPanel({
   voiceState,
   isSpeaking,
+  voiceInterruptionEnabled = true,
   onExit,
 }: VoiceMiniPanelProps) {
   // Don't show the panel when idle or during passive KWS listening
@@ -119,7 +121,9 @@ export function VoiceMiniPanel({
         {/* Hint text */}
         <div className="px-3 pb-2">
           <p className="text-[11px] text-muted-foreground">
-            {stateHints[voiceState]}
+            {voiceState === "speaking" && !voiceInterruptionEnabled
+              ? "Speaking..."
+              : stateHints[voiceState]}
           </p>
         </div>
       </div>

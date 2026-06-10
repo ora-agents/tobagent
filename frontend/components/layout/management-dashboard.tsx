@@ -428,6 +428,7 @@ export function ManagementDashboard({
     personaStyle: PersonaStyle
     boundaryMode: BoundaryMode
     ttsVoice: string
+    voiceInterruptionEnabled: boolean
     speakerVerificationEnabled: boolean
   }>({
     name: "",
@@ -443,6 +444,7 @@ export function ManagementDashboard({
     personaStyle: "professional",
     boundaryMode: "business_only",
     ttsVoice: "Cherry",
+    voiceInterruptionEnabled: true,
     speakerVerificationEnabled: false
   })
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
@@ -702,6 +704,7 @@ export function ManagementDashboard({
       personaStyle: "professional",
       boundaryMode: "business_only",
       ttsVoice: "Cherry",
+      voiceInterruptionEnabled: true,
       speakerVerificationEnabled: false
     })
     setDeleteConfirmId(null)
@@ -726,6 +729,7 @@ export function ManagementDashboard({
       personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
       boundaryMode: (profile.boundaryMode || "business_only") as BoundaryMode,
       ttsVoice: profile.ttsVoice || "Cherry",
+      voiceInterruptionEnabled: profile.voiceInterruptionEnabled !== false,
       speakerVerificationEnabled: profile.speakerVerificationEnabled || false
     })
     setDeleteConfirmId(null)
@@ -759,6 +763,7 @@ export function ManagementDashboard({
       personaStyle: agentForm.personaStyle,
       boundaryMode: agentForm.boundaryMode,
       ttsVoice: agentForm.ttsVoice,
+      voiceInterruptionEnabled: agentForm.voiceInterruptionEnabled,
       speakerVerificationEnabled: agentForm.speakerVerificationEnabled
     }
 
@@ -2101,6 +2106,36 @@ export function ManagementDashboard({
                         className="flex items-start gap-3 cursor-pointer group"
                         onClick={() => setAgentForm(prev => ({
                           ...prev,
+                          voiceInterruptionEnabled: !prev.voiceInterruptionEnabled,
+                        }))}
+                      >
+                        <span
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+                            agentForm.voiceInterruptionEnabled
+                              ? "bg-primary border-primary"
+                              : "border-muted-foreground/40 group-hover:border-primary/50"
+                          }`}
+                        >
+                          {agentForm.voiceInterruptionEnabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">
+                            {locale === "zh" ? "启用语音打断" : "Enable voice interruption"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "开启后，语音模式下用户说话可中断当前回复并开始新一轮对话。"
+                              : "When enabled, speaking in voice mode interrupts the current reply and starts a new turn."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
+                      <div
+                        className="flex items-start gap-3 cursor-pointer group"
+                        onClick={() => setAgentForm(prev => ({
+                          ...prev,
                           speakerVerificationEnabled: !prev.speakerVerificationEnabled,
                         }))}
                       >
@@ -2510,6 +2545,16 @@ export function ManagementDashboard({
                               const voice = TTS_VOICES.find(item => item.voice === selectedAgent.ttsVoice)
                               return voice ? `${voice.nameZh} · ${voice.voice}` : selectedAgent.ttsVoice || "Cherry"
                             })()}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "语音控制" : "Voice Control"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1">
+                            {(selectedAgent.voiceInterruptionEnabled !== false)
+                              ? (locale === "zh" ? "打断已启用" : "Interruption enabled")
+                              : (locale === "zh" ? "打断已关闭" : "Interruption disabled")}
                           </div>
                         </div>
                         <div className="p-3 border border-border/60 rounded-xl bg-background/50">

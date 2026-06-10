@@ -237,6 +237,7 @@ export function ChatInterface({
     ttsVoice: agentProfile?.ttsVoice || null,
     agentId: agentProfile?.id || null,
     userId,
+    voiceInterruptionEnabled: agentProfile?.voiceInterruptionEnabled !== false,
     speakerVerificationEnabled: agentProfile?.speakerVerificationEnabled || false,
     speakerVerificationBound: agentProfile?.speakerVerificationBound || false,
   })
@@ -1043,6 +1044,7 @@ export function ChatInterface({
         <VoiceMiniPanel
           voiceState={voiceAgent.voiceState}
           isSpeaking={voiceAgent.isSpeaking}
+          voiceInterruptionEnabled={agentProfile?.voiceInterruptionEnabled !== false}
           onExit={voiceAgent.exitVoiceMode}
         />
 

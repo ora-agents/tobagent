@@ -43,6 +43,8 @@ interface UseVoiceAgentOptions {
   agentId?: string | null
   /** Current logged-in user id for optional server-side speaker verification */
   userId?: string | null
+  /** Whether speaking during an agent reply can interrupt the current turn */
+  voiceInterruptionEnabled?: boolean
   /** Whether the selected agent requires a matching bound voiceprint */
   speakerVerificationEnabled?: boolean
   /** Whether the selected agent already has a voiceprint binding */
@@ -107,6 +109,7 @@ declare global {
         wakeWordsJson: string,
         ttsVoice: string,
         speakerVerificationJson: string,
+        voiceInterruptionEnabled: boolean,
       ) => void
       startManualAsr?: () => string
       startAsr?: () => string
@@ -125,6 +128,7 @@ declare global {
         wakeWords: string[],
         ttsVoice: string | null,
         speakerVerification: { agentId: string; userId: string } | null,
+        voiceInterruptionEnabled: boolean,
       ) => void
       startManualAsr?: () => string
       startAsr?: () => string
@@ -222,6 +226,7 @@ export function useVoiceAgent({
   ttsVoice,
   agentId,
   userId,
+  voiceInterruptionEnabled = true,
   speakerVerificationEnabled = false,
   speakerVerificationBound = false,
 }: UseVoiceAgentOptions): UseVoiceAgentReturn {
@@ -303,6 +308,14 @@ export function useVoiceAgent({
     voiceStateRef.current = nextState
     setVoiceState(nextState)
   }, [])
+  const isReplyActive = useCallback(() => (
+    voiceStateRef.current === "processing" ||
+    voiceStateRef.current === "speaking"
+  ), [])
+  const canInterruptReply = useCallback(
+    () => voiceInterruptionEnabled && isReplyActive(),
+    [isReplyActive, voiceInterruptionEnabled],
+  )
 
   // Whether we're currently in an active voice session (TTS has been started for current reply)
   const ttsActiveRef = useRef(false)
@@ -386,6 +399,19 @@ export function useVoiceAgent({
     try {
       const kwsClient = new KwsClient({
         onDetection: (_keyword) => {
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            resetIdleTimer()
+            return
+          }
+          if (
+            speakerVerification &&
+            canInterruptReply()
+          ) {
+            setAsrConnected(true)
+            resetIdleTimer()
+            return
+          }
+
           // Backend keeps the same session open and switches it to ASR.
           voiceSessionIdRef.current += 1
           wakeAcknowledgementPendingRef.current = false
@@ -404,9 +430,10 @@ export function useVoiceAgent({
         },
         onSpeechStart: () => {
           resetIdleTimer()
+          if (!voiceInterruptionEnabled && isReplyActive()) return
           if (
-            voiceStateRef.current === "processing" ||
-            voiceStateRef.current === "speaking"
+            !speakerVerification &&
+            canInterruptReply()
           ) {
             stopCurrentTtsRef.current()
             onInterruptRef.current()
@@ -414,6 +441,17 @@ export function useVoiceAgent({
           }
         },
         onTranscribing: () => {
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            resetIdleTimer()
+            return
+          }
+          if (
+            speakerVerification &&
+            canInterruptReply()
+          ) {
+            stopCurrentTtsRef.current()
+            onInterruptRef.current()
+          }
           setVoiceStateSync("transcribing")
           setCurrentTranscript("...")
           onInterimTranscriptRef.current?.("...")
@@ -422,6 +460,17 @@ export function useVoiceAgent({
           handleFinalTranscriptRef.current(text)
         },
         onSpeakerRejected: (score, threshold, reason) => {
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            resetIdleTimer()
+            return
+          }
+          if (
+            speakerVerification &&
+            canInterruptReply()
+          ) {
+            resetIdleTimer()
+            return
+          }
           setError(formatVoiceprintRejection(score, threshold, reason))
           setVoiceStateSync("listening")
           resetIdleTimer()
@@ -478,10 +527,13 @@ export function useVoiceAgent({
     }
   }, [
     cancelPlaybackEndTimer,
+    canInterruptReply,
+    isReplyActive,
     resetIdleTimer,
     speakerVerification,
     setVoiceStateSync,
     ttsVoice,
+    voiceInterruptionEnabled,
   ])
 
   /** Stop KWS listening */
@@ -667,9 +719,12 @@ export function useVoiceAgent({
     // without a prior web speech_start signal. Stop playback and interrupt
     // before sending the new user turn.
     if (
-      voiceStateRef.current === "processing" ||
-      voiceStateRef.current === "speaking"
+      isReplyActive()
     ) {
+      if (!voiceInterruptionEnabled) {
+        resetIdleTimer()
+        return
+      }
       stopCurrentTts()
       onInterruptRef.current()
     }
@@ -678,7 +733,14 @@ export function useVoiceAgent({
     setVoiceStateSync("processing")
     ttsStreamEndedRef.current = false
     stopIdleTimer()
-  }, [resetIdleTimer, setVoiceStateSync, stopCurrentTts, stopIdleTimer])
+  }, [
+    isReplyActive,
+    resetIdleTimer,
+    setVoiceStateSync,
+    stopCurrentTts,
+    stopIdleTimer,
+    voiceInterruptionEnabled,
+  ])
 
   useEffect(() => {
     handleFinalTranscriptRef.current = handleFinalTranscript
@@ -795,15 +857,26 @@ export function useVoiceAgent({
         onSpeechStart: () => {
           if (!isCurrentSession()) return
           resetIdleTimer()
+          if (!voiceInterruptionEnabled && isReplyActive()) return
           if (
-            voiceStateRef.current === "processing" ||
-            voiceStateRef.current === "speaking"
+            !speakerVerification &&
+            canInterruptReply()
           ) {
             interruptAndListen()
           }
         },
         onTranscribing: () => {
           if (!isCurrentSession()) return
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            resetIdleTimer()
+            return
+          }
+          if (
+            speakerVerification &&
+            canInterruptReply()
+          ) {
+            interruptAndListen()
+          }
           setVoiceStateSync("transcribing")
           setCurrentTranscript("...")
           onInterimTranscriptRef.current?.("...")
@@ -814,6 +887,17 @@ export function useVoiceAgent({
         },
         onSpeakerRejected: (score, threshold, reason) => {
           if (!isCurrentSession()) return
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            resetIdleTimer()
+            return
+          }
+          if (
+            speakerVerification &&
+            canInterruptReply()
+          ) {
+            resetIdleTimer()
+            return
+          }
           setError(formatVoiceprintRejection(score, threshold, reason))
           setVoiceStateSync("listening")
           resetIdleTimer()
@@ -889,7 +973,9 @@ export function useVoiceAgent({
       exitVoiceModeInternal()
     }
   }, [
+    canInterruptReply,
     isNativeVoiceProvider,
+    isReplyActive,
     isSupported,
     speakerVerificationEnabled,
     speakerVerificationBound,
@@ -901,6 +987,7 @@ export function useVoiceAgent({
     handleFinalTranscript,
     speakerVerification,
     setVoiceStateSync,
+    voiceInterruptionEnabled,
   ])
 
   // Keep enterVoiceModeRef in sync with the latest enterVoiceMode
@@ -1134,6 +1221,7 @@ export function useVoiceAgent({
           keywords,
           ttsVoice || null,
           speakerVerification,
+          voiceInterruptionEnabled,
         )
       } else if (window.TobNativeVoice?.onAgentChanged) {
         window.TobNativeVoice.onAgentChanged(
@@ -1141,6 +1229,7 @@ export function useVoiceAgent({
           JSON.stringify(keywords),
           ttsVoice || "",
           JSON.stringify(speakerVerification),
+          voiceInterruptionEnabled,
         )
       } else if (window.__TOB_NATIVE_VOICE__?.updateWakeWords) {
         window.__TOB_NATIVE_VOICE__.updateWakeWords(keywords)
@@ -1150,7 +1239,14 @@ export function useVoiceAgent({
     } catch (err) {
       console.error("[NativeVoice] failed to sync wake words:", err)
     }
-  }, [agentId, isNativeVoiceProvider, speakerVerification, wakeWordsKey, ttsVoice])
+  }, [
+    agentId,
+    isNativeVoiceProvider,
+    speakerVerification,
+    ttsVoice,
+    voiceInterruptionEnabled,
+    wakeWordsKey,
+  ])
 
   useEffect(() => {
     if (!isNativeVoiceProvider || typeof window === "undefined") return
@@ -1167,11 +1263,23 @@ export function useVoiceAgent({
         setCurrentTranscript("")
         onInterimTranscriptRef.current?.("")
 
-        if (
-          voiceStateRef.current === "processing" ||
-          voiceStateRef.current === "speaking"
-        ) {
+        if (!voiceInterruptionEnabled && isReplyActive()) {
+          setAsrConnected(true)
+          resetIdleTimer()
+          return
+        }
+
+        if (!speakerVerification && canInterruptReply()) {
           interruptAndListen()
+          return
+        }
+
+        if (
+          speakerVerification &&
+          canInterruptReply()
+        ) {
+          setAsrConnected(true)
+          resetIdleTimer()
           return
         }
 
@@ -1215,10 +1323,10 @@ export function useVoiceAgent({
         if (state === "speech_start") {
           wakeAcknowledgementPendingRef.current = false
           resetIdleTimer()
-          if (
-            voiceStateRef.current === "processing" ||
-            voiceStateRef.current === "speaking"
-          ) {
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            return
+          }
+          if (!speakerVerification && canInterruptReply()) {
             interruptAndListen()
           } else if (
             voiceStateRef.current === "idle" ||
@@ -1229,6 +1337,16 @@ export function useVoiceAgent({
           }
         } else if (state === "transcribing") {
           wakeAcknowledgementPendingRef.current = false
+          if (!voiceInterruptionEnabled && isReplyActive()) {
+            resetIdleTimer()
+            return
+          }
+          if (
+            speakerVerification &&
+            canInterruptReply()
+          ) {
+            interruptAndListen()
+          }
           setVoiceStateSync("transcribing")
           setCurrentTranscript("...")
           onInterimTranscriptRef.current?.("...")
@@ -1307,6 +1425,16 @@ export function useVoiceAgent({
           typeof payload.threshold === "number" ? payload.threshold : null
         const reason =
           typeof payload.reason === "string" ? payload.reason : undefined
+        if (!voiceInterruptionEnabled && isReplyActive()) {
+          wakeAcknowledgementPendingRef.current = false
+          resetIdleTimer()
+          return
+        }
+        if (speakerVerification && canInterruptReply()) {
+          wakeAcknowledgementPendingRef.current = false
+          resetIdleTimer()
+          return
+        }
         wakeAcknowledgementPendingRef.current = false
         setError(formatVoiceprintRejection(score, threshold, reason))
         setVoiceStateSync("listening")
@@ -1326,6 +1454,10 @@ export function useVoiceAgent({
         console.log("[NativeVoice] asr text:", text)
         if (!text.trim()) return
         wakeAcknowledgementPendingRef.current = false
+        if (!voiceInterruptionEnabled && isReplyActive()) {
+          resetIdleTimer()
+          return
+        }
 
         if (
           voiceStateRef.current === "idle" ||
@@ -1346,13 +1478,17 @@ export function useVoiceAgent({
     }
   }, [
     cancelPlaybackEndTimer,
+    canInterruptReply,
     handleFinalTranscript,
     interruptAndListen,
+    isReplyActive,
     isNativeVoiceProvider,
     resetIdleTimer,
+    speakerVerification,
     stopIdleTimer,
     stopCurrentTts,
     setVoiceStateSync,
+    voiceInterruptionEnabled,
   ])
 
   // Auto-start KWS on page load if wake words are configured. Only the visible

@@ -37,6 +37,7 @@ export interface AgentProfile {
   personaStyle?: string | null
   boundaryMode?: string | null
   ttsVoice?: string | null
+  voiceInterruptionEnabled?: boolean
   speakerVerificationEnabled?: boolean
   speakerVerificationBound?: boolean
   speakerSampleText?: string | null
