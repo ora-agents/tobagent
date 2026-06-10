@@ -48,7 +48,7 @@ import {
 } from "@/lib/types/role-templates"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
-import { int16PcmToWavDataUri } from "@/lib/voice/vad/audio-encoder"
+import { int16PcmToWavDataUri } from "@/lib/voice/utils/audio-encoder"
 import { isAndroidWebView } from "@/lib/voice/utils/browser"
 
 // ---------------------------------------------------------------------------
