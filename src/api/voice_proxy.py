@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session
 from websockets.asyncio.client import ClientConnection
 
 from src.api.kws_router import _create_keyword_stream, _process_audio_chunk
-from src.utils.db import AgentProfileTable, SessionLocal, get_db
+from src.utils.db import AgentProfileTable, SessionLocal, UserVoiceprintTable, get_db
 from src.utils.voice_audio_logger import VoiceAudioLogger
 
 logger = logging.getLogger(__name__)
@@ -463,6 +463,24 @@ class SpeakerVerificationResponse(BaseModel):
     threshold: float = SPEAKER_PROFILE_THRESHOLD
 
 
+class UserVoiceprintCreateRequest(BaseModel):
+    """Create a user-level voiceprint from an audio sample."""
+
+    name: str = "My Voiceprint"
+    audio: str
+    sampleText: str | None = None
+
+
+class UserVoiceprintResponse(BaseModel):
+    """User-level voiceprint metadata (no embedding exposed)."""
+
+    id: str
+    name: str
+    sampleText: str | None = None
+    enrolledAt: str | None = None
+    createdAt: str
+
+
 def _extract_bearer_user_id(authorization: str | None) -> str:
     """Extract the bearer user id used by the app's lightweight auth."""
     if not authorization:
@@ -730,22 +748,43 @@ async def _enrollment_embedding_from_data_uri(
     return embedding, quality
 
 
-def _profile_embedding(profile: AgentProfileTable) -> np.ndarray | None:
-    """Return a stored profile embedding if one exists."""
+def _profile_embedding(
+    profile: AgentProfileTable,
+    db: Session | None = None,
+) -> np.ndarray | None:
+    """Return a stored profile embedding, resolving user-level voiceprints if needed.
+
+    Checks the inline ``speaker_embedding`` first (legacy per-agent binding),
+    then falls back to the user-level voiceprint referenced by
+    ``user_voiceprint_id`` when a DB session is provided.
+    """
     embedding = profile.speaker_embedding
-    if not isinstance(embedding, list) or not embedding:
-        return None
-    return np.asarray(embedding, dtype=np.float32)
+    if isinstance(embedding, list) and embedding:
+        return np.asarray(embedding, dtype=np.float32)
+
+    # Fall back to user-level voiceprint
+    vp_id = getattr(profile, "user_voiceprint_id", None)
+    if vp_id and db is not None:
+        vp = (
+            db.query(UserVoiceprintTable)
+            .filter(UserVoiceprintTable.id == vp_id)
+            .first()
+        )
+        if vp and isinstance(vp.embedding, list) and vp.embedding:
+            return np.asarray(vp.embedding, dtype=np.float32)
+
+    return None
 
 
 async def _verify_profile_speaker(
     *,
     profile: AgentProfileTable,
     audio_data_uri: str,
+    db: Session | None = None,
 ) -> SpeakerVerificationResponse:
     """Verify a data URI against a profile voiceprint."""
     enabled = bool(profile.speaker_verification_enabled)
-    target_embedding = _profile_embedding(profile)
+    target_embedding = _profile_embedding(profile, db=db)
     if not enabled:
         return SpeakerVerificationResponse(
             accepted=True,
@@ -784,7 +823,7 @@ def _load_profile_speaker_gate(agent_id: str, user_id: str) -> ProfileSpeakerGat
         if not profile or not profile.speaker_verification_enabled:
             return None
 
-        embedding = _profile_embedding(profile)
+        embedding = _profile_embedding(profile, db=db)
         if embedding is None:
             raise ValueError("Speaker verification is enabled but no voiceprint is bound")
         return ProfileSpeakerGate(target_embedding=embedding)
@@ -965,6 +1004,124 @@ async def delete_agent_speaker_binding(
     return {"bound": False}
 
 
+# ---------------------------------------------------------------------------
+# User-level voiceprint CRUD
+# ---------------------------------------------------------------------------
+# Voiceprints stored per-user (not per-agent). Agents reference them by ID.
+
+
+def _voiceprint_to_response(vp: UserVoiceprintTable) -> UserVoiceprintResponse:
+    return UserVoiceprintResponse(
+        id=vp.id,
+        name=vp.name,
+        sampleText=vp.sample_text,
+        enrolledAt=vp.enrolled_at,
+        createdAt=vp.created_at,
+    )
+
+
+@voice_router.get(
+    "/api/user-voiceprints",
+    response_model=list[UserVoiceprintResponse],
+)
+async def list_user_voiceprints(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[UserVoiceprintResponse]:
+    """List all voiceprints for the current user."""
+    user_id = _extract_bearer_user_id(authorization)
+    voiceprints = (
+        db.query(UserVoiceprintTable)
+        .filter(UserVoiceprintTable.owner_user_id == user_id)
+        .order_by(UserVoiceprintTable.created_at.desc())
+        .all()
+    )
+    return [_voiceprint_to_response(vp) for vp in voiceprints]
+
+
+@voice_router.post(
+    "/api/user-voiceprints",
+    response_model=UserVoiceprintResponse,
+)
+async def create_user_voiceprint(
+    request: UserVoiceprintCreateRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> UserVoiceprintResponse:
+    """Enroll a new user-level voiceprint from an audio sample."""
+    import uuid
+
+    user_id = _extract_bearer_user_id(authorization)
+
+    try:
+        embedding, quality = await _enrollment_embedding_from_data_uri(request.audio)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("User voiceprint enrollment failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Voiceprint enrollment failed: {exc}",
+        ) from exc
+
+    now = datetime.utcnow().isoformat()
+    sample_text = (request.sampleText or SPEAKER_PROFILE_SAMPLE_TEXT).strip()
+    voiceprint_id = str(uuid.uuid4())
+
+    vp = UserVoiceprintTable(
+        id=voiceprint_id,
+        owner_user_id=user_id,
+        name=request.name.strip() or "My Voiceprint",
+        embedding=embedding.astype(float).tolist(),
+        sample_text=sample_text,
+        enrolled_at=now,
+        created_at=now,
+    )
+    db.add(vp)
+    db.commit()
+    db.refresh(vp)
+
+    logger.info(
+        "User voiceprint enrolled: id=%s user_id=%s duration=%.2fs speech=%.2fs rms=%.4f",
+        voiceprint_id,
+        user_id,
+        quality.duration_seconds,
+        quality.effective_speech_seconds,
+        quality.rms,
+    )
+    return _voiceprint_to_response(vp)
+
+
+@voice_router.delete("/api/user-voiceprints/{voiceprint_id}")
+async def delete_user_voiceprint(
+    voiceprint_id: str,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, bool]:
+    """Delete a user-level voiceprint."""
+    user_id = _extract_bearer_user_id(authorization)
+    vp = (
+        db.query(UserVoiceprintTable)
+        .filter(
+            UserVoiceprintTable.id == voiceprint_id,
+            UserVoiceprintTable.owner_user_id == user_id,
+        )
+        .first()
+    )
+    if not vp:
+        raise HTTPException(status_code=404, detail="Voiceprint not found")
+
+    # Also clear any agent profiles that referenced this voiceprint
+    db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == user_id,
+        AgentProfileTable.user_voiceprint_id == voiceprint_id,
+    ).update({AgentProfileTable.user_voiceprint_id: None})
+
+    db.delete(vp)
+    db.commit()
+    return {"deleted": True}
+
+
 @voice_router.post(
     "/api/speaker-profiles/verify",
     response_model=SpeakerVerificationResponse,
@@ -979,7 +1136,7 @@ async def verify_agent_speaker(
     profile = _require_agent_profile(db, agent_id=request.agentId, user_id=user_id)
 
     try:
-        return await _verify_profile_speaker(profile=profile, audio_data_uri=request.audio)
+        return await _verify_profile_speaker(profile=profile, audio_data_uri=request.audio, db=db)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

@@ -144,8 +144,23 @@ class AgentProfileTable(Base):
     speaker_embedding = Column(JSON, nullable=True)
     speaker_sample_text = Column(Text, nullable=True)
     speaker_enrolled_at = Column(String(50), nullable=True)
+    # Reference to a user-level voiceprint (user_voiceprints.id) for speaker verification.
+    user_voiceprint_id = Column(String(50), nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
+
+
+class UserVoiceprintTable(Base):
+    """User-level speaker voiceprints for speaker verification."""
+    __tablename__ = "user_voiceprints"
+
+    id = Column(String(50), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    name = Column(String(200), nullable=False, default="My Voiceprint")
+    embedding = Column(JSON, nullable=False)
+    sample_text = Column(Text, nullable=True)
+    enrolled_at = Column(String(50), nullable=True)
+    created_at = Column(String(50), nullable=False)
 
 
 class SkillTable(Base):

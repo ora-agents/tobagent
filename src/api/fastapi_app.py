@@ -97,6 +97,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE skills ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
             "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
             "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
+            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS user_voiceprint_id VARCHAR(50)",
         ]
 
         with engine.connect() as conn:
@@ -241,6 +242,7 @@ from src.utils.db import (
     SkillTable,
     UserApiKeyTable,
     UserTable,
+    UserVoiceprintTable,
     get_db,
 )
 from src.utils.default_skills import ensure_default_skills
@@ -322,6 +324,7 @@ class AgentProfileSchema(BaseModel):
     speakerVerificationBound: bool = False
     speakerSampleText: str | None = None
     speakerEnrolledAt: str | None = None
+    userVoiceprintId: str | None = None
     createdAt: str
     updatedAt: str
 
@@ -498,9 +501,10 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         ttsVoice=profile.tts_voice,
         voiceInterruptionEnabled=profile.voice_interruption_enabled is not False,
         speakerVerificationEnabled=bool(profile.speaker_verification_enabled),
-        speakerVerificationBound=bool(profile.speaker_embedding),
+        speakerVerificationBound=bool(profile.speaker_embedding) or bool(profile.user_voiceprint_id),
         speakerSampleText=profile.speaker_sample_text,
         speakerEnrolledAt=profile.speaker_enrolled_at,
+        userVoiceprintId=profile.user_voiceprint_id,
         createdAt=profile.created_at,
         updatedAt=profile.updated_at,
     )
@@ -1133,6 +1137,7 @@ async def create_agent_profile(
         tts_voice=profile_data.ttsVoice,
         voice_interruption_enabled=profile_data.voiceInterruptionEnabled,
         speaker_verification_enabled=profile_data.speakerVerificationEnabled,
+        user_voiceprint_id=profile_data.userVoiceprintId,
         created_at=profile_data.createdAt,
         updated_at=profile_data.updatedAt,
     )
@@ -1173,6 +1178,7 @@ async def update_agent_profile(
     profile.tts_voice = profile_data.ttsVoice
     profile.voice_interruption_enabled = profile_data.voiceInterruptionEnabled
     profile.speaker_verification_enabled = profile_data.speakerVerificationEnabled
+    profile.user_voiceprint_id = profile_data.userVoiceprintId
     profile.updated_at = profile_data.updatedAt
     
     db.commit()
