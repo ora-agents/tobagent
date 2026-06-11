@@ -9,33 +9,14 @@
  * Registered as 'audio-processor'.
  */
 
-// Resample from input sample rate to target 16kHz
-function downsampleBuffer(buffer, inputSampleRate, targetSampleRate) {
-  if (inputSampleRate === targetSampleRate) return buffer
-  const ratio = inputSampleRate / targetSampleRate
-  const newLength = Math.round(buffer.length / ratio)
-  const result = new Float32Array(newLength)
-  let offsetResult = 0
-  let offsetBuffer = 0
-  while (offsetResult < newLength) {
-    const nextOffset = Math.round((offsetResult + 1) * ratio)
-    let accum = 0
-    let count = 0
-    for (let i = offsetBuffer; i < nextOffset && i < buffer.length; i++) {
-      accum += buffer[i]
-      count++
-    }
-    result[offsetResult++] = accum / count
-    offsetBuffer = nextOffset
-  }
-  return result
-}
-
 class AudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super()
     this.isActive = false
     this.inputSampleRate = sampleRate // AudioWorklet global: actual sample rate
+    this.targetSampleRate = 16000
+    this.sourcePosition = 0
+    this.pendingInput = new Float32Array(0)
 
     // Listen for start/stop messages from main thread
     this.port.onmessage = (event) => {
@@ -56,7 +37,10 @@ class AudioProcessor extends AudioWorkletProcessor {
       const samples = new Float32Array(input[0])
 
       // Resample to 16kHz Float32 (for client-side VAD)
-      const resampledFloat32 = downsampleBuffer(samples, this.inputSampleRate, 16000)
+      const resampledFloat32 = this.resample(samples)
+      if (resampledFloat32.length === 0) {
+        return true
+      }
 
       // Convert Float32 to Int16 PCM (for ASR payload)
       const int16 = new Int16Array(resampledFloat32.length)
@@ -77,6 +61,36 @@ class AudioProcessor extends AudioWorkletProcessor {
     }
 
     return true
+  }
+
+  resample(samples) {
+    if (this.inputSampleRate === this.targetSampleRate) {
+      return samples
+    }
+
+    const input = new Float32Array(this.pendingInput.length + samples.length)
+    input.set(this.pendingInput)
+    input.set(samples, this.pendingInput.length)
+
+    const ratio = this.inputSampleRate / this.targetSampleRate
+    const outputLength = Math.max(0, Math.floor((input.length - 1 - this.sourcePosition) / ratio))
+    const output = new Float32Array(outputLength)
+
+    for (let i = 0; i < outputLength; i++) {
+      const position = this.sourcePosition + i * ratio
+      const index = Math.floor(position)
+      const fraction = position - index
+      const current = input[index] || 0
+      const next = input[index + 1] || current
+      output[i] = current + (next - current) * fraction
+    }
+
+    const consumed = Math.floor(this.sourcePosition + outputLength * ratio)
+    const keepFrom = Math.max(0, consumed)
+    this.pendingInput = input.slice(keepFrom)
+    this.sourcePosition = this.sourcePosition + outputLength * ratio - keepFrom
+
+    return output
   }
 }
 

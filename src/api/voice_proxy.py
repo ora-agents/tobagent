@@ -54,15 +54,30 @@ _file_handler.setFormatter(
 )
 logger.addHandler(_file_handler)
 
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float environment variable with a safe fallback."""
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        return float(raw_value)
+    except ValueError:
+        logger.warning("Invalid float environment value: %s=%r", name, raw_value)
+        return default
+
+
 DASHSCOPE_WS_BASE = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 VAD_SAMPLE_RATE = 16000
-VAD_THRESHOLD = 0.6
-VAD_MIN_SILENCE_DURATION = 1.0
-VAD_MIN_SPEECH_DURATION = 0.20
-VAD_MAX_SPEECH_DURATION = 20.0
+VAD_THRESHOLD = _env_float("VOICE_VAD_THRESHOLD", 0.5)
+VAD_MIN_SILENCE_DURATION = _env_float("VOICE_VAD_MIN_SILENCE_DURATION", 1.0)
+VAD_MIN_SPEECH_DURATION = _env_float("VOICE_VAD_MIN_SPEECH_DURATION", 0.20)
+VAD_MAX_SPEECH_DURATION = _env_float("VOICE_VAD_MAX_SPEECH_DURATION", 20.0)
 VAD_WINDOW_SIZE = 256
 VAD_HISTORY_SECONDS = VAD_MAX_SPEECH_DURATION + 10.0
-MIN_ASR_SEGMENT_DURATION_SECONDS = 0.3
+VAD_PRE_ROLL_SECONDS = _env_float("VOICE_VAD_PRE_ROLL_SECONDS", 0.35)
+VAD_POST_ROLL_SECONDS = _env_float("VOICE_VAD_POST_ROLL_SECONDS", 0.25)
+MIN_ASR_SEGMENT_DURATION_SECONDS = _env_float("VOICE_MIN_ASR_SEGMENT_SECONDS", 0.3)
 EPSILON = 1e-8
 MAX_PCM_CHUNK_SECONDS = float(os.environ.get("VOICE_MAX_PCM_CHUNK_SECONDS", "5"))
 MAX_PCM_CHUNK_BYTES = int(VAD_SAMPLE_RATE * 2 * MAX_PCM_CHUNK_SECONDS)
@@ -325,16 +340,32 @@ class StreamingVadSession:
         *,
         start_sample: int,
         sample_count: int,
+        pre_roll_samples: int = 0,
+        post_roll_samples: int = 0,
     ) -> np.ndarray | None:
         """Return original input samples for a completed VAD segment if retained."""
         if sample_count <= 0:
             return None
-        if start_sample < self._history_start_sample:
+
+        history_end_sample = self._history_start_sample + len(self._history)
+        segment_end_sample = start_sample + sample_count
+        if segment_end_sample <= self._history_start_sample:
+            return None
+        if start_sample >= history_end_sample:
             return None
 
-        start_index = start_sample - self._history_start_sample
-        end_index = start_index + sample_count
-        if start_index < 0 or end_index > len(self._history):
+        padded_start_sample = max(
+            self._history_start_sample,
+            start_sample - max(0, pre_roll_samples),
+        )
+        padded_end_sample = min(
+            history_end_sample,
+            segment_end_sample + max(0, post_roll_samples),
+        )
+
+        start_index = padded_start_sample - self._history_start_sample
+        end_index = padded_end_sample - self._history_start_sample
+        if start_index < 0 or end_index > len(self._history) or start_index >= end_index:
             return None
 
         return self._history[start_index:end_index].copy()
@@ -359,9 +390,15 @@ class StreamingVadSession:
                 )
                 continue
 
+            speech_duration_seconds = len(vad_samples) / VAD_SAMPLE_RATE
+            if speech_duration_seconds < MIN_ASR_SEGMENT_DURATION_SECONDS:
+                continue
+
             samples = self._segment_samples_from_history(
                 start_sample=int(segment.start),
                 sample_count=len(vad_samples),
+                pre_roll_samples=int(VAD_PRE_ROLL_SECONDS * VAD_SAMPLE_RATE),
+                post_roll_samples=int(VAD_POST_ROLL_SECONDS * VAD_SAMPLE_RATE),
             )
             if samples is None:
                 logger.warning(
@@ -387,9 +424,6 @@ class StreamingVadSession:
                 continue
 
             duration_seconds = len(samples) / VAD_SAMPLE_RATE
-            if duration_seconds < MIN_ASR_SEGMENT_DURATION_SECONDS:
-                continue
-
             segments.append(
                 AsrAudioSegment(
                     wav_bytes=_float32_to_wav_bytes(samples),

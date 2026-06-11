@@ -67,6 +67,43 @@ def test_vad_segments_use_retained_input_audio_when_vad_samples_are_invalid(monk
     assert segments[0].samples.tolist() == pytest.approx(retained_samples.tolist())
 
 
+def test_vad_segments_include_configured_pre_and_post_roll(monkeypatch):
+    """Completed VAD segments should include nearby retained input audio."""
+    monkeypatch.setattr(voice_proxy, "MIN_ASR_SEGMENT_DURATION_SECONDS", 0.0)
+    monkeypatch.setattr(voice_proxy, "VAD_PRE_ROLL_SECONDS", 3 / voice_proxy.VAD_SAMPLE_RATE)
+    monkeypatch.setattr(voice_proxy, "VAD_POST_ROLL_SECONDS", 2 / voice_proxy.VAD_SAMPLE_RATE)
+
+    retained_samples = (voice_proxy.np.arange(20, dtype=voice_proxy.np.float32) / 100)
+    vad_samples = retained_samples[10:14]
+
+    class FakeVad:
+        def __init__(self) -> None:
+            self._segments = [
+                SimpleNamespace(start=10, samples=vad_samples),
+            ]
+
+        def empty(self) -> bool:
+            return not self._segments
+
+        @property
+        def front(self):
+            return self._segments[0]
+
+        def pop(self) -> None:
+            self._segments.pop(0)
+
+    session = voice_proxy.StreamingVadSession.__new__(voice_proxy.StreamingVadSession)
+    session.vad = FakeVad()
+    session._history = retained_samples
+    session._history_start_sample = 0
+    session._total_samples_seen = len(retained_samples)
+
+    segments = session._drain_completed_segments()
+
+    assert len(segments) == 1
+    assert segments[0].samples.tolist() == pytest.approx(retained_samples[7:16].tolist())
+
+
 def test_vad_segments_skip_empty_vad_segments_without_warning(caplog, monkeypatch):
     """Empty VAD segments are bookkeeping noise and should not warn as bad audio."""
     monkeypatch.setattr(voice_proxy, "MIN_ASR_SEGMENT_DURATION_SECONDS", 0.0)
