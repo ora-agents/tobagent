@@ -19,7 +19,12 @@ from src.tools.rag_tool import (
     ingest_documents_async,
     invalidate_rag_cache,
 )
-from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal
+from src.utils.db import (
+    AgentProfileTable,
+    KnowledgeBaseTable,
+    SessionLocal,
+    ensure_database_schema,
+)
 from src.utils.document_loader import load_document_bytes
 
 logger = logging.getLogger(__name__)
@@ -281,6 +286,7 @@ def ensure_default_agent_profile(
 
 async def ensure_system_asset_knowledge_bases() -> list[str]:
     """Ensure each assets subfolder exists as a shared system KB."""
+    await asyncio.to_thread(ensure_database_schema)
     imported_kb_ids: list[str] = []
     folders = await _asset_folders()
     if not folders:
@@ -342,6 +348,7 @@ async def refresh_system_asset_knowledge_bases() -> list[str]:
     whose folders no longer exist, drops LanceDB tables for stale and active
     asset KBs, then re-imports the active asset folders.
     """
+    await asyncio.to_thread(ensure_database_schema)
     folders = await _asset_folders()
     active_kb_ids = {_asset_kb_id(folder.name) for folder in folders}
 

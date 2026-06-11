@@ -66,53 +66,9 @@ def _get_cors_origins() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        from src.utils.db import Base, engine
-        Base.metadata.create_all(bind=engine)
-        logger.info("SQLAlchemy tables verified/created successfully on startup.")
+        from src.utils.db import ensure_database_schema
 
-        # Add missing columns using IF NOT EXISTS (PostgreSQL 9.6+).
-        # This avoids transaction-poisoning: a failed ALTER TABLE in PostgreSQL
-        # aborts the whole transaction, but IF NOT EXISTS always succeeds (no-op
-        # when the column already exists), keeping the transaction valid.
-        from sqlalchemy import text
-
-        _migrations = [
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS skill_ids JSON",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS mcp_ids JSON",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS agent_ids JSON",
-            "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS headers JSON",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences TEXT",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS safety_enabled VARCHAR(10) DEFAULT 'false'",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS wake_words JSON",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS role_template_id VARCHAR(100)",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS persona_style VARCHAR(50)",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS boundary_mode VARCHAR(50)",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS tts_voice VARCHAR(100)",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS voice_interruption_enabled BOOLEAN DEFAULT TRUE",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_verification_enabled BOOLEAN DEFAULT FALSE",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_embedding JSON",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_sample_text TEXT",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS speaker_enrolled_at VARCHAR(50)",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
-            "ALTER TABLE skills ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
-            "ALTER TABLE knowledge_bases ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
-            "ALTER TABLE mcp_servers ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(255)",
-            "ALTER TABLE agent_profiles ADD COLUMN IF NOT EXISTS user_voiceprint_id VARCHAR(50)",
-        ]
-
-        with engine.connect() as conn:
-            for ddl in _migrations:
-                try:
-                    conn.execute(text(ddl))
-                    logger.info(f"Migration OK: {ddl}")
-                except Exception as e:
-                    logger.warning(f"Migration skipped: {ddl} — {e}")
-            conn.commit()
-
-        # Create tables added after the initial metadata create_all on long-lived
-        # deployments where migrations may run against an existing database.
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database schema migration completed.")
+        ensure_database_schema()
 
         async def _import_assets_on_startup() -> None:
             try:

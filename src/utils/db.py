@@ -13,6 +13,8 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    inspect,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -221,6 +223,74 @@ class RobotPointTable(Base):
     robot_sn = Column(String(255), nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
+
+
+def _add_column_if_missing(table_name: str, column_name: str, column_sql: str) -> None:
+    """Add a column when it is absent, using dialect-compatible DDL."""
+    inspector = inspect(engine)
+    if table_name not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if column_name in existing_columns:
+        return
+
+    ddl = f"ALTER TABLE {table_name} ADD COLUMN {column_sql}"
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+    logger.info("Migration OK: %s", ddl)
+
+
+def ensure_database_schema() -> None:
+    """Create tables and apply lightweight additive schema migrations."""
+    Base.metadata.create_all(bind=engine)
+    logger.info("SQLAlchemy tables verified/created successfully.")
+
+    migrations = [
+        ("agent_profiles", "skill_ids", "skill_ids JSON"),
+        ("agent_profiles", "mcp_ids", "mcp_ids JSON"),
+        ("agent_profiles", "agent_ids", "agent_ids JSON"),
+        ("mcp_servers", "headers", "headers JSON"),
+        ("users", "preferences", "preferences TEXT"),
+        ("users", "safety_enabled", "safety_enabled VARCHAR(10) DEFAULT 'false'"),
+        ("agent_profiles", "wake_words", "wake_words JSON"),
+        ("agent_profiles", "role_template_id", "role_template_id VARCHAR(100)"),
+        ("agent_profiles", "persona_style", "persona_style VARCHAR(50)"),
+        ("agent_profiles", "boundary_mode", "boundary_mode VARCHAR(50)"),
+        ("agent_profiles", "tts_voice", "tts_voice VARCHAR(100)"),
+        (
+            "agent_profiles",
+            "voice_interruption_enabled",
+            "voice_interruption_enabled BOOLEAN DEFAULT TRUE",
+        ),
+        (
+            "agent_profiles",
+            "speaker_verification_enabled",
+            "speaker_verification_enabled BOOLEAN DEFAULT FALSE",
+        ),
+        ("agent_profiles", "speaker_embedding", "speaker_embedding JSON"),
+        ("agent_profiles", "speaker_sample_text", "speaker_sample_text TEXT"),
+        ("agent_profiles", "speaker_enrolled_at", "speaker_enrolled_at VARCHAR(50)"),
+        ("agent_profiles", "owner_user_id", "owner_user_id VARCHAR(255)"),
+        ("skills", "owner_user_id", "owner_user_id VARCHAR(255)"),
+        ("knowledge_bases", "owner_user_id", "owner_user_id VARCHAR(255)"),
+        ("mcp_servers", "owner_user_id", "owner_user_id VARCHAR(255)"),
+        ("agent_profiles", "user_voiceprint_id", "user_voiceprint_id VARCHAR(50)"),
+    ]
+
+    for table_name, column_name, column_sql in migrations:
+        try:
+            _add_column_if_missing(table_name, column_name, column_sql)
+        except Exception as exc:
+            logger.warning(
+                "Migration skipped for %s.%s: %s",
+                table_name,
+                column_name,
+                exc,
+            )
+
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database schema migration completed.")
 
 
 # ---------------------------------------------------------------------------
