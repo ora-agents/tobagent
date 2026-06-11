@@ -1816,12 +1816,12 @@ async def list_models():
     the frontend never sees the API key.
     """
     base_url = (
-        os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()
-        or os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()
+        os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()
+        or os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()
     )
     api_key = (
-        os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()
-        or os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()
+        os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()
+        or os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()
         or os.getenv("OPENAI_API_KEY", "").strip()
     )
 

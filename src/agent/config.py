@@ -18,23 +18,24 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # OpenAI-compatible endpoint configuration
 #
-# Reads NEXT_PUBLIC_OPENAI_* so that a single set of env vars serves both
-# the Next.js frontend and this backend — no duplicate config needed.
+# Reads backend-only OPENAI_COMPATIBLE_* variables, with NEXT_PUBLIC_OPENAI_*
+# retained as a legacy fallback for existing deployments.
 # =============================================================================
 
 OPENAI_COMPATIBLE_BASE_URL = (
-    os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()
-    or os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()  # legacy fallback
+    os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()
+    or os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()  # legacy fallback
 )
 OPENAI_COMPATIBLE_API_KEY = (
-    os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()
-    or os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()  # legacy fallback
+    os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()
+    or os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()  # legacy fallback
     or os.getenv("OPENAI_API_KEY", "").strip()
     or "dummy"
 )
 _DEFAULT_MODEL_NAME = (
-    os.getenv("NEXT_PUBLIC_OPENAI_DEFAULT_MODEL", "").strip()
-    or os.getenv("OPENAI_COMPATIBLE_DEFAULT_MODEL", "gpt-4o").strip()  # legacy fallback
+    os.getenv("OPENAI_COMPATIBLE_DEFAULT_MODEL", "").strip()
+    or os.getenv("NEXT_PUBLIC_OPENAI_DEFAULT_MODEL", "").strip()  # legacy fallback
+    or "gpt-4o"
 )
 # Propagate to standard OpenAI env vars so init_chat_model and other
 # OpenAI-based callers also use this endpoint.

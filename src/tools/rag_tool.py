@@ -65,9 +65,14 @@ def _get_embeddings():
     """
     from langchain_openai import OpenAIEmbeddings
 
-    base_url = os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+    base_url = (
+        os.getenv("OPENAI_COMPATIBLE_BASE_URL")
+        or os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL")
+        or os.getenv("OPENAI_BASE_URL")
+    )
     api_key = (
-        os.getenv("NEXT_PUBLIC_OPENAI_API_KEY")
+        os.getenv("OPENAI_COMPATIBLE_API_KEY")
+        or os.getenv("NEXT_PUBLIC_OPENAI_API_KEY")
         or os.getenv("OPENAI_API_KEY")
         or "dummy"
     )
