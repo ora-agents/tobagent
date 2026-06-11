@@ -4,6 +4,7 @@ from src.tools.rag_tool import _RagInput, _selected_linked_kb_ids, _table_name
 from src.utils.assets_import import (
     _asset_kb_id,
     _remove_stale_kb_links,
+    _should_delete_stale_asset_kb,
     _should_delete_stale_system_kb,
 )
 
@@ -75,6 +76,27 @@ def test_cleanup_selection_keeps_current_user_owned_and_nonempty_kbs():
     assert not _should_delete_stale_system_kb(current_system, {active_id})
     assert not _should_delete_stale_system_kb(user_owned, {active_id})
     assert not _should_delete_stale_system_kb(nonempty_system, {active_id})
+
+
+def test_stale_asset_kb_is_selected_even_with_file_records():
+    active_id = _asset_kb_id("产品信息")
+    kb = SimpleNamespace(
+        id="asset_kb_old_docs",
+        owner_user_id=None,
+        files=[{"name": "old.pdf"}],
+    )
+
+    assert _should_delete_stale_asset_kb(kb, {active_id})
+
+
+def test_stale_asset_kb_selection_keeps_user_owned_records():
+    kb = SimpleNamespace(
+        id="asset_kb_old_docs",
+        owner_user_id="user_1",
+        files=[{"name": "old.pdf"}],
+    )
+
+    assert not _should_delete_stale_asset_kb(kb, set())
 
 
 def test_remove_stale_kb_links_updates_profile():

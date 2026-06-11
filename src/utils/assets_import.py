@@ -13,7 +13,12 @@ from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
-from src.tools.rag_tool import _get_async_db, _table_name, ingest_documents_async
+from src.tools.rag_tool import (
+    _get_async_db,
+    _table_name,
+    ingest_documents_async,
+    invalidate_rag_cache,
+)
 from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal
 from src.utils.document_loader import load_document_bytes
 
@@ -65,6 +70,14 @@ def _should_delete_stale_system_kb(kb: KnowledgeBaseTable, active_kb_ids: set[st
         and kb.id not in active_kb_ids
         and not _has_files(kb.files)
     )
+
+
+def _is_system_asset_kb(kb: KnowledgeBaseTable) -> bool:
+    return kb.owner_user_id is None and kb.id.startswith("asset_kb_")
+
+
+def _should_delete_stale_asset_kb(kb: KnowledgeBaseTable, active_kb_ids: set[str]) -> bool:
+    return _is_system_asset_kb(kb) and kb.id not in active_kb_ids
 
 
 def _remove_stale_kb_links(profile: AgentProfileTable, stale_kb_ids: set[str]) -> bool:
@@ -141,6 +154,58 @@ async def _rag_table_has_rows(kb_id: str) -> bool:
     except Exception:
         logger.exception("Failed to inspect LanceDB table for KB %s", kb_id)
         return False
+
+
+async def _drop_rag_tables(kb_ids: set[str]) -> None:
+    """Drop LanceDB tables for the given KB ids when they exist."""
+    if not kb_ids:
+        return
+
+    try:
+        lancedb_instance = await _get_async_db()
+        table_names = set(await lancedb_instance.table_names())
+        for kb_id in sorted(kb_ids):
+            tname = _table_name(kb_id)
+            if tname in table_names:
+                await lancedb_instance.drop_table(tname)
+                logger.info("Dropped LanceDB table '%s' for KB %s", tname, kb_id)
+        invalidate_rag_cache()
+    except Exception:
+        logger.exception("Failed to drop LanceDB tables for asset KB refresh")
+
+
+def _delete_stale_asset_kb_records(active_kb_ids: set[str]) -> set[str]:
+    """Delete DB records for system asset KBs no longer present in assets/."""
+    db = SessionLocal()
+    try:
+        system_asset_kbs = db.query(KnowledgeBaseTable).filter(
+            KnowledgeBaseTable.owner_user_id.is_(None),
+            KnowledgeBaseTable.id.like("asset_kb_%"),
+        ).all()
+        stale_kbs = [
+            kb for kb in system_asset_kbs
+            if _should_delete_stale_asset_kb(kb, active_kb_ids)
+        ]
+        if not stale_kbs:
+            return set()
+
+        stale_kb_ids = {kb.id for kb in stale_kbs}
+        profiles = db.query(AgentProfileTable).all()
+        for profile in profiles:
+            _remove_stale_kb_links(profile, stale_kb_ids)
+
+        for kb in stale_kbs:
+            db.delete(kb)
+
+        db.commit()
+        logger.info("Deleted stale asset KB records: %s", ", ".join(sorted(stale_kb_ids)))
+        return stale_kb_ids
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to delete stale asset KB records")
+        return set()
+    finally:
+        db.close()
 
 
 async def _load_asset_folder_chunks(folder: Path) -> tuple[list[str], list[str], list[dict]]:
@@ -270,6 +335,26 @@ async def ensure_system_asset_knowledge_bases() -> list[str]:
     return imported_kb_ids
 
 
+async def refresh_system_asset_knowledge_bases() -> list[str]:
+    """Rebuild bundled system asset KBs from the current assets/ directory.
+
+    This is intended for manual maintenance. It removes stale asset KB rows
+    whose folders no longer exist, drops LanceDB tables for stale and active
+    asset KBs, then re-imports the active asset folders.
+    """
+    folders = await _asset_folders()
+    active_kb_ids = {_asset_kb_id(folder.name) for folder in folders}
+
+    stale_kb_ids = await asyncio.to_thread(_delete_stale_asset_kb_records, active_kb_ids)
+    await _drop_rag_tables(active_kb_ids | stale_kb_ids)
+
+    if not folders:
+        logger.warning("No assets folders found under %s", ASSETS_DIR)
+        return []
+
+    return await ensure_system_asset_knowledge_bases()
+
+
 async def ensure_user_default_agent_assets(owner_user_id: str) -> list[str]:
     """Ensure shared system asset KBs exist without creating a default role."""
     return await ensure_system_asset_knowledge_bases()
@@ -278,3 +363,34 @@ async def ensure_user_default_agent_assets(owner_user_id: str) -> list[str]:
 async def import_assets_for_existing_users() -> None:
     """Import bundled system assets without creating user default roles."""
     await ensure_system_asset_knowledge_bases()
+
+
+async def _main() -> None:
+    """CLI entry point for manual asset KB maintenance."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Maintain bundled asset knowledge bases.")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Drop and rebuild asset KB vector tables, and delete stale asset KB DB records.",
+    )
+    args = parser.parse_args()
+
+    if args.refresh:
+        kb_ids = await refresh_system_asset_knowledge_bases()
+    else:
+        kb_ids = await ensure_system_asset_knowledge_bases()
+
+    if kb_ids:
+        sys.stdout.write("Imported asset knowledge bases:\n")
+        for kb_id in kb_ids:
+            sys.stdout.write(f"- {kb_id}\n")
+    else:
+        sys.stdout.write("No asset knowledge bases imported.\n")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(_main())

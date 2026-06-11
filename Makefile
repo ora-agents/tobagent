@@ -5,6 +5,7 @@
 	check-backend-port check-frontend-port check-ports \
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
+	update-assets refresh-assets \
 	test-agent-sdk
 
 # Add standard Node.js and Bun paths to PATH for Windows/Git Bash users
@@ -168,6 +169,20 @@ install-frontend:
 
 install-backend:
 	uv sync
+
+# Rebuild bundled assets/ knowledge bases and remove stale asset KB records.
+# Usage:
+#   make update-assets
+# Optional overrides:
+#   DATABASE_URL=postgresql://...
+#   LANCEDB_PATH=/path/to/lancedb
+#   OPENAI_COMPATIBLE_BASE_URL=https://...
+#   OPENAI_COMPATIBLE_API_KEY=...
+#   OPENAI_EMBEDDING_MODEL=text-embedding-v4
+update-assets:
+	uv run python -m src.utils.assets_import --refresh
+
+refresh-assets: update-assets
 
 # Test external LangGraph SDK invocation with a user-scoped API key.
 # Usage:
