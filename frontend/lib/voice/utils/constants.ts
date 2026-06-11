@@ -27,5 +27,5 @@ export const DEFAULT_TTS_MODEL = "qwen3-tts-instruct-flash-realtime"
 export const DEFAULT_TTS_VOICE = "Cherry"
 
 /** Voice mode inactivity timeout (ms) before returning to idle */
-export const VOICE_IDLE_TIMEOUT_MS = 100000
+export const VOICE_IDLE_TIMEOUT_MS = 20000
 
