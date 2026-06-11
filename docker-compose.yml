@@ -68,6 +68,22 @@ services:
       - ./src:/app/src:ro
       - ./aegra.json:/app/aegra.json:ro
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - NEXT_PUBLIC_OPENAI_DEFAULT_MODEL=${OPENAI_COMPATIBLE_DEFAULT_MODEL:-qwen3.6-flash}
+        - NEXT_PUBLIC_LANGGRAPH_API_URL=${FRONTEND_LANGGRAPH_API_URL:-http://localhost:2025}
+        - NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG=${NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG:-}
+        - NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL:-}
+    container_name: tobagent-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      tobagent:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

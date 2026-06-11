@@ -147,6 +147,13 @@ deploy-prod:
 deploy-prod-no-build:
 	PORT=$(BACKEND_PORT) $(AEGRA) up --no-build
 
+# Deploy full stack including frontend
+deploy-all:
+	docker compose up --build -d
+
+deploy-all-logs:
+	docker compose logs -f frontend tobagent
+
 deploy-down:
 	$(AEGRA) down
 

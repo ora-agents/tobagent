@@ -21,6 +21,7 @@ const localIPs = (() => {
 })();
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   turbopack: {
     root: rootDir,
   },

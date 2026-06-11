@@ -48,6 +48,9 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 2026
 
+# Ensure non-root app user has write permission to /app and logs directory
+RUN mkdir -p /app/logs && chown -R app:app /app
+
 USER app
 
 CMD ["aegra", "serve"]
