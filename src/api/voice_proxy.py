@@ -127,14 +127,16 @@ SPEAKER_ENROLL_FRAME_SECONDS = float(
     os.environ.get("VOICE_SPEAKER_ENROLL_FRAME_SECONDS", "0.1")
 )
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VAD_DATA_PATH = (
+DEFAULT_VAD_DATA_PATH = (
     REPO_ROOT
     / "frontend"
     / "public"
     / "sherpa-onnx-wasm-simd-v1.13.2-ten-vad"
     / "sherpa-onnx-wasm-main-vad.data"
 )
-VAD_MODEL_PATH = REPO_ROOT / "models" / "vad" / "ten-vad.onnx"
+DEFAULT_VAD_MODEL_PATH = REPO_ROOT / "models" / "vad" / "ten-vad.onnx"
+VAD_DATA_PATH = Path(os.environ.get("VOICE_TEN_VAD_DATA_PATH", DEFAULT_VAD_DATA_PATH))
+VAD_MODEL_PATH = Path(os.environ.get("VOICE_TEN_VAD_MODEL_PATH", DEFAULT_VAD_MODEL_PATH))
 TEN_VAD_DATA_START = 1076
 TEN_VAD_DATA_END = 333287
 
@@ -225,7 +227,12 @@ def _ensure_ten_vad_model() -> Path:
         return VAD_MODEL_PATH
 
     if not VAD_DATA_PATH.exists():
-        raise FileNotFoundError(f"Ten VAD data package not found: {VAD_DATA_PATH}")
+        raise FileNotFoundError(
+            "Ten VAD model not found. Expected model at "
+            f"{VAD_MODEL_PATH}, or bundled data package at {VAD_DATA_PATH}. "
+            "For Docker deployments, make sure models/vad/ten-vad.onnx is copied "
+            "into the backend image or set VOICE_TEN_VAD_MODEL_PATH."
+        )
 
     data = VAD_DATA_PATH.read_bytes()
     if len(data) < TEN_VAD_DATA_END:

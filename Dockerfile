@@ -43,10 +43,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/.venv /app/.venv
 COPY aegra.json .
 COPY src/ ./src/
+COPY models/vad/ ./models/vad/
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-EXPOSE 2026
+EXPOSE 2025
 
 # Ensure non-root app user has write permission to /app and logs directory
 RUN mkdir -p /app/logs && chown -R app:app /app

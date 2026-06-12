@@ -25,6 +25,35 @@ def test_int16_decoder_rejects_malformed_pcm_chunks(monkeypatch):
     assert len(voice_proxy._int16_bytes_to_float32(b"\x00\x00\x00\x00\x00\x00")) == 0
 
 
+def test_ten_vad_model_uses_existing_model_path(tmp_path, monkeypatch):
+    """VAD initialization should use the packaged ONNX model directly."""
+    model_path = tmp_path / "ten-vad.onnx"
+    data_path = tmp_path / "missing.data"
+    model_path.write_bytes(b"onnx")
+
+    monkeypatch.setattr(voice_proxy, "VAD_MODEL_PATH", model_path)
+    monkeypatch.setattr(voice_proxy, "VAD_DATA_PATH", data_path)
+
+    assert voice_proxy._ensure_ten_vad_model() == model_path
+
+
+def test_ten_vad_model_error_names_model_and_override_paths(tmp_path, monkeypatch):
+    """Missing VAD resources should produce an actionable deployment error."""
+    model_path = tmp_path / "missing.onnx"
+    data_path = tmp_path / "missing.data"
+
+    monkeypatch.setattr(voice_proxy, "VAD_MODEL_PATH", model_path)
+    monkeypatch.setattr(voice_proxy, "VAD_DATA_PATH", data_path)
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        voice_proxy._ensure_ten_vad_model()
+
+    message = str(exc_info.value)
+    assert str(model_path) in message
+    assert str(data_path) in message
+    assert "VOICE_TEN_VAD_MODEL_PATH" in message
+
+
 def test_vad_segments_use_retained_input_audio_when_vad_samples_are_invalid(monkeypatch):
     """Completed VAD segments should not trust corrupt samples returned by VAD."""
     monkeypatch.setattr(voice_proxy, "MIN_ASR_SEGMENT_DURATION_SECONDS", 0.0)
