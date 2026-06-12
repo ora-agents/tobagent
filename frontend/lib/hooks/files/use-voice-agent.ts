@@ -331,11 +331,11 @@ export function useVoiceAgent({
       clearTimeout(idleTimerRef.current)
     }
     idleTimerRef.current = setTimeout(() => {
-      // Only timeout if we're in listening or speaking state
+      // Only timeout while waiting for user speech. Agent playback may exceed
+      // the idle timeout and should end via TTS playback completion instead.
       if (
         voiceStateRef.current === "listening" ||
-        voiceStateRef.current === "transcribing" ||
-        voiceStateRef.current === "speaking"
+        voiceStateRef.current === "transcribing"
       ) {
         exitVoiceModeInternal()
       }
@@ -482,6 +482,7 @@ export function useVoiceAgent({
           if (!ttsPlayerRef.current) {
             const player = new TtsPlayer({
               onPlaybackStart: () => {
+                stopIdleTimer()
                 setIsSpeaking(true)
                 setVoiceStateSync("speaking")
               },
@@ -531,6 +532,7 @@ export function useVoiceAgent({
     canInterruptReply,
     isReplyActive,
     resetIdleTimer,
+    stopIdleTimer,
     speakerVerification,
     setVoiceStateSync,
     ttsVoice,
@@ -958,6 +960,7 @@ export function useVoiceAgent({
           if (!isCurrentSession()) return
           // New audio arrived — cancel any pending end-of-speech transition
           cancelPlaybackEndTimer()
+          stopIdleTimer()
           setIsSpeaking(true)
           setVoiceStateSync("speaking")
         },
@@ -1012,6 +1015,7 @@ export function useVoiceAgent({
     speakerVerificationEnabled,
     speakerVerificationBound,
     resetIdleTimer,
+    stopIdleTimer,
     interruptAndListen,
     exitVoiceModeInternal,
     cancelPlaybackEndTimer,
@@ -1095,6 +1099,7 @@ export function useVoiceAgent({
                 onPlaybackStart: () => {
                   if (!isCurrentSession()) return
                   cancelPlaybackEndTimer()
+                  stopIdleTimer()
                   setIsSpeaking(true)
                   setVoiceStateSync("speaking")
                 },
@@ -1193,7 +1198,7 @@ export function useVoiceAgent({
         ttsClientRef.current?.appendText(text)
       }
     })
-  }, [ttsVoice, resetIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition, setVoiceStateSync])
+  }, [ttsVoice, resetIdleTimer, stopIdleTimer, cancelPlaybackEndTimer, schedulePlaybackEndTransition, setVoiceStateSync])
 
   /**
    * Called when the agent stream ends.
@@ -1426,6 +1431,7 @@ export function useVoiceAgent({
         if (!ttsPlayerRef.current) {
           const player = new TtsPlayer({
             onPlaybackStart: () => {
+              stopIdleTimer()
               setIsSpeaking(true)
               setVoiceStateSync("speaking")
             },
@@ -1523,8 +1529,8 @@ export function useVoiceAgent({
     isReplyActive,
     isNativeVoiceProvider,
     resetIdleTimer,
-    speakerVerification,
     stopIdleTimer,
+    speakerVerification,
     stopCurrentTts,
     setVoiceStateSync,
     voiceInterruptionEnabled,
