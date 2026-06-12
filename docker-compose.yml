@@ -55,6 +55,7 @@ services:
       - REDIS_BROKER_ENABLED=true
       - REDIS_URL=redis://redis:6379/0
       - SPEAKER_SERVICE_URL=http://speaker:8090
+      - KWS_MODEL_DIR=/app/models/kws
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,6 +71,7 @@ services:
       start_period: 10s
     volumes:
       - ./models/vad:/app/models/vad:ro
+      - ./models/kws:/app/models/kws:rw
 
   speaker:
     image: ${TOBAGENT_SPEAKER_IMAGE:-tobagent-speaker:local}
@@ -78,10 +80,10 @@ services:
     container_name: tobagent-speaker
     restart: unless-stopped
     environment:
-      - VOICE_SPEAKER_PROFILE_MODEL_SOURCE=${VOICE_SPEAKER_PROFILE_MODEL_SOURCE:-speechbrain/spkrec-ecapa-voxceleb}
-      - VOICE_SPEAKER_PROFILE_MODEL_DIR=${VOICE_SPEAKER_PROFILE_MODEL_DIR:-/app/models/speechbrain-spkrec-ecapa-voxceleb}
+      - VOICE_SPEAKER_PROFILE_MODEL_SOURCE=/app/models/speechbrain-ecapa
+      - VOICE_SPEAKER_PROFILE_MODEL_DIR=/app/models/speechbrain-ecapa
     volumes:
-      - ./models/speechbrain:/app/models:rw
+      - ./models/speechbrain-ecapa:/app/models/speechbrain-ecapa:rw
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8090/health || exit 1"]
       interval: 30s

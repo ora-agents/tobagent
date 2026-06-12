@@ -279,6 +279,13 @@ jobs:
             exit 1
           fi
 
+          kws_model_dir="models/kws/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20"
+          if [ ! -s "$kws_model_dir/tokens.txt" ] || [ ! -s "$kws_model_dir/encoder-epoch-13-avg-2-chunk-16-left-64.int8.onnx" ]; then
+            echo "Missing required KWS model under $DEPLOY_PATH/$kws_model_dir" >&2
+            echo "Upload it once, for example: scp -r models/kws $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/models/kws" >&2
+            exit 1
+          fi
+
           if [ -n "$GHCR_TOKEN" ]; then
             printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
           fi
