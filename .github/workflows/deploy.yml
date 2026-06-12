@@ -16,23 +16,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build images
+  build-backend:
+    name: Build backend image
     runs-on: ubuntu-latest
     outputs:
       api_image: ${{ steps.images.outputs.api_image }}
-      frontend_image: ${{ steps.images.outputs.frontend_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set image names
+      - name: Set image name
         id: images
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "api_image=${repo}/api:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "frontend_image=${repo}/frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          docker system prune -af
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -54,6 +61,41 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
 
+  build-frontend:
+    name: Build frontend image
+    runs-on: ubuntu-latest
+    outputs:
+      frontend_image: ${{ steps.images.outputs.frontend_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image name
+        id: images
+        shell: bash
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "frontend_image=${repo}/frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          docker system prune -af
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
@@ -72,7 +114,9 @@ jobs:
   deploy:
     name: Deploy to server
     runs-on: ubuntu-latest
-    needs: build
+    needs:
+      - build-backend
+      - build-frontend
     environment: production
     steps:
       - name: Checkout
@@ -97,8 +141,8 @@ jobs:
       - name: Restart services
         shell: bash
         env:
-          API_IMAGE: ${{ needs.build.outputs.api_image }}
-          FRONTEND_IMAGE: ${{ needs.build.outputs.frontend_image }}
+          API_IMAGE: ${{ needs.build-backend.outputs.api_image }}
+          FRONTEND_IMAGE: ${{ needs.build-frontend.outputs.frontend_image }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
