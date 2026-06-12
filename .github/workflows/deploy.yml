@@ -199,14 +199,14 @@ jobs:
           mkdir -p ~/.ssh
           install -m 600 /dev/null ~/.ssh/deploy_key
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Sync compose file
         shell: bash
         run: |
-          ssh -i ~/.ssh/deploy_key "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          ssh $SSH_OPTS "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             "mkdir -p '${{ secrets.DEPLOY_PATH }}'"
-          scp -i ~/.ssh/deploy_key docker-compose.yml \
+          scp $SSH_OPTS docker-compose.yml \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/docker-compose.yml"
 
       - name: Restart services
@@ -224,7 +224,8 @@ jobs:
         run: |
           repo="ghcr.io/${REPOSITORY,,}"
           speaker_image="${SPEAKER_IMAGE:-${repo}/speaker:main}"
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" \
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "DEPLOY_PATH='${DEPLOY_PATH}' API_IMAGE='${API_IMAGE}' FRONTEND_IMAGE='${FRONTEND_IMAGE}' SPEAKER_IMAGE='${speaker_image}' GHCR_USERNAME='${GHCR_USERNAME}' GHCR_TOKEN='${GHCR_TOKEN}' bash -s" <<'EOF'
           set -euo pipefail
           cd "$DEPLOY_PATH"
