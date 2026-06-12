@@ -1560,35 +1560,50 @@ async def voice_session(websocket: WebSocket) -> None:
         if len(preroll_audio) > preroll_max_bytes:
             preroll_audio = preroll_audio[-preroll_max_bytes:]
 
-    async def ensure_asr_session() -> bool:
+    async def ensure_asr_session(
+        *,
+        activate: bool = True,
+        report_errors: bool = True,
+    ) -> bool:
         nonlocal api_key, vad_session, mode
         if api_key is not None and vad_session is not None:
-            mode = VOICE_MODE_ASR
+            if activate:
+                mode = VOICE_MODE_ASR
             return True
 
         try:
-            api_key = _get_dashscope_key()
-            vad_session = await asyncio.to_thread(StreamingVadSession)
-            mode = VOICE_MODE_ASR
+            next_api_key = _get_dashscope_key()
+            next_vad_session = await asyncio.to_thread(StreamingVadSession)
+            api_key = next_api_key
+            vad_session = next_vad_session
+            if activate:
+                mode = VOICE_MODE_ASR
             return True
         except RuntimeError as exc:
-            await send_json({
-                "type": "error",
-                "mode": VOICE_MODE_ASR,
-                "message": str(exc),
-            })
+            if report_errors:
+                await send_json({
+                    "type": "error",
+                    "mode": VOICE_MODE_ASR,
+                    "message": str(exc),
+                })
+            else:
+                logger.warning("Failed to prewarm voice session ASR: %s", exc)
         except Exception as exc:
-            logger.error("Failed to initialize voice session VAD: %s", exc)
-            await send_json({
-                "type": "error",
-                "mode": VOICE_MODE_ASR,
-                "message": (
-                    "Failed to initialize voice activity detection: "
-                    f"{exc}"
-                ),
-            })
+            if report_errors:
+                logger.error("Failed to initialize voice session VAD: %s", exc)
+                await send_json({
+                    "type": "error",
+                    "mode": VOICE_MODE_ASR,
+                    "message": (
+                        "Failed to initialize voice activity detection: "
+                        f"{exc}"
+                    ),
+                })
+            else:
+                logger.warning("Failed to prewarm voice session VAD: %s", exc)
 
-        mode = VOICE_MODE_KWS
+        if activate:
+            mode = VOICE_MODE_KWS
         return False
 
     await send_json({
@@ -1797,6 +1812,7 @@ async def voice_session(websocket: WebSocket) -> None:
                 kws_keywords,
                 keywords_string[:100],
             )
+            await ensure_asr_session(activate=False, report_errors=False)
             await send_json({
                 "type": "config",
                 "mode": VOICE_MODE_KWS,
