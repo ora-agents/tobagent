@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 import dashscope  # type: ignore[import-untyped]
+import httpx
 import numpy as np
 import websockets
 from fastapi import (
@@ -81,14 +82,6 @@ MIN_ASR_SEGMENT_DURATION_SECONDS = _env_float("VOICE_MIN_ASR_SEGMENT_SECONDS", 0
 EPSILON = 1e-8
 MAX_PCM_CHUNK_SECONDS = float(os.environ.get("VOICE_MAX_PCM_CHUNK_SECONDS", "5"))
 MAX_PCM_CHUNK_BYTES = int(VAD_SAMPLE_RATE * 2 * MAX_PCM_CHUNK_SECONDS)
-SPEAKER_PROFILE_MODEL_SOURCE = os.environ.get(
-    "VOICE_SPEAKER_PROFILE_MODEL_SOURCE",
-    "speechbrain/spkrec-ecapa-voxceleb",
-)
-SPEAKER_PROFILE_MODEL_DIR = os.environ.get(
-    "VOICE_SPEAKER_PROFILE_MODEL_DIR",
-    str(Path(tempfile.gettempdir()) / "speechbrain-spkrec-ecapa-voxceleb"),
-)
 SPEAKER_PROFILE_THRESHOLD = float(
     os.environ.get("VOICE_SPEAKER_PROFILE_THRESHOLD", "0.72")
 )
@@ -126,6 +119,11 @@ SPEAKER_ENROLL_SILENCE_RMS = float(
 SPEAKER_ENROLL_FRAME_SECONDS = float(
     os.environ.get("VOICE_SPEAKER_ENROLL_FRAME_SECONDS", "0.1")
 )
+SPEAKER_SERVICE_URL = os.environ.get(
+    "SPEAKER_SERVICE_URL",
+    "http://speaker:8090",
+).rstrip("/")
+SPEAKER_SERVICE_TIMEOUT_SECONDS = _env_float("SPEAKER_SERVICE_TIMEOUT_SECONDS", 30.0)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_VAD_DATA_PATH = (
     REPO_ROOT
@@ -141,8 +139,6 @@ TEN_VAD_DATA_START = 1076
 TEN_VAD_DATA_END = 333287
 
 voice_router = APIRouter()
-_speechbrain_classifier: Any | None = None
-_speechbrain_lock = asyncio.Lock()
 _audio_logger = VoiceAudioLogger.from_env()
 
 VOICE_MODE_KWS = "kws"
@@ -684,55 +680,6 @@ def _format_enrollment_quality_error(quality: SpeakerEnrollmentQuality) -> str:
     )
 
 
-async def _get_speechbrain_classifier() -> Any:
-    """Load SpeechBrain ECAPA-TDNN once and reuse it across requests."""
-    global _speechbrain_classifier
-    if _speechbrain_classifier is not None:
-        return _speechbrain_classifier
-
-    async with _speechbrain_lock:
-        if _speechbrain_classifier is not None:
-            return _speechbrain_classifier
-
-        def load_classifier() -> Any:
-            try:
-                from speechbrain.inference.speaker import EncoderClassifier
-            except ImportError:
-                from speechbrain.pretrained import EncoderClassifier
-
-            return EncoderClassifier.from_hparams(
-                source=SPEAKER_PROFILE_MODEL_SOURCE,
-                savedir=SPEAKER_PROFILE_MODEL_DIR,
-                run_opts={"device": _speechbrain_device()},
-            )
-
-        _speechbrain_classifier = await asyncio.to_thread(load_classifier)
-        return _speechbrain_classifier
-
-
-def _speechbrain_device() -> str:
-    """Return a SpeechBrain-compatible torch device string."""
-    import torch
-
-    if torch.cuda.is_available():
-        return f"cuda:{torch.cuda.current_device()}"
-    return "cpu"
-
-
-def _speechbrain_embedding_sync(
-    classifier: Any,
-    samples: np.ndarray,
-) -> np.ndarray:
-    """Extract a normalized speaker embedding with SpeechBrain."""
-    import torch
-    import torch.nn.functional as F
-
-    waveform = torch.from_numpy(samples).float().unsqueeze(0)
-    embedding = classifier.encode_batch(waveform, wav_lens=None)
-    embedding = F.normalize(embedding.squeeze(), dim=0)
-    return embedding.detach().cpu().numpy().astype(np.float32)
-
-
 async def _compute_speechbrain_embedding(
     samples: np.ndarray,
     sample_rate: int,
@@ -740,7 +687,7 @@ async def _compute_speechbrain_embedding(
     min_seconds: float = SPEAKER_PROFILE_MIN_SECONDS,
     purpose: str = "speaker binding",
 ) -> np.ndarray:
-    """Compute an ECAPA-TDNN speaker embedding for PCM samples."""
+    """Compute an ECAPA-TDNN speaker embedding through the speaker service."""
     duration_seconds = len(samples) / max(sample_rate, 1)
     if duration_seconds < min_seconds:
         raise ValueError(
@@ -748,12 +695,30 @@ async def _compute_speechbrain_embedding(
         )
 
     samples = _resample_mono_float32(samples, sample_rate, VAD_SAMPLE_RATE)
-    classifier = await _get_speechbrain_classifier()
-    return await asyncio.to_thread(
-        _speechbrain_embedding_sync,
-        classifier,
-        samples,
-    )
+    if len(samples) == 0 or not np.all(np.isfinite(samples)):
+        raise ValueError(f"Audio is empty or invalid for {purpose}")
+
+    payload = {
+        "samples": base64.b64encode(samples.astype(np.float32).tobytes()).decode("ascii"),
+        "sample_rate": VAD_SAMPLE_RATE,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=SPEAKER_SERVICE_TIMEOUT_SECONDS) as client:
+            response = await client.post(f"{SPEAKER_SERVICE_URL}/embed", json=payload)
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail = exc.response.text
+        raise RuntimeError(f"Speaker service rejected {purpose}: {detail}") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(
+            f"Speaker service is unavailable for {purpose}: {exc}"
+        ) from exc
+
+    data = response.json()
+    embedding = np.asarray(data.get("embedding"), dtype=np.float32)
+    if len(embedding) == 0 or not np.all(np.isfinite(embedding)):
+        raise RuntimeError("Speaker service returned an invalid embedding")
+    return embedding
 
 
 async def _embedding_from_data_uri(

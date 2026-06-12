@@ -170,22 +170,47 @@ def test_vad_segments_skip_empty_vad_segments_without_warning(caplog, monkeypatc
     assert "Dropped invalid VAD segment samples" not in caplog.text
 
 
-def test_speechbrain_device_uses_indexed_cuda_device(monkeypatch):
-    """SpeechBrain expects indexed CUDA device strings like cuda:0."""
-    import torch
+@pytest.mark.anyio
+async def test_speechbrain_embedding_uses_speaker_service(monkeypatch):
+    """Main API should delegate embedding extraction to the speaker service."""
+    calls = []
 
-    class FakeCuda:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
         @staticmethod
-        def is_available() -> bool:
-            return True
+        def json() -> dict[str, list[float]]:
+            return {"embedding": [1.0, 0.0]}
 
-        @staticmethod
-        def current_device() -> int:
-            return 2
+    class FakeAsyncClient:
+        def __init__(self, *, timeout):
+            self.timeout = timeout
 
-    monkeypatch.setattr(torch, "cuda", FakeCuda)
+        async def __aenter__(self):
+            return self
 
-    assert voice_proxy._speechbrain_device() == "cuda:2"
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, *, json):
+            calls.append((url, json, self.timeout))
+            return FakeResponse()
+
+    monkeypatch.setattr(voice_proxy.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(voice_proxy, "SPEAKER_SERVICE_URL", "http://speaker:8090")
+    monkeypatch.setattr(voice_proxy, "SPEAKER_SERVICE_TIMEOUT_SECONDS", 12.0)
+
+    embedding = await voice_proxy._compute_speechbrain_embedding(
+        voice_proxy.np.ones(voice_proxy.VAD_SAMPLE_RATE, dtype=voice_proxy.np.float32),
+        voice_proxy.VAD_SAMPLE_RATE,
+        min_seconds=0.1,
+    )
+
+    assert embedding.tolist() == pytest.approx([1.0, 0.0])
+    assert calls[0][0] == "http://speaker:8090/embed"
+    assert calls[0][1]["sample_rate"] == voice_proxy.VAD_SAMPLE_RATE
+    assert calls[0][2] == 12.0
 
 
 @pytest.mark.anyio
