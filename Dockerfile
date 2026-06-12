@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM python:3.12-slim-bookworm AS base
 
 ENV PYTHONUNBUFFERED=1 \
@@ -23,11 +25,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install dependencies first (cached layer)
 COPY pyproject.toml ./
 COPY uv.loc[k] ./
-RUN uv sync --no-dev --no-install-project --compile-bytecode
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev --no-install-project --compile-bytecode
 
 # Copy source and install project
 COPY src/ ./src/
-RUN uv sync --no-dev --compile-bytecode
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --no-dev --compile-bytecode
 
 # -----------------------------
 # Runtime stage

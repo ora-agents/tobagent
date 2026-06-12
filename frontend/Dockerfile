@@ -4,7 +4,8 @@
 FROM oven/bun:1.3-alpine AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 # ---- Stage 2: Build ----
 FROM oven/bun:1.3-alpine AS builder
@@ -23,7 +24,8 @@ ENV NEXT_PUBLIC_OPENAI_DEFAULT_MODEL=${NEXT_PUBLIC_OPENAI_DEFAULT_MODEL} \
     NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG=${NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG} \
     NEXT_PUBLIC_ADMIN_URL=${NEXT_PUBLIC_ADMIN_URL}
 
-RUN bun run build
+RUN --mount=type=cache,target=/app/.next/cache \
+    bun run build
 
 # ---- Stage 3: Production runtime ----
 FROM node:22-alpine AS runner
