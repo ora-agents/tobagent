@@ -69,8 +69,6 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - ./src:/app/src:ro
-      - ./aegra.json:/app/aegra.json:ro
       - ./models/vad:/app/models/vad:ro
 
   speaker:

@@ -230,6 +230,19 @@ jobs:
           set -euo pipefail
           cd "$DEPLOY_PATH"
 
+          dump_deploy_diagnostics() {
+            echo "::group::Docker compose status"
+            docker compose ps || true
+            echo "::endgroup::"
+            echo "::group::tobagent-api logs"
+            docker logs --tail=200 tobagent-api || true
+            echo "::endgroup::"
+            echo "::group::speaker logs"
+            docker logs --tail=120 tobagent-speaker || true
+            echo "::endgroup::"
+          }
+          trap dump_deploy_diagnostics ERR
+
           if [ ! -s models/vad/ten-vad.onnx ]; then
             echo "Missing required VAD model: $DEPLOY_PATH/models/vad/ten-vad.onnx" >&2
             echo "Upload it once, for example: scp models/vad/ten-vad.onnx $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/models/vad/ten-vad.onnx" >&2
