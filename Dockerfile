@@ -43,7 +43,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/.venv /app/.venv
 COPY aegra.json .
 COPY src/ ./src/
-COPY models/vad/ ./models/vad/
 
 ENV PATH="/app/.venv/bin:$PATH"
 

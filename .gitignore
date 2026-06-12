@@ -193,12 +193,8 @@ docs/*
 frontend/public/vits-melo-tts-zh_en/
 frontend/public/sherpa-onnx-wasm-simd-1.13.2-sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/
 
-# KWS model files (downloaded at runtime). Keep the small packaged VAD model
-# tracked because the backend Docker image needs it at build time.
-models/*
-!models/vad/
-models/vad/*
-!models/vad/ten-vad.onnx
+# Model files live outside the image and are mounted in deployment.
+models/
 
 *.pem
 

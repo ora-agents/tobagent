@@ -68,6 +68,7 @@ services:
     volumes:
       - ./src:/app/src:ro
       - ./aegra.json:/app/aegra.json:ro
+      - ./models/vad:/app/models/vad:ro
 
   frontend:
     image: ${TOBAGENT_FRONTEND_IMAGE:-tobagent-frontend:local}
