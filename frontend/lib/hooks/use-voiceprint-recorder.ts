@@ -24,6 +24,7 @@ type NativeSpeakerEnrollmentEvent = {
   status?: unknown
   message?: unknown
   result?: {
+    audioDataUri?: string
     sampleText?: string
     enrolledAt?: string
   }
@@ -197,9 +198,13 @@ export function useVoiceprintRecorder({
       try {
         const resultPromise = waitForNativeSpeakerEnrollment(requestId)
         bridge.stop(requestId)
-        await resultPromise
+        const result = await resultPromise
+        const audioDataUri = result.result?.audioDataUri
+        if (typeof audioDataUri !== "string" || !audioDataUri.startsWith("data:audio/")) {
+          throw new Error("Native voiceprint recording did not return audio")
+        }
+        await onAudioReady(audioDataUri)
         setStatus(zh ? "声纹已录制。" : "Voiceprint recorded.")
-        // Native bridge handles enrollment server-side; nothing to send back
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setStatus(`${zh ? "声纹录制失败" : "Voiceprint recording failed"}: ${message}`)
