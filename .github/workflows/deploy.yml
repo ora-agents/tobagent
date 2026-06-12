@@ -124,7 +124,7 @@ jobs:
           tags: ${{ steps.images.outputs.frontend_image }}
           build-args: |
             NEXT_PUBLIC_OPENAI_DEFAULT_MODEL=${{ vars.NEXT_PUBLIC_OPENAI_DEFAULT_MODEL || 'qwen3.6-flash' }}
-            NEXT_PUBLIC_LANGGRAPH_API_URL=${{ vars.NEXT_PUBLIC_LANGGRAPH_API_URL || 'http://121.41.50.105:2025' }}
+            NEXT_PUBLIC_LANGGRAPH_API_URL=${{ vars.NEXT_PUBLIC_LANGGRAPH_API_URL || 'https://gen.wsiri.cn' }}
             NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG=${{ vars.NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG }}
             NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL }}
           cache-from: type=gha,scope=frontend
