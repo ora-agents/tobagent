@@ -43,13 +43,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /app/.venv /app/.venv
 COPY aegra.json .
 COPY src/ ./src/
+COPY assets/ ./assets/
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 2025
 
 # Ensure non-root app user has write permission to /app and logs directory
-RUN mkdir -p /app/logs && chown -R app:app /app
+RUN mkdir -p /app/logs /app/data/lancedb && chown -R app:app /app
 
 USER app
 
