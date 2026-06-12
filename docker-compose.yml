@@ -84,6 +84,7 @@ services:
     environment:
       - VOICE_SPEAKER_PROFILE_MODEL_SOURCE=/app/models/speechbrain-ecapa
       - VOICE_SPEAKER_PROFILE_MODEL_DIR=/app/models/speechbrain-ecapa
+      - SPEAKER_MAX_SAMPLES=${SPEAKER_MAX_SAMPLES:-1700000}
     volumes:
       - ./models/speechbrain-ecapa:/app/models/speechbrain-ecapa:rw
     healthcheck:

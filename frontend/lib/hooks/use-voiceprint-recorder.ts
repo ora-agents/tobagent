@@ -10,6 +10,8 @@ const SPEAKER_AUDIO_EXTENSIONS = [".wav", ".mp3", ".m4a", ".aac", ".ogg", ".oga"
 
 /** Minimum recording duration in seconds. */
 const MIN_RECORDING_SECONDS = 2
+/** Maximum recording/upload duration in seconds. */
+const MAX_RECORDING_SECONDS = 100
 
 export { SPEAKER_AUDIO_ACCEPT }
 
@@ -107,6 +109,9 @@ export async function audioFileToWavDataUri(file: File): Promise<string> {
   try {
     const arrayBuffer = await file.arrayBuffer()
     const audioBuffer = await context.decodeAudioData(arrayBuffer.slice(0))
+    if (audioBuffer.duration > MAX_RECORDING_SECONDS) {
+      throw new Error(`Audio is too long. Please keep it within ${MAX_RECORDING_SECONDS} seconds.`)
+    }
     const channelCount = audioBuffer.numberOfChannels
     const frameCount = audioBuffer.length
     const pcm = new Int16Array(frameCount)
@@ -185,9 +190,18 @@ export function useVoiceprintRecorder({
   const recorderRef = useRef<RecorderState | null>(null)
   const recordingModeRef = useRef<"web" | "native" | null>(null)
   const nativeRequestIdRef = useRef<string | null>(null)
+  const maxRecordingTimerRef = useRef<number | null>(null)
+
+  const clearMaxRecordingTimer = useCallback(() => {
+    if (maxRecordingTimerRef.current === null) return
+    window.clearTimeout(maxRecordingTimerRef.current)
+    maxRecordingTimerRef.current = null
+  }, [])
 
   // ---- Stop recording ----
   const stopRecording = useCallback(async () => {
+    clearMaxRecordingTimer()
+
     if (recordingModeRef.current === "native") {
       const requestId = nativeRequestIdRef.current
       const bridge = getNativeSpeakerEnrollmentBridge()
@@ -242,10 +256,12 @@ export function useVoiceprintRecorder({
     }
 
     await onAudioReady(int16PcmToWavDataUri(pcm, sampleRate))
-  }, [zh, onAudioReady])
+  }, [zh, onAudioReady, clearMaxRecordingTimer])
 
   // ---- Start recording ----
   const startRecording = useCallback(async () => {
+    clearMaxRecordingTimer()
+
     // Try native bridge first
     const nativeBridge = getNativeSpeakerEnrollmentBridge()
     if (nativeBridge) {
@@ -259,8 +275,12 @@ export function useVoiceprintRecorder({
         })
         nativeRequestIdRef.current = requestId
         recordingModeRef.current = "native"
+        maxRecordingTimerRef.current = window.setTimeout(() => {
+          setStatus(zh ? `已达到 ${MAX_RECORDING_SECONDS} 秒上限，正在停止录音...` : `Reached the ${MAX_RECORDING_SECONDS} second limit. Stopping recording...`)
+          void stopRecording()
+        }, MAX_RECORDING_SECONDS * 1000)
         setIsRecording(true)
-        setStatus(zh ? "正在录音，请连续朗读指定文本至少 2 秒。" : "Recording. Please read the sample text continuously for at least 2 seconds.")
+        setStatus(zh ? `正在录音，请连续朗读指定文本至少 2 秒，最多 ${MAX_RECORDING_SECONDS} 秒。` : `Recording. Please read the sample text continuously for at least 2 seconds and at most ${MAX_RECORDING_SECONDS} seconds.`)
         return
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
@@ -298,13 +318,17 @@ export function useVoiceprintRecorder({
       processor.connect(context.destination)
       recorderRef.current = { stream, context, source, processor, chunks }
       recordingModeRef.current = "web"
+      maxRecordingTimerRef.current = window.setTimeout(() => {
+        setStatus(zh ? `已达到 ${MAX_RECORDING_SECONDS} 秒上限，正在停止录音...` : `Reached the ${MAX_RECORDING_SECONDS} second limit. Stopping recording...`)
+        void stopRecording()
+      }, MAX_RECORDING_SECONDS * 1000)
       setIsRecording(true)
-      setStatus(zh ? "正在录音，请连续朗读指定文本至少 2 秒。" : "Recording. Please read the sample text continuously for at least 2 seconds.")
+      setStatus(zh ? `正在录音，请连续朗读指定文本至少 2 秒，最多 ${MAX_RECORDING_SECONDS} 秒。` : `Recording. Please read the sample text continuously for at least 2 seconds and at most ${MAX_RECORDING_SECONDS} seconds.`)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setStatus(`${zh ? "无法开始录音" : "Cannot start recording"}: ${message}`)
     }
-  }, [zh, agentId, userId, sampleText])
+  }, [zh, agentId, userId, sampleText, stopRecording, clearMaxRecordingTimer])
 
   // ---- Audio file upload ----
   const handleAudioUpload = useCallback(
