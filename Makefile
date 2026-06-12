@@ -6,6 +6,7 @@
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
 	update-assets refresh-assets \
+	lint-actions \
 	test-agent-sdk
 
 # Add standard Node.js and Bun paths to PATH for Windows/Git Bash users
@@ -183,6 +184,16 @@ update-assets:
 	uv run python -m src.utils.assets_import --refresh
 
 refresh-assets: update-assets
+
+lint-actions:
+	@if command -v actionlint >/dev/null 2>&1; then \
+		actionlint -color; \
+	else \
+		tmpdir=$$(mktemp -d); \
+		trap 'rm -rf "$$tmpdir"' EXIT; \
+		curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- latest "$$tmpdir"; \
+		"$$tmpdir/actionlint" -color; \
+	fi
 
 # Test external LangGraph SDK invocation with a user-scoped API key.
 # Usage:
