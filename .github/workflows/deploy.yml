@@ -203,10 +203,10 @@ jobs:
       - name: Sync compose file
         shell: bash
         run: |
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          ssh $SSH_OPTS "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+          SSH_OPTS=(-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          ssh "${SSH_OPTS[@]}" "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             "mkdir -p '${{ secrets.DEPLOY_PATH }}'"
-          scp $SSH_OPTS docker-compose.yml \
+          scp "${SSH_OPTS[@]}" docker-compose.yml \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/docker-compose.yml"
 
       - name: Restart services
@@ -224,9 +224,15 @@ jobs:
         run: |
           repo="ghcr.io/${REPOSITORY,,}"
           speaker_image="${SPEAKER_IMAGE:-${repo}/speaker:main}"
-          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          ssh $SSH_OPTS "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "DEPLOY_PATH='${DEPLOY_PATH}' API_IMAGE='${API_IMAGE}' FRONTEND_IMAGE='${FRONTEND_IMAGE}' SPEAKER_IMAGE='${speaker_image}' GHCR_USERNAME='${GHCR_USERNAME}' GHCR_TOKEN='${GHCR_TOKEN}' bash -s" <<'EOF'
+          SSH_OPTS=(-i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+          {
+            printf 'export DEPLOY_PATH=%q\n' "$DEPLOY_PATH"
+            printf 'export API_IMAGE=%q\n' "$API_IMAGE"
+            printf 'export FRONTEND_IMAGE=%q\n' "$FRONTEND_IMAGE"
+            printf 'export SPEAKER_IMAGE=%q\n' "$speaker_image"
+            printf 'export GHCR_USERNAME=%q\n' "$GHCR_USERNAME"
+            printf 'export GHCR_TOKEN=%q\n' "$GHCR_TOKEN"
+            cat <<'EOF'
           set -euo pipefail
           cd "$DEPLOY_PATH"
 
@@ -262,3 +268,4 @@ jobs:
           docker compose up -d --remove-orphans
           docker image prune -f
           EOF
+          } | ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s
