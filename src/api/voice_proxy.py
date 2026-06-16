@@ -42,6 +42,7 @@ from websockets.asyncio.client import ClientConnection
 
 from src.api.kws_router import _create_keyword_stream, _process_audio_chunk
 from src.utils.db import AgentProfileTable, SessionLocal, UserVoiceprintTable, get_db
+from src.utils.voice_telemetry import flatten_attributes, record_voice_event
 from src.utils.voice_audio_logger import VoiceAudioLogger
 
 logger = logging.getLogger(__name__)
@@ -71,13 +72,13 @@ def _env_float(name: str, default: float) -> float:
 DASHSCOPE_WS_BASE = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
 VAD_SAMPLE_RATE = 16000
 VAD_THRESHOLD = _env_float("VOICE_VAD_THRESHOLD", 0.5)
-VAD_MIN_SILENCE_DURATION = _env_float("VOICE_VAD_MIN_SILENCE_DURATION", 1.0)
+VAD_MIN_SILENCE_DURATION = _env_float("VOICE_VAD_MIN_SILENCE_DURATION", 0.6)
 VAD_MIN_SPEECH_DURATION = _env_float("VOICE_VAD_MIN_SPEECH_DURATION", 0.20)
 VAD_MAX_SPEECH_DURATION = _env_float("VOICE_VAD_MAX_SPEECH_DURATION", 20.0)
 VAD_WINDOW_SIZE = 256
 VAD_HISTORY_SECONDS = VAD_MAX_SPEECH_DURATION + 10.0
 VAD_PRE_ROLL_SECONDS = _env_float("VOICE_VAD_PRE_ROLL_SECONDS", 0.35)
-VAD_POST_ROLL_SECONDS = _env_float("VOICE_VAD_POST_ROLL_SECONDS", 0.25)
+VAD_POST_ROLL_SECONDS = _env_float("VOICE_VAD_POST_ROLL_SECONDS", 0.15)
 VOICE_SESSION_PREROLL_SECONDS = _env_float("VOICE_SESSION_PREROLL_SECONDS", 0.5)
 MIN_ASR_SEGMENT_DURATION_SECONDS = _env_float("VOICE_MIN_ASR_SEGMENT_SECONDS", 0.3)
 EPSILON = 1e-8
@@ -504,6 +505,16 @@ class UserVoiceprintResponse(BaseModel):
     createdAt: str
 
 
+class VoiceTelemetryEventRequest(BaseModel):
+    """Client-side voice latency event for OpenTelemetry export."""
+
+    event: str
+    voiceSessionId: str | None = None
+    traceparent: str | None = None
+    timestampMs: float | None = None
+    payload: dict[str, Any] = {}
+
+
 def _extract_bearer_user_id(authorization: str | None) -> str:
     """Extract the bearer user id used by the app's lightweight auth."""
     if not authorization:
@@ -911,6 +922,30 @@ async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse
         ) from exc
 
 
+@voice_router.post("/api/voice/telemetry")
+async def record_voice_telemetry_event(
+    request: VoiceTelemetryEventRequest,
+) -> dict[str, bool]:
+    """Record one client/native voice latency event as an OpenTelemetry span."""
+    event = request.event.strip()
+    if not event:
+        raise HTTPException(status_code=400, detail="event is required")
+
+    payload = request.payload if isinstance(request.payload, dict) else {}
+    recorded = record_voice_event(
+        name=f"voice.client.{event}",
+        voice_session_id=request.voiceSessionId,
+        traceparent=request.traceparent,
+        timestamp_ms=request.timestampMs,
+        attributes={
+            "voice.event": event,
+            "voice.source": "client",
+            **flatten_attributes("voice.payload", payload),
+        },
+    )
+    return {"recorded": recorded}
+
+
 @voice_router.get("/api/speaker-profiles/sample-text")
 async def get_speaker_profile_sample_text() -> dict[str, str]:
     """Return the sentence users should read for voiceprint enrollment."""
@@ -1239,6 +1274,8 @@ async def _send_asr_segments(
     send_lock: asyncio.Lock | None = None,
     profile_speaker_gate: ProfileSpeakerGate | None = None,
     audio_log_session_id: str = "",
+    voice_session_id: str | None = None,
+    traceparent: str | None = None,
 ) -> None:
     """Transcribe completed VAD segments and send transcript messages."""
 
@@ -1252,10 +1289,34 @@ async def _send_asr_segments(
 
     for segment in segments:
         _audio_logger.log_vad_segment(audio_log_session_id, segment.wav_bytes)
+        record_voice_event(
+            name="voice.vad.segment",
+            voice_session_id=voice_session_id or audio_log_session_id,
+            traceparent=traceparent,
+            attributes={
+                "voice.segment.duration_seconds": segment.duration_seconds,
+                "voice.segment.bytes": len(segment.wav_bytes),
+            },
+        )
         if profile_speaker_gate is not None:
             try:
+                record_voice_event(
+                    name="voice.speaker.verify.start",
+                    voice_session_id=voice_session_id or audio_log_session_id,
+                    traceparent=traceparent,
+                )
                 profile_accepted, profile_score = await profile_speaker_gate.verify(
                     segment.samples
+                )
+                record_voice_event(
+                    name="voice.speaker.verify.done",
+                    voice_session_id=voice_session_id or audio_log_session_id,
+                    traceparent=traceparent,
+                    attributes={
+                        "voice.speaker.accepted": profile_accepted,
+                        "voice.speaker.score": profile_score or 0.0,
+                        "voice.speaker.threshold": profile_speaker_gate.threshold,
+                    },
                 )
             except ValueError as exc:
                 logger.info("Dropped ASR segment by profile speaker gate: %s", exc)
@@ -1302,6 +1363,16 @@ async def _send_asr_segments(
 
         await send_json({"type": "transcribing", "mode": VOICE_MODE_ASR})
         try:
+            record_voice_event(
+                name="voice.asr.dashscope.start",
+                voice_session_id=voice_session_id or audio_log_session_id,
+                traceparent=traceparent,
+                attributes={
+                    "voice.asr.model": model,
+                    "voice.asr.audio_duration_seconds": segment.duration_seconds,
+                    "voice.asr.audio_bytes": len(segment.wav_bytes),
+                },
+            )
             response: Any = await asyncio.to_thread(
                 _call_dashscope_asr,
                 api_key=api_key,
@@ -1309,7 +1380,24 @@ async def _send_asr_segments(
                 audio_bytes=segment.wav_bytes,
             )
             result = _parse_asr_response(response)
+            record_voice_event(
+                name="voice.asr.dashscope.done",
+                voice_session_id=voice_session_id or audio_log_session_id,
+                traceparent=traceparent,
+                attributes={
+                    "voice.asr.model": model,
+                    "voice.asr.text_length": len(result.text),
+                    "voice.asr.duration_seconds": result.duration_seconds or 0.0,
+                    "voice.asr.language": result.language or "",
+                },
+            )
         except HTTPException as exc:
+            record_voice_event(
+                name="voice.asr.dashscope.error",
+                voice_session_id=voice_session_id or audio_log_session_id,
+                traceparent=traceparent,
+                attributes={"voice.asr.error": str(exc.detail)},
+            )
             await send_json({
                 "type": "error",
                 "mode": VOICE_MODE_ASR,
@@ -1318,6 +1406,12 @@ async def _send_asr_segments(
             continue
         except Exception as exc:
             logger.error("Voice session ASR transcription failed: %s", exc)
+            record_voice_event(
+                name="voice.asr.dashscope.error",
+                voice_session_id=voice_session_id or audio_log_session_id,
+                traceparent=traceparent,
+                attributes={"voice.asr.error": str(exc)},
+            )
             await send_json({
                 "type": "error",
                 "mode": VOICE_MODE_ASR,
@@ -1341,6 +1435,8 @@ async def _send_wake_ack_tts(
     voice: str,
     send_lock: asyncio.Lock,
     audio_log_session_id: str = "",
+    voice_session_id: str | None = None,
+    traceparent: str | None = None,
 ) -> None:
     """Synthesize and stream the short wake acknowledgement over session WS."""
     if not text.strip():
@@ -1362,6 +1458,12 @@ async def _send_wake_ack_tts(
             await websocket.send_json(payload)
 
     try:
+        record_voice_event(
+            name="voice.tts.wake_ack.start",
+            voice_session_id=voice_session_id or audio_log_session_id,
+            traceparent=traceparent,
+            attributes={"voice.tts.voice": voice, "voice.tts.text_length": len(text)},
+        )
         async with websockets.connect(
             upstream_url,
             additional_headers=headers,
@@ -1409,6 +1511,12 @@ async def _send_wake_ack_tts(
                 if message_type == "response.audio.delta":
                     delta = message.get("delta")
                     if isinstance(delta, str) and delta:
+                        record_voice_event(
+                            name="voice.tts.wake_ack.audio_delta",
+                            voice_session_id=voice_session_id or audio_log_session_id,
+                            traceparent=traceparent,
+                            attributes={"voice.tts.delta_length": len(delta)},
+                        )
                         _audio_logger.log_tts_chunk(audio_log_session_id, delta)
                         await send_json({
                             "type": "tts_audio",
@@ -1426,11 +1534,22 @@ async def _send_wake_ack_tts(
 
             _audio_logger.flush_tts(audio_log_session_id)
 
+            record_voice_event(
+                name="voice.tts.wake_ack.done",
+                voice_session_id=voice_session_id or audio_log_session_id,
+                traceparent=traceparent,
+            )
             await send_json({
                 "type": "tts_done",
                 "purpose": WAKE_ACK_PURPOSE,
             })
     except Exception as exc:
+        record_voice_event(
+            name="voice.tts.wake_ack.error",
+            voice_session_id=voice_session_id or audio_log_session_id,
+            traceparent=traceparent,
+            attributes={"voice.tts.error": str(exc)},
+        )
         logger.warning("Wake acknowledgement TTS failed: %s", exc)
 
 
@@ -1463,6 +1582,8 @@ async def voice_session(websocket: WebSocket) -> None:
     preroll_audio = bytearray()
     preroll_max_bytes = int(VAD_SAMPLE_RATE * 2 * VOICE_SESSION_PREROLL_SECONDS)
     profile_speaker_gate: ProfileSpeakerGate | None = None
+    voice_session_id: str | None = None
+    traceparent: str | None = None
 
     async def send_json(payload: dict[str, Any]) -> None:
         async with send_lock:
@@ -1549,6 +1670,12 @@ async def voice_session(websocket: WebSocket) -> None:
                         continue
                     speech_started, segments = vad_session.accept_audio(audio_bytes)
                     if speech_started:
+                        record_voice_event(
+                            name="voice.vad.speech_start",
+                            voice_session_id=voice_session_id or audio_log_session_id,
+                            traceparent=traceparent,
+                            attributes={"voice.mode": VOICE_MODE_ASR},
+                        )
                         await send_json({
                             "type": "speech_start",
                             "mode": VOICE_MODE_ASR,
@@ -1561,6 +1688,8 @@ async def voice_session(websocket: WebSocket) -> None:
                         send_lock=send_lock,
                         profile_speaker_gate=profile_speaker_gate,
                         audio_log_session_id=audio_log_session_id,
+                        voice_session_id=voice_session_id,
+                        traceparent=traceparent,
                     )
                 elif spotter is not None and kws_stream is not None:
                     detected = await asyncio.to_thread(
@@ -1568,6 +1697,12 @@ async def voice_session(websocket: WebSocket) -> None:
                     )
                     if detected:
                         logger.info("Voice session KWS detection: '%s'", detected)
+                        record_voice_event(
+                            name="voice.kws.detect",
+                            voice_session_id=voice_session_id or audio_log_session_id,
+                            traceparent=traceparent,
+                            attributes={"voice.kws.keyword": detected},
+                        )
                         await send_json({
                             "type": "detection",
                             "mode": VOICE_MODE_KWS,
@@ -1580,6 +1715,12 @@ async def voice_session(websocket: WebSocket) -> None:
                                     bytes(preroll_audio)
                                 )
                                 if speech_started:
+                                    record_voice_event(
+                                        name="voice.vad.speech_start",
+                                        voice_session_id=voice_session_id or audio_log_session_id,
+                                        traceparent=traceparent,
+                                        attributes={"voice.mode": VOICE_MODE_ASR},
+                                    )
                                     await send_json({
                                         "type": "speech_start",
                                         "mode": VOICE_MODE_ASR,
@@ -1592,6 +1733,8 @@ async def voice_session(websocket: WebSocket) -> None:
                                     send_lock=send_lock,
                                     profile_speaker_gate=profile_speaker_gate,
                                     audio_log_session_id=audio_log_session_id,
+                                    voice_session_id=voice_session_id,
+                                    traceparent=traceparent,
                                 )
                             task = asyncio.create_task(
                                 _send_wake_ack_tts(
@@ -1600,6 +1743,8 @@ async def voice_session(websocket: WebSocket) -> None:
                                     voice=tts_voice,
                                     send_lock=send_lock,
                                     audio_log_session_id=audio_log_session_id,
+                                    voice_session_id=voice_session_id,
+                                    traceparent=traceparent,
                                 )
                             )
                             wake_ack_tasks.add(task)
@@ -1637,6 +1782,26 @@ async def voice_session(websocket: WebSocket) -> None:
 
             if payload_type != "config":
                 continue
+
+            next_voice_session_id = payload.get("voiceSessionId") or payload.get(
+                "voice_session_id"
+            )
+            if isinstance(next_voice_session_id, str) and next_voice_session_id.strip():
+                voice_session_id = next_voice_session_id.strip()
+            next_traceparent = payload.get("traceparent")
+            if isinstance(next_traceparent, str) and next_traceparent.strip():
+                traceparent = next_traceparent.strip()
+
+            record_voice_event(
+                name="voice.session.config",
+                voice_session_id=voice_session_id or audio_log_session_id,
+                traceparent=traceparent,
+                attributes={
+                    "voice.mode": mode,
+                    "voice.kws.enabled": spotter is not None,
+                    "voice.session.audio_log_id": audio_log_session_id,
+                },
+            )
 
             if "speakerVerification" in payload:
                 speaker_config = payload.get("speakerVerification")
@@ -1775,6 +1940,8 @@ async def _relay(
     upstream_ws: ClientConnection,
     *,
     audio_log_session_id: str = "",
+    voice_session_id: str | None = None,
+    traceparent: str | None = None,
 ) -> None:
     """Bidirectional relay between client WebSocket and upstream WebSocket.
 
@@ -1805,6 +1972,14 @@ async def _relay(
                             msg.get("type") == "input_text_buffer.append"
                             and msg.get("text")
                         ):
+                            record_voice_event(
+                                name="voice.tts.text_append",
+                                voice_session_id=voice_session_id or audio_log_session_id,
+                                traceparent=traceparent,
+                                attributes={
+                                    "voice.tts.text_length": len(str(msg.get("text"))),
+                                },
+                            )
                             _audio_logger.start_tts_accumulation(
                                 audio_log_session_id,
                             )
@@ -1834,10 +2009,21 @@ async def _relay(
                             if msg_type == "response.audio.delta":
                                 delta = msg.get("delta")
                                 if isinstance(delta, str) and delta:
+                                    record_voice_event(
+                                        name="voice.tts.audio_delta",
+                                        voice_session_id=voice_session_id or audio_log_session_id,
+                                        traceparent=traceparent,
+                                        attributes={"voice.tts.delta_length": len(delta)},
+                                    )
                                     _audio_logger.log_tts_chunk(
                                         audio_log_session_id, delta,
                                     )
                             elif msg_type in ("response.done", "session.finished"):
+                                record_voice_event(
+                                    name=f"voice.tts.{msg_type.replace('.', '_')}",
+                                    voice_session_id=voice_session_id or audio_log_session_id,
+                                    traceparent=traceparent,
+                                )
                                 _audio_logger.flush_tts(audio_log_session_id)
                         except (json.JSONDecodeError, TypeError):
                             pass
@@ -1910,6 +2096,8 @@ async def tts_proxy(websocket: WebSocket) -> None:
     logger.info("[TTS proxy] Client accepted from %s", client_addr)
 
     audio_log_session_id = _audio_logger.new_session()
+    voice_session_id = websocket.query_params.get("voiceSessionId") or None
+    traceparent = websocket.query_params.get("traceparent") or None
 
     tts_model = os.environ.get(
         "TTS_MODEL", "qwen3-tts-instruct-flash-realtime"
@@ -1935,6 +2123,8 @@ async def tts_proxy(websocket: WebSocket) -> None:
             await _relay(
                 websocket, upstream,
                 audio_log_session_id=audio_log_session_id,
+                voice_session_id=voice_session_id,
+                traceparent=traceparent,
             )
             logger.info("[TTS proxy] Relay finished (normal)")
     except websockets.InvalidStatus as exc:

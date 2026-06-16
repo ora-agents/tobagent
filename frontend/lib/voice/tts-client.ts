@@ -20,9 +20,20 @@ import {
 import type { TtsEvent } from "./types"
 
 /** Build WebSocket URL for TTS proxy from LANGGRAPH_API_URL */
-function getTtsWsUrl(): string {
+function getTtsWsUrl(telemetry?: VoiceTelemetryContext | null): string {
   const base = LANGGRAPH_API_URL.replace(/^http/, "ws")
-  return `${base}${TTS_WS_PATH}`
+  if (!telemetry) return `${base}${TTS_WS_PATH}`
+
+  const params = new URLSearchParams({
+    voiceSessionId: telemetry.voiceSessionId,
+    traceparent: telemetry.traceparent,
+  })
+  return `${base}${TTS_WS_PATH}?${params.toString()}`
+}
+
+export interface VoiceTelemetryContext {
+  voiceSessionId: string
+  traceparent: string
 }
 
 /** Callback interface for TTS events */
@@ -44,6 +55,7 @@ export interface TtsCallbacks {
 export interface TtsClientOptions {
   /** Suppress console error logging for transient connect failures. */
   quiet?: boolean
+  telemetry?: VoiceTelemetryContext | null
 }
 
 export class TtsClient {
@@ -52,6 +64,7 @@ export class TtsClient {
   private voice: string
   private eventCounter: number = 0
   private quiet: boolean
+  private telemetry: VoiceTelemetryContext | null
   /** Text buffered while WebSocket was disconnected (auto-reconnect) */
   private _pendingTextBuffer: string[] = []
   /** Set to true when explicitly discarded — prevents auto-reconnect */
@@ -65,6 +78,7 @@ export class TtsClient {
     this.callbacks = callbacks
     this.voice = voice || DEFAULT_TTS_VOICE
     this.quiet = !!options.quiet
+    this.telemetry = options.telemetry ?? null
     this._pendingTextBuffer = []
     this._discarded = false
   }
@@ -91,7 +105,7 @@ export class TtsClient {
   async connect(): Promise<void> {
     if (this.isConnected) return
 
-    const url = getTtsWsUrl()
+    const url = getTtsWsUrl(this.telemetry)
 
     return new Promise<void>((resolve, reject) => {
       try {

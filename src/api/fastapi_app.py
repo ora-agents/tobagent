@@ -21,6 +21,7 @@ from src.api.kws_router import kws_router
 from src.api.langsmith_routes import router as langsmith_router
 from src.api.voice_proxy import voice_router
 from src.tools.robot_control_tool import receive_robot_result, register_robot_client
+from src.utils.voice_telemetry import init_voice_telemetry
 
 load_dotenv()
 
@@ -65,6 +66,8 @@ def _get_cors_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_voice_telemetry()
+
     try:
         from src.utils.db import ensure_database_schema
 

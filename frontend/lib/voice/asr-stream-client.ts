@@ -27,6 +27,10 @@ interface StreamingAsrOptions {
     agentId: string
     userId: string
   } | null
+  telemetry?: {
+    voiceSessionId: string
+    traceparent: string
+  } | null
 }
 
 type StreamingAsrMessage =
@@ -82,6 +86,16 @@ export class StreamingAsrClient {
             type: "config",
             keywords: [],
             speakerVerification: this.options.speakerVerification,
+            voiceSessionId: this.options.telemetry?.voiceSessionId,
+            traceparent: this.options.telemetry?.traceparent,
+          }))
+        } else if (this.options.telemetry) {
+          this.ws?.send(JSON.stringify({
+            type: "config",
+            keywords: [],
+            speakerVerification: null,
+            voiceSessionId: this.options.telemetry.voiceSessionId,
+            traceparent: this.options.telemetry.traceparent,
           }))
         }
         this.ws?.send(JSON.stringify({ type: "mode", mode: "asr" }))

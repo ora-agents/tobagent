@@ -21,6 +21,7 @@ import { TtsClient } from "@/lib/voice/tts-client"
 import { TtsPlayer } from "@/lib/voice/tts-player"
 import { KwsClient } from "@/lib/voice/kws/kws-client"
 import type { VoiceState } from "@/lib/voice/types"
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
 import { getAudioContextConstructor, getVoiceSupportError, isVoiceSupported } from "@/lib/voice/utils/browser"
 
@@ -118,6 +119,7 @@ declare global {
       stopVoice?: () => string
       stopAsr?: () => string
       returnToKws?: () => string
+      configureTelemetry?: (telemetryJson: string) => string
       startSpeakerEnrollment?: (requestJson: string) => string
       stopSpeakerEnrollment?: (requestId: string) => string
     }
@@ -137,6 +139,10 @@ declare global {
       stopVoice?: () => string
       stopAsr?: () => string
       returnToKws?: () => string
+      configureTelemetry?: (telemetry: {
+        voiceSessionId: string
+        traceparent: string
+      }) => string
       startSpeakerEnrollment?: (request: {
         requestId: string
         agentId: string
@@ -166,6 +172,16 @@ type NativeVoiceEventPayload = {
   score?: unknown
   threshold?: unknown
   reason?: unknown
+  provider?: unknown
+  timestamp?: unknown
+  timestampMs?: unknown
+  voiceSessionId?: unknown
+  traceparent?: unknown
+}
+
+type VoiceTelemetryContext = {
+  voiceSessionId: string
+  traceparent: string
 }
 
 const getNativeVoiceProvider = (): NativeVoiceProvider | null => {
@@ -194,6 +210,72 @@ const parseNativeVoiceEventPayload = (
   return detail && typeof detail === "object"
     ? (detail as NativeVoiceEventPayload)
     : null
+}
+
+const randomHex = (bytes: number): string => {
+  const values = new Uint8Array(bytes)
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    crypto.getRandomValues(values)
+  } else {
+    for (let index = 0; index < values.length; index += 1) {
+      values[index] = Math.floor(Math.random() * 256)
+    }
+  }
+  return Array.from(values, (value) => value.toString(16).padStart(2, "0")).join("")
+}
+
+const createVoiceTelemetryContext = (sessionId: number): VoiceTelemetryContext => {
+  const traceId = randomHex(16)
+  const spanId = randomHex(8)
+  return {
+    voiceSessionId: `voice-${Date.now()}-${sessionId}`,
+    traceparent: `00-${traceId}-${spanId}-01`,
+  }
+}
+
+const getPayloadTimestampMs = (payload: NativeVoiceEventPayload): number => {
+  const timestampMs = typeof payload.timestampMs === "number"
+    ? payload.timestampMs
+    : typeof payload.timestamp === "number"
+      ? payload.timestamp
+      : Date.now()
+  return timestampMs
+}
+
+const postVoiceTelemetryEvent = (
+  event: string,
+  context: VoiceTelemetryContext | null,
+  payload: NativeVoiceEventPayload | Record<string, unknown> = {},
+) => {
+  if (!context || typeof window === "undefined") return
+
+  const body = JSON.stringify({
+    event,
+    voiceSessionId: context.voiceSessionId,
+    traceparent: context.traceparent,
+    timestampMs: getPayloadTimestampMs(payload as NativeVoiceEventPayload),
+    payload,
+  })
+  const url = `${LANGGRAPH_API_URL}/api/voice/telemetry`
+
+  try {
+    if (navigator.sendBeacon) {
+      const sent = navigator.sendBeacon(
+        url,
+        new Blob([body], { type: "application/json" }),
+      )
+      if (sent) return
+    }
+  } catch {
+    // Fall back to fetch below.
+  }
+
+  fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+    keepalive: true,
+  }).catch(() => {})
 }
 
 const formatVoiceprintRejection = (
@@ -259,6 +341,7 @@ export function useVoiceAgent({
   // Incremented whenever a full voice session starts or exits. Async callbacks
   // must match the current id before mutating state.
   const voiceSessionIdRef = useRef(0)
+  const voiceTelemetryContextRef = useRef<VoiceTelemetryContext | null>(null)
   const isNativeVoiceProviderRef = useRef(false)
   // Promise tracking TTS connection in progress (prevents duplicate connections)
   const ttsConnectingRef = useRef<Promise<void> | null>(null)
@@ -309,6 +392,60 @@ export function useVoiceAgent({
     voiceStateRef.current = nextState
     setVoiceState(nextState)
   }, [])
+
+  const startVoiceTelemetrySession = useCallback((sessionId: number) => {
+    const context = createVoiceTelemetryContext(sessionId)
+    voiceTelemetryContextRef.current = context
+    postVoiceTelemetryEvent("session_start", context, {
+      type: "session_start",
+      provider: isNativeVoiceProviderRef.current ? "csj_sdk" : "web",
+      timestampMs: Date.now(),
+    })
+    return context
+  }, [])
+
+  const configureNativeVoiceTelemetry = useCallback((context: VoiceTelemetryContext) => {
+    if (typeof window === "undefined") return
+    try {
+      if (window.__TOB_NATIVE_VOICE__?.configureTelemetry) {
+        window.__TOB_NATIVE_VOICE__.configureTelemetry(context)
+      } else if (window.TobNativeVoice?.configureTelemetry) {
+        window.TobNativeVoice.configureTelemetry(JSON.stringify(context))
+      }
+    } catch (err) {
+      console.error("[NativeVoice] failed to configure telemetry:", err)
+    }
+  }, [])
+
+  const ensureVoiceTelemetrySession = useCallback((
+    payload?: NativeVoiceEventPayload,
+    forceNew = false,
+  ) => {
+    const payloadSessionId =
+      typeof payload?.voiceSessionId === "string" ? payload.voiceSessionId : null
+    const payloadTraceparent =
+      typeof payload?.traceparent === "string" ? payload.traceparent : null
+    if (payloadSessionId && payloadTraceparent) {
+      const context = {
+        voiceSessionId: payloadSessionId,
+        traceparent: payloadTraceparent,
+      }
+      voiceTelemetryContextRef.current = context
+      return context
+    }
+
+    if (!forceNew && voiceTelemetryContextRef.current) {
+      return voiceTelemetryContextRef.current
+    }
+
+    const sessionId = forceNew
+      ? voiceSessionIdRef.current
+      : voiceSessionIdRef.current + 1
+    voiceSessionIdRef.current = sessionId
+    const context = startVoiceTelemetrySession(sessionId)
+    configureNativeVoiceTelemetry(context)
+    return context
+  }, [configureNativeVoiceTelemetry, startVoiceTelemetrySession])
   const isReplyActive = useCallback(() => (
     voiceStateRef.current === "processing" ||
     voiceStateRef.current === "speaking"
@@ -415,6 +552,7 @@ export function useVoiceAgent({
 
           // Backend keeps the same session open and switches it to ASR.
           voiceSessionIdRef.current += 1
+          startVoiceTelemetrySession(voiceSessionIdRef.current)
           wakeAcknowledgementPendingRef.current = false
           setError(null)
           setCurrentTranscript("")
@@ -534,6 +672,7 @@ export function useVoiceAgent({
     resetIdleTimer,
     stopIdleTimer,
     speakerVerification,
+    startVoiceTelemetrySession,
     setVoiceStateSync,
     ttsVoice,
     voiceInterruptionEnabled,
@@ -629,6 +768,7 @@ export function useVoiceAgent({
   /** Internal exit function (used by timeout and explicit exit) */
   const exitVoiceModeInternal = useCallback((restartKws = true) => {
     voiceSessionIdRef.current += 1
+    voiceTelemetryContextRef.current = null
     stopIdleTimer()
     cancelPlaybackEndTimer()
     ttsStreamEndedRef.current = false
@@ -794,6 +934,7 @@ export function useVoiceAgent({
 
     const sessionId = voiceSessionIdRef.current + 1
     voiceSessionIdRef.current = sessionId
+    const telemetryContext = startVoiceTelemetrySession(sessionId)
     const isCurrentSession = () => voiceSessionIdRef.current === sessionId
 
     // Stop KWS if active (free mic for voice mode)
@@ -810,6 +951,7 @@ export function useVoiceAgent({
     }
 
     if (isNativeVoiceProvider) {
+      configureNativeVoiceTelemetry(telemetryContext)
       try {
         const startNativeAsr =
           window.__TOB_NATIVE_VOICE__?.startManualAsr ||
@@ -948,7 +1090,7 @@ export function useVoiceAgent({
             resetIdleTimer()
           }
         },
-      }, { speakerVerification })
+      }, { speakerVerification, telemetry: telemetryContext })
       asrClientRef.current = asrClient
 
       // 5. Show loading state while backend ASR/VAD WebSocket connects
@@ -1019,10 +1161,12 @@ export function useVoiceAgent({
     interruptAndListen,
     exitVoiceModeInternal,
     cancelPlaybackEndTimer,
+    configureNativeVoiceTelemetry,
     schedulePlaybackEndTransition,
     handleFinalTranscript,
     speakerVerification,
     setVoiceStateSync,
+    startVoiceTelemetrySession,
     voiceInterruptionEnabled,
   ])
 
@@ -1165,7 +1309,7 @@ export function useVoiceAgent({
             if (!isCurrentSession()) return
             setTtsConnected(false)
           },
-        }, ttsVoice || undefined)
+        }, ttsVoice || undefined, { telemetry: voiceTelemetryContextRef.current })
         ttsClientRef.current = ttsClient
 
         try {
@@ -1300,6 +1444,17 @@ export function useVoiceAgent({
         (event as CustomEvent<unknown>).detail,
       )
       if (!payload || typeof payload.type !== "string") return
+      const state = typeof payload.state === "string" ? payload.state : ""
+      const forceNewTelemetry =
+        (payload.type === "wake" ||
+          payload.type === "asr" ||
+          (payload.type === "voice_state" && state === "speech_start")) &&
+        (voiceStateRef.current === "idle" || voiceStateRef.current === "kws")
+      if (forceNewTelemetry) {
+        voiceSessionIdRef.current += 1
+      }
+      const telemetryContext = ensureVoiceTelemetrySession(payload, forceNewTelemetry)
+      postVoiceTelemetryEvent(payload.type, telemetryContext, payload)
 
       if (payload.type === "wake") {
         console.log("[NativeVoice] wake angle:", payload.angle)
@@ -1327,7 +1482,6 @@ export function useVoiceAgent({
           return
         }
 
-        voiceSessionIdRef.current += 1
         wakeAcknowledgementPendingRef.current = false
         if (voiceStateRef.current === "idle" || voiceStateRef.current === "kws") {
           setVoiceStateSync("listening")
@@ -1376,7 +1530,6 @@ export function useVoiceAgent({
             voiceStateRef.current === "idle" ||
             voiceStateRef.current === "kws"
           ) {
-            voiceSessionIdRef.current += 1
             setVoiceStateSync("listening")
           }
         } else if (state === "transcribing") {
@@ -1508,7 +1661,7 @@ export function useVoiceAgent({
           voiceStateRef.current === "idle" ||
           voiceStateRef.current === "kws"
         ) {
-          voiceSessionIdRef.current += 1
+          if (!forceNewTelemetry) voiceSessionIdRef.current += 1
         }
 
         setError(null)
@@ -1525,6 +1678,7 @@ export function useVoiceAgent({
     cancelPlaybackEndTimer,
     canInterruptReply,
     handleFinalTranscript,
+    ensureVoiceTelemetrySession,
     interruptAndListen,
     isReplyActive,
     isNativeVoiceProvider,
