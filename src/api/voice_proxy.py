@@ -42,8 +42,8 @@ from websockets.asyncio.client import ClientConnection
 
 from src.api.kws_router import _create_keyword_stream, _process_audio_chunk
 from src.utils.db import AgentProfileTable, SessionLocal, UserVoiceprintTable, get_db
-from src.utils.voice_telemetry import flatten_attributes, record_voice_event
 from src.utils.voice_audio_logger import VoiceAudioLogger
+from src.utils.voice_telemetry import flatten_attributes, record_voice_event
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,6 @@ VAD_WINDOW_SIZE = 256
 VAD_HISTORY_SECONDS = VAD_MAX_SPEECH_DURATION + 10.0
 VAD_PRE_ROLL_SECONDS = _env_float("VOICE_VAD_PRE_ROLL_SECONDS", 0.35)
 VAD_POST_ROLL_SECONDS = _env_float("VOICE_VAD_POST_ROLL_SECONDS", 0.15)
-VOICE_SESSION_PREROLL_SECONDS = _env_float("VOICE_SESSION_PREROLL_SECONDS", 0.5)
 MIN_ASR_SEGMENT_DURATION_SECONDS = _env_float("VOICE_MIN_ASR_SEGMENT_SECONDS", 0.3)
 EPSILON = 1e-8
 MAX_PCM_CHUNK_SECONDS = float(os.environ.get("VOICE_MAX_PCM_CHUNK_SECONDS", "5"))
@@ -1579,8 +1578,6 @@ async def voice_session(websocket: WebSocket) -> None:
     tts_voice = os.environ.get("TTS_VOICE", "Cherry")
     send_lock = asyncio.Lock()
     wake_ack_tasks: set[asyncio.Task[None]] = set()
-    preroll_audio = bytearray()
-    preroll_max_bytes = int(VAD_SAMPLE_RATE * 2 * VOICE_SESSION_PREROLL_SECONDS)
     profile_speaker_gate: ProfileSpeakerGate | None = None
     voice_session_id: str | None = None
     traceparent: str | None = None
@@ -1588,14 +1585,6 @@ async def voice_session(websocket: WebSocket) -> None:
     async def send_json(payload: dict[str, Any]) -> None:
         async with send_lock:
             await websocket.send_json(payload)
-
-    def append_preroll(audio_bytes: bytes) -> None:
-        nonlocal preroll_audio
-        if not audio_bytes:
-            return
-        preroll_audio.extend(audio_bytes)
-        if len(preroll_audio) > preroll_max_bytes:
-            preroll_audio = preroll_audio[-preroll_max_bytes:]
 
     async def ensure_asr_session(
         *,
@@ -1658,7 +1647,6 @@ async def voice_session(websocket: WebSocket) -> None:
 
             audio_bytes = message.get("bytes")
             if audio_bytes is not None:
-                append_preroll(audio_bytes)
                 _audio_logger.log_raw_pcm(audio_log_session_id, audio_bytes)
                 if mode == VOICE_MODE_ASR:
                     if api_key is None or vad_session is None:
@@ -1710,32 +1698,6 @@ async def voice_session(websocket: WebSocket) -> None:
                         })
                         if await ensure_asr_session():
                             await send_json({"type": "mode", "mode": mode})
-                            if vad_session is not None and preroll_audio:
-                                speech_started, segments = vad_session.accept_audio(
-                                    bytes(preroll_audio)
-                                )
-                                if speech_started:
-                                    record_voice_event(
-                                        name="voice.vad.speech_start",
-                                        voice_session_id=voice_session_id or audio_log_session_id,
-                                        traceparent=traceparent,
-                                        attributes={"voice.mode": VOICE_MODE_ASR},
-                                    )
-                                    await send_json({
-                                        "type": "speech_start",
-                                        "mode": VOICE_MODE_ASR,
-                                    })
-                                await _send_asr_segments(
-                                    websocket,
-                                    api_key=api_key or "",
-                                    model=model,
-                                    segments=segments,
-                                    send_lock=send_lock,
-                                    profile_speaker_gate=profile_speaker_gate,
-                                    audio_log_session_id=audio_log_session_id,
-                                    voice_session_id=voice_session_id,
-                                    traceparent=traceparent,
-                                )
                             task = asyncio.create_task(
                                 _send_wake_ack_tts(
                                     websocket,
