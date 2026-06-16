@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState, type ComponentType } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import {
   ArrowLeft,
   BookOpenText,
@@ -63,7 +63,8 @@ export function DeveloperManualPage({ onBackToChat }: DeveloperManualPageProps) 
   const { locale } = useI18n()
   const zh = locale === "zh"
   const [activeSection, setActiveSection] = useState("section-overview")
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const apiBase = LANGGRAPH_API_URL
 
   const sections: ManualSection[] = useMemo(
@@ -78,15 +79,63 @@ export function DeveloperManualPage({ onBackToChat }: DeveloperManualPageProps) 
   )
 
   const registerSectionRef = useCallback(
-    (id: string) => (node: HTMLDivElement | null) => {
-      sectionRefs.current[id] = node
+    (id: string) => (node: HTMLElement | null) => {
+      if (node) {
+        sectionRefs.current.set(id, node)
+      } else {
+        sectionRefs.current.delete(id)
+      }
     },
     [],
   )
 
+  const updateActiveSectionFromScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const maxScrollTop = container.scrollHeight - container.clientHeight
+    if (container.scrollTop <= 2) {
+      setActiveSection(sections[0].id)
+      return
+    }
+    if (maxScrollTop - container.scrollTop <= 2) {
+      setActiveSection(sections[sections.length - 1].id)
+      return
+    }
+
+    const containerTop = container.getBoundingClientRect().top
+    const activationY = containerTop + Math.min(container.clientHeight * 0.28, 180)
+    let nextActive = sections[0].id
+
+    for (const section of sections) {
+      const el = sectionRefs.current.get(section.id)
+      if (!el) continue
+      if (el.getBoundingClientRect().top <= activationY) {
+        nextActive = section.id
+      } else {
+        break
+      }
+    }
+
+    setActiveSection(nextActive)
+  }, [sections])
+
+  useEffect(() => {
+    updateActiveSectionFromScroll()
+  }, [updateActiveSectionFromScroll])
+
   const scrollToSection = useCallback((id: string) => {
     setActiveSection(id)
-    sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" })
+    const el = sectionRefs.current.get(id) || document.getElementById(id)
+    const container = scrollContainerRef.current
+    if (!el || !container) return
+
+    const containerTop = container.getBoundingClientRect().top
+    const sectionTop = el.getBoundingClientRect().top
+    container.scrollTo({
+      top: container.scrollTop + sectionTop - containerTop,
+      behavior: "smooth",
+    })
   }, [])
 
   const sdkExample = `import { Client } from "@langchain/langgraph-sdk"
@@ -190,7 +239,11 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
           </nav>
         </aside>
 
-        <main className="flex-1 overflow-y-auto bg-gradient-to-tr from-sidebar-accent/5 to-transparent p-6 sm:p-8">
+        <main
+          ref={scrollContainerRef}
+          onScroll={updateActiveSectionFromScroll}
+          className="flex-1 overflow-y-auto bg-gradient-to-tr from-sidebar-accent/5 to-transparent p-6 sm:p-8"
+        >
           <div className="mx-auto max-w-4xl space-y-6">
             <div className="h-1.5 w-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/40" />
 
