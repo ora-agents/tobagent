@@ -19,10 +19,10 @@ function getLangGraphApiUrl(): string {
   if (!url && process.env.NODE_ENV === "development") {
     if (typeof window !== "undefined") {
       // In the browser, dynamically route to the host IP/domain we are accessing it from
-      url = `http://${window.location.hostname}:2024`
+      url = `http://${window.location.hostname}:2025`
     } else {
       // On the server side (SSR), local loopback is fine
-      url = "http://127.0.0.1:2024"
+      url = "http://127.0.0.1:2025"
     }
   }
 
