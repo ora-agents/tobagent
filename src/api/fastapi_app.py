@@ -191,6 +191,7 @@ from sqlalchemy.orm import Session
 
 from src.utils.db import (
     AgentProfileTable,
+    AgentProfileVersionTable,
     ClientProfileTable,
     KnowledgeBaseTable,
     McpServerTable,
@@ -284,6 +285,14 @@ class AgentProfileSchema(BaseModel):
     userVoiceprintId: str | None = None
     createdAt: str
     updatedAt: str
+
+
+class AgentProfileVersionSchema(BaseModel):
+    id: str
+    agentProfileId: str
+    version: int
+    snapshot: AgentProfileSchema
+    createdAt: str
 
 
 class McpServerSchema(BaseModel):
@@ -466,6 +475,47 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         createdAt=profile.created_at,
         updatedAt=profile.updated_at,
     )
+
+
+def _agent_profile_snapshot(profile: AgentProfileTable) -> dict:
+    return _agent_profile_schema(profile).model_dump(mode="json")
+
+
+def _agent_profile_version_schema(version: AgentProfileVersionTable) -> AgentProfileVersionSchema:
+    return AgentProfileVersionSchema(
+        id=version.id,
+        agentProfileId=version.agent_profile_id,
+        version=version.version,
+        snapshot=AgentProfileSchema.model_validate(version.snapshot),
+        createdAt=version.created_at,
+    )
+
+
+def _create_agent_profile_version(
+    db: Session,
+    profile: AgentProfileTable,
+    created_at: str | None = None,
+) -> AgentProfileVersionTable:
+    latest_version = (
+        db.query(AgentProfileVersionTable.version)
+        .filter(
+            AgentProfileVersionTable.agent_profile_id == profile.id,
+            AgentProfileVersionTable.owner_user_id == profile.owner_user_id,
+        )
+        .order_by(AgentProfileVersionTable.version.desc())
+        .first()
+    )
+    next_version = (latest_version[0] if latest_version else 0) + 1
+    version = AgentProfileVersionTable(
+        id=str(uuid.uuid4()),
+        agent_profile_id=profile.id,
+        owner_user_id=profile.owner_user_id,
+        version=next_version,
+        snapshot=_agent_profile_snapshot(profile),
+        created_at=created_at or datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    )
+    db.add(version)
+    return version
 
 
 def _skill_schema(skill: SkillTable) -> SkillSchema:
@@ -1109,6 +1159,7 @@ async def create_agent_profile(
         updated_at=profile_data.updatedAt,
     )
     db.add(new_profile)
+    _create_agent_profile_version(db, new_profile, profile_data.createdAt)
     db.commit()
     db.refresh(new_profile)
     _invalidate_runtime_caches(new_profile.id, current_user.id)
@@ -1148,7 +1199,86 @@ async def update_agent_profile(
     profile.speaker_verification_enabled = profile_data.speakerVerificationEnabled
     profile.user_voiceprint_id = profile_data.userVoiceprintId
     profile.updated_at = profile_data.updatedAt
+    _create_agent_profile_version(db, profile, profile.updated_at)
     
+    db.commit()
+    db.refresh(profile)
+    _invalidate_runtime_caches(id, current_user.id)
+    return _agent_profile_schema(profile)
+
+
+@app.get(
+    "/api/agent-profiles/{id}/versions",
+    response_model=list[AgentProfileVersionSchema],
+)
+async def get_agent_profile_versions(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+
+    versions = db.query(AgentProfileVersionTable).filter(
+        AgentProfileVersionTable.agent_profile_id == id,
+        AgentProfileVersionTable.owner_user_id == current_user.id,
+    ).order_by(AgentProfileVersionTable.version.desc()).all()
+    return [_agent_profile_version_schema(version) for version in versions]
+
+
+@app.post(
+    "/api/agent-profiles/{id}/versions/{version_id}/restore",
+    response_model=AgentProfileSchema,
+)
+async def restore_agent_profile_version(
+    id: str,
+    version_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+
+    version = db.query(AgentProfileVersionTable).filter(
+        AgentProfileVersionTable.id == version_id,
+        AgentProfileVersionTable.agent_profile_id == id,
+        AgentProfileVersionTable.owner_user_id == current_user.id,
+    ).first()
+    if not version:
+        raise HTTPException(status_code=404, detail="Agent profile version not found")
+
+    restored = AgentProfileSchema.model_validate(version.snapshot)
+    _validate_agent_profile_links(db, restored, current_user.id, id)
+
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    profile.name = restored.name
+    profile.description = restored.description
+    profile.system_prompt = restored.systemPrompt
+    profile.model = (restored.model or "").strip() or None
+    profile.enabled_tools = restored.enabledTools
+    profile.knowledge_base_ids = restored.knowledgeBaseIds
+    profile.skill_ids = restored.skillIds
+    profile.mcp_ids = restored.mcpIds
+    profile.agent_ids = restored.agentIds
+    profile.wake_words = restored.wakeWords
+    profile.role_template_id = restored.roleTemplateId
+    profile.persona_style = restored.personaStyle
+    profile.boundary_mode = restored.boundaryMode
+    profile.tts_voice = restored.ttsVoice
+    profile.voice_interruption_enabled = restored.voiceInterruptionEnabled
+    profile.speaker_verification_enabled = restored.speakerVerificationEnabled
+    profile.user_voiceprint_id = restored.userVoiceprintId
+    profile.updated_at = now
+    _create_agent_profile_version(db, profile, now)
+
     db.commit()
     db.refresh(profile)
     _invalidate_runtime_caches(id, current_user.id)

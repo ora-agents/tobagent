@@ -152,6 +152,18 @@ class AgentProfileTable(Base):
     updated_at = Column(String(50), nullable=False)
 
 
+class AgentProfileVersionTable(Base):
+    """Immutable snapshots for agent profile configuration history."""
+    __tablename__ = "agent_profile_versions"
+
+    id = Column(String(255), primary_key=True, index=True)
+    agent_profile_id = Column(String(255), index=True, nullable=False)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    version = Column(Integer, nullable=False)
+    snapshot = Column(JSON, nullable=False)
+    created_at = Column(String(50), nullable=False)
+
+
 class UserVoiceprintTable(Base):
     """User-level speaker voiceprints for speaker verification."""
     __tablename__ = "user_voiceprints"
