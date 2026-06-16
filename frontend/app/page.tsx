@@ -9,6 +9,7 @@ import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
+import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { AuthPanel } from "@/components/layout/auth-panel"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
@@ -657,6 +658,8 @@ function DashboardContent() {
             voiceprints={userVoiceprints}
             onVoiceprintsChange={setUserVoiceprints}
           />
+        ) : currentView === "developer-manual" ? (
+          <DeveloperManualPage onBackToChat={() => setCurrentView("chat")} />
         ) : currentView !== "chat" ? (
           <ManagementDashboard
             initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}

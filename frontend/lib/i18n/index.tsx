@@ -121,6 +121,7 @@ const zh = {
   expandConfiguration: "展开配置",
   collapseConfiguration: "收起配置",
   backend: "后台管理",
+  developerManual: "开发手册",
 
   // Common & General
   untitled: "无标题",
@@ -398,6 +399,7 @@ const en = {
   expandConfiguration: "Expand configuration",
   collapseConfiguration: "Collapse configuration",
   backend: "Backend",
+  developerManual: "Developer Manual",
 
   // Common & General
   untitled: "Untitled",

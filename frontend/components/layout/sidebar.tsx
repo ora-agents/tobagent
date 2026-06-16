@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
@@ -58,7 +58,7 @@ interface SidebarProps {
   onDeleteThread: (threadId: string) => void
   isLoading?: boolean
   currentView?: string
-  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings") => void
+  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual") => void
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -367,6 +367,17 @@ export const Sidebar = memo(function Sidebar({
             <LayoutDashboard className="w-5 h-5" />
           </button>
           <button
+            onClick={() => onViewChange?.("developer-manual")}
+            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+              currentView === "developer-manual"
+                ? "bg-primary/15 text-primary border-primary/20"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            }`}
+            title={t.developerManual}
+          >
+            <BookOpenText className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
             title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
@@ -537,6 +548,17 @@ export const Sidebar = memo(function Sidebar({
         >
           <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.backend}</span>
+        </button>
+        <button
+          onClick={() => onViewChange?.("developer-manual")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+            currentView === "developer-manual"
+              ? "bg-primary/15 text-primary border-primary/20 font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground"
+          }`}
+        >
+          <BookOpenText className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          <span className="truncate">{t.developerManual}</span>
         </button>
         <button
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
