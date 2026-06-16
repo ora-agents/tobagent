@@ -4,74 +4,84 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   Light theme (default) — Anthropic cream canvas
+   Light theme (default) — WSIRI logo-blue workspace
    ============================================================ */
 :root {
-  /* Anthropic design-system palette */
-  --coral: #cc785c;
-  --coral-active: #a9583e;
-  --coral-disabled: #e6dfd8;
+  /* WSIRI brand palette sampled from frontend/public/logo.png */
+  --brand-blue: #164199;
+  --brand-blue-active: #10357f;
+  --brand-blue-soft: #eaf1ff;
+  --brand-blue-mist: #f2f6ff;
+  --accent-cyan: #18a8b8;
+  --accent-amber: #d99a24;
+
+  /* Backward-compatible aliases for older component names */
+  --coral: var(--brand-blue);
+  --coral-active: var(--brand-blue-active);
+  --coral-disabled: #d7e0ee;
 
   /* Light surfaces */
-  --background: #faf9f5;           /* canvas */
-  --foreground: #141413;           /* ink */
-  --card: #efe9de;                 /* surface-card */
-  --card-foreground: #141413;
-  --popover: #efe9de;
-  --popover-foreground: #141413;
-  --primary: var(--coral);
+  --background: #f6f8fc;           /* canvas */
+  --foreground: #111827;           /* ink */
+  --card: #ffffff;                 /* surface-panel */
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: var(--brand-blue);
   --primary-foreground: #ffffff;
-  --secondary: #f5f0e8;            /* surface-soft */
-  --secondary-foreground: #141413;
-  --muted: #f5f0e8;
-  --muted-foreground: #6c6a64;     /* muted */
-  --accent: var(--coral);
+  --primary-active: var(--brand-blue-active);
+  --primary-soft: var(--brand-blue-soft);
+  --secondary: #edf2fa;            /* surface-soft */
+  --secondary-foreground: #111827;
+  --muted: #edf2fa;
+  --muted-foreground: #64748b;     /* muted */
+  --accent: var(--brand-blue);
   --accent-foreground: #ffffff;
-  --destructive: #c64545;
+  --destructive: #c2413d;
   --destructive-foreground: #ffffff;
-  --border: #e6dfd8;               /* hairline */
-  --input: #faf9f5;
-  --ring: var(--coral);
-  --success: #5db872;
-  --warning: #d4a017;
-  --error: #c64545;
+  --border: #d7e0ee;               /* hairline */
+  --input: #ffffff;
+  --ring: var(--brand-blue);
+  --success: #1f9d63;
+  --warning: var(--accent-amber);
+  --error: #c2413d;
   --radius: 0.5rem;
 
-  /* Sidebar — slightly darker than canvas */
-  --sidebar: #f5f0e8;              /* surface-soft */
-  --sidebar-foreground: #141413;
-  --sidebar-primary: var(--coral);
+  /* Sidebar — blue-tinted operational surface */
+  --sidebar: #edf2fa;              /* surface-soft */
+  --sidebar-foreground: #111827;
+  --sidebar-primary: var(--brand-blue);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #efe9de;       /* surface-card */
-  --sidebar-accent-foreground: #141413;
-  --sidebar-border: #e6dfd8;
-  --sidebar-ring: var(--coral);
+  --sidebar-accent: #e7edf7;       /* surface-raised */
+  --sidebar-accent-foreground: #111827;
+  --sidebar-border: #d7e0ee;
+  --sidebar-ring: var(--brand-blue);
 }
 
 /* ============================================================
-   Dark theme — Anthropic dark navy product surface
+   Dark theme — deep WSIRI product surface
    ============================================================ */
 .dark {
-  --background: #181715;           /* surface-dark */
-  --foreground: #faf9f5;           /* on-dark / canvas */
-  --card: #252320;                 /* surface-dark-elevated */
-  --card-foreground: #faf9f5;
-  --popover: #252320;
-  --popover-foreground: #faf9f5;
-  --secondary: #252320;
-  --secondary-foreground: #faf9f5;
-  --muted: #252320;
-  --muted-foreground: #a09d96;     /* on-dark-soft */
-  --destructive-foreground: #faf9f5;
-  --border: #2e2c28;
-  --input: #252320;
+  --background: #07152f;           /* surface-dark */
+  --foreground: #f8fbff;           /* on-dark */
+  --card: #0e2245;                 /* surface-dark-elevated */
+  --card-foreground: #f8fbff;
+  --popover: #0e2245;
+  --popover-foreground: #f8fbff;
+  --secondary: #132c55;
+  --secondary-foreground: #f8fbff;
+  --muted: #132c55;
+  --muted-foreground: #b8c7dc;     /* on-dark-soft */
+  --destructive-foreground: #f8fbff;
+  --border: #29466f;
+  --input: #0e2245;
 
   /* Sidebar — slightly deeper than main dark surface */
-  --sidebar: #141311;
-  --sidebar-foreground: #faf9f5;
-  --sidebar-accent: #252320;
-  --sidebar-accent-foreground: #faf9f5;
-  --sidebar-border: #252320;
+  --sidebar: #061126;
+  --sidebar-foreground: #f8fbff;
+  --sidebar-accent: #132c55;
+  --sidebar-accent-foreground: #f8fbff;
+  --sidebar-border: #29466f;
 }
 
 @theme inline {
@@ -85,6 +95,8 @@
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-active: var(--primary-active);
+  --color-primary-soft: var(--primary-soft);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -113,13 +125,16 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-coral: var(--coral);
+  --color-brand-blue: var(--brand-blue);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-amber: var(--accent-amber);
 
   /* Elevation Shadows matching docs/design.md subtle style */
-  --shadow-depth-xs: 0 1px 2px rgba(20, 20, 19, 0.04);
-  --shadow-depth-sm: 0 2px 6px rgba(20, 20, 19, 0.06);
-  --shadow-depth-md: 0 6px 16px rgba(20, 20, 19, 0.08);
-  --shadow-depth-lg: 0 16px 48px rgba(20, 20, 19, 0.12);
-  --shadow-depth-hover: 0 8px 24px rgba(20, 20, 19, 0.1);
+  --shadow-depth-xs: 0 1px 2px rgba(15, 35, 70, 0.04);
+  --shadow-depth-sm: 0 2px 6px rgba(15, 35, 70, 0.06);
+  --shadow-depth-md: 0 6px 16px rgba(15, 35, 70, 0.08);
+  --shadow-depth-lg: 0 16px 48px rgba(15, 35, 70, 0.12);
+  --shadow-depth-hover: 0 8px 24px rgba(15, 35, 70, 0.1);
 }
 
 @layer base {
@@ -148,9 +163,9 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(204, 120, 92, 0.16),
-    rgba(250, 249, 245, 0.42),
-    rgba(204, 120, 92, 0.12),
+    rgba(22, 65, 153, 0.16),
+    rgba(255, 255, 255, 0.58),
+    rgba(24, 168, 184, 0.12),
     transparent
   );
   animation: loading-shimmer 1.9s ease-in-out infinite;
@@ -161,23 +176,23 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(250, 249, 245, 0.38), transparent 58%),
-    linear-gradient(90deg, rgba(20, 20, 19, 0.035), transparent 30%, rgba(204, 120, 92, 0.045) 66%, transparent);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 58%),
+    linear-gradient(90deg, rgba(15, 35, 70, 0.035), transparent 30%, rgba(22, 65, 153, 0.05) 66%, transparent);
 }
 
 .dark .loading-placeholder::before {
   background:
-    linear-gradient(180deg, rgba(250, 249, 245, 0.07), transparent 58%),
-    linear-gradient(90deg, rgba(250, 249, 245, 0.035), transparent 30%, rgba(204, 120, 92, 0.05) 66%, transparent);
+    linear-gradient(180deg, rgba(248, 251, 255, 0.08), transparent 58%),
+    linear-gradient(90deg, rgba(248, 251, 255, 0.035), transparent 30%, rgba(24, 168, 184, 0.07) 66%, transparent);
 }
 
 .dark .loading-placeholder::after {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(204, 120, 92, 0.16),
-    rgba(250, 249, 245, 0.12),
-    rgba(204, 120, 92, 0.12),
+    rgba(22, 65, 153, 0.18),
+    rgba(248, 251, 255, 0.14),
+    rgba(24, 168, 184, 0.12),
     transparent
   );
 }
@@ -301,27 +316,27 @@
 .prose p {
   margin-top: 0.75em;
   margin-bottom: 0.75em;
-  color: #3d3d3a;
+  color: #334155;
 }
 
 .dark .prose p {
-  color: #d4cfc6;
+  color: #c7d4e6;
 }
 
 .prose code {
-  background: #efe9de;
+  background: var(--secondary);
   padding: 0.25em 0.5em;
   border-radius: 0.375em;
   font-size: 0.9em;
   font-family: var(--font-mono);
-  color: #6c3a22;
-  border: 1px solid #e6dfd8;
+  color: var(--primary);
+  border: 1px solid var(--border);
 }
 
 .dark .prose code {
-  background: #1f1e1b;
-  color: #e8c9b8;
-  border-color: #2e2c28;
+  background: #132c55;
+  color: #dbeafe;
+  border-color: #29466f;
 }
 
 .prose pre {
@@ -341,17 +356,17 @@
   border: none;
   font-size: 0.9em;
   line-height: 1.7;
-  color: #3d3d3a;
+  color: #334155;
 }
 
 .dark .prose pre code {
-  color: #ede8e0;
+  color: #e6eef9;
 }
 
 .prose a {
   color: var(--coral);
   text-decoration: none;
-  border-bottom: 1px solid rgba(204, 120, 92, 0.4);
+  border-bottom: 1px solid rgba(22, 65, 153, 0.35);
   transition: all 0.2s ease;
 }
 
@@ -364,12 +379,12 @@
   margin: 0.5em 0;
   padding-left: 0;
   list-style-position: inside;
-  color: #3d3d3a;
+  color: #334155;
 }
 
 .dark .prose ul,
 .dark .prose ol {
-  color: #d4cfc6;
+  color: #c7d4e6;
 }
 
 .prose li {
@@ -395,32 +410,32 @@
   padding-bottom: 0.5em;
   margin: 1em 0;
   font-style: italic;
-  color: #6c6a64;
-  background: #f5f0e8;
+  color: #64748b;
+  background: #edf2fa;
   border-radius: 0 0.375em 0.375em 0;
 }
 
 .dark .prose blockquote {
-  color: #a09d96;
-  background: #1f1e1b;
+  color: #b8c7dc;
+  background: #132c55;
 }
 
 .prose strong {
   font-weight: 600;
-  color: #141413;
+  color: #111827;
 }
 
 .dark .prose strong {
-  color: #faf9f5;
+  color: #f8fbff;
 }
 
 .prose em {
   font-style: italic;
-  color: #3d3d3a;
+  color: #334155;
 }
 
 .dark .prose em {
-  color: #d4cfc6;
+  color: #c7d4e6;
 }
 
 .prose hr {
@@ -437,35 +452,35 @@
 }
 
 .prose th {
-  background: #efe9de;
+  background: #edf2fa;
   padding: 0.75em 1em;
   text-align: left;
   font-weight: 600;
-  color: #141413;
+  color: #111827;
   border: 1px solid var(--color-border);
 }
 
 .dark .prose th {
-  background: #252320;
-  color: #faf9f5;
+  background: #0e2245;
+  color: #f8fbff;
 }
 
 .prose td {
   padding: 0.75em 1em;
   border: 1px solid var(--color-border);
-  color: #3d3d3a;
+  color: #334155;
 }
 
 .dark .prose td {
-  color: #d4cfc6;
+  color: #c7d4e6;
 }
 
 .prose tr:nth-child(even) {
-  background: #f5f0e8;
+  background: #edf2fa;
 }
 
 .dark .prose tr:nth-child(even) {
-  background: #1f1e1b;
+  background: #132c55;
 }
 
 /* ============================================================
@@ -504,11 +519,11 @@
 
 /* Base thinking text */
 .thinking-text-base {
-  color: rgba(20, 20, 19, 0.6);
+  color: rgba(17, 24, 39, 0.62);
 }
 
 .dark .thinking-text-base {
-  color: rgba(250, 249, 245, 0.7);
+  color: rgba(248, 251, 255, 0.72);
 }
 
 /* Gradient overlay that sweeps across */
@@ -523,7 +538,7 @@
     90deg,
     transparent 0%,
     transparent 40%,
-    rgba(204, 120, 92, 0.8) 50%,
+    rgba(22, 65, 153, 0.85) 50%,
     transparent 60%,
     transparent 100%
   );
@@ -547,11 +562,11 @@
 
 /* Tech word animation styles */
 .tech-word-text {
-  color: rgba(20, 20, 19, 0.9);
+  color: rgba(17, 24, 39, 0.9);
 }
 
 .dark .tech-word-text {
-  color: rgba(250, 249, 245, 1);
+  color: rgba(248, 251, 255, 1);
 }
 
 .tech-word-cursor {
