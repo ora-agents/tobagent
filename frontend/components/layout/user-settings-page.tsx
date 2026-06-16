@@ -132,6 +132,7 @@ export function UserSettingsPage({
 
   // ---- Active section tracking ----
   const [activeSection, setActiveSection] = useState("section-display")
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   // ---- Switch size (elder vs normal) ----
@@ -236,26 +237,6 @@ export function UserSettingsPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [email, preferences, safetyEnabled, user])
 
-  // ---- IntersectionObserver for active section tracking ----
-  useEffect(() => {
-    const observers: IntersectionObserver[] = []
-    sectionRefs.current.forEach((el, id) => {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              setActiveSection(id)
-            }
-          })
-        },
-        { rootMargin: "-20% 0px -70% 0px", threshold: 0 },
-      )
-      observer.observe(el)
-      observers.push(observer)
-    })
-    return () => observers.forEach((o) => o.disconnect())
-  }, [])
-
   const registerSectionRef = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) {
       sectionRefs.current.set(id, el)
@@ -264,9 +245,53 @@ export function UserSettingsPage({
     }
   }, [])
 
+  const updateActiveSectionFromScroll = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const maxScrollTop = container.scrollHeight - container.clientHeight
+    if (container.scrollTop <= 2) {
+      setActiveSection(NAV_SECTIONS[0].id)
+      return
+    }
+    if (maxScrollTop - container.scrollTop <= 2) {
+      setActiveSection(NAV_SECTIONS[NAV_SECTIONS.length - 1].id)
+      return
+    }
+
+    const containerTop = container.getBoundingClientRect().top
+    const activationY = containerTop + Math.min(container.clientHeight * 0.28, 180)
+    let nextActive = NAV_SECTIONS[0].id
+
+    for (const section of NAV_SECTIONS) {
+      const el = sectionRefs.current.get(section.id)
+      if (!el) continue
+      if (el.getBoundingClientRect().top <= activationY) {
+        nextActive = section.id
+      } else {
+        break
+      }
+    }
+
+    setActiveSection(nextActive)
+  }, [])
+
+  useEffect(() => {
+    updateActiveSectionFromScroll()
+  }, [updateActiveSectionFromScroll])
+
   const scrollToSection = useCallback((id: string) => {
+    setActiveSection(id)
     const el = sectionRefs.current.get(id) || document.getElementById(id)
-    el?.scrollIntoView({ behavior: "smooth", block: "start" })
+    const container = scrollContainerRef.current
+    if (!el || !container) return
+
+    const containerTop = container.getBoundingClientRect().top
+    const sectionTop = el.getBoundingClientRect().top
+    container.scrollTo({
+      top: container.scrollTop + sectionTop - containerTop,
+      behavior: "smooth",
+    })
   }, [])
 
   // ---- Voiceprint recorder hook ----
@@ -472,7 +497,11 @@ export function UserSettingsPage({
         )}
 
         {/* Scrollable content */}
-        <main className={`flex-1 overflow-y-auto ${elderOptimized ? "p-4 sm:p-8" : "p-6 sm:p-8"} bg-gradient-to-tr from-sidebar-accent/5 to-transparent`}>
+        <main
+          ref={scrollContainerRef}
+          onScroll={updateActiveSectionFromScroll}
+          className={`flex-1 overflow-y-auto ${elderOptimized ? "p-4 sm:p-8" : "p-6 sm:p-8"} bg-gradient-to-tr from-sidebar-accent/5 to-transparent`}
+        >
           <div className={`${elderOptimized ? "max-w-3xl space-y-7" : "max-w-2xl space-y-6"} mx-auto`}>
             {/* Gradient decoration */}
             <div className="h-1.5 w-full bg-gradient-to-r from-primary via-primary/80 to-primary/40 rounded-full" />
