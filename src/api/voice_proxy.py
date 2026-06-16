@@ -1265,6 +1265,15 @@ async def _send_asr_segments(
                     "threshold": profile_speaker_gate.threshold,
                 })
                 continue
+            except RuntimeError as exc:
+                logger.warning("Profile speaker verification unavailable: %s", exc)
+                await send_json({
+                    "type": "speaker_rejected",
+                    "mode": VOICE_MODE_ASR,
+                    "reason": "Speaker verification is temporarily unavailable",
+                    "threshold": profile_speaker_gate.threshold,
+                })
+                continue
             except Exception as exc:
                 logger.error("Profile speaker verification failed: %s", exc)
                 await send_json({

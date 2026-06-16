@@ -267,6 +267,47 @@ async def test_profile_speaker_gate_uses_verification_min_seconds(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_asr_segments_report_speaker_service_failures_as_rejections():
+    """Speaker service outages should not surface as fatal WebSocket errors."""
+    messages = []
+
+    class FakeWebSocket:
+        async def send_json(self, payload):
+            messages.append(payload)
+
+    class UnavailableSpeakerGate:
+        threshold = 0.72
+
+        async def verify(self, _samples):
+            raise RuntimeError("Speaker service is unavailable for speaker verification")
+
+    segment = SimpleNamespace(
+        wav_bytes=b"wav",
+        samples=voice_proxy.np.zeros(
+            int(voice_proxy.SPEAKER_VERIFY_MIN_SECONDS * voice_proxy.VAD_SAMPLE_RATE),
+            dtype=voice_proxy.np.float32,
+        ),
+    )
+
+    await voice_proxy._send_asr_segments(
+        FakeWebSocket(),
+        api_key="unused",
+        model="unused",
+        segments=[segment],
+        profile_speaker_gate=UnavailableSpeakerGate(),
+    )
+
+    assert messages == [
+        {
+            "type": "speaker_rejected",
+            "mode": voice_proxy.VOICE_MODE_ASR,
+            "reason": "Speaker verification is temporarily unavailable",
+            "threshold": 0.72,
+        }
+    ]
+
+
+@pytest.mark.anyio
 async def test_profile_speaker_verification_uses_shorter_verify_minimum(monkeypatch):
     """REST speaker verification should allow shorter samples than enrollment."""
     calls = []
