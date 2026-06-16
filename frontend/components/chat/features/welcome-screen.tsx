@@ -103,6 +103,8 @@ export function WelcomeScreen({
   const [availableModels, setAvailableModels] = useState<ModelOption[] | null>(null)
   const hasText = input.trim().length > 0
   const suppressAndroidVoiceAutoFocus = isAndroidWebView() && voiceState !== "idle"
+  const fixedAgentModel = agentProfile?.model?.trim() || null
+  const displayedModel = fixedAgentModel || agentConfig?.model || ""
 
   useEffect(() => {
     fetchAvailableModels().then(setAvailableModels)
@@ -284,12 +286,21 @@ export function WelcomeScreen({
           <div className="flex flex-wrap gap-3 justify-start mt-2 px-2 h-8 items-center">
             {agentConfig && onAgentConfigChange && (
               <div className="flex items-center">
-                {availableModels === null ? (
+                {fixedAgentModel ? (
+                  <Combobox
+                    options={[{ value: fixedAgentModel, label: getModelDisplayName(fixedAgentModel as ModelOption) }]}
+                    value={fixedAgentModel}
+                    onValueChange={() => {}}
+                    prefix={locale === "zh" ? "Agent 模型：" : "Agent model: "}
+                    placeholder={getModelDisplayName(fixedAgentModel as ModelOption)}
+                    disabled
+                  />
+                ) : availableModels === null ? (
                   <ComboboxSkeleton label={t.loadingModels} />
                 ) : availableModels.length > 0 ? (
                   <Combobox
                     options={availableModels.map((m) => ({ value: m, label: getModelDisplayName(m as ModelOption) }))}
-                    value={agentConfig.model}
+                    value={displayedModel}
                     onValueChange={handleModelChange}
                     prefix={locale === "zh" ? "模型：" : "Model: "}
                     placeholder={locale === "zh" ? "选择模型..." : "Select model..."}

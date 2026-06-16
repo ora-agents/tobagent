@@ -31,6 +31,8 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
+type DashboardView = "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual"
+
 function DashboardFallback() {
   return (
     <div className="flex h-screen bg-background" aria-busy="true" aria-label="Loading dashboard" role="status">
@@ -91,7 +93,7 @@ function DashboardContent() {
   const t = useT()
   const { user, loading: authLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [currentView, setCurrentView] = useState<"chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings">("chat")
+  const [currentView, setCurrentView] = useState<DashboardView>("chat")
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])

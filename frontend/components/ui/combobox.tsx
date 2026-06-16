@@ -21,6 +21,7 @@ interface ComboboxProps {
   menuClassName?: string
   prefix?: string
   autoFocusSearch?: boolean
+  disabled?: boolean
 }
 
 export function Combobox({
@@ -35,6 +36,7 @@ export function Combobox({
   menuClassName,
   prefix,
   autoFocusSearch = true,
+  disabled = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
@@ -74,10 +76,15 @@ export function Combobox({
     <div ref={containerRef} className={cn("relative inline-block text-left", className)}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (disabled) return
+          setOpen(!open)
+        }}
+        disabled={disabled}
         className={cn(
           "h-8 text-sm border border-border/40 bg-card hover:bg-muted/50 px-3 gap-1 rounded-md transition-all duration-200 font-medium flex items-center justify-between text-foreground shadow-sm hover:shadow-md min-w-[140px]",
           open && "ring-2 ring-primary/20 border-primary/50",
+          disabled && "cursor-not-allowed opacity-70 hover:bg-card hover:shadow-sm",
           triggerClassName
         )}
       >
@@ -85,10 +92,10 @@ export function Combobox({
           {prefix && <span className="text-muted-foreground mr-1">{prefix}</span>}
           <span className="truncate">{selectedOption ? selectedOption.label : placeholder}</span>
         </span>
-        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        {!disabled && <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />}
       </button>
 
-      {open && (
+      {open && !disabled && (
         <div className={cn(
           "absolute left-0 mt-1 z-50 min-w-[200px] max-w-[280px] rounded-lg border border-border/50 bg-popover text-popover-foreground shadow-lg animate-in fade-in-50 slide-in-from-top-1 duration-200",
           menuClassName

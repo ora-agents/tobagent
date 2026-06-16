@@ -90,9 +90,10 @@ interface AgentSettingsProps {
   forceShowTooltip?: number
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  fixedModel?: string | null
 }
 
-export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceShowTooltip, open, onOpenChange }: AgentSettingsProps) {
+export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceShowTooltip, open, onOpenChange, fixedModel }: AgentSettingsProps) {
   const t = useT()
   const [recursionLimitInput, setRecursionLimitInput] = useState((config.recursionLimit ?? 100).toString())
   const [tooltipOpen, setTooltipOpen] = useState(false)
@@ -121,8 +122,13 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     setRecursionLimitInput((config.recursionLimit ?? 100).toString())
   }, [config.recursionLimit])
 
-  // Once models are loaded, ensure the persisted model is in the list
+  const lockedModel = fixedModel?.trim() || null
+  const displayedModel = lockedModel || config.model
+
+  // Once models are loaded, ensure the persisted global model is in the list.
+  // Agent-specific fixed models intentionally do not mutate the global setting.
   useEffect(() => {
+    if (lockedModel) return
     if (modelsLoading || availableModels.length === 0) return
     if (!availableModels.includes(config.model as ModelOption)) {
       const defaultModel = getDefaultModel() || availableModels[0]
@@ -132,11 +138,12 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelsLoading, availableModels])
+  }, [modelsLoading, availableModels, lockedModel])
 
   const handleModelChange = useCallback((model: string) => {
+    if (lockedModel) return
     onConfigChange({ ...config, model })
-  }, [config, onConfigChange])
+  }, [config, lockedModel, onConfigChange])
 
   const handleRecursionLimitChange = useCallback((value: string) => {
     // Allow typing and deleting
@@ -190,7 +197,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
             <div className="space-y-1 text-xs">
-              <div><span className="font-semibold">{t.model}:</span> {getModelDisplayName(config.model as ModelOption)}</div>
+              <div><span className="font-semibold">{t.model}:</span> {getModelDisplayName(displayedModel as ModelOption)}</div>
               <div><span className="font-semibold">{t.recursionLimitLabel}:</span> {config.recursionLimit ?? 100}</div>
             </div>
           </TooltipContent>
@@ -269,11 +276,16 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
           )}
           <div className="grid gap-2">
             <Label htmlFor="model">{t.model}</Label>
-            <Select value={config.model} onValueChange={handleModelChange} disabled={modelsLoading}>
+            <Select value={displayedModel} onValueChange={handleModelChange} disabled={modelsLoading || !!lockedModel}>
               <SelectTrigger id="model">
                 <SelectValue placeholder={modelsLoading ? t.loadingModels : t.selectModel} />
               </SelectTrigger>
               <SelectContent>
+                {lockedModel && !availableModels.includes(lockedModel as ModelOption) && (
+                  <SelectItem value={lockedModel}>
+                    {getModelDisplayName(lockedModel as ModelOption)}
+                  </SelectItem>
+                )}
                 {availableModels.map((modelId) => (
                   <SelectItem key={modelId} value={modelId}>
                     {getModelDisplayName(modelId)}
