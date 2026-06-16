@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react"
-import type { AgentProfile } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion } from "@/lib/types/agent-profiles"
 import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
 import { generateUUID } from "@/lib/utils"
@@ -114,9 +114,9 @@ export function useAgentProfiles() {
   }, [user])
 
   const updateProfile = useCallback(async (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => {
-    if (!LANGGRAPH_API_URL || !user) return
+    if (!LANGGRAPH_API_URL || !user) return null
     const target = profiles.find(p => p.id === id)
-    if (!target) return
+    if (!target) return null
 
     const updatedProfile: AgentProfile = {
       ...target,
@@ -133,11 +133,48 @@ export function useAgentProfiles() {
       if (resp.ok) {
         const saved = await resp.json()
         setProfiles(prev => prev.map(p => p.id === id ? saved : p))
+        return saved as AgentProfile
       }
     } catch (err) {
       console.error(`Failed to update agent profile ${id} in PostgreSQL`, err)
     }
+    return null
   }, [profiles, user])
+
+  const fetchProfileVersions = useCallback(async (id: string): Promise<AgentProfileVersion[]> => {
+    if (!LANGGRAPH_API_URL || !user) return []
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions`, {
+        headers: { Authorization: `Bearer ${user.id}` },
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to load agent profile versions for ${id}`, err)
+    }
+    return []
+  }, [user])
+
+  const restoreProfileVersion = useCallback(async (id: string, versionId: string): Promise<AgentProfile | null> => {
+    if (!LANGGRAPH_API_URL || !user) return null
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions/${versionId}/restore`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${user.id}` },
+      })
+      if (resp.ok) {
+        const saved = await resp.json()
+        setProfiles(prev => prev.map(p => p.id === id ? saved : p))
+        return saved
+      }
+    } catch (err) {
+      console.error(`Failed to restore agent profile ${id} version ${versionId}`, err)
+    }
+    return null
+  }, [user])
 
   const deleteProfile = useCallback(async (id: string) => {
     if (!LANGGRAPH_API_URL || !user) return
@@ -173,5 +210,7 @@ export function useAgentProfiles() {
     createProfile,
     updateProfile,
     deleteProfile,
+    fetchProfileVersions,
+    restoreProfileVersion,
   }
 }

@@ -22,6 +22,8 @@ import {
   Cpu,
   Copy,
   Settings,
+  History,
+  RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,7 +39,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -260,10 +262,13 @@ interface ManagementDashboardProps {
   selectedAgentProfileId: string | null
   setSelectedAgentProfileId: (id: string | null) => void
   createAgentProfile: (data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">) => Promise<AgentProfile | null>
-  updateAgentProfile: (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => void
+  updateAgentProfile: (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => Promise<AgentProfile | null>
   deleteAgentProfile: (id: string) => void
+  fetchAgentProfileVersions: (id: string) => Promise<AgentProfileVersion[]>
+  restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
   editAgentIdOnOpen?: string | null
   onEditAgentIdHandled?: () => void
+  createAgentOnOpenSignal?: number
   // User voiceprints
   userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
   onNavigateToUserSettings: () => void
@@ -278,8 +283,11 @@ export function ManagementDashboard({
   createAgentProfile,
   updateAgentProfile,
   deleteAgentProfile,
+  fetchAgentProfileVersions,
+  restoreAgentProfileVersion,
   editAgentIdOnOpen,
   onEditAgentIdHandled,
+  createAgentOnOpenSignal = 0,
   userVoiceprints,
   onNavigateToUserSettings,
 }: ManagementDashboardProps) {
@@ -365,6 +373,9 @@ export function ManagementDashboard({
   const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [modelsLoading, setModelsLoading] = useState(true)
+  const [agentVersions, setAgentVersions] = useState<AgentProfileVersion[]>([])
+  const [agentVersionsLoading, setAgentVersionsLoading] = useState(false)
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
@@ -438,6 +449,27 @@ export function ManagementDashboard({
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!selectedAgentId || activeTab !== "agents" || isCreatingAgent) {
+      setAgentVersions([])
+      return
+    }
+
+    let cancelled = false
+    setAgentVersionsLoading(true)
+    fetchAgentProfileVersions(selectedAgentId)
+      .then((versions) => {
+        if (!cancelled) setAgentVersions(versions)
+      })
+      .finally(() => {
+        if (!cancelled) setAgentVersionsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, selectedAgentId, isCreatingAgent, fetchAgentProfileVersions])
 
   // Sync to activeTab change from props
   useEffect(() => {
@@ -594,7 +626,7 @@ export function ManagementDashboard({
     setDeleteConfirmId(null)
   }
 
-  const handleStartCreateAgent = () => {
+  const handleStartCreateAgent = useCallback(() => {
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
     setAgentForm({
@@ -617,7 +649,12 @@ export function ManagementDashboard({
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab !== "agents" || createAgentOnOpenSignal <= 0) return
+    handleStartCreateAgent()
+  }, [activeTab, createAgentOnOpenSignal, handleStartCreateAgent])
 
   const handleStartEditAgent = (profile: AgentProfile) => {
     setSelectedAgentId(profile.id)
@@ -705,6 +742,23 @@ export function ManagementDashboard({
     deleteAgentProfile(id)
     setDeleteConfirmId(null)
     setSelectedAgentId(null)
+  }
+
+  const handleRestoreAgentVersion = async (versionId: string) => {
+    if (!selectedAgentId) return
+
+    setRestoringVersionId(versionId)
+    try {
+      const restored = await restoreAgentProfileVersion(selectedAgentId, versionId)
+      if (restored) {
+        setSelectedAgentId(restored.id)
+        setSelectedAgentProfileId(restored.id)
+        const versions = await fetchAgentProfileVersions(restored.id)
+        setAgentVersions(versions)
+      }
+    } finally {
+      setRestoringVersionId(null)
+    }
   }
 
   const handleToggleTool = (toolId: BuiltinToolId) => {
@@ -1049,6 +1103,18 @@ export function ManagementDashboard({
     const sizes = ["Bytes", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+  }
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return locale === "zh" ? "未知时间" : "Unknown time"
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)
   }
 
   // Current Selections
@@ -2325,6 +2391,74 @@ export function ManagementDashboard({
                               : (locale === "zh" ? "未启用" : "Disabled")}
                           </div>
                         </div>
+                      </div>
+
+                      <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <History className="h-4 w-4 text-primary" />
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "配置版本" : "Configuration Versions"}
+                            </h3>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">
+                            {agentVersionsLoading
+                              ? (locale === "zh" ? "加载中" : "Loading")
+                              : `${agentVersions.length} ${locale === "zh" ? "个版本" : "versions"}`}
+                          </span>
+                        </div>
+
+                        {agentVersions.length === 0 && !agentVersionsLoading ? (
+                          <p className="text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "暂无历史版本。保存角色配置后会自动记录版本。"
+                              : "No saved versions yet. Versions are recorded when this role is saved."}
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {agentVersions.map((version, index) => {
+                              const isLatest = index === 0
+                              const modelName = version.snapshot.model
+                                ? getModelDisplayName(version.snapshot.model)
+                                : (locale === "zh" ? "使用全局聊天模型" : "Global chat model")
+                              return (
+                                <div
+                                  key={version.id}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background px-3 py-2"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold">
+                                        v{version.version}
+                                      </span>
+                                      {isLatest && (
+                                        <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                          {locale === "zh" ? "当前" : "Current"}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                                      {formatDateTime(version.createdAt)} · {modelName}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isLatest || restoringVersionId === version.id}
+                                    onClick={() => handleRestoreAgentVersion(version.id)}
+                                    className="h-8 shrink-0 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    {restoringVersionId === version.id
+                                      ? (locale === "zh" ? "恢复中" : "Restoring")
+                                      : (locale === "zh" ? "恢复" : "Restore")}
+                                  </Button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden">

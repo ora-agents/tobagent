@@ -99,6 +99,7 @@ function DashboardContent() {
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
+  const [createAgentOnOpenSignal, setCreateAgentOnOpenSignal] = useState(0)
   const [chatSessionKey, setChatSessionKey] = useState(0)
   const [elderOptimized, setElderOptimized] = useState(false)
   const [userVoiceprints, setUserVoiceprints] = useState<import("@/components/layout/user-settings-page").UserVoiceprint[]>([])
@@ -113,6 +114,8 @@ function DashboardContent() {
     createProfile: createAgentProfile,
     updateProfile: updateAgentProfile,
     deleteProfile: deleteAgentProfile,
+    fetchProfileVersions: fetchAgentProfileVersions,
+    restoreProfileVersion: restoreAgentProfileVersion,
   } = useAgentProfiles()
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
@@ -459,6 +462,11 @@ function DashboardContent() {
     setCurrentView("agents")
   }
 
+  const handleOpenCreateAgent = () => {
+    setCreateAgentOnOpenSignal(prev => prev + 1)
+    setCurrentView("agents")
+  }
+
   // Keyboard shortcuts
   useKeyboardShortcuts([
     {
@@ -628,7 +636,7 @@ function DashboardContent() {
               agentProfilesLoaded={agentProfilesLoaded}
               selectedAgentProfileId={selectedAgentProfileId}
               onAgentProfileChange={setSelectedAgentProfileId}
-              onCreateAgent={() => setCurrentView("agents")}
+              onCreateAgent={handleOpenCreateAgent}
               onOpenAgentSettings={handleOpenActiveAgentSettings}
             />
             <ChatInterface
@@ -641,7 +649,7 @@ function DashboardContent() {
               onAgentConfigChange={setAgentConfig}
               agentProfile={selectedAgentProfile}
               agentProfilesLoaded={agentProfilesLoaded}
-              onCreateAgent={() => setCurrentView("agents")}
+              onCreateAgent={handleOpenCreateAgent}
               isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
               initialMessage={initialPrompt}
               autoSend={!!initialPrompt}
@@ -668,11 +676,14 @@ function DashboardContent() {
             setSelectedAgentProfileId={setSelectedAgentProfileId}
             createAgentProfile={createAgentProfile}
             updateAgentProfile={updateAgentProfile}
+            fetchAgentProfileVersions={fetchAgentProfileVersions}
+            restoreAgentProfileVersion={restoreAgentProfileVersion}
             userVoiceprints={userVoiceprints}
             onNavigateToUserSettings={() => setCurrentView("settings")}
             deleteAgentProfile={deleteAgentProfile}
             editAgentIdOnOpen={editAgentIdOnOpen}
             onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}
+            createAgentOnOpenSignal={createAgentOnOpenSignal}
           />
         ) : null}
       </div>

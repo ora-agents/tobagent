@@ -49,6 +49,14 @@ export interface AgentProfile {
   updatedAt: string
 }
 
+export interface AgentProfileVersion {
+  id: string
+  agentProfileId: string
+  version: number
+  snapshot: AgentProfile
+  createdAt: string
+}
+
 export const AGENT_PROFILES_STORAGE_KEY = "agent-profiles"
 export const SELECTED_AGENT_PROFILE_KEY = "selected-agent-profile-id"
 
