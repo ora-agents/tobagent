@@ -302,7 +302,7 @@ jobs:
           push: true
           tags: ${{ steps.images.outputs.api_tags }}
           cache-from: type=gha,scope=backend
-          cache-to: type=gha,scope=backend,mode=max
+          cache-to: type=gha,scope=backend,mode=max,ignore-error=true
 
   build-frontend:
     name: Build frontend image
@@ -385,7 +385,7 @@ jobs:
             NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG=${{ vars.NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG }}
             NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL }}
           cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
+          cache-to: type=gha,scope=frontend,mode=max,ignore-error=true
 
   build-speaker:
     name: Build speaker image
@@ -463,7 +463,7 @@ jobs:
           push: true
           tags: ${{ steps.images.outputs.speaker_tags }}
           cache-from: type=gha,scope=speaker
-          cache-to: type=gha,scope=speaker,mode=max
+          cache-to: type=gha,scope=speaker,mode=max,ignore-error=true
 
   deploy:
     name: Deploy to server
