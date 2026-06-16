@@ -517,9 +517,8 @@ function DashboardContent() {
       <div className="h-screen overflow-hidden bg-background text-foreground">
         <div className="relative mx-auto grid h-full w-full max-w-7xl grid-cols-1 lg:grid-cols-[1fr_0.9fr]">
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -left-28 top-16 h-72 w-72 rounded-full bg-[#164199]/10 blur-[96px]" />
-            <div className="absolute right-10 top-1/3 h-64 w-64 rounded-full bg-primary/10 blur-[96px]" />
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(22,65,153,0.045)_1px,transparent_1px),linear-gradient(to_bottom,rgba(204,120,92,0.03)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_70%_60%_at_35%_40%,#000_45%,transparent_100%)]" />
+            <div className="absolute inset-x-0 top-0 h-28 border-b border-primary/10 bg-primary-soft/55" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(22,65,153,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(22,65,153,0.04)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:linear-gradient(to_bottom,#000_0%,transparent_78%)]" />
           </div>
 
           <main className="relative hidden min-h-0 flex-col justify-between px-6 py-7 sm:px-10 lg:flex lg:px-14 lg:py-10">
@@ -532,10 +531,10 @@ function DashboardContent() {
             </div>
 
             <section className="max-w-2xl py-8">
-              <div className="mb-5 inline-flex rounded-full border border-border bg-[#efe9de] px-3 py-1.5 text-xs font-medium tracking-[0.12em] text-muted-foreground dark:bg-card">
+              <div className="mb-5 inline-flex rounded-full border border-primary/15 bg-primary-soft px-3 py-1.5 text-xs font-medium tracking-[0.12em] text-primary dark:bg-card">
                 {t.loginBadge}
               </div>
-              <h1 className="font-display text-[4.8rem] font-medium leading-[0.95] tracking-[-0.045em] text-foreground">
+              <h1 className="font-display text-[4.8rem] font-medium leading-[0.95] tracking-normal text-foreground">
                 {t.loginHeadline}
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground">
@@ -549,7 +548,7 @@ function DashboardContent() {
                 [t.loginMetricKnowledge, t.loginMetricKnowledgeDesc],
                 [t.loginMetricTools, t.loginMetricToolsDesc],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-border bg-[#efe9de] p-4 dark:bg-card">
+                <div key={label} className="rounded-xl border border-border bg-card p-4 shadow-depth-xs dark:bg-card">
                   <div className="font-mono text-xs text-primary">{label}</div>
                   <div className="mt-2 text-sm text-muted-foreground">{value}</div>
                 </div>
@@ -568,20 +567,20 @@ function DashboardContent() {
                 </div>
               </div>
 
-              <div className="hidden rounded-2xl bg-[#181715] p-5 text-[#faf9f5] shadow-depth-lg sm:block">
+              <div className="hidden rounded-2xl bg-[#07152f] p-5 text-[#f8fbff] shadow-depth-lg sm:block">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#164199]" />
                     <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#5db8a6]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-accent-cyan" />
                   </div>
-                  <span className="font-mono text-xs text-[#a09d96]">{t.loginConsoleTitle}</span>
+                  <span className="font-mono text-xs text-[#b8c7dc]">{t.loginConsoleTitle}</span>
                 </div>
-                <div className="rounded-xl bg-[#1f1e1b] p-4 font-mono text-xs leading-6 text-[#a09d96]">
+                <div className="rounded-xl bg-[#132c55] p-4 font-mono text-xs leading-6 text-[#b8c7dc]">
                   <div>{t.loginConsoleIdentity}</div>
                   <div>{t.loginConsoleKnowledge}</div>
                   <div>{t.loginConsoleAction}</div>
-                  <div className="mt-3 rounded-lg bg-[#252320] px-3 py-2 text-[#faf9f5]">
+                  <div className="mt-3 rounded-lg bg-[#0e2245] px-3 py-2 text-[#f8fbff]">
                     {t.loginConsoleStatus}
                   </div>
                 </div>

@@ -77,10 +77,10 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
   const cardContent = (
     <section
       aria-label={title}
-      className="relative w-full max-w-[29rem] overflow-hidden rounded-2xl border border-border bg-[#faf9f5] p-5 shadow-depth-lg sm:p-6 dark:bg-card"
+      className="relative w-full max-w-[29rem] overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-depth-lg sm:p-6 dark:bg-card"
     >
-      <div className="pointer-events-none absolute -right-20 -top-24 h-48 w-48 rounded-full bg-[#164199]/10 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-full bg-gradient-to-t from-[#efe9de]/70 to-transparent dark:from-background/40" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary" />
+      <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-full bg-gradient-to-t from-primary-soft/70 to-transparent dark:from-background/40" />
 
       <div className="relative space-y-4">
         <div className="space-y-3">
@@ -104,7 +104,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
           </div>
 
           <div className="space-y-2">
-            <h2 className="font-display text-4xl font-medium leading-[1.05] tracking-[-0.03em] text-foreground">
+            <h2 className="font-display text-4xl font-medium leading-[1.05] tracking-normal text-foreground">
               {title}
             </h2>
             <p className="max-w-sm text-sm leading-5 text-muted-foreground">
@@ -138,7 +138,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
           </button>
         </div>
 
-        <div className="rounded-xl bg-[#efe9de] p-3 dark:bg-background/50">
+        <div className="rounded-xl bg-secondary p-3 dark:bg-background/50">
           <div className="mb-2 flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-muted-foreground">
             <span className="h-2 w-2 rounded-full bg-success" />
             {t.authWorkspaceTitle}
@@ -257,7 +257,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
           <Button
             type="submit"
             disabled={loading}
-            className="h-11 w-full cursor-pointer rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-depth-xs transition-all duration-200 hover:bg-[#a9583e] hover:shadow-depth-hover active:bg-[#924b33]"
+            className="h-11 w-full cursor-pointer rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-depth-xs transition-all duration-200 hover:bg-primary-active hover:shadow-depth-hover active:bg-primary-active"
           >
             {loading ? (
               <>
@@ -279,7 +279,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
               <button
                 type="button"
                 onClick={() => setActiveTab('register')}
-                className="cursor-pointer font-medium text-primary hover:text-[#a9583e] hover:underline"
+                className="cursor-pointer font-medium text-primary hover:text-primary-active hover:underline"
               >
                 {t.createOneNow}
               </button>
@@ -290,7 +290,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
               <button
                 type="button"
                 onClick={() => setActiveTab('login')}
-                className="cursor-pointer font-medium text-primary hover:text-[#a9583e] hover:underline"
+                className="cursor-pointer font-medium text-primary hover:text-primary-active hover:underline"
               >
                 {t.signInHere}
               </button>
@@ -311,7 +311,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#141413]/45 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#07152f]/45 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={title}

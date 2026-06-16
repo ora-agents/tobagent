@@ -38,15 +38,15 @@ const scrollbarStyles = `
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(204, 120, 92, 0.4);
+    background: rgba(22, 65, 153, 0.4);
     border-radius: 3px;
     transition: background 0.2s ease;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(204, 120, 92, 0.6);
+    background: rgba(22, 65, 153, 0.6);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:active {
-    background: rgba(204, 120, 92, 0.8);
+    background: rgba(22, 65, 153, 0.8);
   }
 `
 

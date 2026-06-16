@@ -25,10 +25,10 @@ const CODE_COLORS = {
   inlineBackground: 'oklch(0.22 0 0)',
   inlineBorder: 'oklch(0.32 0 0)',
 
-  // Primary theme colors (warm coral palette)
-  primary: '#e8c9b8',      // Warm cream — properties, operators, tags
-  primaryLight: '#f0dbd0',  // Light warm — strings, attributes
-  primaryDark: '#cc9a80',  // Coral mid — keywords, built-ins
+  // Primary theme colors (WSIRI blue palette)
+  primary: '#dbeafe',      // Blue-tinted light — properties, operators, tags
+  primaryLight: '#eff6ff',  // Pale blue — strings, attributes
+  primaryDark: '#93c5fd',  // Mid blue — keywords, built-ins
 
   // Accent colors
   blue: '#60a5fa',         // Functions

@@ -4,9 +4,9 @@
  * Multi-state microphone button for voice agent mode.
  * Shows different icons/colors based on voice state:
  * - idle: gray microphone
- * - listening: coral microphone with pulse animation
- * - processing: coral microphone with loading animation
- * - speaking: coral speaker icon
+ * - listening: primary microphone with pulse animation
+ * - processing: primary microphone with loading animation
+ * - speaking: primary speaker icon
  */
 
 import { Button } from "@/components/ui/button"

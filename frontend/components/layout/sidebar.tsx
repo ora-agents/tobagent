@@ -18,7 +18,7 @@ const scrollbarStyles = `
     scrollbar-color: transparent transparent;
   }
   .custom-scrollbar:hover {
-    scrollbar-color: rgba(204, 120, 92, 0.4) transparent;
+    scrollbar-color: rgba(22, 65, 153, 0.4) transparent;
   }
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -31,10 +31,10 @@ const scrollbarStyles = `
     border-radius: 3px;
   }
   .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: rgba(204, 120, 92, 0.4);
+    background: rgba(22, 65, 153, 0.4);
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(204, 120, 92, 0.6);
+    background: rgba(22, 65, 153, 0.6);
   }
 `
 
@@ -157,7 +157,7 @@ const UserProfileSection = memo(function UserProfileSection({
         <button
           onClick={onOpenSettings}
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm hover:opacity-80 transition-all duration-200 cursor-pointer"
-          style={{ backgroundColor: user.avatarColor || '#cc785c' }}
+          style={{ backgroundColor: user.avatarColor || '#164199' }}
           title={`${user.username} (${locale === "zh" ? "设置" : "Settings"})`}
         >
           {user.username.charAt(0).toUpperCase()}
@@ -174,7 +174,7 @@ const UserProfileSection = memo(function UserProfileSection({
       >
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm flex-shrink-0"
-          style={{ backgroundColor: user.avatarColor || '#cc785c' }}
+          style={{ backgroundColor: user.avatarColor || '#164199' }}
         >
           {user.username.charAt(0).toUpperCase()}
         </div>
