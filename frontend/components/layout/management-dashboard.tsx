@@ -38,6 +38,12 @@ import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import {
+  fetchAvailableModels,
+  getDefaultModel,
+  getModelDisplayName,
+  type ModelOption,
+} from "@/lib/config/deployment-config"
+import {
   BOUNDARY_MODE_LABELS,
   PERSONA_STYLE_LABELS,
   ROLE_TEMPLATES,
@@ -316,6 +322,7 @@ export function ManagementDashboard({
     name: string
     description: string
     systemPrompt: string
+    model: string
     enabledTools: BuiltinToolId[]
     knowledgeBaseIds: string[]
     skillIds: string[]
@@ -333,6 +340,7 @@ export function ManagementDashboard({
     name: "",
     description: "",
     systemPrompt: "",
+    model: "",
     enabledTools: [],
     knowledgeBaseIds: [],
     skillIds: [],
@@ -353,6 +361,8 @@ export function ManagementDashboard({
   // Guard: prevents the selectedAgentProfileId useEffect from re-entering edit mode right after a save
   const isSavingRef = useRef(false)
   const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null)
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
@@ -408,6 +418,24 @@ export function ManagementDashboard({
 
     loadData()
   }, [authHeaders])
+
+  useEffect(() => {
+    let cancelled = false
+    setModelsLoading(true)
+    fetchAvailableModels()
+      .then((models) => {
+        if (!cancelled) setAvailableModels(models)
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableModels([])
+      })
+      .finally(() => {
+        if (!cancelled) setModelsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Sync to activeTab change from props
   useEffect(() => {
@@ -571,6 +599,7 @@ export function ManagementDashboard({
       name: "",
       description: "",
       systemPrompt: "You are a helpful assistant.",
+      model: getDefaultModel(),
       enabledTools: ["rag_search", "fetch"],
       knowledgeBaseIds: [],
       skillIds: [],
@@ -596,6 +625,7 @@ export function ManagementDashboard({
       name: profile.name,
       description: profile.description,
       systemPrompt: profile.systemPrompt,
+      model: profile.model || "",
       enabledTools: profile.enabledTools,
       knowledgeBaseIds: profile.knowledgeBaseIds || [],
       skillIds: profile.skillIds || [],
@@ -630,6 +660,7 @@ export function ManagementDashboard({
       name: agentForm.name.trim(),
       description: agentForm.description.trim(),
       systemPrompt: agentForm.systemPrompt,
+      model: agentForm.model || null,
       enabledTools: agentForm.enabledTools,
       knowledgeBaseIds: agentForm.knowledgeBaseIds,
       skillIds: agentForm.skillIds,
@@ -1781,6 +1812,34 @@ export function ManagementDashboard({
                         />
                       </div>
                       <div className="space-y-1.5">
+                        <Label>{locale === "zh" ? "模型" : "Model"}</Label>
+                        <Select
+                          value={agentForm.model || "__global__"}
+                          onValueChange={(value) => setAgentForm(prev => ({
+                            ...prev,
+                            model: value === "__global__" ? "" : value,
+                          }))}
+                          disabled={modelsLoading}
+                        >
+                          <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                            <SelectValue placeholder={modelsLoading ? (locale === "zh" ? "加载模型中..." : "Loading models...") : (locale === "zh" ? "选择模型" : "Select model")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__global__">
+                              {locale === "zh" ? "使用全局聊天模型" : "Use global chat model"}
+                            </SelectItem>
+                            {availableModels.map((modelId) => (
+                              <SelectItem key={modelId} value={modelId}>
+                                {getModelDisplayName(modelId)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="space-y-1.5">
                         <Label htmlFor="agent-desc">{locale === "zh" ? "角色描述" : "Role Description"}</Label>
                         <Input
                           id="agent-desc"
@@ -2230,6 +2289,16 @@ export function ManagementDashboard({
                             {(selectedAgent.voiceInterruptionEnabled !== false)
                               ? (locale === "zh" ? "打断已启用" : "Interruption enabled")
                               : (locale === "zh" ? "打断已关闭" : "Interruption disabled")}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "模型" : "Model"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1 truncate">
+                            {selectedAgent.model
+                              ? getModelDisplayName(selectedAgent.model)
+                              : (locale === "zh" ? "使用全局聊天模型" : "Global chat model")}
                           </div>
                         </div>
                         <div className="p-3 border border-border/60 rounded-xl bg-background/50">

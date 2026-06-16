@@ -376,7 +376,7 @@ export function useStreamHandler({
             messages: [{ role: "user", content: messageContent }],
           }
 
-      const model = (agentConfig?.model ?? getDefaultModel()) as ModelOption
+      const model = ((agentProfile?.model || agentConfig?.model || getDefaultModel()) as ModelOption)
       const recursionLimit = agentConfig?.recursionLimit ?? 100
 
       let assistantContent = ""

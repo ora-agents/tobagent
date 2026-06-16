@@ -42,6 +42,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     agent_ids = getattr(agent_row, "agent_ids", None)
     knowledge_base_ids = getattr(agent_row, "knowledge_base_ids", None)
     skill_ids = getattr(agent_row, "skill_ids", None)
+    model = getattr(agent_row, "model", None)
     persona_style = getattr(agent_row, "persona_style", None)
     boundary_mode = getattr(agent_row, "boundary_mode", None)
     role_template_id = getattr(agent_row, "role_template_id", None)
@@ -52,6 +53,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "name": agent_row.name,
         "description": agent_row.description or "No description.",
         "system_prompt": system_prompt if isinstance(system_prompt, str) else "",
+        "model": model.strip() if isinstance(model, str) and model.strip() else "",
         "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
         "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
         "knowledge_base_ids": list(knowledge_base_ids) if isinstance(knowledge_base_ids, list) else [],
@@ -184,7 +186,6 @@ def _resolve_owner_user_id(ctx: Any) -> tuple[str, dict[str, Any]]:
 def _make_subagent_tool(
     agent_data: dict,
     tool_name: str,
-    parent_model: str,
     owner_user_id: str,
     parent_state_messages: list | None = None,
 ) -> BaseTool:
@@ -193,7 +194,6 @@ def _make_subagent_tool(
     Args:
         agent_data: Plain dict extracted from the ORM row (safe after session close).
         tool_name: The tool name the LLM will use to call this subagent.
-        parent_model: Model name from the parent agent's context.
         parent_state_messages: Recent messages from the parent conversation for context.
     """
     # Capture only plain-Python values — no ORM objects.
@@ -201,6 +201,7 @@ def _make_subagent_tool(
     _name = agent_data["name"]
     _description = agent_data["description"]
     _system_prompt = agent_data["system_prompt"]
+    _model = agent_data.get("model", "")
     _enabled_tools = agent_data["enabled_tools"]
     _agent_ids = agent_data["agent_ids"]
 
@@ -240,8 +241,9 @@ def _make_subagent_tool(
             "agent_id": _id,
             "user_id": owner_user_id,
             "agent_ids": _agent_ids,
-            "model": parent_model,
         }
+        if _model:
+            sub_context["model"] = _model
 
         logger.info(
             "[DynamicConfigMiddleware] Executing subagent '%s' (id=%s) with query: %.80s...",
@@ -554,6 +556,12 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         system_prompt = profile.get("system_prompt", "") or system_prompt
                     if not _context_field_was_set(ctx, "enabled_tools"):
                         enabled_tools = profile.get("enabled_tools", [])
+                    if not _context_field_was_set(ctx, "model") and profile.get("model"):
+                        overrides["model"] = ChatOpenAI(
+                            base_url=OPENAI_COMPATIBLE_BASE_URL or None,
+                            api_key=OPENAI_COMPATIBLE_API_KEY,
+                            model=profile["model"],
+                        )
                     system_prompt += _role_behavior_instructions(profile)
 
                     # ---- Linked knowledge bases ----
@@ -614,7 +622,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                                 "Linked Subagents:\n"
                             )
 
-                            parent_model = getattr(ctx, "model", "") or ""
                             parent_messages = list(request.state.get("messages", []))
                             tools_for_agent: dict[str, BaseTool] = {}
 
@@ -630,7 +637,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                                 dynamic_tool = _make_subagent_tool(
                                     agent_data=agent_data,
                                     tool_name=tool_name,
-                                    parent_model=parent_model,
                                     owner_user_id=owner_user_id,
                                     parent_state_messages=parent_messages,
                                 )
@@ -757,7 +763,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
 
         # Model override.
         model_name = getattr(ctx, "model", None)
-        if model_name:
+        if model_name and "model" not in overrides:
             overrides["model"] = ChatOpenAI(
                 base_url=OPENAI_COMPATIBLE_BASE_URL or None,
                 api_key=OPENAI_COMPATIBLE_API_KEY,
@@ -817,7 +823,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     owner_user_id,
                 )
                 if linked_agents_data:
-                    parent_model = getattr(ctx, "model", "") or ""
                     parent_messages = list(request.state.get("messages", []))
                     tools_for_agent: dict[str, BaseTool] = {}
 
@@ -828,7 +833,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         dynamic_tool = _make_subagent_tool(
                             agent_data=agent_data,
                             tool_name=expected_name,
-                            parent_model=parent_model,
                             owner_user_id=owner_user_id,
                             parent_state_messages=parent_messages,
                         )

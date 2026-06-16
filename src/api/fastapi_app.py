@@ -265,6 +265,7 @@ class AgentProfileSchema(BaseModel):
     name: str
     description: str | None = None
     systemPrompt: str | None = None
+    model: str | None = None
     enabledTools: list[str] = []
     knowledgeBaseIds: list[str] = []
     skillIds: list[str] = []
@@ -445,6 +446,7 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         name=profile.name,
         description=profile.description,
         systemPrompt=profile.system_prompt,
+        model=profile.model,
         enabledTools=profile.enabled_tools or [],
         knowledgeBaseIds=profile.knowledge_base_ids or [],
         skillIds=profile.skill_ids or [],
@@ -1081,6 +1083,7 @@ async def create_agent_profile(
         name=profile_data.name,
         description=profile_data.description,
         system_prompt=profile_data.systemPrompt,
+        model=(profile_data.model or "").strip() or None,
         enabled_tools=profile_data.enabledTools,
         knowledge_base_ids=profile_data.knowledgeBaseIds,
         skill_ids=profile_data.skillIds,
@@ -1122,6 +1125,7 @@ async def update_agent_profile(
     profile.name = profile_data.name
     profile.description = profile_data.description
     profile.system_prompt = profile_data.systemPrompt
+    profile.model = (profile_data.model or "").strip() or None
     profile.enabled_tools = profile_data.enabledTools
     profile.knowledge_base_ids = profile_data.knowledgeBaseIds
     profile.skill_ids = profile_data.skillIds

@@ -26,6 +26,8 @@ export interface AgentProfile {
   name: string
   description: string
   systemPrompt: string
+  /** Optional model ID used when this agent runs. Empty means use the global chat model. */
+  model?: string | null
   /** Enabled built-in tool IDs. */
   enabledTools: BuiltinToolId[]
   knowledgeBaseIds?: string[]
