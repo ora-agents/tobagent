@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -64,11 +64,175 @@ jobs:
             compose:
               - 'docker-compose.yml'
 
+  release:
+    name: Create service version tags
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'master') }}
+    outputs:
+      backend_tag: ${{ steps.version.outputs.backend_tag }}
+      frontend_tag: ${{ steps.version.outputs.frontend_tag }}
+      speaker_tag: ${{ steps.version.outputs.speaker_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release tags
+        id: version
+        shell: bash
+        env:
+          BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
+          SPEAKER_CHANGED: ${{ needs.changes.outputs.speaker }}
+        run: |
+          set -euo pipefail
+
+          touches_service() {
+            local service="$1"
+            local commit="$2"
+
+            case "$service" in
+              backend)
+                git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^(src/|Dockerfile$|pyproject[.]toml$|uv[.]lock$|aegra[.]json$|langgraph[.]json$|assets/)'
+                ;;
+              frontend)
+                git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^frontend/'
+                ;;
+              speaker)
+                git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^services/speaker/'
+                ;;
+            esac
+          }
+
+          commit_bump() {
+            local commit="$1"
+            local message subject
+            message="$(git log -1 --format=%B "$commit")"
+            subject="$(git log -1 --format=%s "$commit")"
+
+            if grep -Eq '^BREAKING[ -]CHANGE:' <<<"$message" || grep -Eq '^[A-Za-z]+(\([^)]+\))?!:' <<<"$subject"; then
+              printf 'major'
+            elif grep -Eq '^feat(\([^)]+\))?:' <<<"$subject"; then
+              printf 'minor'
+            else
+              printf 'patch'
+            fi
+          }
+
+          max_bump() {
+            local current="$1"
+            local candidate="$2"
+
+            if [[ "$current" == major || "$candidate" == major ]]; then
+              printf 'major'
+            elif [[ "$current" == minor || "$candidate" == minor ]]; then
+              printf 'minor'
+            else
+              printf 'patch'
+            fi
+          }
+
+          next_version() {
+            local version="$1"
+            local bump="$2"
+            local major minor patch
+
+            IFS=. read -r major minor patch <<<"$version"
+
+            case "$bump" in
+              major)
+                major=$((major + 1))
+                minor=0
+                patch=0
+                ;;
+              minor)
+                minor=$((minor + 1))
+                patch=0
+                ;;
+              patch)
+                patch=$((patch + 1))
+                ;;
+            esac
+
+            printf '%s.%s.%s' "$major" "$minor" "$patch"
+          }
+
+          latest_service_tag() {
+            local service="$1"
+
+            git tag -l "${service}-v[0-9]*.[0-9]*.[0-9]*" --sort=-v:refname | head -n 1
+          }
+
+          create_service_tag() {
+            local service="$1"
+            local changed="$2"
+
+            if [[ "$changed" != true ]]; then
+              return
+            fi
+
+            local latest_tag base_version range bump commit candidate version tag existing
+            latest_tag="$(latest_service_tag "$service")"
+            base_version="${latest_tag#${service}-v}"
+
+            if [[ -n "$latest_tag" ]]; then
+              range="${latest_tag}..HEAD"
+            else
+              base_version="0.0.0"
+              range="HEAD"
+            fi
+
+            bump=""
+            while IFS= read -r commit; do
+              if touches_service "$service" "$commit"; then
+                candidate="$(commit_bump "$commit")"
+                if [[ -z "$bump" ]]; then
+                  bump="$candidate"
+                else
+                  bump="$(max_bump "$bump" "$candidate")"
+                fi
+              fi
+            done < <(git rev-list --reverse "$range")
+
+            if [[ -z "$bump" ]]; then
+              return
+            fi
+
+            version="$(next_version "$base_version" "$bump")"
+            tag="${service}-v${version}"
+
+            if existing="$(git rev-parse -q --verify "refs/tags/${tag}")"; then
+              if [[ "$existing" != "$(git rev-parse HEAD)" ]]; then
+                echo "Tag ${tag} already exists at ${existing}, not HEAD." >&2
+                exit 1
+              fi
+            else
+              git tag "$tag" HEAD
+              git push origin "$tag"
+            fi
+
+            echo "${service}_tag=${tag}" >> "$GITHUB_OUTPUT"
+          }
+
+          create_service_tag backend "$BACKEND_CHANGED"
+          create_service_tag frontend "$FRONTEND_CHANGED"
+          create_service_tag speaker "$SPEAKER_CHANGED"
+
   build-backend:
     name: Build backend image
     runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' || startsWith(github.ref_name, 'backend-v') }}
+    needs:
+      - changes
+      - release
+    if: ${{ always() && (needs.release.result == 'success' || needs.release.result == 'skipped') && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' || startsWith(github.ref_name, 'backend-v')) }}
     outputs:
       api_image: ${{ steps.images.outputs.api_image }}
     steps:
@@ -80,6 +244,7 @@ jobs:
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          release_tag="${{ needs.release.outputs.backend_tag }}"
           if [[ "$GITHUB_REF_NAME" == backend-v* ]]; then
             api_image="${repo}/api:${GITHUB_REF_NAME#backend-}"
             {
@@ -87,6 +252,16 @@ jobs:
               echo "api_tags<<EOF"
               echo "${api_image}"
               echo "${repo}/api:${GITHUB_SHA}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          elif [[ -n "$release_tag" ]]; then
+            api_image="${repo}/api:${release_tag#backend-}"
+            {
+              echo "api_image=${api_image}"
+              echo "api_tags<<EOF"
+              echo "${api_image}"
+              echo "${repo}/api:${GITHUB_SHA}"
+              echo "${repo}/api:main"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
@@ -132,8 +307,10 @@ jobs:
   build-frontend:
     name: Build frontend image
     runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || startsWith(github.ref_name, 'frontend-v') }}
+    needs:
+      - changes
+      - release
+    if: ${{ always() && (needs.release.result == 'success' || needs.release.result == 'skipped') && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || startsWith(github.ref_name, 'frontend-v')) }}
     outputs:
       frontend_image: ${{ steps.images.outputs.frontend_image }}
     steps:
@@ -145,6 +322,7 @@ jobs:
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          release_tag="${{ needs.release.outputs.frontend_tag }}"
           if [[ "$GITHUB_REF_NAME" == frontend-v* ]]; then
             frontend_image="${repo}/frontend:${GITHUB_REF_NAME#frontend-}"
             {
@@ -152,6 +330,16 @@ jobs:
               echo "frontend_tags<<EOF"
               echo "${frontend_image}"
               echo "${repo}/frontend:${GITHUB_SHA}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          elif [[ -n "$release_tag" ]]; then
+            frontend_image="${repo}/frontend:${release_tag#frontend-}"
+            {
+              echo "frontend_image=${frontend_image}"
+              echo "frontend_tags<<EOF"
+              echo "${frontend_image}"
+              echo "${repo}/frontend:${GITHUB_SHA}"
+              echo "${repo}/frontend:main"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
@@ -202,8 +390,10 @@ jobs:
   build-speaker:
     name: Build speaker image
     runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.speaker == 'true' || startsWith(github.ref_name, 'speaker-v') }}
+    needs:
+      - changes
+      - release
+    if: ${{ always() && (needs.release.result == 'success' || needs.release.result == 'skipped') && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.speaker == 'true' || startsWith(github.ref_name, 'speaker-v')) }}
     outputs:
       speaker_image: ${{ steps.images.outputs.speaker_image }}
     steps:
@@ -215,6 +405,7 @@ jobs:
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          release_tag="${{ needs.release.outputs.speaker_tag }}"
           if [[ "$GITHUB_REF_NAME" == speaker-v* ]]; then
             speaker_image="${repo}/speaker:${GITHUB_REF_NAME#speaker-}"
             {
@@ -222,6 +413,16 @@ jobs:
               echo "speaker_tags<<EOF"
               echo "${speaker_image}"
               echo "${repo}/speaker:${GITHUB_SHA}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          elif [[ -n "$release_tag" ]]; then
+            speaker_image="${repo}/speaker:${release_tag#speaker-}"
+            {
+              echo "speaker_image=${speaker_image}"
+              echo "speaker_tags<<EOF"
+              echo "${speaker_image}"
+              echo "${repo}/speaker:${GITHUB_SHA}"
+              echo "${repo}/speaker:main"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
@@ -269,6 +470,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - changes
+      - release
       - build-backend
       - build-frontend
       - build-speaker

@@ -6,24 +6,41 @@ number.
 
 ## Version Sources
 
-- Backend package version: `pyproject.toml`
-- Frontend package version: `frontend/package.json`
-- Speaker service version: release tag only
+- Backend service version: `backend-vX.Y.Z` tags
+- Frontend service version: `frontend-vX.Y.Z` tags
+- Speaker service version: `speaker-vX.Y.Z` tags
+- Backend package metadata: `pyproject.toml`
+- Frontend package metadata: `frontend/package.json`
 - Frontend saved-config version: `CONFIG_STORAGE.version` in
   `frontend/lib/config/deployment-config.ts`
 
 `CONFIG_STORAGE.version` is only used to reset saved browser config. Bump it
 only when old localStorage data should be discarded.
 
+## Conventional Commits
+
+Pushes to `main` or `master` create service-scoped release tags automatically
+when service files changed. The workflow checks the commits since the latest
+tag for each changed service and applies this SemVer mapping:
+
+- `fix(scope): ...` and other non-feature service changes bump `PATCH`.
+- `feat(scope): ...` bumps `MINOR`.
+- `type(scope)!: ...` or a `BREAKING CHANGE:` footer bumps `MAJOR`.
+
+The workflow filters commits by the files they changed, not only by scope. A
+`feat(backend): ...` commit does not bump frontend unless it also changed
+`frontend/**`.
+
 ## Service Tags
 
-Use service-scoped Git tags for releases:
+The workflow uses service-scoped Git tags for releases:
 
 - `backend-vX.Y.Z`
 - `frontend-vX.Y.Z`
 - `speaker-vX.Y.Z`
 
-Examples:
+Normal branch pushes create these tags automatically. Manual service tags are
+still supported:
 
 ```bash
 git tag frontend-v0.1.1
@@ -48,25 +65,32 @@ Pushes to `main` or `master` still use path-based builds:
 - Speaker changes under `services/speaker/**` build only the speaker image.
 - `docker-compose.yml` changes redeploy using the currently running images.
 
-Branch deploy images are tagged with the commit SHA and `main`.
+Branch deploy images are tagged with the commit SHA and `main`. If the push
+created a service release tag, the corresponding image is also tagged with that
+service version.
 
 ## Bump Checklist
 
 For a frontend bug fix:
 
 ```bash
-vim frontend/package.json
-git add frontend/package.json
+git add frontend
 git commit -m "fix(frontend): ..."
-git tag frontend-v0.1.1
-git push origin main frontend-v0.1.1
+git push origin main
 ```
 
-For a backend bug fix:
+For a backend feature:
 
-1. Update `version` in `pyproject.toml`.
-2. Commit the backend change and version bump together.
-3. Tag the commit as `backend-vX.Y.Z`.
-4. Push `main` and the tag.
+```bash
+git add src pyproject.toml uv.lock
+git commit -m "feat(backend): ..."
+git push origin main
+```
 
-For speaker changes, tag the release as `speaker-vX.Y.Z`.
+For a breaking speaker change:
+
+```bash
+git add services/speaker
+git commit -m "feat(speaker)!: ..."
+git push origin main
+```
