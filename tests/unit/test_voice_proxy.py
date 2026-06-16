@@ -283,6 +283,7 @@ async def test_asr_segments_report_speaker_service_failures_as_rejections():
 
     segment = SimpleNamespace(
         wav_bytes=b"wav",
+        duration_seconds=voice_proxy.SPEAKER_VERIFY_MIN_SECONDS,
         samples=voice_proxy.np.zeros(
             int(voice_proxy.SPEAKER_VERIFY_MIN_SECONDS * voice_proxy.VAD_SAMPLE_RATE),
             dtype=voice_proxy.np.float32,
