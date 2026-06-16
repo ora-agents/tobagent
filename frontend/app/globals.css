@@ -4,24 +4,25 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   Light theme (default) — WSIRI logo-blue workspace
+   Light theme (default) — white-first WSIRI workspace
    ============================================================ */
 :root {
   /* WSIRI brand palette sampled from frontend/public/logo.png */
   --brand-blue: #164199;
   --brand-blue-active: #10357f;
   --brand-blue-soft: #eaf1ff;
-  --brand-blue-mist: #f2f6ff;
+  --brand-blue-mist: #f5f8ff;
   --accent-cyan: #18a8b8;
   --accent-amber: #d99a24;
 
   /* Backward-compatible aliases for older component names */
   --coral: var(--brand-blue);
   --coral-active: var(--brand-blue-active);
-  --coral-disabled: #d7e0ee;
+  --coral-disabled: #e3e7ee;
 
   /* Light surfaces */
-  --background: #f6f8fc;           /* canvas */
+  --background: #ffffff;           /* canvas */
+  --background-tint: #f7f9fe;      /* canvas-tint */
   --foreground: #111827;           /* ink */
   --card: #ffffff;                 /* surface-panel */
   --card-foreground: #111827;
@@ -31,15 +32,15 @@
   --primary-foreground: #ffffff;
   --primary-active: var(--brand-blue-active);
   --primary-soft: var(--brand-blue-soft);
-  --secondary: #edf2fa;            /* surface-soft */
+  --secondary: #f5f7fb;            /* surface-soft */
   --secondary-foreground: #111827;
-  --muted: #edf2fa;
+  --muted: #f5f7fb;
   --muted-foreground: #64748b;     /* muted */
   --accent: var(--brand-blue);
   --accent-foreground: #ffffff;
   --destructive: #c2413d;
   --destructive-foreground: #ffffff;
-  --border: #d7e0ee;               /* hairline */
+  --border: #e3e7ee;               /* hairline */
   --input: #ffffff;
   --ring: var(--brand-blue);
   --success: #1f9d63;
@@ -47,41 +48,46 @@
   --error: #c2413d;
   --radius: 0.5rem;
 
-  /* Sidebar — blue-tinted operational surface */
-  --sidebar: #edf2fa;              /* surface-soft */
+  /* Sidebar — neutral operational surface with only light tint */
+  --sidebar: #ffffff;
+  --sidebar-light: #f8fafc;
+  --sidebar-lighter: #f5f7fb;
   --sidebar-foreground: #111827;
   --sidebar-primary: var(--brand-blue);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e7edf7;       /* surface-raised */
+  --sidebar-accent: #eef2f7;       /* surface-raised */
   --sidebar-accent-foreground: #111827;
-  --sidebar-border: #d7e0ee;
+  --sidebar-border: #e3e7ee;
   --sidebar-ring: var(--brand-blue);
 }
 
 /* ============================================================
-   Dark theme — deep WSIRI product surface
+   Dark theme — black WSIRI product surface
    ============================================================ */
 .dark {
-  --background: #07152f;           /* surface-dark */
-  --foreground: #f8fbff;           /* on-dark */
-  --card: #0e2245;                 /* surface-dark-elevated */
-  --card-foreground: #f8fbff;
-  --popover: #0e2245;
-  --popover-foreground: #f8fbff;
-  --secondary: #132c55;
-  --secondary-foreground: #f8fbff;
-  --muted: #132c55;
-  --muted-foreground: #b8c7dc;     /* on-dark-soft */
-  --destructive-foreground: #f8fbff;
-  --border: #29466f;
-  --input: #0e2245;
+  --background: #181715;           /* surface-dark */
+  --background-tint: #1f1e1b;
+  --foreground: #faf9f5;           /* on-dark */
+  --card: #252320;                 /* surface-dark-elevated */
+  --card-foreground: #faf9f5;
+  --popover: #252320;
+  --popover-foreground: #faf9f5;
+  --secondary: #1f1e1b;
+  --secondary-foreground: #faf9f5;
+  --muted: #1f1e1b;
+  --muted-foreground: #a09d96;     /* on-dark-soft */
+  --destructive-foreground: #faf9f5;
+  --border: #37342f;
+  --input: #252320;
 
-  /* Sidebar — slightly deeper than main dark surface */
-  --sidebar: #061126;
-  --sidebar-foreground: #f8fbff;
-  --sidebar-accent: #132c55;
-  --sidebar-accent-foreground: #f8fbff;
-  --sidebar-border: #29466f;
+  /* Sidebar — black/charcoal, not navy */
+  --sidebar: #181715;
+  --sidebar-light: #1f1e1b;
+  --sidebar-lighter: #252320;
+  --sidebar-foreground: #faf9f5;
+  --sidebar-accent: #252320;
+  --sidebar-accent-foreground: #faf9f5;
+  --sidebar-border: #37342f;
 }
 
 @theme inline {
@@ -89,6 +95,7 @@
   --font-display: var(--font-cormorant);
   --font-mono: var(--font-inconsolata);
   --color-background: var(--background);
+  --color-background-tint: var(--background-tint);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -117,6 +124,8 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-light: var(--sidebar-light);
+  --color-sidebar-lighter: var(--sidebar-lighter);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -130,11 +139,11 @@
   --color-accent-amber: var(--accent-amber);
 
   /* Elevation Shadows matching docs/design.md subtle style */
-  --shadow-depth-xs: 0 1px 2px rgba(15, 35, 70, 0.04);
-  --shadow-depth-sm: 0 2px 6px rgba(15, 35, 70, 0.06);
-  --shadow-depth-md: 0 6px 16px rgba(15, 35, 70, 0.08);
-  --shadow-depth-lg: 0 16px 48px rgba(15, 35, 70, 0.12);
-  --shadow-depth-hover: 0 8px 24px rgba(15, 35, 70, 0.1);
+  --shadow-depth-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-depth-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --shadow-depth-md: 0 6px 16px rgba(15, 23, 42, 0.08);
+  --shadow-depth-lg: 0 16px 48px rgba(15, 23, 42, 0.12);
+  --shadow-depth-hover: 0 8px 24px rgba(15, 23, 42, 0.1);
 }
 
 @layer base {
@@ -177,7 +186,7 @@
   inset: 0;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 58%),
-    linear-gradient(90deg, rgba(15, 35, 70, 0.035), transparent 30%, rgba(22, 65, 153, 0.05) 66%, transparent);
+    linear-gradient(90deg, rgba(15, 23, 42, 0.035), transparent 30%, rgba(22, 65, 153, 0.05) 66%, transparent);
 }
 
 .dark .loading-placeholder::before {
@@ -320,7 +329,7 @@
 }
 
 .dark .prose p {
-  color: #c7d4e6;
+  color: #d6d3cc;
 }
 
 .prose code {
@@ -334,9 +343,9 @@
 }
 
 .dark .prose code {
-  background: #132c55;
-  color: #dbeafe;
-  border-color: #29466f;
+  background: #1f1e1b;
+  color: #faf9f5;
+  border-color: #37342f;
 }
 
 .prose pre {
@@ -360,7 +369,7 @@
 }
 
 .dark .prose pre code {
-  color: #e6eef9;
+  color: #faf9f5;
 }
 
 .prose a {
@@ -384,7 +393,7 @@
 
 .dark .prose ul,
 .dark .prose ol {
-  color: #c7d4e6;
+  color: #d6d3cc;
 }
 
 .prose li {
@@ -411,13 +420,13 @@
   margin: 1em 0;
   font-style: italic;
   color: #64748b;
-  background: #edf2fa;
+  background: #f5f7fb;
   border-radius: 0 0.375em 0.375em 0;
 }
 
 .dark .prose blockquote {
-  color: #b8c7dc;
-  background: #132c55;
+  color: #a09d96;
+  background: #1f1e1b;
 }
 
 .prose strong {
@@ -426,7 +435,7 @@
 }
 
 .dark .prose strong {
-  color: #f8fbff;
+  color: #faf9f5;
 }
 
 .prose em {
@@ -435,7 +444,7 @@
 }
 
 .dark .prose em {
-  color: #c7d4e6;
+  color: #d6d3cc;
 }
 
 .prose hr {
@@ -452,7 +461,7 @@
 }
 
 .prose th {
-  background: #edf2fa;
+  background: #f5f7fb;
   padding: 0.75em 1em;
   text-align: left;
   font-weight: 600;
@@ -461,8 +470,8 @@
 }
 
 .dark .prose th {
-  background: #0e2245;
-  color: #f8fbff;
+  background: #252320;
+  color: #faf9f5;
 }
 
 .prose td {
@@ -472,15 +481,15 @@
 }
 
 .dark .prose td {
-  color: #c7d4e6;
+  color: #d6d3cc;
 }
 
 .prose tr:nth-child(even) {
-  background: #edf2fa;
+  background: #f5f7fb;
 }
 
 .dark .prose tr:nth-child(even) {
-  background: #132c55;
+  background: #1f1e1b;
 }
 
 /* ============================================================

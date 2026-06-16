@@ -29,7 +29,7 @@ interface ManualSection {
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="overflow-x-auto rounded-lg border border-border/50 bg-[#07152f] p-4 text-xs leading-6 text-[#f8fbff] shadow-depth-xs">
+    <pre className="overflow-x-auto rounded-lg border border-border/50 bg-[#181715] p-4 text-xs leading-6 text-[#faf9f5] shadow-depth-xs">
       <code>{children}</code>
     </pre>
   )

@@ -517,8 +517,8 @@ function DashboardContent() {
       <div className="h-screen overflow-hidden bg-background text-foreground">
         <div className="relative mx-auto grid h-full w-full max-w-7xl grid-cols-1 lg:grid-cols-[1fr_0.9fr]">
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute inset-x-0 top-0 h-28 border-b border-primary/10 bg-primary-soft/55" />
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(22,65,153,0.055)_1px,transparent_1px),linear-gradient(to_bottom,rgba(22,65,153,0.04)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:linear-gradient(to_bottom,#000_0%,transparent_78%)]" />
+            <div className="absolute inset-x-0 top-0 h-28 border-b border-border/80 bg-background-tint" />
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.028)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:linear-gradient(to_bottom,#000_0%,transparent_78%)]" />
           </div>
 
           <main className="relative hidden min-h-0 flex-col justify-between px-6 py-7 sm:px-10 lg:flex lg:px-14 lg:py-10">
@@ -567,20 +567,20 @@ function DashboardContent() {
                 </div>
               </div>
 
-              <div className="hidden rounded-2xl bg-[#07152f] p-5 text-[#f8fbff] shadow-depth-lg sm:block">
+              <div className="hidden rounded-2xl bg-[#181715] p-5 text-[#faf9f5] shadow-depth-lg sm:block">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-primary" />
                     <span className="h-2.5 w-2.5 rounded-full bg-primary" />
                     <span className="h-2.5 w-2.5 rounded-full bg-accent-cyan" />
                   </div>
-                  <span className="font-mono text-xs text-[#b8c7dc]">{t.loginConsoleTitle}</span>
+                  <span className="font-mono text-xs text-[#a09d96]">{t.loginConsoleTitle}</span>
                 </div>
-                <div className="rounded-xl bg-[#132c55] p-4 font-mono text-xs leading-6 text-[#b8c7dc]">
+                <div className="rounded-xl bg-[#1f1e1b] p-4 font-mono text-xs leading-6 text-[#a09d96]">
                   <div>{t.loginConsoleIdentity}</div>
                   <div>{t.loginConsoleKnowledge}</div>
                   <div>{t.loginConsoleAction}</div>
-                  <div className="mt-3 rounded-lg bg-[#0e2245] px-3 py-2 text-[#f8fbff]">
+                  <div className="mt-3 rounded-lg bg-[#252320] px-3 py-2 text-[#faf9f5]">
                     {t.loginConsoleStatus}
                   </div>
                 </div>

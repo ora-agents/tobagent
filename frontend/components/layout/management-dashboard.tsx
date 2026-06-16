@@ -1575,7 +1575,7 @@ export function ManagementDashboard({
                           </span>
                         )}
                         {profile.knowledgeBaseIds && profile.knowledgeBaseIds.length > 0 && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/15 flex items-center gap-0.5">
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-primary/10 text-primary border border-primary/15 flex items-center gap-0.5">
                             <BookOpen className="w-2.5 h-2.5" />
                             {profile.knowledgeBaseIds.length} {locale === "zh" ? "知识库" : "KBs"}
                           </span>
@@ -2378,15 +2378,15 @@ export function ManagementDashboard({
                         {selectedAgent.knowledgeBaseIds && selectedAgent.knowledgeBaseIds.length > 0 && (
                           <div className="space-y-2">
                             <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                              <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+                              <BookOpen className="w-3.5 h-3.5 text-primary" />
                               {locale === "zh" ? "已关联的知识库" : "Linked Knowledge Bases"}
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               {knowledgeBases
                                 .filter(kb => selectedAgent.knowledgeBaseIds?.includes(kb.id))
                                 .map(kb => (
-                                  <div key={kb.id} className="p-2.5 border border-blue-500/20 bg-blue-500/5 rounded-xl flex items-center gap-2.5">
-                                    <BookOpen className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                                  <div key={kb.id} className="p-2.5 border border-primary/20 bg-primary/5 rounded-xl flex items-center gap-2.5">
+                                    <BookOpen className="w-4 h-4 text-primary flex-shrink-0" />
                                     <div className="min-w-0">
                                       <div className="text-xs font-semibold text-foreground truncate">{kb.name}</div>
                                       <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} {t.filesLabel}</div>
@@ -2530,7 +2530,7 @@ export function ManagementDashboard({
                         <div className="font-semibold text-sm truncate flex items-center gap-2">
                           <span className="truncate">{kb.name}</span>
                           {kb.isSystem && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-blue-500/10 text-blue-500 border border-blue-500/15 flex-shrink-0">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-primary/10 text-primary border border-primary/15 flex-shrink-0">
                               {locale === "zh" ? "系统" : "System"}
                             </span>
                           )}

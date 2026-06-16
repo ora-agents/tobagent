@@ -311,7 +311,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#07152f]/45 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#181715]/45 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={title}
