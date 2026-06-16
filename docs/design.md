@@ -1,22 +1,24 @@
 ## Overview
 
-The interface is branded around the blue mark in `frontend/public/logo.png`: a saturated WSIRI blue paired with clean white panels, blue-tinted work surfaces, and a small amount of amber/cyan support color. The product should feel like a precise documentation and operations workspace: calm, technical, readable, and clearly owned by the WSIRI brand.
+The interface is branded around the blue mark in `frontend/public/logo.png`, but the product should not read as an all-blue UI. WSIRI Blue is the brand and action color; the main workspace is a clean white operational surface with quiet neutral dividers and only a light blue hint where hierarchy needs it. The product should feel like a precise documentation and operations workspace: calm, technical, readable, and clearly owned by the WSIRI brand without becoming visually heavy.
 
-The core atmosphere is a **cool porcelain canvas** (`{colors.canvas}` - #f6f8fc) rather than cream or pure white. Primary actions, focus states, active navigation, links, and brand highlights use **WSIRI Blue** (`{colors.primary}` - #164199), sampled from the logo. The system uses dark ink text, blue-gray secondary text, and restrained borders so dense chat, settings, and management screens remain easy to scan.
+The light theme atmosphere is a **white-first canvas** (`{colors.canvas}` - #ffffff) with a very pale blue page wash available only for large background zones (`{colors.canvas-tint}` - #f7f9fe). Primary actions, focus states, active navigation, links, and brand highlights use **WSIRI Blue** (`{colors.primary}` - #164199), sampled from the logo. The system uses dark ink text, neutral slate secondary text, and restrained borders so dense chat, settings, and management screens remain easy to scan.
+
+The dark theme follows the earlier black product direction from git history instead of turning into a blue night mode. Dark screens use warm-black surfaces (`{colors.surface-dark}` - #181715) with charcoal elevated layers and blue reserved for actions, links, focus, and selected states.
 
 The surface model has four layers:
 
-1. **Canvas** (`{colors.canvas}`) - page floor and full-screen app background
+1. **Canvas** (`{colors.canvas}`) - primary page floor and full-screen app background
 2. **Panel** (`{colors.surface-panel}`) - primary cards, dialogs, forms, and chat input areas
-3. **Soft Blue Surface** (`{colors.surface-soft}`) - sidebars, segmented controls, secondary panels, and empty states
-4. **Deep Blue Product Surface** (`{colors.surface-dark}`) - console previews, code blocks, footer-like product chrome, and high-contrast overlays
+3. **Tinted Surface** (`{colors.surface-soft}`) - sidebars, segmented controls, secondary panels, and empty states
+4. **Black Product Surface** (`{colors.surface-dark}`) - dark mode canvas, console previews, code blocks, footer-like product chrome, and high-contrast overlays
 
 **Key Characteristics:**
 - Logo-derived WSIRI Blue (`{colors.primary}` - #164199) anchors every important action and active state.
-- Cool neutral canvas (`{colors.canvas}` - #f6f8fc) keeps the workspace bright without defaulting to raw white.
+- White canvas (`{colors.canvas}` - #ffffff) keeps the workspace crisp, with `{colors.canvas-tint}` used only when the page needs a gentle blue cast.
 - White panels (`{colors.surface-panel}` - #ffffff) carry form, chat, card, and dialog content.
-- Blue-tinted support surfaces (`{colors.surface-soft}` - #edf2fa, `{colors.surface-raised}` - #e7edf7) add structure without heavy shadows.
-- Deep navy surfaces (`{colors.surface-dark}` - #07152f) are reserved for console/code/product preview moments.
+- Neutral and lightly tinted support surfaces (`{colors.surface-soft}` - #f5f7fb, `{colors.surface-raised}` - #eef2f7) add structure without making the whole interface blue.
+- Black product surfaces (`{colors.surface-dark}` - #181715) are reserved for dark mode, console/code/product preview moments, and high-contrast chrome.
 - Amber and cyan are secondary accents only, used for status dots, warning badges, metadata chips, and small chart-like details.
 - Border radius stays practical: 8px for controls, 12px for panels, 16px for large auth/dialog surfaces.
 
@@ -26,22 +28,23 @@ The surface model has four layers:
 
 - **WSIRI Blue / Primary** (`{colors.primary}` - #164199): The logo blue. Used for primary buttons, active nav, links, focus rings, selected states, and key icon accents.
 - **Primary Hover** (`{colors.primary-hover}` - #10357f): Darker blue for hover/press states.
-- **Primary Soft** (`{colors.primary-soft}` - #eaf1ff): Low-emphasis blue fill for active rows, subtle callouts, and selected backgrounds.
-- **Primary Mist** (`{colors.primary-mist}` - #f2f6ff): Very light blue wash for large quiet surfaces.
+- **Primary Soft** (`{colors.primary-soft}` - #eaf1ff): Low-emphasis blue fill for selected rows, subtle callouts, and active backgrounds. Use in small areas only.
+- **Primary Mist** (`{colors.primary-mist}` - #f5f8ff): Very light blue wash for rare, large quiet surfaces. Prefer white when in doubt.
 - **Accent Cyan** (`{colors.accent-cyan}` - #18a8b8): Used sparingly for connection/streaming/online indicators and secondary console dots.
 - **Accent Amber** (`{colors.accent-amber}` - #d99a24): Used for warning-adjacent metadata, knowledge/tool badges, and small attention markers.
 
 ### Surface
 
-- **Canvas** (`{colors.canvas}` - #f6f8fc): Default app floor.
+- **Canvas** (`{colors.canvas}` - #ffffff): Default app floor.
+- **Canvas Tint** (`{colors.canvas-tint}` - #f7f9fe): Optional page wash for login, empty states, and full-screen backgrounds that need softness.
 - **Surface Panel** (`{colors.surface-panel}` - #ffffff): Cards, dialogs, forms, chat input, dropdowns.
-- **Surface Soft** (`{colors.surface-soft}` - #edf2fa): Sidebar floor, segmented controls, soft bands.
-- **Surface Raised** (`{colors.surface-raised}` - #e7edf7): Slightly stronger blue-gray panel fill for nested surfaces.
-- **Surface Dark** (`{colors.surface-dark}` - #07152f): Console previews, dark code windows, high-contrast chrome.
-- **Surface Dark Elevated** (`{colors.surface-dark-elevated}` - #0e2245): Cards and rows inside dark product surfaces.
-- **Surface Dark Soft** (`{colors.surface-dark-soft}` - #132c55): Inner code/terminal blocks.
-- **Hairline** (`{colors.hairline}` - #d7e0ee): Default 1px borders.
-- **Hairline Strong** (`{colors.hairline-strong}` - #bfccdd): Emphasized dividers and active outlines.
+- **Surface Soft** (`{colors.surface-soft}` - #f5f7fb): Sidebar floor, segmented controls, soft bands.
+- **Surface Raised** (`{colors.surface-raised}` - #eef2f7): Slightly stronger neutral panel fill for nested surfaces.
+- **Surface Dark** (`{colors.surface-dark}` - #181715): Dark mode canvas, console previews, dark code windows, high-contrast chrome.
+- **Surface Dark Elevated** (`{colors.surface-dark-elevated}` - #252320): Cards and rows inside dark product surfaces.
+- **Surface Dark Soft** (`{colors.surface-dark-soft}` - #1f1e1b): Inner code/terminal blocks.
+- **Hairline** (`{colors.hairline}` - #e3e7ee): Default 1px borders.
+- **Hairline Strong** (`{colors.hairline-strong}` - #cbd5e1): Emphasized dividers and active outlines.
 
 ### Text
 
@@ -51,8 +54,8 @@ The surface model has four layers:
 - **Muted** (`{colors.muted}` - #64748b): Secondary labels, hints, timestamps, metadata.
 - **Muted Soft** (`{colors.muted-soft}` - #94a3b8): Captions and disabled-adjacent text.
 - **On Primary** (`{colors.on-primary}` - #ffffff): Text/icons on primary blue.
-- **On Dark** (`{colors.on-dark}` - #f8fbff): Main text on deep blue surfaces.
-- **On Dark Soft** (`{colors.on-dark-soft}` - #b8c7dc): Secondary text on deep blue surfaces.
+- **On Dark** (`{colors.on-dark}` - #faf9f5): Main text on black product surfaces.
+- **On Dark Soft** (`{colors.on-dark-soft}` - #a09d96): Secondary text on black product surfaces.
 
 ### Semantic
 
@@ -93,9 +96,9 @@ Display text must not use negative tracking. This is an operational UI, not an e
 |---|---|---|
 | Flat | No shadow | App shell, sidebars, large content floors |
 | Hairline | 1px `{colors.hairline}` | Inputs, rows, panels, toolbars |
-| Soft panel | White or blue-tinted fill with hairline | Cards, auth panel, settings panels |
-| Dark product | Deep blue fill, internal elevated rows | Console previews and code windows |
-| Shadow | `0 8px 24px rgba(15, 35, 70, 0.10)` or lighter | Dialogs, popovers, floating controls |
+| Soft panel | White or lightly tinted fill with hairline | Cards, auth panel, settings panels |
+| Dark product | Warm-black fill, internal charcoal rows | Dark mode, console previews, and code windows |
+| Shadow | `0 8px 24px rgba(15, 23, 42, 0.10)` or lighter | Dialogs, popovers, floating controls |
 
 Depth should come from surface contrast and borders first. Shadows are for floating UI only.
 
@@ -115,17 +118,25 @@ Depth should come from surface contrast and borders first. Shadows are for float
 ### Buttons
 
 - **Primary:** `{colors.primary}` background, `{colors.on-primary}` text, 8px radius, clear hover to `{colors.primary-hover}`.
-- **Secondary:** White or canvas background, `{colors.hairline}` border, ink text, subtle blue hover fill.
-- **Ghost/Icon:** Transparent by default, blue-tinted hover, primary text only when active.
+- **Secondary:** White or canvas background, `{colors.hairline}` border, ink text, neutral hover fill. Use a blue hover fill only when the control is part of an active selection group.
+- **Ghost/Icon:** Transparent by default, neutral hover, primary text only when active.
 - **Destructive:** Error color for text/fill, never reuse primary blue for destructive actions.
 
 ### Panels & Cards
 
 - **App panels:** White background, hairline border, 12px radius.
-- **Sidebar:** `{colors.surface-soft}` background with selected rows in `{colors.primary-soft}`.
+- **Sidebar:** White or `{colors.surface-soft}` background with selected rows in `{colors.primary-soft}`. Avoid large saturated blue sidebar fields.
 - **Chat input:** White panel with hairline border and blue focus ring.
 - **Console preview:** `{colors.surface-dark}` with `{colors.surface-dark-soft}` inner rows, blue/cyan/amber status dots.
-- **Auth panel:** White panel on porcelain canvas with soft blue lower wash and primary-blue action buttons.
+- **Auth panel:** White panel on white or `{colors.canvas-tint}` canvas with primary-blue action buttons.
+
+### Dark Mode
+
+- Use `{colors.surface-dark}` as the app floor, not a navy replacement for every surface.
+- Elevated dark panels use `{colors.surface-dark-elevated}` with `{colors.surface-dark-soft}` for nested rows, inputs, code, and terminal blocks.
+- Text uses `{colors.on-dark}` and `{colors.on-dark-soft}`. Avoid blue-gray text on dark mode unless the element is an active or linked state.
+- Primary actions, focus rings, selected navigation, and links still use WSIRI Blue. Keep inactive dark chrome black/charcoal.
+- Borders in dark mode should be low-contrast charcoal lines, not blue outlines, except for focused or selected controls.
 
 ### Inputs & Forms
 
@@ -146,8 +157,9 @@ Depth should come from surface contrast and borders first. Shadows are for float
 ### Do
 
 - Use `frontend/public/logo.png` as the color anchor; primary blue should match the mark.
-- Keep app surfaces neutral, bright, and blue-tinted.
+- Keep app surfaces neutral and bright; use white first, then light neutral fills, then pale blue only for selected or branded states.
 - Use blue for active state, focus state, and primary action consistently.
+- Keep dark mode anchored in black/charcoal surfaces, matching the earlier dark design direction from git history.
 - Use amber/cyan only as supporting status colors.
 - Keep dashboard and chat layouts dense, aligned, and easy to scan.
 - Prefer token classes (`bg-primary`, `bg-card`, `text-muted-foreground`, `border-border`) over hard-coded hex values.
@@ -155,7 +167,8 @@ Depth should come from surface contrast and borders first. Shadows are for float
 ### Don't
 
 - Don't reintroduce the old cream/coral Anthropic palette.
-- Don't make the UI a single blue wash; white panels and gray-blue text are required for hierarchy.
+- Don't make the UI a single blue wash; white surfaces, neutral borders, and slate text are required for hierarchy.
+- Don't turn dark mode into deep navy. Use blue only for interaction states and brand moments on top of black/charcoal surfaces.
 - Don't use decorative color blobs as the primary background treatment.
 - Don't use negative letter spacing in compact UI.
 - Don't rely on shadows for every card; use borders and surface contrast first.
@@ -165,3 +178,5 @@ Depth should come from surface contrast and borders first. Shadows are for float
 - CSS tokens live in `frontend/app/globals.css`.
 - The Tailwind token classes map to CSS variables through `@theme inline`.
 - Existing `--coral` aliases may remain only for backward compatibility; they should point to WSIRI Blue.
+- When implementing light theme screens, prefer `{colors.canvas}` and `{colors.surface-panel}` before reaching for `{colors.canvas-tint}` or `{colors.primary-mist}`.
+- When implementing dark theme screens, map the dark background tokens to the black family (`#181715`, `#252320`, `#1f1e1b`) rather than the previous deep-blue family.
