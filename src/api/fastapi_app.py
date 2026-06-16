@@ -459,7 +459,7 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         ttsVoice=profile.tts_voice,
         voiceInterruptionEnabled=profile.voice_interruption_enabled is not False,
         speakerVerificationEnabled=bool(profile.speaker_verification_enabled),
-        speakerVerificationBound=bool(profile.speaker_embedding) or bool(profile.user_voiceprint_id),
+        speakerVerificationBound=bool(profile.user_voiceprint_id),
         speakerSampleText=profile.speaker_sample_text,
         speakerEnrolledAt=profile.speaker_enrolled_at,
         userVoiceprintId=profile.user_voiceprint_id,
@@ -589,6 +589,14 @@ def _validate_agent_profile_links(
     _require_accessible_knowledge_base_ids(db, profile_data.knowledgeBaseIds, owner_user_id)
     _require_owned_ids(db, SkillTable, profile_data.skillIds, owner_user_id, "skillIds")
     _require_owned_ids(db, McpServerTable, profile_data.mcpIds, owner_user_id, "mcpIds")
+    if profile_data.userVoiceprintId:
+        _require_owned_ids(
+            db,
+            UserVoiceprintTable,
+            [profile_data.userVoiceprintId],
+            owner_user_id,
+            "userVoiceprintId",
+        )
 
     agent_ids = list(profile_data.agentIds or [])
     if current_profile_id:

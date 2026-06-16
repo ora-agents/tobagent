@@ -142,9 +142,8 @@ class AgentProfileTable(Base):
     boundary_mode = Column(String(50), nullable=True)
     tts_voice = Column(String(100), nullable=True)
     voice_interruption_enabled = Column(Boolean, nullable=False, default=True)
-    # Persisted voiceprint binding for optional per-agent speaker verification.
+    # Optional per-agent speaker verification.
     speaker_verification_enabled = Column(Boolean, nullable=False, default=False)
-    speaker_embedding = Column(JSON, nullable=True)
     speaker_sample_text = Column(Text, nullable=True)
     speaker_enrolled_at = Column(String(50), nullable=True)
     # Reference to a user-level voiceprint (user_voiceprints.id) for speaker verification.
@@ -242,6 +241,22 @@ def _add_column_if_missing(table_name: str, column_name: str, column_sql: str) -
     logger.info("Migration OK: %s", ddl)
 
 
+def _drop_column_if_exists(table_name: str, column_name: str) -> None:
+    """Drop a legacy column when the database dialect supports it."""
+    inspector = inspect(engine)
+    if table_name not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if column_name not in existing_columns:
+        return
+
+    ddl = f"ALTER TABLE {table_name} DROP COLUMN {column_name}"
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+    logger.info("Migration OK: %s", ddl)
+
+
 def ensure_database_schema() -> None:
     """Create tables and apply lightweight additive schema migrations."""
     Base.metadata.create_all(bind=engine)
@@ -270,7 +285,6 @@ def ensure_database_schema() -> None:
             "speaker_verification_enabled",
             "speaker_verification_enabled BOOLEAN DEFAULT FALSE",
         ),
-        ("agent_profiles", "speaker_embedding", "speaker_embedding JSON"),
         ("agent_profiles", "speaker_sample_text", "speaker_sample_text TEXT"),
         ("agent_profiles", "speaker_enrolled_at", "speaker_enrolled_at VARCHAR(50)"),
         ("agent_profiles", "owner_user_id", "owner_user_id VARCHAR(255)"),
@@ -286,6 +300,20 @@ def ensure_database_schema() -> None:
         except Exception as exc:
             logger.warning(
                 "Migration skipped for %s.%s: %s",
+                table_name,
+                column_name,
+                exc,
+            )
+
+    legacy_columns = [
+        ("agent_profiles", "speaker_embedding"),
+    ]
+    for table_name, column_name in legacy_columns:
+        try:
+            _drop_column_if_exists(table_name, column_name)
+        except Exception as exc:
+            logger.warning(
+                "Legacy column drop skipped for %s.%s: %s",
                 table_name,
                 column_name,
                 exc,

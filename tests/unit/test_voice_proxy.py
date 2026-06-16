@@ -9,6 +9,25 @@ import pytest
 from src.api import voice_proxy
 
 
+class _FakeVoiceprintQuery:
+    def __init__(self, voiceprint):
+        self.voiceprint = voiceprint
+
+    def filter(self, *_args, **_kwargs):
+        return self
+
+    def first(self):
+        return self.voiceprint
+
+
+class _FakeVoiceprintDb:
+    def __init__(self, embedding):
+        self.voiceprint = SimpleNamespace(embedding=embedding)
+
+    def query(self, _table):
+        return _FakeVoiceprintQuery(self.voiceprint)
+
+
 def test_coerce_tts_voice_accepts_only_non_empty_strings():
     """Client TTS voice config should not replace defaults with blank values."""
     assert voice_proxy._coerce_tts_voice(" Ethan ") == "Ethan"
@@ -266,7 +285,7 @@ async def test_profile_speaker_verification_uses_shorter_verify_minimum(monkeypa
         id="agent-1",
         name="Agent",
         speaker_verification_enabled=True,
-        speaker_embedding=[1.0, 0.0],
+        user_voiceprint_id="vp-1",
         created_at="now",
         updated_at="now",
     )
@@ -274,6 +293,7 @@ async def test_profile_speaker_verification_uses_shorter_verify_minimum(monkeypa
     response = await voice_proxy._verify_profile_speaker(
         profile=profile,
         audio_data_uri="data:audio/wav;base64,test",
+        db=_FakeVoiceprintDb([1.0, 0.0]),
     )
 
     assert response.accepted
@@ -332,7 +352,7 @@ async def test_profile_speaker_verification_disabled_accepts_without_embedding()
         id="agent-1",
         name="Agent",
         speaker_verification_enabled=False,
-        speaker_embedding=None,
+        user_voiceprint_id=None,
         created_at="now",
         updated_at="now",
     )
@@ -354,7 +374,7 @@ async def test_profile_speaker_verification_enabled_rejects_when_unbound():
         id="agent-1",
         name="Agent",
         speaker_verification_enabled=True,
-        speaker_embedding=None,
+        user_voiceprint_id=None,
         created_at="now",
         updated_at="now",
     )

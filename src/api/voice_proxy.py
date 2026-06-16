@@ -468,21 +468,6 @@ class AsrTranscribeResponse(BaseModel):
     duration_seconds: float | None = None
 
 
-class SpeakerEnrollmentRequest(BaseModel):
-    """Persist a voiceprint embedding for an agent profile."""
-
-    audio: str
-    sampleText: str | None = None
-
-
-class SpeakerEnrollmentResponse(BaseModel):
-    """Voiceprint enrollment result."""
-
-    bound: bool
-    sampleText: str
-    enrolledAt: str
-
-
 class SpeakerVerificationRequest(BaseModel):
     """Verify a speech segment against an agent profile voiceprint."""
 
@@ -758,17 +743,7 @@ def _profile_embedding(
     profile: AgentProfileTable,
     db: Session | None = None,
 ) -> np.ndarray | None:
-    """Return a stored profile embedding, resolving user-level voiceprints if needed.
-
-    Checks the inline ``speaker_embedding`` first (legacy per-agent binding),
-    then falls back to the user-level voiceprint referenced by
-    ``user_voiceprint_id`` when a DB session is provided.
-    """
-    embedding = profile.speaker_embedding
-    if isinstance(embedding, list) and embedding:
-        return np.asarray(embedding, dtype=np.float32)
-
-    # Fall back to user-level voiceprint
+    """Return the user-level voiceprint embedding referenced by a profile."""
     vp_id = getattr(profile, "user_voiceprint_id", None)
     if vp_id and db is not None:
         vp = (
@@ -939,75 +914,6 @@ async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse
 async def get_speaker_profile_sample_text() -> dict[str, str]:
     """Return the sentence users should read for voiceprint enrollment."""
     return {"sampleText": SPEAKER_PROFILE_SAMPLE_TEXT}
-
-
-@voice_router.post(
-    "/api/agent-profiles/{agent_id}/speaker/enroll",
-    response_model=SpeakerEnrollmentResponse,
-)
-async def enroll_agent_speaker(
-    agent_id: str,
-    request: SpeakerEnrollmentRequest,
-    authorization: str | None = Header(default=None),
-    db: Session = Depends(get_db),
-) -> SpeakerEnrollmentResponse:
-    """Bind a SpeechBrain ECAPA-TDNN voiceprint to an agent profile."""
-    user_id = _extract_bearer_user_id(authorization)
-    profile = _require_agent_profile(db, agent_id=agent_id, user_id=user_id)
-
-    try:
-        embedding, quality = await _enrollment_embedding_from_data_uri(request.audio)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.error("Speaker enrollment failed: %s", exc, exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Speaker enrollment failed: {exc}",
-        ) from exc
-
-    enrolled_at = datetime.utcnow().isoformat()
-    sample_text = (request.sampleText or SPEAKER_PROFILE_SAMPLE_TEXT).strip()
-    profile.speaker_embedding = embedding.astype(float).tolist()
-    profile.speaker_sample_text = sample_text
-    profile.speaker_enrolled_at = enrolled_at
-    profile.updated_at = enrolled_at
-    db.commit()
-    logger.info(
-        "Speaker voiceprint enrolled: agent_id=%s user_id=%s duration=%.2fs "
-        "speech=%.2fs rms=%.4f clipping=%.2f silence=%.2f active=%.2f",
-        agent_id,
-        user_id,
-        quality.duration_seconds,
-        quality.effective_speech_seconds,
-        quality.rms,
-        quality.clipping_ratio,
-        quality.silence_ratio,
-        quality.active_audio_ratio,
-    )
-
-    return SpeakerEnrollmentResponse(
-        bound=True,
-        sampleText=sample_text,
-        enrolledAt=enrolled_at,
-    )
-
-
-@voice_router.delete("/api/agent-profiles/{agent_id}/speaker")
-async def delete_agent_speaker_binding(
-    agent_id: str,
-    authorization: str | None = Header(default=None),
-    db: Session = Depends(get_db),
-) -> dict[str, bool]:
-    """Remove a stored speaker voiceprint from an agent profile."""
-    user_id = _extract_bearer_user_id(authorization)
-    profile = _require_agent_profile(db, agent_id=agent_id, user_id=user_id)
-    profile.speaker_embedding = None
-    profile.speaker_sample_text = None
-    profile.speaker_enrolled_at = None
-    profile.updated_at = datetime.utcnow().isoformat()
-    db.commit()
-    return {"bound": False}
 
 
 # ---------------------------------------------------------------------------
