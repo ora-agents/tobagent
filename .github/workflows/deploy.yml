@@ -5,6 +5,10 @@ on:
     branches:
       - master
       - main
+    tags:
+      - 'backend-v*'
+      - 'frontend-v*'
+      - 'speaker-v*'
     paths:
       - 'src/**'
       - 'Dockerfile'
@@ -64,7 +68,7 @@ jobs:
     name: Build backend image
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' || startsWith(github.ref_name, 'backend-v') }}
     outputs:
       api_image: ${{ steps.images.outputs.api_image }}
     steps:
@@ -76,8 +80,25 @@ jobs:
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          echo "api_image=${repo}/api:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "api_main_image=${repo}/api:main" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_NAME" == backend-v* ]]; then
+            api_image="${repo}/api:${GITHUB_REF_NAME#backend-}"
+            {
+              echo "api_image=${api_image}"
+              echo "api_tags<<EOF"
+              echo "${api_image}"
+              echo "${repo}/api:${GITHUB_SHA}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            api_image="${repo}/api:${GITHUB_SHA}"
+            {
+              echo "api_image=${api_image}"
+              echo "api_tags<<EOF"
+              echo "${api_image}"
+              echo "${repo}/api:main"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Free runner disk space
         shell: bash
@@ -104,9 +125,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ steps.images.outputs.api_image }}
-            ${{ steps.images.outputs.api_main_image }}
+          tags: ${{ steps.images.outputs.api_tags }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,scope=backend,mode=max
 
@@ -114,7 +133,7 @@ jobs:
     name: Build frontend image
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' || startsWith(github.ref_name, 'frontend-v') }}
     outputs:
       frontend_image: ${{ steps.images.outputs.frontend_image }}
     steps:
@@ -126,8 +145,25 @@ jobs:
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          echo "frontend_image=${repo}/frontend:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-          echo "frontend_main_image=${repo}/frontend:main" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_NAME" == frontend-v* ]]; then
+            frontend_image="${repo}/frontend:${GITHUB_REF_NAME#frontend-}"
+            {
+              echo "frontend_image=${frontend_image}"
+              echo "frontend_tags<<EOF"
+              echo "${frontend_image}"
+              echo "${repo}/frontend:${GITHUB_SHA}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            frontend_image="${repo}/frontend:${GITHUB_SHA}"
+            {
+              echo "frontend_image=${frontend_image}"
+              echo "frontend_tags<<EOF"
+              echo "${frontend_image}"
+              echo "${repo}/frontend:main"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Free runner disk space
         shell: bash
@@ -154,9 +190,7 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: |
-            ${{ steps.images.outputs.frontend_image }}
-            ${{ steps.images.outputs.frontend_main_image }}
+          tags: ${{ steps.images.outputs.frontend_tags }}
           build-args: |
             NEXT_PUBLIC_OPENAI_DEFAULT_MODEL=${{ vars.NEXT_PUBLIC_OPENAI_DEFAULT_MODEL || 'qwen3.6-flash' }}
             NEXT_PUBLIC_LANGGRAPH_API_URL=${{ vars.NEXT_PUBLIC_LANGGRAPH_API_URL || 'https://gen.wsiri.cn' }}
@@ -169,7 +203,7 @@ jobs:
     name: Build speaker image
     runs-on: ubuntu-latest
     needs: changes
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.speaker == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.speaker == 'true' || startsWith(github.ref_name, 'speaker-v') }}
     outputs:
       speaker_image: ${{ steps.images.outputs.speaker_image }}
     steps:
@@ -181,8 +215,25 @@ jobs:
         shell: bash
         run: |
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
-          echo "speaker_image=${repo}/speaker:main" >> "$GITHUB_OUTPUT"
-          echo "speaker_sha_image=${repo}/speaker:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_NAME" == speaker-v* ]]; then
+            speaker_image="${repo}/speaker:${GITHUB_REF_NAME#speaker-}"
+            {
+              echo "speaker_image=${speaker_image}"
+              echo "speaker_tags<<EOF"
+              echo "${speaker_image}"
+              echo "${repo}/speaker:${GITHUB_SHA}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            speaker_image="${repo}/speaker:${GITHUB_SHA}"
+            {
+              echo "speaker_image=${speaker_image}"
+              echo "speaker_tags<<EOF"
+              echo "${speaker_image}"
+              echo "${repo}/speaker:main"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Free runner disk space
         shell: bash
@@ -209,9 +260,7 @@ jobs:
           context: ./services/speaker
           file: ./services/speaker/Dockerfile
           push: true
-          tags: |
-            ${{ steps.images.outputs.speaker_image }}
-            ${{ steps.images.outputs.speaker_sha_image }}
+          tags: ${{ steps.images.outputs.speaker_tags }}
           cache-from: type=gha,scope=speaker
           cache-to: type=gha,scope=speaker,mode=max
 
