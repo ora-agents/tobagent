@@ -17,6 +17,8 @@ interface ComboboxProps {
   searchPlaceholder?: string
   emptyText?: string
   className?: string
+  triggerClassName?: string
+  menuClassName?: string
   prefix?: string
   autoFocusSearch?: boolean
 }
@@ -29,6 +31,8 @@ export function Combobox({
   searchPlaceholder = "Search...",
   emptyText = "No option found.",
   className,
+  triggerClassName,
+  menuClassName,
   prefix,
   autoFocusSearch = true,
 }: ComboboxProps) {
@@ -73,7 +77,8 @@ export function Combobox({
         onClick={() => setOpen(!open)}
         className={cn(
           "h-8 text-sm border border-border/40 bg-card hover:bg-muted/50 px-3 gap-1 rounded-md transition-all duration-200 font-medium flex items-center justify-between text-foreground shadow-sm hover:shadow-md min-w-[140px]",
-          open && "ring-2 ring-primary/20 border-primary/50"
+          open && "ring-2 ring-primary/20 border-primary/50",
+          triggerClassName
         )}
       >
         <span className="flex items-center truncate">
@@ -84,7 +89,10 @@ export function Combobox({
       </button>
 
       {open && (
-        <div className="absolute left-0 mt-1 z-50 min-w-[200px] max-w-[280px] rounded-lg border border-border/50 bg-popover text-popover-foreground shadow-lg animate-in fade-in-50 slide-in-from-top-1 duration-200">
+        <div className={cn(
+          "absolute left-0 mt-1 z-50 min-w-[200px] max-w-[280px] rounded-lg border border-border/50 bg-popover text-popover-foreground shadow-lg animate-in fade-in-50 slide-in-from-top-1 duration-200",
+          menuClassName
+        )}>
           <div className="flex items-center border-b border-border/40 px-2.5 py-1.5">
             <Search className="mr-2 h-3.5 w-3.5 shrink-0 opacity-50" />
             <input

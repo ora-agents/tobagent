@@ -34,6 +34,8 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Combobox } from "@/components/ui/combobox"
+import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
@@ -1813,28 +1815,38 @@ export function ManagementDashboard({
                       </div>
                       <div className="space-y-1.5">
                         <Label>{locale === "zh" ? "模型" : "Model"}</Label>
-                        <Select
-                          value={agentForm.model || "__global__"}
-                          onValueChange={(value) => setAgentForm(prev => ({
-                            ...prev,
-                            model: value === "__global__" ? "" : value,
-                          }))}
-                          disabled={modelsLoading}
-                        >
-                          <SelectTrigger className="bg-background border-border/80 rounded-lg">
-                            <SelectValue placeholder={modelsLoading ? (locale === "zh" ? "加载模型中..." : "Loading models...") : (locale === "zh" ? "选择模型" : "Select model")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__global__">
-                              {locale === "zh" ? "使用全局聊天模型" : "Use global chat model"}
-                            </SelectItem>
-                            {availableModels.map((modelId) => (
-                              <SelectItem key={modelId} value={modelId}>
-                                {getModelDisplayName(modelId)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {modelsLoading ? (
+                          <ComboboxSkeleton
+                            label={locale === "zh" ? "加载模型中" : "Loading models"}
+                            className="w-full rounded-lg"
+                          />
+                        ) : (
+                          <Combobox
+                            options={[
+                              {
+                                value: "__global__",
+                                label: locale === "zh"
+                                  ? "使用全局聊天模型"
+                                  : "Use global chat model",
+                              },
+                              ...availableModels.map((modelId) => ({
+                                value: modelId,
+                                label: getModelDisplayName(modelId),
+                              })),
+                            ]}
+                            value={agentForm.model || "__global__"}
+                            onValueChange={(value) => setAgentForm(prev => ({
+                              ...prev,
+                              model: value === "__global__" ? "" : value,
+                            }))}
+                            placeholder={locale === "zh" ? "选择模型" : "Select model"}
+                            searchPlaceholder={locale === "zh" ? "搜索模型..." : "Search model..."}
+                            emptyText={locale === "zh" ? "未找到该模型" : "No model found."}
+                            className="w-full"
+                            triggerClassName="w-full h-10 rounded-lg bg-background border-border/80 hover:bg-muted/30"
+                            menuClassName="w-full max-w-none"
+                          />
+                        )}
                       </div>
                     </div>
 
