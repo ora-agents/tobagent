@@ -78,6 +78,7 @@ VAD_WINDOW_SIZE = 256
 VAD_HISTORY_SECONDS = VAD_MAX_SPEECH_DURATION + 10.0
 VAD_PRE_ROLL_SECONDS = _env_float("VOICE_VAD_PRE_ROLL_SECONDS", 0.35)
 VAD_POST_ROLL_SECONDS = _env_float("VOICE_VAD_POST_ROLL_SECONDS", 0.25)
+VOICE_SESSION_PREROLL_SECONDS = _env_float("VOICE_SESSION_PREROLL_SECONDS", 0.5)
 MIN_ASR_SEGMENT_DURATION_SECONDS = _env_float("VOICE_MIN_ASR_SEGMENT_SECONDS", 0.3)
 EPSILON = 1e-8
 MAX_PCM_CHUNK_SECONDS = float(os.environ.get("VOICE_MAX_PCM_CHUNK_SECONDS", "5"))
@@ -1460,7 +1461,7 @@ async def voice_session(websocket: WebSocket) -> None:
     send_lock = asyncio.Lock()
     wake_ack_tasks: set[asyncio.Task[None]] = set()
     preroll_audio = bytearray()
-    preroll_max_bytes = VAD_SAMPLE_RATE * 2 * 2
+    preroll_max_bytes = int(VAD_SAMPLE_RATE * 2 * VOICE_SESSION_PREROLL_SECONDS)
     profile_speaker_gate: ProfileSpeakerGate | None = None
 
     async def send_json(payload: dict[str, Any]) -> None:
