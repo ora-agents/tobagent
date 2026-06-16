@@ -81,6 +81,8 @@ services:
       context: ./services/speaker
     container_name: tobagent-speaker
     restart: unless-stopped
+    ports:
+      - "${SPEAKER_PORT:-8090}:8090"
     environment:
       - VOICE_SPEAKER_PROFILE_MODEL_SOURCE=/app/models/speechbrain-ecapa
       - VOICE_SPEAKER_PROFILE_MODEL_DIR=/app/models/speechbrain-ecapa

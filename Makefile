@@ -1,5 +1,5 @@
 .PHONY: \
-	dev dev-frontend dev-backend dev-local \
+	dev dev-frontend dev-backend dev-local dev-infra \
 	prod prod-backend prod-frontend build-frontend start-frontend \
 	deploy-prod deploy-prod-no-build deploy-down deploy-logs \
 	check-backend-port check-frontend-port check-ports \
@@ -16,6 +16,7 @@ BACKEND_HOST ?= 0.0.0.0
 BACKEND_PORT ?= 2025
 FRONTEND_HOST ?= 0.0.0.0
 FRONTEND_PORT ?= 3000
+SPEAKER_PORT ?= 8090
 AEGRA ?= $(shell if [ -x ./.venv/Scripts/aegra.exe ]; then printf './.venv/Scripts/aegra.exe'; elif [ -x ./.venv/bin/aegra ]; then printf './.venv/bin/aegra'; else printf 'uv run aegra'; fi)
 SDK_TEST_SCRIPT ?= scripts/langgraph_sdk_external_call.py
 SDK_LOG_FILE ?= logs/test-agent-sdk.log
@@ -113,7 +114,7 @@ stop-frontend-port:
 stop-ports: stop-backend-port stop-frontend-port
 
 # Run both frontend and backend concurrently
-dev: stop-ports
+dev: dev-infra stop-ports
 	@$(call run_concurrent,"$(MAKE)" dev-backend,$(call run_frontend_local))
 
 # Frontend only (connects to the configured Aegra/LangGraph API)
@@ -121,12 +122,16 @@ dev-frontend: check-frontend-port
 	$(call run_frontend,dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT))
 
 # Frontend pointing to local backend
-dev-local: check-ports
+dev-local: dev-infra check-ports
 	@$(call run_concurrent,"$(MAKE)" dev-backend,$(call run_frontend_local))
 
+# Shared local infrastructure for dev processes running on the host.
+dev-infra:
+	SPEAKER_PORT=$(SPEAKER_PORT) docker compose up -d postgres redis speaker
+
 # Backend only (Aegra dev server with hot reload)
-dev-backend: check-backend-port
-	$(AEGRA) dev --host $(BACKEND_HOST) --port $(BACKEND_PORT)
+dev-backend: dev-infra check-backend-port
+	SPEAKER_SERVICE_URL=$${SPEAKER_SERVICE_URL:-http://127.0.0.1:$(SPEAKER_PORT)} $(AEGRA) dev --host $(BACKEND_HOST) --port $(BACKEND_PORT)
 
 # Run both frontend and backend in local production mode
 prod: check-ports build-frontend
