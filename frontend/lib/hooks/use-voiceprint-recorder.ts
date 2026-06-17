@@ -162,6 +162,7 @@ interface RecorderState {
 
 export interface UseVoiceprintRecorderReturn {
   isRecording: boolean
+  isProcessing: boolean
   status: string | null
   audioInputRef: React.RefObject<HTMLInputElement>
   startRecording: () => Promise<void>
@@ -184,6 +185,7 @@ export function useVoiceprintRecorder({
 }: UseVoiceprintRecorderOptions): UseVoiceprintRecorderReturn {
   const zh = locale === "zh"
   const [isRecording, setIsRecording] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
 
   const audioInputRef = useRef<HTMLInputElement>(null)
@@ -205,9 +207,16 @@ export function useVoiceprintRecorder({
     if (recordingModeRef.current === "native") {
       const requestId = nativeRequestIdRef.current
       const bridge = getNativeSpeakerEnrollmentBridge()
-      if (!requestId || !bridge) return
+      if (!requestId || !bridge) {
+        setIsRecording(false)
+        setIsProcessing(false)
+        recordingModeRef.current = null
+        nativeRequestIdRef.current = null
+        return
+      }
 
       setIsRecording(false)
+      setIsProcessing(true)
       setStatus(zh ? "正在生成声纹..." : "Creating voiceprint...")
       try {
         const resultPromise = waitForNativeSpeakerEnrollment(requestId)
@@ -223,6 +232,8 @@ export function useVoiceprintRecorder({
         const message = err instanceof Error ? err.message : String(err)
         setStatus(`${zh ? "声纹录制失败" : "Voiceprint recording failed"}: ${message}`)
       } finally {
+        setIsRecording(false)
+        setIsProcessing(false)
         recordingModeRef.current = null
         nativeRequestIdRef.current = null
       }
@@ -235,27 +246,34 @@ export function useVoiceprintRecorder({
     recorderRef.current = null
     recordingModeRef.current = null
     setIsRecording(false)
+    setIsProcessing(true)
 
-    const sampleRate = recorder.context.sampleRate
-    recorder.processor.disconnect()
-    recorder.source.disconnect()
-    recorder.stream.getTracks().forEach((track) => track.stop())
-    await recorder.context.close().catch(() => {})
+    try {
+      const sampleRate = recorder.context.sampleRate
+      recorder.processor.disconnect()
+      recorder.source.disconnect()
+      recorder.stream.getTracks().forEach((track) => track.stop())
+      await recorder.context.close().catch(() => {})
 
-    const totalLength = recorder.chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-    const pcm = new Int16Array(totalLength)
-    let offset = 0
-    for (const chunk of recorder.chunks) {
-      pcm.set(chunk, offset)
-      offset += chunk.length
+      const totalLength = recorder.chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+      const pcm = new Int16Array(totalLength)
+      let offset = 0
+      for (const chunk of recorder.chunks) {
+        pcm.set(chunk, offset)
+        offset += chunk.length
+      }
+
+      if (pcm.length < sampleRate * MIN_RECORDING_SECONDS) {
+        setStatus(zh ? `录音太短，请至少朗读 ${MIN_RECORDING_SECONDS} 秒。` : `Recording is too short. Please read for at least ${MIN_RECORDING_SECONDS} seconds.`)
+        return
+      }
+
+      setStatus(zh ? "正在生成声纹..." : "Creating voiceprint...")
+      await onAudioReady(int16PcmToWavDataUri(pcm, sampleRate))
+    } finally {
+      setIsRecording(false)
+      setIsProcessing(false)
     }
-
-    if (pcm.length < sampleRate * MIN_RECORDING_SECONDS) {
-      setStatus(zh ? `录音太短，请至少朗读 ${MIN_RECORDING_SECONDS} 秒。` : `Recording is too short. Please read for at least ${MIN_RECORDING_SECONDS} seconds.`)
-      return
-    }
-
-    await onAudioReady(int16PcmToWavDataUri(pcm, sampleRate))
   }, [zh, onAudioReady, clearMaxRecordingTimer])
 
   // ---- Start recording ----
@@ -338,12 +356,15 @@ export function useVoiceprintRecorder({
       if (!file) return
 
       try {
+        setIsProcessing(true)
         setStatus(zh ? "正在读取音频文件..." : "Reading audio file...")
         const audioDataUri = await audioFileToWavDataUri(file)
         await onAudioReady(audioDataUri)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         setStatus(`${zh ? "音频文件无法用于声纹绑定" : "Audio file cannot be used for voiceprint binding"}: ${message}`)
+      } finally {
+        setIsProcessing(false)
       }
     },
     [zh, onAudioReady],
@@ -353,6 +374,7 @@ export function useVoiceprintRecorder({
 
   return {
     isRecording,
+    isProcessing,
     status,
     audioInputRef,
     startRecording,

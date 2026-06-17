@@ -30,7 +30,6 @@ import { useI18n } from "@/lib/i18n"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   useVoiceprintRecorder,
-  audioFileToWavDataUri,
   SPEAKER_AUDIO_ACCEPT,
 } from "@/lib/hooks/use-voiceprint-recorder"
 
@@ -129,6 +128,8 @@ export function UserSettingsPage({
   // ---- Voiceprint state ----
   const [newVoiceprintName, setNewVoiceprintName] = useState("")
   const [voiceprintStatus, setVoiceprintStatus] = useState<string | null>(null)
+  const voiceprintNameInputRef = useRef<HTMLInputElement>(null)
+  const pendingVoiceprintNameRef = useRef("")
 
   // ---- Active section tracking ----
   const [activeSection, setActiveSection] = useState("section-display")
@@ -300,6 +301,12 @@ export function UserSettingsPage({
   const handleVoiceprintEnrollment = useCallback(
     async (audioDataUri: string) => {
       if (!user) return
+      const voiceprintName = pendingVoiceprintNameRef.current || newVoiceprintName.trim()
+      if (!voiceprintName) {
+        setVoiceprintStatus(zh ? "请先填写声纹名称，再录制或上传音频。" : "Please enter a voiceprint name before recording or uploading audio.")
+        voiceprintNameInputRef.current?.focus()
+        throw new Error(zh ? "缺少声纹名称" : "Missing voiceprint name")
+      }
       setVoiceprintStatus(zh ? "正在生成声纹..." : "Creating voiceprint...")
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints`, {
@@ -309,7 +316,7 @@ export function UserSettingsPage({
             Authorization: `Bearer ${user.id}`,
           },
           body: JSON.stringify({
-            name: newVoiceprintName.trim() || (zh ? "我的声纹" : "My Voiceprint"),
+            name: voiceprintName,
             audio: audioDataUri,
             sampleText,
           }),
@@ -320,6 +327,7 @@ export function UserSettingsPage({
         }
         const created = await resp.json()
         onVoiceprintsChange([created, ...voiceprints])
+        pendingVoiceprintNameRef.current = ""
         setNewVoiceprintName("")
         setVoiceprintStatus(zh ? "声纹已保存！" : "Voiceprint saved!")
         setTimeout(() => setVoiceprintStatus(null), 2500)
@@ -333,6 +341,7 @@ export function UserSettingsPage({
 
   const {
     isRecording,
+    isProcessing: isVoiceprintProcessing,
     status: recorderStatus,
     audioInputRef,
     startRecording: startVoiceprintRecording,
@@ -344,6 +353,43 @@ export function UserSettingsPage({
     userId: user?.id,
     sampleText,
   })
+
+  const requireVoiceprintName = useCallback(() => {
+    const trimmedName = newVoiceprintName.trim()
+    if (trimmedName) {
+      pendingVoiceprintNameRef.current = trimmedName
+      return true
+    }
+    pendingVoiceprintNameRef.current = ""
+    setVoiceprintStatus(zh ? "请先填写声纹名称，再录制或上传音频。" : "Please enter a voiceprint name before recording or uploading audio.")
+    voiceprintNameInputRef.current?.focus()
+    return false
+  }, [newVoiceprintName, zh])
+
+  const handleVoiceprintRecordClick = useCallback(() => {
+    if (isRecording) {
+      void stopVoiceprintRecording()
+      return
+    }
+    if (!requireVoiceprintName()) return
+    void startVoiceprintRecording()
+  }, [isRecording, requireVoiceprintName, startVoiceprintRecording, stopVoiceprintRecording])
+
+  const handleVoiceprintUploadClick = useCallback(() => {
+    if (!requireVoiceprintName()) return
+    audioInputRef.current?.click()
+  }, [audioInputRef, requireVoiceprintName])
+
+  const handleVoiceprintFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!requireVoiceprintName()) {
+        event.target.value = ""
+        return
+      }
+      await handleVoiceprintUpload(event)
+    },
+    [handleVoiceprintUpload, requireVoiceprintName],
+  )
 
   const handleDeleteVoiceprint = useCallback(
     async (vpId: string) => {
@@ -752,6 +798,7 @@ export function UserSettingsPage({
 
                 {/* Name input */}
                 <Input
+                  ref={voiceprintNameInputRef}
                   value={newVoiceprintName}
                   onChange={(e) => setNewVoiceprintName(e.target.value)}
                   placeholder={zh ? "声纹名称（如：我的声纹）" : "Voiceprint name (e.g., My Voiceprint)"}
@@ -763,7 +810,7 @@ export function UserSettingsPage({
                   ref={audioInputRef}
                   type="file"
                   accept={SPEAKER_AUDIO_ACCEPT}
-                  onChange={handleVoiceprintUpload}
+                  onChange={handleVoiceprintFileChange}
                   className="hidden"
                 />
 
@@ -773,11 +820,14 @@ export function UserSettingsPage({
                     type="button"
                     variant={isRecording ? "destructive" : "outline"}
                     size={elderOptimized ? "lg" : "sm"}
-                    onClick={isRecording ? stopVoiceprintRecording : startVoiceprintRecording}
+                    onClick={handleVoiceprintRecordClick}
+                    disabled={isVoiceprintProcessing}
                     className="gap-1.5 rounded-lg"
                   >
-                    {isRecording ? <Square className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} /> : <Mic className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />}
-                    {isRecording
+                    {isRecording ? <Square className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} /> : isVoiceprintProcessing ? <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} /> : <Mic className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />}
+                    {isVoiceprintProcessing
+                      ? (zh ? "正在保存" : "Saving")
+                      : isRecording
                       ? (zh ? "停止并保存" : "Stop and save")
                       : (zh ? "录制声纹" : "Record voiceprint")}
                   </Button>
@@ -785,8 +835,8 @@ export function UserSettingsPage({
                     type="button"
                     variant="outline"
                     size={elderOptimized ? "lg" : "sm"}
-                    onClick={() => audioInputRef.current?.click()}
-                    disabled={isRecording}
+                    onClick={handleVoiceprintUploadClick}
+                    disabled={isRecording || isVoiceprintProcessing}
                     className="gap-1.5 rounded-lg"
                   >
                     <Upload className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />
