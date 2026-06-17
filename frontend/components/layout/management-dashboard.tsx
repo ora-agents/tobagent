@@ -487,9 +487,9 @@ export function ManagementDashboard({
     setActiveTab(initialTab)
   }, [initialTab])
 
-  // Sync selectedAgentId with selectedAgentProfileId from props when tab is agents.
-  // Opening the role manager should select the active role for context, but only
-  // the header role settings action should jump directly into the edit form.
+  // Sync selectedAgentId with selectedAgentProfileId from props when entering the
+  // agents tab or when the active chat role changes. Do not re-run this sync just
+  // because editing/creating ended; cancel should keep the locally selected role.
   useEffect(() => {
     if (activeTab !== "agents") return
     if (isSavingRef.current) {
@@ -501,7 +501,7 @@ export function ManagementDashboard({
     setSelectedAgentId(selectedAgentProfileId)
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
-  }, [selectedAgentProfileId, activeTab, isEditingAgent, isCreatingAgent])
+  }, [selectedAgentProfileId, activeTab])
 
   useEffect(() => {
     if (activeTab !== "agents" || !editAgentIdOnOpen) return
