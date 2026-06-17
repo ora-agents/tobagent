@@ -2483,6 +2483,22 @@ export function ManagementDashboard({
                               : (locale === "zh" ? "未启用" : "Disabled")}
                           </div>
                         </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "添加时间" : "Added"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1">
+                            {formatDateTime(selectedAgent.createdAt)}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "修改时间" : "Modified"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1">
+                            {formatDateTime(selectedAgent.updatedAt)}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="space-y-3 rounded-xl border border-border/50 bg-background/50 p-4">
