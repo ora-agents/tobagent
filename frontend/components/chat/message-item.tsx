@@ -10,6 +10,7 @@ import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message } from "@/lib/types"
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react"
 import { useT } from "@/lib/i18n"
+import { isAndroidWebView } from "@/lib/voice/utils/browser"
 
 // ============================================================================
 // Constants
@@ -208,15 +209,46 @@ export const MessageItem = memo(function MessageItem({
 }: MessageItemProps) {
   const t = useT()
   const [editContent, setEditContent] = useState(message.content)
+  const [isEditingUserMessage, setIsEditingUserMessage] = useState(false)
+  const [useAndroidWebViewLayout, setUseAndroidWebViewLayout] = useState(false)
+  const userEditTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && onEditAndRerun) {
       e.preventDefault()
       if (editContent.trim()) {
         onEditAndRerun(message.id, editContent.trim())
+        setIsEditingUserMessage(false)
       }
     }
   }, [editContent, onEditAndRerun, message.id])
+
+  const startEditingUserMessage = useCallback(() => {
+    if (!onEditAndRerun) return
+    setEditContent(message.content)
+    setIsEditingUserMessage(true)
+  }, [message.content, onEditAndRerun])
+
+  const cancelEditingUserMessage = useCallback(() => {
+    setEditContent(message.content)
+    setIsEditingUserMessage(false)
+  }, [message.content])
+
+  useEffect(() => {
+    setUseAndroidWebViewLayout(isAndroidWebView())
+  }, [])
+
+  useEffect(() => {
+    if (!isEditingUserMessage) {
+      setEditContent(message.content)
+      return
+    }
+
+    const textarea = userEditTextareaRef.current
+    if (!textarea) return
+    textarea.focus()
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+  }, [isEditingUserMessage, message.content])
 
   // Track code block index to generate stable IDs during streaming
   const codeBlockIndexRef = useRef(0)
@@ -341,7 +373,15 @@ export const MessageItem = memo(function MessageItem({
         }
       `}</style>
       <div className={`flex gap-3 sm:gap-4 items-start group/message ${message.role === "user" ? "justify-end" : ""}`}>
-      <div className={`min-w-0 space-y-2 ${message.role === "user" ? "ml-auto w-fit max-w-[85%] sm:max-w-[80%]" : "flex-1"}`}>
+      <div
+        className={`min-w-0 space-y-2 ${
+          message.role === "user"
+            ? useAndroidWebViewLayout
+              ? "ml-auto w-fit max-w-[85%] sm:max-w-[80%]"
+              : "max-w-[80%]"
+            : "flex-1"
+        }`}
+      >
         <div
           className={`transition-all duration-150 ease-out ${
             message.role === "user"
@@ -501,14 +541,46 @@ export const MessageItem = memo(function MessageItem({
                     })}
                   </div>
                 )}
-                {/* Text content — always-editable, Enter to rerun */}
-                <Textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  onKeyDown={handleEditKeyDown}
-                  className="chat-message-textarea min-h-0 min-w-[2ch] max-w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-                  rows={1}
-                />
+                {useAndroidWebViewLayout ? (
+                  <>
+                    {/* Android WebView: avoid textarea auto-sizing differences while not editing. */}
+                    {isEditingUserMessage ? (
+                      <Textarea
+                        ref={userEditTextareaRef}
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        onKeyDown={handleEditKeyDown}
+                        onBlur={cancelEditingUserMessage}
+                        className="chat-message-textarea min-h-0 min-w-[12ch] max-w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                        rows={1}
+                      />
+                    ) : (
+                      <div
+                        className={`max-w-full whitespace-pre-wrap break-words text-sm leading-relaxed ${onEditAndRerun ? "cursor-text" : ""}`}
+                        onClick={startEditingUserMessage}
+                        role={onEditAndRerun ? "textbox" : undefined}
+                        aria-label={onEditAndRerun ? "Edit message" : undefined}
+                        tabIndex={onEditAndRerun ? 0 : undefined}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            startEditingUserMessage()
+                          }
+                        }}
+                      >
+                        {message.content}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <Textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    onKeyDown={handleEditKeyDown}
+                    className="chat-message-textarea min-h-0 w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                    rows={1}
+                  />
+                )}
               </div>
           ) : (
             <div className="relative">
