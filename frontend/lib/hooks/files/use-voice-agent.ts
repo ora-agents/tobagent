@@ -454,6 +454,10 @@ export function useVoiceAgent({
     () => voiceInterruptionEnabled && isReplyActive(),
     [isReplyActive, voiceInterruptionEnabled],
   )
+  const syncUnifiedSessionMode = useCallback((mode: "kws" | "asr") => {
+    if (isNativeVoiceProviderRef.current) return
+    kwsClientRef.current?.setMode(mode)
+  }, [])
 
   // Whether we're currently in an active voice session (TTS has been started for current reply)
   const ttsActiveRef = useRef(false)
@@ -564,6 +568,15 @@ export function useVoiceAgent({
         onMode: (mode) => {
           setAsrConnected(mode === "asr")
           if (mode === "kws" && voiceStateRef.current !== "kws") {
+            if (
+              voiceStateRef.current === "listening" ||
+              voiceStateRef.current === "transcribing" ||
+              voiceStateRef.current === "processing" ||
+              voiceStateRef.current === "speaking"
+            ) {
+              syncUnifiedSessionMode("asr")
+              return
+            }
             setVoiceStateSync("kws")
           }
         },
@@ -670,6 +683,7 @@ export function useVoiceAgent({
     canInterruptReply,
     isReplyActive,
     resetIdleTimer,
+    syncUnifiedSessionMode,
     stopIdleTimer,
     speakerVerification,
     startVoiceTelemetrySession,
@@ -905,12 +919,14 @@ export function useVoiceAgent({
 
     onSendMessageRef.current(trimmed)
     setVoiceStateSync("processing")
+    syncUnifiedSessionMode("asr")
     ttsStreamEndedRef.current = false
     stopIdleTimer()
   }, [
     isReplyActive,
     resetIdleTimer,
     setVoiceStateSync,
+    syncUnifiedSessionMode,
     stopCurrentTts,
     stopIdleTimer,
     voiceInterruptionEnabled,
@@ -919,6 +935,25 @@ export function useVoiceAgent({
   useEffect(() => {
     handleFinalTranscriptRef.current = handleFinalTranscript
   }, [handleFinalTranscript])
+
+  useEffect(() => {
+    if (isNativeVoiceProvider) return
+    if (!kwsClientRef.current?.isActive) return
+
+    if (
+      voiceState === "listening" ||
+      voiceState === "transcribing" ||
+      voiceState === "processing" ||
+      voiceState === "speaking"
+    ) {
+      syncUnifiedSessionMode("asr")
+      return
+    }
+
+    if (voiceState === "kws") {
+      syncUnifiedSessionMode("kws")
+    }
+  }, [isNativeVoiceProvider, syncUnifiedSessionMode, voiceState])
 
   /** Start voice mode: set up audio capture, VAD, and ASR */
   const enterVoiceMode = useCallback(async () => {
