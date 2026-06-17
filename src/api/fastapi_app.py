@@ -1,26 +1,61 @@
-# FastAPI server for public Chat LangChain support endpoints
+"""FastAPI server for public Chat LangChain support endpoints."""
+# ruff: noqa: D103,D401
+
 import asyncio
 import copy
-import hashlib
-import json
 import logging
 import os
 import re
+import secrets
 import string
-import time
+import uuid
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 
-import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from src.api import deps as api_deps
+from src.api import schemas as api_schemas
 from src.api.kws_router import kws_router
 from src.api.langsmith_routes import router as langsmith_router
+from src.api.routes import models as model_routes
+from src.api.routes.auth import router as auth_router
+from src.api.routes.models import router as models_router
+from src.api.routes.robot import router as robot_router
+from src.api.schemas import (
+    AgentProfileSchema,
+    AgentProfileVersionSchema,
+    AgentRAGStatusResponse,
+    AgentShareImportRequest,
+    AgentShareImportResponse,
+    AgentShareLinkRequest,
+    AgentShareLinkSchema,
+    AgentShareOptions,
+    AgentSharePreview,
+    ClientProfileSchema,
+    KBFileSchema,
+    KnowledgeBaseSchema,
+    McpServerSchema,
+    SkillSchema,
+)
 from src.api.voice_proxy import voice_router
-from src.tools.robot_control_tool import receive_robot_result, register_robot_client
+from src.utils.db import (
+    AgentProfileTable,
+    AgentProfileVersionTable,
+    AgentShareLinkTable,
+    ClientProfileTable,
+    KnowledgeBaseTable,
+    McpServerTable,
+    SkillTable,
+    UserTable,
+    UserVoiceprintTable,
+    get_db,
+)
+from src.utils.default_skills import ensure_default_skills
 from src.utils.voice_telemetry import init_voice_telemetry
 
 load_dotenv()
@@ -28,9 +63,24 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-_MODEL_LIST_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
-_MODEL_LIST_CACHE_LOCK = asyncio.Lock()
-_DEFAULT_MODEL_LIST_CACHE_TTL_SECONDS = 300.0
+AVATAR_COLORS = api_deps.AVATAR_COLORS
+_extract_bearer_user_id = api_deps._extract_bearer_user_id
+_require_same_user = api_deps._require_same_user
+get_current_user = api_deps.get_current_user
+hash_api_key = api_deps.hash_api_key
+hash_password = api_deps.hash_password
+verify_password = api_deps.verify_password
+
+clear_model_list_cache = model_routes.clear_model_list_cache
+httpx = model_routes.httpx
+list_models = model_routes.list_models
+
+CreateUserApiKeyRequest = api_schemas.CreateUserApiKeyRequest
+CreateUserApiKeyResponse = api_schemas.CreateUserApiKeyResponse
+UserLoginRequest = api_schemas.UserLoginRequest
+UserRegisterRequest = api_schemas.UserRegisterRequest
+UserResponse = api_schemas.UserResponse
+UserUpdateRequest = api_schemas.UserUpdateRequest
 
 DEFAULT_CORS_ORIGINS: list[str] = [
     "http://localhost:3000",
@@ -141,6 +191,9 @@ app.add_middleware(
 app.include_router(langsmith_router)
 app.include_router(voice_router)
 app.include_router(kws_router)
+app.include_router(auth_router)
+app.include_router(models_router)
+app.include_router(robot_router)
 
 
 class TitleGenerationRequest(BaseModel):
@@ -186,304 +239,6 @@ async def generate_conversation_title(request: TitleGenerationRequest):
     return TitleGenerationResponse(
         title=truncate_title(request.userMessage, request.maxLength or 60)
     )
-
-
-
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from src.utils.db import (
-    AgentProfileTable,
-    AgentProfileVersionTable,
-    AgentShareLinkTable,
-    ClientProfileTable,
-    KnowledgeBaseTable,
-    McpServerTable,
-    RobotPointTable,
-    SkillTable,
-    UserApiKeyTable,
-    UserTable,
-    UserVoiceprintTable,
-    get_db,
-)
-from src.utils.default_skills import ensure_default_skills
-
-# ---------------------------------------------------------------------------
-# Pydantic Schemas for persistence
-# ---------------------------------------------------------------------------
-
-class ClientProfileSchema(BaseModel):
-    id: str
-    label: str | None = None
-    avatarColor: str | None = None
-
-
-class UserRegisterRequest(BaseModel):
-    username: str
-    password: str
-    email: str | None = None
-
-
-class UserLoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class UserUpdateRequest(BaseModel):
-    model_config = {"populate_by_name": True}
-
-    username: str | None = None
-    email: str | None = None
-    preferences: str | None = None
-    safety_enabled: bool | None = Field(default=None, alias="safetyEnabled")
-
-
-class UserResponse(BaseModel):
-    id: str
-    username: str
-    email: str | None = None
-    avatarColor: str | None = None
-    preferences: str | None = None
-    safetyEnabled: bool = False
-    createdAt: str
-
-
-class UserApiKeySchema(BaseModel):
-    id: str
-    name: str
-    keyPrefix: str
-    createdAt: str
-    lastUsedAt: str | None = None
-
-
-class CreateUserApiKeyRequest(BaseModel):
-    name: str
-
-
-class CreateUserApiKeyResponse(UserApiKeySchema):
-    apiKey: str
-
-
-class AgentShareOptions(BaseModel):
-    """Optional linked resources to include in an agent share link."""
-
-    knowledgeBases: bool = False
-    skills: bool = False
-    mcpServers: bool = False
-    agents: bool = False
-
-
-class AgentShareLinkRequest(BaseModel):
-    include: AgentShareOptions = Field(default_factory=AgentShareOptions)
-
-
-class AgentShareLinkSchema(BaseModel):
-    token: str
-    agentProfileId: str
-    include: AgentShareOptions
-    createdAt: str
-    updatedAt: str
-
-
-class AgentSharePreview(BaseModel):
-    token: str
-    agent: "AgentProfileSchema"
-    include: AgentShareOptions
-    resources: dict[str, int]
-    createdAt: str
-
-
-class AgentShareImportRequest(BaseModel):
-    name: str | None = None
-
-
-class AgentShareImportResponse(BaseModel):
-    agent: "AgentProfileSchema"
-    resourceIdMap: dict[str, dict[str, str]]
-    warnings: list[str] = []
-
-
-
-class AgentProfileSchema(BaseModel):
-    id: str
-    name: str
-    description: str | None = None
-    systemPrompt: str | None = None
-    model: str | None = None
-    enabledTools: list[str] = []
-    knowledgeBaseIds: list[str] = []
-    skillIds: list[str] = []
-    mcpIds: list[str] = []
-    agentIds: list[str] = []
-    wakeWords: list[str] = []
-    roleTemplateId: str | None = None
-    personaStyle: str | None = None
-    boundaryMode: str | None = None
-    ttsVoice: str | None = None
-    voiceInterruptionEnabled: bool = True
-    speakerVerificationEnabled: bool = False
-    speakerVerificationBound: bool = False
-    speakerSampleText: str | None = None
-    speakerEnrolledAt: str | None = None
-    userVoiceprintId: str | None = None
-    createdAt: str
-    updatedAt: str
-
-
-class AgentProfileVersionSchema(BaseModel):
-    id: str
-    agentProfileId: str
-    version: int
-    snapshot: AgentProfileSchema
-    createdAt: str
-
-
-class McpServerSchema(BaseModel):
-    id: str
-    name: str
-    type: str  # Always "streamable_http"; kept for API compatibility.
-    url: str | None = None
-    headers: dict[str, str] = {}
-    createdAt: str
-    updatedAt: str
-
-
-class SkillSchema(BaseModel):
-    id: str
-    name: str
-    description: str | None = None
-    content: str
-    createdAt: str
-    updatedAt: str
-
-
-class KBFileSchema(BaseModel):
-    name: str
-    size: int
-    uploadedAt: str
-
-
-class KnowledgeBaseSchema(BaseModel):
-    id: str
-    name: str
-    description: str | None = None
-    files: list[KBFileSchema] = []
-    isSystem: bool = False
-    createdAt: str
-    updatedAt: str
-
-
-class AgentRAGStatusResponse(BaseModel):
-    """RAG knowledge base status for an agent."""
-
-    agent_id: str
-    document_count: int
-
-
-class RobotPointRequest(BaseModel):
-    model_config = {"populate_by_name": True}
-
-    point_name: str = Field(alias="pointName")
-    introduction: str
-    x: float
-    y: float
-    z: float
-    rotation: float
-    position_json: dict = Field(alias="positionJson")
-    robot_sn: str | None = Field(default=None, alias="robotSn")
-
-
-class RobotPointResponse(BaseModel):
-    model_config = {"populate_by_name": True}
-
-    id: int
-    point_name: str = Field(alias="pointName")
-    created_at: str = Field(alias="createdAt")
-    updated_at: str = Field(alias="updatedAt")
-
-
-class RobotPointListItem(BaseModel):
-    model_config = {"populate_by_name": True}
-
-    id: int
-    point_name: str = Field(alias="pointName")
-    introduction: str
-    x: float
-    y: float
-    z: float
-    rotation: float
-    position_json: dict = Field(alias="positionJson")
-    robot_sn: str | None = Field(default=None, alias="robotSn")
-
-
-class RobotCommandResultRequest(BaseModel):
-    model_config = {"populate_by_name": True}
-
-    command_id: str = Field(alias="commandId")
-    ok: bool
-    message: str | None = None
-    result: dict | None = None
-    error: str | None = None
-
-
-# ---------------------------------------------------------------------------
-# User Authentication Helpers & Routes
-# ---------------------------------------------------------------------------
-
-import secrets
-import uuid
-from datetime import UTC, datetime
-
-AVATAR_COLORS = [
-    "#cc785c", # Coral
-    "#a9583e", # Dark Coral
-    "#2e5b82", # Blue
-    "#347a5c", # Green
-    "#8e562c", # Brown
-    "#6b4c9a", # Purple
-    "#cc5c8a", # Rose
-    "#cc995c", # Sandy Gold
-]
-
-def hash_password(password: str) -> str:
-    # 16-byte random salt
-    salt = secrets.token_hex(16)
-    # 100k iterations PBKDF2 HMAC SHA-256
-    pwd_hash = hashlib.pbkdf2_hmac(
-        'sha256', 
-        password.encode('utf-8'), 
-        salt.encode('utf-8'), 
-        100000
-    ).hex()
-    return f"{salt}:{pwd_hash}"
-
-def verify_password(password: str, hashed_password: str) -> bool:
-    try:
-        salt, pwd_hash = hashed_password.split(':')
-        compare_hash = hashlib.pbkdf2_hmac(
-            'sha256', 
-            password.encode('utf-8'), 
-            salt.encode('utf-8'), 
-            100000
-        ).hex()
-        return pwd_hash == compare_hash
-    except Exception:
-        return False
-
-
-def _extract_bearer_user_id(authorization: str | None) -> str:
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    user_id = authorization.strip()
-    if user_id.lower().startswith("bearer "):
-        user_id = user_id.split(" ", 1)[1].strip()
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    if user_id == "studio-user" or user_id.startswith("lsv2_"):
-        raise HTTPException(status_code=401, detail="User login required")
-    return user_id
-
 
 def _schema_files(files: list[dict] | None) -> list[KBFileSchema]:
     return [
@@ -608,37 +363,6 @@ def _share_link_schema(share: AgentShareLinkTable) -> AgentShareLinkSchema:
         createdAt=share.created_at,
         updatedAt=share.updated_at,
     )
-
-
-def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
-    return UserApiKeySchema(
-        id=api_key.id,
-        name=api_key.name,
-        keyPrefix=api_key.key_prefix,
-        createdAt=api_key.created_at,
-        lastUsedAt=api_key.last_used_at,
-    )
-
-
-def hash_api_key(api_key: str) -> str:
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
-
-
-async def get_current_user(
-    authorization: str | None = Header(default=None),
-    db: Session = Depends(get_db),
-) -> UserTable:
-    """Require a logged-in account and return the authenticated user."""
-    user_id = _extract_bearer_user_id(authorization)
-    user = db.query(UserTable).filter(UserTable.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid user")
-    return user
-
-
-def _require_same_user(current_user: UserTable, user_id: str) -> None:
-    if current_user.id != user_id:
-        raise HTTPException(status_code=403, detail="Cannot access another account")
 
 
 def _require_owned_ids(
@@ -948,347 +672,6 @@ def _copy_shared_agent_resources(
             id_map["agentIds"][source_id] = target_id
 
     return target_ids, id_map, warnings
-
-
-@app.post("/api/robot-points", response_model=RobotPointResponse)
-async def upsert_robot_point(
-    point_data: RobotPointRequest,
-    db: Session = Depends(get_db),
-):
-    point_name = point_data.point_name.strip()
-    introduction = point_data.introduction.strip()
-    if not point_name:
-        raise HTTPException(status_code=400, detail="pointName is required")
-    if not introduction:
-        raise HTTPException(status_code=400, detail="introduction is required")
-
-    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    point = db.query(RobotPointTable).filter(
-        RobotPointTable.point_name == point_name,
-    ).first()
-    if point:
-        point.introduction = introduction
-        point.x = point_data.x
-        point.y = point_data.y
-        point.z = point_data.z
-        point.rotation = point_data.rotation
-        point.position_json = point_data.position_json
-        point.robot_sn = point_data.robot_sn
-        point.updated_at = now
-    else:
-        point = RobotPointTable(
-            point_name=point_name,
-            introduction=introduction,
-            x=point_data.x,
-            y=point_data.y,
-            z=point_data.z,
-            rotation=point_data.rotation,
-            position_json=point_data.position_json,
-            robot_sn=point_data.robot_sn,
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(point)
-
-    db.commit()
-    db.refresh(point)
-    return RobotPointResponse(
-        id=point.id,
-        pointName=point.point_name,
-        createdAt=point.created_at,
-        updatedAt=point.updated_at,
-    )
-
-
-@app.get("/api/robot-points", response_model=list[RobotPointListItem])
-async def list_robot_points(db: Session = Depends(get_db)):
-    points = db.query(RobotPointTable).order_by(RobotPointTable.id.asc()).all()
-    return [
-        RobotPointListItem(
-            id=point.id,
-            pointName=point.point_name,
-            introduction=point.introduction,
-            x=point.x,
-            y=point.y,
-            z=point.z,
-            rotation=point.rotation,
-            positionJson=point.position_json,
-            robotSn=point.robot_sn,
-        )
-        for point in points
-    ]
-
-
-@app.put("/api/robot-points/{point_id}", response_model=RobotPointResponse)
-async def update_robot_point(
-    point_id: int,
-    point_data: RobotPointRequest,
-    db: Session = Depends(get_db),
-):
-    point_name = point_data.point_name.strip()
-    introduction = point_data.introduction.strip()
-    if not point_name:
-        raise HTTPException(status_code=400, detail="pointName is required")
-    if not introduction:
-        raise HTTPException(status_code=400, detail="introduction is required")
-
-    point = db.query(RobotPointTable).filter(RobotPointTable.id == point_id).first()
-    if not point:
-        raise HTTPException(status_code=404, detail="robot point not found")
-
-    duplicate = db.query(RobotPointTable).filter(
-        RobotPointTable.point_name == point_name,
-        RobotPointTable.id != point_id,
-    ).first()
-    if duplicate:
-        raise HTTPException(status_code=409, detail="pointName already exists")
-
-    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    point.point_name = point_name
-    point.introduction = introduction
-    point.x = point_data.x
-    point.y = point_data.y
-    point.z = point_data.z
-    point.rotation = point_data.rotation
-    point.position_json = point_data.position_json
-    point.robot_sn = point_data.robot_sn
-    point.updated_at = now
-
-    db.commit()
-    db.refresh(point)
-    return RobotPointResponse(
-        id=point.id,
-        pointName=point.point_name,
-        createdAt=point.created_at,
-        updatedAt=point.updated_at,
-    )
-
-
-@app.delete("/api/robot-points/{point_id}")
-async def delete_robot_point(
-    point_id: int,
-    db: Session = Depends(get_db),
-):
-    point = db.query(RobotPointTable).filter(RobotPointTable.id == point_id).first()
-    if not point:
-        raise HTTPException(status_code=404, detail="robot point not found")
-
-    db.delete(point)
-    db.commit()
-    return {"status": "success", "message": f"Robot point {point_id} deleted"}
-
-
-@app.get("/api/robot/sse")
-async def robot_sse(clientId: str = "robot-display"):
-    async def event_stream():
-        async for event in register_robot_client(clientId.strip() or "robot-display"):
-            if event.get("type") == "heartbeat":
-                yield f": heartbeat {event.get('timestamp')}\n\n"
-                continue
-            yield f"event: {event.get('type', 'message')}\n"
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@app.post("/api/robot/commands/{command_id}/result")
-async def robot_command_result(
-    command_id: str,
-    result_data: RobotCommandResultRequest,
-):
-    if result_data.command_id != command_id:
-        raise HTTPException(status_code=400, detail="commandId mismatch")
-
-    accepted = await receive_robot_result(
-        command_id,
-        {
-            "ok": result_data.ok,
-            "message": result_data.message,
-            "result": result_data.result or {},
-            "error": result_data.error,
-            "commandId": command_id,
-        },
-    )
-    return {"ok": accepted}
-
-
-@app.post("/api/auth/register", response_model=UserResponse)
-async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
-    # Check if username already exists
-    existing_user = db.query(UserTable).filter(UserTable.username == req.username).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    
-    # Generate UUID and a random nice avatar color
-    user_id = f"user-{uuid.uuid4()}"
-    avatar_color = secrets.choice(AVATAR_COLORS)
-    hashed_pwd = hash_password(req.password)
-    
-    user = UserTable(
-        id=user_id,
-        username=req.username,
-        password_hash=hashed_pwd,
-        email=req.email,
-        avatar_color=avatar_color,
-        created_at=datetime.utcnow().isoformat(),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    ensure_default_skills(db, user.id)
-    db.commit()
-    
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
-
-
-@app.post("/api/auth/login", response_model=UserResponse)
-async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
-    user = db.query(UserTable).filter(UserTable.username == req.username).first()
-    if not user or not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
-
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
-
-
-@app.get("/api/auth/users/{user_id}", response_model=UserResponse)
-async def get_user_profile(
-    user_id: str,
-    db: Session = Depends(get_db),
-    current_user: UserTable = Depends(get_current_user),
-):
-    _require_same_user(current_user, user_id)
-    user = db.query(UserTable).filter(UserTable.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
-
-
-@app.put("/api/auth/users/{user_id}", response_model=UserResponse)
-async def update_user_profile(
-    user_id: str,
-    req: UserUpdateRequest,
-    db: Session = Depends(get_db),
-    current_user: UserTable = Depends(get_current_user),
-):
-    _require_same_user(current_user, user_id)
-    user = db.query(UserTable).filter(UserTable.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if req.username is not None and req.username != user.username:
-        raise HTTPException(status_code=400, detail="Username cannot be changed")
-
-    if req.email is not None:
-        user.email = req.email
-    if req.preferences is not None:
-        user.preferences = req.preferences
-    if req.safety_enabled is not None:
-        user.safety_enabled = "true" if req.safety_enabled else "false"
-
-    db.commit()
-    db.refresh(user)
-
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
-
-
-@app.get("/api/auth/api-keys", response_model=list[UserApiKeySchema])
-async def list_user_api_keys(
-    db: Session = Depends(get_db),
-    current_user: UserTable = Depends(get_current_user),
-):
-    keys = db.query(UserApiKeyTable).filter(
-        UserApiKeyTable.owner_user_id == current_user.id,
-    ).all()
-    return [_api_key_schema(key) for key in keys]
-
-
-@app.post("/api/auth/api-keys", response_model=CreateUserApiKeyResponse)
-async def create_user_api_key(
-    req: CreateUserApiKeyRequest,
-    db: Session = Depends(get_db),
-    current_user: UserTable = Depends(get_current_user),
-):
-    key_name = req.name.strip()
-    if not key_name:
-        raise HTTPException(status_code=400, detail="API key name is required")
-
-    raw_key = f"tob_{secrets.token_urlsafe(32)}"
-    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    api_key = UserApiKeyTable(
-        id=f"apikey-{uuid.uuid4()}",
-        owner_user_id=current_user.id,
-        name=key_name,
-        key_hash=hash_api_key(raw_key),
-        key_prefix=f"{raw_key[:8]}...",
-        created_at=now,
-    )
-    db.add(api_key)
-    db.commit()
-    db.refresh(api_key)
-
-    return CreateUserApiKeyResponse(
-        **_api_key_schema(api_key).model_dump(),
-        apiKey=raw_key,
-    )
-
-
-@app.delete("/api/auth/api-keys/{key_id}")
-async def delete_user_api_key(
-    key_id: str,
-    db: Session = Depends(get_db),
-    current_user: UserTable = Depends(get_current_user),
-):
-    api_key = db.query(UserApiKeyTable).filter(
-        UserApiKeyTable.id == key_id,
-        UserApiKeyTable.owner_user_id == current_user.id,
-    ).first()
-    if not api_key:
-        raise HTTPException(status_code=404, detail="API key not found")
-
-    db.delete(api_key)
-    db.commit()
-    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -2263,93 +1646,6 @@ async def delete_mcp_server(
     _invalidate_runtime_caches(owner_user_id=current_user.id)
 
     return {"status": "success", "message": f"MCP Server {id} deleted"}
-
-
-# ---------------------------------------------------------------------------
-# Model listing proxy (keeps API keys server-side)
-# ---------------------------------------------------------------------------
-
-
-def _get_model_list_cache_ttl_seconds() -> float:
-    """Return the configured model-list cache TTL in seconds."""
-    raw_ttl = os.getenv("MODEL_LIST_CACHE_TTL_SECONDS", "").strip()
-    if not raw_ttl:
-        return _DEFAULT_MODEL_LIST_CACHE_TTL_SECONDS
-
-    try:
-        return max(float(raw_ttl), 0.0)
-    except ValueError:
-        logger.warning("Invalid MODEL_LIST_CACHE_TTL_SECONDS=%r; using default", raw_ttl)
-        return _DEFAULT_MODEL_LIST_CACHE_TTL_SECONDS
-
-
-def _get_model_list_cache_key(base_url: str, api_key: str) -> tuple[str, str]:
-    """Build a cache key without storing the raw API key."""
-    api_key_hash = hashlib.sha256(api_key.encode("utf-8")).hexdigest() if api_key else ""
-    return (base_url.rstrip("/"), api_key_hash)
-
-
-def clear_model_list_cache() -> None:
-    """Clear the backend model-list cache."""
-    _MODEL_LIST_CACHE.clear()
-
-
-@app.get("/api/models")
-async def list_models():
-    """Proxy to the OpenAI-compatible /models endpoint.
-
-    Reads OPENAI base URL and API key from server-side env vars so that
-    the frontend never sees the API key.
-    """
-    base_url = (
-        os.getenv("OPENAI_COMPATIBLE_BASE_URL", "").strip()
-        or os.getenv("NEXT_PUBLIC_OPENAI_BASE_URL", "").strip()
-    )
-    api_key = (
-        os.getenv("OPENAI_COMPATIBLE_API_KEY", "").strip()
-        or os.getenv("NEXT_PUBLIC_OPENAI_API_KEY", "").strip()
-        or os.getenv("OPENAI_API_KEY", "").strip()
-    )
-
-    if not base_url:
-        raise HTTPException(status_code=503, detail="OPENAI_BASE_URL is not configured on the server")
-
-    cache_ttl_seconds = _get_model_list_cache_ttl_seconds()
-    cache_key = _get_model_list_cache_key(base_url, api_key)
-    now = time.monotonic()
-    if cache_ttl_seconds > 0:
-        cached = _MODEL_LIST_CACHE.get(cache_key)
-        if cached and now - cached[0] < cache_ttl_seconds:
-            return copy.deepcopy(cached[1])
-
-    url = f"{base_url.rstrip('/')}/models"
-    headers: dict[str, str] = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    try:
-        async with _MODEL_LIST_CACHE_LOCK:
-            if cache_ttl_seconds > 0:
-                cached = _MODEL_LIST_CACHE.get(cache_key)
-                now = time.monotonic()
-                if cached and now - cached[0] < cache_ttl_seconds:
-                    return copy.deepcopy(cached[1])
-
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(url, headers=headers)
-                resp.raise_for_status()
-                payload = resp.json()
-
-            if cache_ttl_seconds > 0:
-                _MODEL_LIST_CACHE[cache_key] = (time.monotonic(), copy.deepcopy(payload))
-
-            return payload
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Upstream /models returned {e.response.status_code}: {e.response.text[:200]}")
-        raise HTTPException(status_code=e.response.status_code, detail="Upstream model list request failed")
-    except Exception as e:
-        logger.error(f"Failed to proxy /models: {e}")
-        raise HTTPException(status_code=502, detail=f"Failed to reach model API: {e}")
 
 
 @app.get("/")
