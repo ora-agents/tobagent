@@ -57,6 +57,27 @@ export interface AgentProfileVersion {
   createdAt: string
 }
 
+export interface AgentShareOptions {
+  knowledgeBases: boolean
+  skills: boolean
+  mcpServers: boolean
+  agents: boolean
+}
+
+export interface AgentShareLink {
+  token: string
+  agentProfileId: string
+  include: AgentShareOptions
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentShareImportResponse {
+  agent: AgentProfile
+  resourceIdMap: Record<string, Record<string, string>>
+  warnings: string[]
+}
+
 export const AGENT_PROFILES_STORAGE_KEY = "agent-profiles"
 export const SELECTED_AGENT_PROFILE_KEY = "selected-agent-profile-id"
 

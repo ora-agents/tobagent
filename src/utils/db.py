@@ -164,6 +164,19 @@ class AgentProfileVersionTable(Base):
     created_at = Column(String(50), nullable=False)
 
 
+class AgentShareLinkTable(Base):
+    """Share links for copying agent profile configurations across accounts."""
+    __tablename__ = "agent_share_links"
+
+    id = Column(String(255), primary_key=True, index=True)
+    token = Column(String(255), unique=True, index=True, nullable=False)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    agent_profile_id = Column(String(255), index=True, nullable=False)
+    include_options = Column(JSON, nullable=False, default=dict)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
 class UserVoiceprintTable(Base):
     """User-level speaker voiceprints for speaker verification."""
     __tablename__ = "user_voiceprints"
@@ -304,6 +317,7 @@ def ensure_database_schema() -> None:
         ("knowledge_bases", "owner_user_id", "owner_user_id VARCHAR(255)"),
         ("mcp_servers", "owner_user_id", "owner_user_id VARCHAR(255)"),
         ("agent_profiles", "user_voiceprint_id", "user_voiceprint_id VARCHAR(50)"),
+        ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),
     ]
 
     for table_name, column_name, column_sql in migrations:

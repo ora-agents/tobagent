@@ -116,6 +116,8 @@ function DashboardContent() {
     deleteProfile: deleteAgentProfile,
     fetchProfileVersions: fetchAgentProfileVersions,
     restoreProfileVersion: restoreAgentProfileVersion,
+    createShareLink: createAgentShareLink,
+    importShareLink: importAgentShareLink,
   } = useAgentProfiles()
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
@@ -126,6 +128,7 @@ function DashboardContent() {
 
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
+  const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
   const hasInitialPrompt = !!initialPrompt?.trim()
   const activeThreadId = hasInitialPrompt ? null : threadId
 
@@ -394,6 +397,28 @@ function DashboardContent() {
       setThreadId(null)
     }
   }, [threadId, setThreadId, initialPrompt])
+
+  const processedAgentShareRef = useRef<string | null>(null)
+  useEffect(() => {
+    const token = agentShareToken?.trim()
+    if (!token || !user || processedAgentShareRef.current === token) return
+
+    processedAgentShareRef.current = token
+    importAgentShareLink(token)
+      .then((result) => {
+        if (!result) {
+          processedAgentShareRef.current = null
+          return
+        }
+        setCurrentView("chat")
+        setThreadId(null)
+        setAgentShareToken(null)
+      })
+      .catch((err) => {
+        processedAgentShareRef.current = null
+        console.error("Failed to import shared agent from URL parameter", err)
+      })
+  }, [agentShareToken, importAgentShareLink, setAgentShareToken, setThreadId, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -678,6 +703,7 @@ function DashboardContent() {
             updateAgentProfile={updateAgentProfile}
             fetchAgentProfileVersions={fetchAgentProfileVersions}
             restoreAgentProfileVersion={restoreAgentProfileVersion}
+            createAgentShareLink={createAgentShareLink}
             userVoiceprints={userVoiceprints}
             onNavigateToUserSettings={() => setCurrentView("settings")}
             deleteAgentProfile={deleteAgentProfile}

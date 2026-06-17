@@ -24,6 +24,7 @@ import {
   Settings,
   History,
   RotateCcw,
+  Share2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentProfileVersion, BuiltinToolId } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -266,6 +267,7 @@ interface ManagementDashboardProps {
   deleteAgentProfile: (id: string) => void
   fetchAgentProfileVersions: (id: string) => Promise<AgentProfileVersion[]>
   restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
+  createAgentShareLink: (id: string, include: AgentShareOptions) => Promise<AgentShareLink | null>
   editAgentIdOnOpen?: string | null
   onEditAgentIdHandled?: () => void
   createAgentOnOpenSignal?: number
@@ -285,6 +287,7 @@ export function ManagementDashboard({
   deleteAgentProfile,
   fetchAgentProfileVersions,
   restoreAgentProfileVersion,
+  createAgentShareLink,
   editAgentIdOnOpen,
   onEditAgentIdHandled,
   createAgentOnOpenSignal = 0,
@@ -376,6 +379,14 @@ export function ManagementDashboard({
   const [agentVersions, setAgentVersions] = useState<AgentProfileVersion[]>([])
   const [agentVersionsLoading, setAgentVersionsLoading] = useState(false)
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
+  const [shareOptions, setShareOptions] = useState<AgentShareOptions>({
+    knowledgeBases: true,
+    skills: true,
+    mcpServers: true,
+    agents: true,
+  })
+  const [shareLink, setShareLink] = useState<string | null>(null)
+  const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
@@ -624,6 +635,7 @@ export function ManagementDashboard({
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
     setDeleteConfirmId(null)
+    setShareLink(null)
   }
 
   const handleStartCreateAgent = useCallback(() => {
@@ -690,6 +702,28 @@ export function ManagementDashboard({
     } catch (err) {
       console.error("Failed to copy agent ID", err)
     }
+  }
+
+  const handleCreateAgentShare = async (id: string) => {
+    setSharingAgentId(id)
+    try {
+      const share = await createAgentShareLink(id, shareOptions)
+      if (!share) return
+      const url = new URL(window.location.href)
+      url.searchParams.set("agentShare", share.token)
+      url.searchParams.delete("threadId")
+      const nextLink = url.toString()
+      setShareLink(nextLink)
+      await navigator.clipboard.writeText(nextLink)
+    } catch (err) {
+      console.error("Failed to create agent share link", err)
+    } finally {
+      setSharingAgentId(null)
+    }
+  }
+
+  const toggleShareOption = (key: keyof AgentShareOptions) => {
+    setShareOptions(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
   const handleSaveAgent = () => {
@@ -2323,6 +2357,64 @@ export function ManagementDashboard({
                             ? (locale === "zh" ? "已复制" : "Copied")
                             : (locale === "zh" ? "复制" : "Copy")}
                         </Button>
+                      </div>
+
+                      <div className="space-y-3 rounded-lg border border-border/50 bg-background/50 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-sm font-semibold">
+                              <Share2 className="h-4 w-4 text-primary" />
+                              {locale === "zh" ? "分享角色配置" : "Share Agent Config"}
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {locale === "zh"
+                                ? "生成带 agentShare 参数的链接，其他账号打开后可直接导入该角色。"
+                                : "Create a link with an agentShare parameter so another account can import this agent."}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCreateAgentShare(selectedAgent.id)}
+                            disabled={sharingAgentId === selectedAgent.id}
+                            className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                          >
+                            <Share2 className="h-3.5 w-3.5" />
+                            {sharingAgentId === selectedAgent.id
+                              ? (locale === "zh" ? "生成中" : "Creating")
+                              : (locale === "zh" ? "生成并复制" : "Create & Copy")}
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {([
+                            ["knowledgeBases", locale === "zh" ? "知识库" : "KBs"],
+                            ["skills", locale === "zh" ? "Skills" : "Skills"],
+                            ["mcpServers", "MCP"],
+                            ["agents", locale === "zh" ? "多角色" : "Roles"],
+                          ] as [keyof AgentShareOptions, string][]).map(([key, label]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => toggleShareOption(key)}
+                              className="flex items-center gap-2 rounded-md border border-border/60 px-2.5 py-2 text-left text-xs hover:bg-muted/30"
+                            >
+                              <span className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border ${
+                                shareOptions[key] ? "border-primary bg-primary" : "border-muted-foreground/40"
+                              }`}>
+                                {shareOptions[key] && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                              </span>
+                              <span className="truncate">{label}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {shareLink && (
+                          <div className="rounded-md border border-border/40 bg-muted/20 px-3 py-2 font-mono text-[11px] text-muted-foreground break-all">
+                            {shareLink}
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

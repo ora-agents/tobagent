@@ -1,5 +1,11 @@
 import { useState, useCallback, useEffect } from "react"
-import type { AgentProfile, AgentProfileVersion } from "@/lib/types/agent-profiles"
+import type {
+  AgentProfile,
+  AgentProfileVersion,
+  AgentShareImportResponse,
+  AgentShareLink,
+  AgentShareOptions,
+} from "@/lib/types/agent-profiles"
 import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
 import { generateUUID } from "@/lib/utils"
@@ -176,6 +182,52 @@ export function useAgentProfiles() {
     return null
   }, [user])
 
+  const createShareLink = useCallback(async (
+    id: string,
+    include: AgentShareOptions,
+  ): Promise<AgentShareLink | null> => {
+    if (!LANGGRAPH_API_URL || !user) return null
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}` },
+        body: JSON.stringify({ include }),
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to create share link for agent profile ${id}`, err)
+    }
+    return null
+  }, [user])
+
+  const importShareLink = useCallback(async (
+    token: string,
+    name?: string,
+  ): Promise<AgentShareImportResponse | null> => {
+    if (!LANGGRAPH_API_URL || !user) return null
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-shares/${encodeURIComponent(token)}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}` },
+        body: JSON.stringify({ name }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        setProfiles(prev => [...prev, data.agent])
+        setSelectedIdState(data.agent.id)
+        saveSelectedId(data.agent.id)
+        return data
+      }
+    } catch (err) {
+      console.error(`Failed to import shared agent ${token}`, err)
+    }
+    return null
+  }, [user])
+
   const deleteProfile = useCallback(async (id: string) => {
     if (!LANGGRAPH_API_URL || !user) return
 
@@ -212,5 +264,7 @@ export function useAgentProfiles() {
     deleteProfile,
     fetchProfileVersions,
     restoreProfileVersion,
+    createShareLink,
+    importShareLink,
   }
 }

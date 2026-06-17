@@ -195,6 +195,7 @@ from sqlalchemy.orm import Session
 from src.utils.db import (
     AgentProfileTable,
     AgentProfileVersionTable,
+    AgentShareLinkTable,
     ClientProfileTable,
     KnowledgeBaseTable,
     McpServerTable,
@@ -261,6 +262,45 @@ class CreateUserApiKeyRequest(BaseModel):
 
 class CreateUserApiKeyResponse(UserApiKeySchema):
     apiKey: str
+
+
+class AgentShareOptions(BaseModel):
+    """Optional linked resources to include in an agent share link."""
+
+    knowledgeBases: bool = False
+    skills: bool = False
+    mcpServers: bool = False
+    agents: bool = False
+
+
+class AgentShareLinkRequest(BaseModel):
+    include: AgentShareOptions = Field(default_factory=AgentShareOptions)
+
+
+class AgentShareLinkSchema(BaseModel):
+    token: str
+    agentProfileId: str
+    include: AgentShareOptions
+    createdAt: str
+    updatedAt: str
+
+
+class AgentSharePreview(BaseModel):
+    token: str
+    agent: "AgentProfileSchema"
+    include: AgentShareOptions
+    resources: dict[str, int]
+    createdAt: str
+
+
+class AgentShareImportRequest(BaseModel):
+    name: str | None = None
+
+
+class AgentShareImportResponse(BaseModel):
+    agent: "AgentProfileSchema"
+    resourceIdMap: dict[str, dict[str, str]]
+    warnings: list[str] = []
 
 
 
@@ -556,6 +596,20 @@ def _mcp_schema(server: McpServerTable) -> McpServerSchema:
     )
 
 
+def _share_options_from_row(share: AgentShareLinkTable) -> AgentShareOptions:
+    return AgentShareOptions.model_validate(share.include_options or {})
+
+
+def _share_link_schema(share: AgentShareLinkTable) -> AgentShareLinkSchema:
+    return AgentShareLinkSchema(
+        token=share.token,
+        agentProfileId=share.agent_profile_id,
+        include=_share_options_from_row(share),
+        createdAt=share.created_at,
+        updatedAt=share.updated_at,
+    )
+
+
 def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
     return UserApiKeySchema(
         id=api_key.id,
@@ -710,6 +764,190 @@ def _invalidate_runtime_caches(
         invalidate_rag_cache(agent_id=agent_id, owner_user_id=owner_user_id)
     except Exception:
         pass
+
+
+def _new_resource_id(prefix: str) -> str:
+    return f"{prefix}-{uuid.uuid4()}"
+
+
+def _copy_kb_vector_table_best_effort(source_kb_id: str, target_kb_id: str) -> str | None:
+    """Copy LanceDB rows for a shared KB when the local vector store is available."""
+    try:
+        from src.tools.rag_tool import _get_db, _table_name, invalidate_rag_cache
+
+        vector_db = _get_db()
+        source_table_name = _table_name(source_kb_id)
+        target_table_name = _table_name(target_kb_id)
+        if source_table_name not in vector_db.table_names():
+            return None
+
+        source_table = vector_db.open_table(source_table_name)
+        if hasattr(source_table, "to_arrow"):
+            data = source_table.to_arrow()
+        elif hasattr(source_table, "to_lance"):
+            data = source_table.to_lance().to_table()
+        else:
+            return "Knowledge base vectors could not be copied by this LanceDB version."
+
+        if target_table_name in vector_db.table_names():
+            vector_db.drop_table(target_table_name)
+        vector_db.create_table(target_table_name, data=data)
+        invalidate_rag_cache()
+        return None
+    except Exception as exc:
+        logger.warning("Failed to copy shared KB vectors %s -> %s: %s", source_kb_id, target_kb_id, exc)
+        return "Knowledge base metadata was copied, but vector rows could not be copied."
+
+
+def _copy_shared_agent_resources(
+    db: Session,
+    source_profile: AgentProfileTable,
+    target_owner_user_id: str,
+    include: AgentShareOptions,
+    now: str,
+) -> tuple[dict[str, list[str]], dict[str, dict[str, str]], list[str]]:
+    """Copy selected linked resources and return rewritten id lists."""
+    source_ids = {
+        "knowledgeBaseIds": list(source_profile.knowledge_base_ids or []),
+        "skillIds": list(source_profile.skill_ids or []),
+        "mcpIds": list(source_profile.mcp_ids or []),
+        "agentIds": list(source_profile.agent_ids or []),
+    }
+    target_ids = {key: [] for key in source_ids}
+    id_map: dict[str, dict[str, str]] = {
+        "knowledgeBaseIds": {},
+        "skillIds": {},
+        "mcpIds": {},
+        "agentIds": {},
+    }
+    warnings: list[str] = []
+
+    if include.knowledgeBases:
+        from sqlalchemy import or_
+
+        kbs = db.query(KnowledgeBaseTable).filter(
+            KnowledgeBaseTable.id.in_(source_ids["knowledgeBaseIds"]),
+            or_(
+                KnowledgeBaseTable.owner_user_id == source_profile.owner_user_id,
+                KnowledgeBaseTable.owner_user_id.is_(None),
+            ),
+        ).all()
+        by_id = {kb.id: kb for kb in kbs}
+        for source_id in source_ids["knowledgeBaseIds"]:
+            kb = by_id.get(source_id)
+            if not kb:
+                warnings.append(f"Knowledge base {source_id} was not found and was skipped.")
+                continue
+            if kb.owner_user_id is None:
+                target_ids["knowledgeBaseIds"].append(kb.id)
+                id_map["knowledgeBaseIds"][source_id] = kb.id
+                continue
+
+            target_id = _new_resource_id("kb")
+            db.add(KnowledgeBaseTable(
+                id=target_id,
+                owner_user_id=target_owner_user_id,
+                name=f"{kb.name} (shared)",
+                description=kb.description,
+                files=copy.deepcopy(kb.files or []),
+                created_at=now,
+                updated_at=now,
+            ))
+            target_ids["knowledgeBaseIds"].append(target_id)
+            id_map["knowledgeBaseIds"][source_id] = target_id
+            warning = _copy_kb_vector_table_best_effort(kb.id, target_id)
+            if warning:
+                warnings.append(warning)
+
+    if include.skills:
+        skills = db.query(SkillTable).filter(
+            SkillTable.id.in_(source_ids["skillIds"]),
+            SkillTable.owner_user_id == source_profile.owner_user_id,
+        ).all()
+        by_id = {skill.id: skill for skill in skills}
+        for source_id in source_ids["skillIds"]:
+            skill = by_id.get(source_id)
+            if not skill:
+                warnings.append(f"Skill {source_id} was not found and was skipped.")
+                continue
+            target_id = _new_resource_id("skill")
+            db.add(SkillTable(
+                id=target_id,
+                owner_user_id=target_owner_user_id,
+                name=f"{skill.name} (shared)",
+                description=skill.description,
+                content=skill.content,
+                created_at=now,
+                updated_at=now,
+            ))
+            target_ids["skillIds"].append(target_id)
+            id_map["skillIds"][source_id] = target_id
+
+    if include.mcpServers:
+        servers = db.query(McpServerTable).filter(
+            McpServerTable.id.in_(source_ids["mcpIds"]),
+            McpServerTable.owner_user_id == source_profile.owner_user_id,
+        ).all()
+        by_id = {server.id: server for server in servers}
+        for source_id in source_ids["mcpIds"]:
+            server = by_id.get(source_id)
+            if not server:
+                warnings.append(f"MCP server {source_id} was not found and was skipped.")
+                continue
+            target_id = _new_resource_id("mcp")
+            db.add(McpServerTable(
+                id=target_id,
+                owner_user_id=target_owner_user_id,
+                name=f"{server.name} (shared)",
+                type="streamable_http",
+                url=server.url,
+                headers=copy.deepcopy(server.headers or {}),
+                created_at=now,
+                updated_at=now,
+            ))
+            target_ids["mcpIds"].append(target_id)
+            id_map["mcpIds"][source_id] = target_id
+
+    if include.agents:
+        linked_agents = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id.in_(source_ids["agentIds"]),
+            AgentProfileTable.owner_user_id == source_profile.owner_user_id,
+        ).all()
+        by_id = {agent.id: agent for agent in linked_agents}
+        for source_id in source_ids["agentIds"]:
+            agent = by_id.get(source_id)
+            if not agent:
+                warnings.append(f"Linked agent {source_id} was not found and was skipped.")
+                continue
+            target_id = _new_resource_id("agent")
+            linked_profile = AgentProfileTable(
+                id=target_id,
+                owner_user_id=target_owner_user_id,
+                name=f"{agent.name} (shared)",
+                description=agent.description,
+                system_prompt=agent.system_prompt,
+                model=agent.model,
+                enabled_tools=copy.deepcopy(agent.enabled_tools or []),
+                knowledge_base_ids=[],
+                skill_ids=[],
+                mcp_ids=[],
+                agent_ids=[],
+                wake_words=copy.deepcopy(agent.wake_words or []),
+                role_template_id=agent.role_template_id,
+                persona_style=agent.persona_style,
+                boundary_mode=agent.boundary_mode,
+                tts_voice=agent.tts_voice,
+                voice_interruption_enabled=agent.voice_interruption_enabled is not False,
+                speaker_verification_enabled=False,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(linked_profile)
+            _create_agent_profile_version(db, linked_profile, now)
+            target_ids["agentIds"].append(target_id)
+            id_map["agentIds"][source_id] = target_id
+
+    return target_ids, id_map, warnings
 
 
 @app.post("/api/robot-points", response_model=RobotPointResponse)
@@ -1288,6 +1526,149 @@ async def restore_agent_profile_version(
     return _agent_profile_schema(profile)
 
 
+@app.post("/api/agent-profiles/{id}/share", response_model=AgentShareLinkSchema)
+async def create_agent_share_link(
+    id: str,
+    share_data: AgentShareLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == id,
+        AgentProfileTable.owner_user_id == current_user.id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    existing = db.query(AgentShareLinkTable).filter(
+        AgentShareLinkTable.agent_profile_id == id,
+        AgentShareLinkTable.owner_user_id == current_user.id,
+    ).first()
+    include_options = share_data.include.model_dump(mode="json")
+    if existing:
+        existing.include_options = include_options
+        existing.updated_at = now
+        share = existing
+    else:
+        share = AgentShareLinkTable(
+            id=f"share-{uuid.uuid4()}",
+            token=secrets.token_urlsafe(24),
+            owner_user_id=current_user.id,
+            agent_profile_id=id,
+            include_options=include_options,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(share)
+
+    db.commit()
+    db.refresh(share)
+    return _share_link_schema(share)
+
+
+@app.get("/api/agent-shares/{token}", response_model=AgentSharePreview)
+async def get_agent_share_preview(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    share = db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Agent share link not found")
+
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == share.agent_profile_id,
+        AgentProfileTable.owner_user_id == share.owner_user_id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Shared agent profile not found")
+
+    include = _share_options_from_row(share)
+    resources = {
+        "knowledgeBases": len(profile.knowledge_base_ids or []) if include.knowledgeBases else 0,
+        "skills": len(profile.skill_ids or []) if include.skills else 0,
+        "mcpServers": len(profile.mcp_ids or []) if include.mcpServers else 0,
+        "agents": len(profile.agent_ids or []) if include.agents else 0,
+    }
+    preview_agent = _agent_profile_schema(profile)
+    preview_agent.knowledgeBaseIds = []
+    preview_agent.skillIds = []
+    preview_agent.mcpIds = []
+    preview_agent.agentIds = []
+    preview_agent.userVoiceprintId = None
+    preview_agent.speakerVerificationEnabled = False
+    preview_agent.speakerVerificationBound = False
+
+    return AgentSharePreview(
+        token=share.token,
+        agent=preview_agent,
+        include=include,
+        resources=resources,
+        createdAt=share.created_at,
+    )
+
+
+@app.post("/api/agent-shares/{token}/import", response_model=AgentShareImportResponse)
+async def import_agent_share(
+    token: str,
+    import_data: AgentShareImportRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    share = db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Agent share link not found")
+
+    source_profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == share.agent_profile_id,
+        AgentProfileTable.owner_user_id == share.owner_user_id,
+    ).first()
+    if not source_profile:
+        raise HTTPException(status_code=404, detail="Shared agent profile not found")
+
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    include = _share_options_from_row(share)
+    copied_ids, id_map, warnings = _copy_shared_agent_resources(
+        db,
+        source_profile,
+        current_user.id,
+        include,
+        now,
+    )
+    imported_profile = AgentProfileTable(
+        id=_new_resource_id("agent"),
+        owner_user_id=current_user.id,
+        name=(import_data.name or f"{source_profile.name} (shared)").strip(),
+        description=source_profile.description,
+        system_prompt=source_profile.system_prompt,
+        model=source_profile.model,
+        enabled_tools=copy.deepcopy(source_profile.enabled_tools or []),
+        knowledge_base_ids=copied_ids["knowledgeBaseIds"],
+        skill_ids=copied_ids["skillIds"],
+        mcp_ids=copied_ids["mcpIds"],
+        agent_ids=copied_ids["agentIds"],
+        wake_words=copy.deepcopy(source_profile.wake_words or []),
+        role_template_id=source_profile.role_template_id,
+        persona_style=source_profile.persona_style,
+        boundary_mode=source_profile.boundary_mode,
+        tts_voice=source_profile.tts_voice,
+        voice_interruption_enabled=source_profile.voice_interruption_enabled is not False,
+        speaker_verification_enabled=False,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(imported_profile)
+    _create_agent_profile_version(db, imported_profile, now)
+    db.commit()
+    db.refresh(imported_profile)
+    _invalidate_runtime_caches(imported_profile.id, current_user.id)
+    return AgentShareImportResponse(
+        agent=_agent_profile_schema(imported_profile),
+        resourceIdMap=id_map,
+        warnings=list(dict.fromkeys(warnings)),
+    )
+
+
 @app.delete("/api/agent-profiles/{id}")
 async def delete_agent_profile(
     id: str,
@@ -1301,6 +1682,10 @@ async def delete_agent_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
     _remove_agent_profile_links(db, current_user.id, "agent_ids", [id])
+    db.query(AgentShareLinkTable).filter(
+        AgentShareLinkTable.agent_profile_id == id,
+        AgentShareLinkTable.owner_user_id == current_user.id,
+    ).delete()
     db.delete(profile)
     db.commit()
     _invalidate_runtime_caches(id, current_user.id)
@@ -1980,6 +2365,7 @@ async def root():
             "agent_upload": "/agents/{agent_id}/upload",
             "agent_rag_status": "/agents/{agent_id}/rag-status",
             "agent_profiles": "/api/agent-profiles",
+            "agent_shares": "/api/agent-shares/{token}",
             "skills": "/api/skills",
             "knowledge_bases": "/api/knowledge-bases",
             "mcp_servers": "/api/mcp-servers",
