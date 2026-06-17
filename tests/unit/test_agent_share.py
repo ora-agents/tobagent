@@ -207,4 +207,45 @@ async def test_import_agent_share_copies_selected_resources_and_rewrites_ids(
         McpServerTable.id == imported.agent.mcpIds[0],
     ).one()
     assert copied_mcp.owner_user_id == receiver.id
+    assert copied_mcp.name == "Source MCP"
     assert copied_mcp.headers == {"Authorization": "Bearer secret"}
+
+    copied_kb = db_session.query(KnowledgeBaseTable).filter(
+        KnowledgeBaseTable.id == imported.agent.knowledgeBaseIds[0],
+    ).one()
+    assert copied_kb.name == "Source KB"
+
+    copied_skill = db_session.query(SkillTable).filter(
+        SkillTable.id == imported.agent.skillIds[0],
+    ).one()
+    assert copied_skill.name == "Source Skill"
+
+    copied_agent = db_session.query(AgentProfileTable).filter(
+        AgentProfileTable.id == imported.agent.agentIds[0],
+    ).one()
+    assert copied_agent.name == "Linked Agent"
+
+
+@pytest.mark.anyio
+async def test_import_agent_share_defaults_to_source_name_without_shared_suffix(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(),
+        db_session,
+        owner,
+    )
+
+    imported = await import_agent_share(
+        share.token,
+        AgentShareImportRequest(),
+        db_session,
+        receiver,
+    )
+
+    assert imported.agent.name == "Source Agent"

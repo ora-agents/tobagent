@@ -363,7 +363,7 @@ def _copy_shared_agent_resources(
             db.add(KnowledgeBaseTable(
                 id=target_id,
                 owner_user_id=target_owner_user_id,
-                name=f"{kb.name} (shared)",
+                name=kb.name,
                 description=kb.description,
                 files=copy.deepcopy(kb.files or []),
                 created_at=now,
@@ -390,7 +390,7 @@ def _copy_shared_agent_resources(
             db.add(SkillTable(
                 id=target_id,
                 owner_user_id=target_owner_user_id,
-                name=f"{skill.name} (shared)",
+                name=skill.name,
                 description=skill.description,
                 content=skill.content,
                 created_at=now,
@@ -414,7 +414,7 @@ def _copy_shared_agent_resources(
             db.add(McpServerTable(
                 id=target_id,
                 owner_user_id=target_owner_user_id,
-                name=f"{server.name} (shared)",
+                name=server.name,
                 type="streamable_http",
                 url=server.url,
                 headers=copy.deepcopy(server.headers or {}),
@@ -439,7 +439,7 @@ def _copy_shared_agent_resources(
             linked_profile = AgentProfileTable(
                 id=target_id,
                 owner_user_id=target_owner_user_id,
-                name=f"{agent.name} (shared)",
+                name=agent.name,
                 description=agent.description,
                 system_prompt=agent.system_prompt,
                 model=agent.model,

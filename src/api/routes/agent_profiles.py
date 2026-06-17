@@ -350,7 +350,7 @@ async def import_agent_share(
     imported_profile = AgentProfileTable(
         id=_new_resource_id("agent"),
         owner_user_id=current_user.id,
-        name=(import_data.name or f"{source_profile.name} (shared)").strip(),
+        name=(import_data.name or source_profile.name).strip(),
         description=source_profile.description,
         system_prompt=source_profile.system_prompt,
         model=source_profile.model,
@@ -402,5 +402,4 @@ async def delete_agent_profile(
     db.commit()
     _invalidate_runtime_caches(id, current_user.id)
     return {"status": "success", "message": f"Agent profile {id} deleted"}
-
 
