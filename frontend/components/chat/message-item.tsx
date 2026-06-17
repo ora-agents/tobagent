@@ -341,7 +341,7 @@ export const MessageItem = memo(function MessageItem({
         }
       `}</style>
       <div className={`flex gap-3 sm:gap-4 items-start group/message ${message.role === "user" ? "justify-end" : ""}`}>
-      <div className={`min-w-0 space-y-2 ${message.role === "user" ? "max-w-[80%]" : "flex-1"}`}>
+      <div className={`min-w-0 space-y-2 ${message.role === "user" ? "ml-auto w-fit max-w-[85%] sm:max-w-[80%]" : "flex-1"}`}>
         <div
           className={`transition-all duration-150 ease-out ${
             message.role === "user"
@@ -506,7 +506,7 @@ export const MessageItem = memo(function MessageItem({
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
                   onKeyDown={handleEditKeyDown}
-                  className="chat-message-textarea min-h-0 w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                  className="chat-message-textarea min-h-0 min-w-[2ch] max-w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
                   rows={1}
                 />
               </div>
