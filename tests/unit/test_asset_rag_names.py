@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 from src.tools.rag_tool import _RagInput, _selected_linked_kb_ids, _table_name
 from src.utils.assets_import import (
+    _asset_files_unchanged,
     _asset_kb_id,
     _remove_stale_kb_links,
     _should_delete_stale_asset_kb,
@@ -110,3 +111,87 @@ def test_remove_stale_kb_links_updates_profile():
     assert changed
     assert profile.knowledge_base_ids == ["keep"]
     assert profile.updated_at != "old"
+
+
+def test_asset_files_unchanged_accepts_matching_fingerprints():
+    previous = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "old",
+            "mtimeNs": 123,
+            "sha256": "abc",
+        }
+    ]
+    current = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "new",
+            "mtimeNs": 123,
+            "sha256": "abc",
+        }
+    ]
+
+    assert _asset_files_unchanged(previous, current)
+
+
+def test_asset_files_unchanged_ignores_mtime_when_hash_matches():
+    previous = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "old",
+            "mtimeNs": 123,
+            "sha256": "abc",
+        }
+    ]
+    current = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "new",
+            "mtimeNs": 456,
+            "sha256": "abc",
+        }
+    ]
+
+    assert _asset_files_unchanged(previous, current)
+
+
+def test_asset_files_unchanged_detects_replaced_same_name_file():
+    previous = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "old",
+            "mtimeNs": 123,
+            "sha256": "abc",
+        }
+    ]
+    current = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "new",
+            "mtimeNs": 456,
+            "sha256": "def",
+        }
+    ]
+
+    assert not _asset_files_unchanged(previous, current)
+
+
+def test_asset_files_unchanged_rebuilds_legacy_records_without_hash():
+    previous = [{"name": "威思瑞/问答.docx", "size": 100, "uploadedAt": "old"}]
+    current = [
+        {
+            "name": "威思瑞/问答.docx",
+            "size": 100,
+            "uploadedAt": "new",
+            "mtimeNs": 123,
+            "sha256": "abc",
+        }
+    ]
+
+    assert not _asset_files_unchanged(previous, current)

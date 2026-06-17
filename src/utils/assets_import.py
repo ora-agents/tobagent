@@ -147,6 +147,53 @@ async def _folder_files(folder: Path) -> list[Path]:
     return await asyncio.to_thread(_scan_folder_files, folder)
 
 
+def _asset_file_record(asset_file: Path, raw: bytes | None = None) -> dict:
+    """Return stable metadata used to detect changed bundled asset files."""
+    if raw is None:
+        raw = asset_file.read_bytes()
+    stat = asset_file.stat()
+    return {
+        "name": str(asset_file.relative_to(ASSETS_DIR)),
+        "size": len(raw),
+        "uploadedAt": _now_iso() + "Z",
+        "mtimeNs": stat.st_mtime_ns,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+
+
+async def _asset_folder_file_records(folder: Path) -> list[dict]:
+    """Return file records for an assets folder without parsing document text."""
+    files = await _folder_files(folder)
+    return [
+        await asyncio.to_thread(_asset_file_record, asset_file)
+        for asset_file in files
+    ]
+
+
+def _asset_file_fingerprint(record: dict) -> tuple[str, int, str]:
+    return (
+        str(record.get("name") or ""),
+        int(record.get("size") or 0),
+        str(record.get("sha256") or ""),
+    )
+
+
+def _asset_files_unchanged(previous: object, current: list[dict]) -> bool:
+    """Return whether stored asset file fingerprints match the current files."""
+    if not isinstance(previous, list):
+        return False
+    if len(previous) != len(current):
+        return False
+    if any(not isinstance(record, dict) for record in previous):
+        return False
+    if any(not record.get("sha256") for record in previous):
+        return False
+
+    previous_fingerprints = sorted(_asset_file_fingerprint(record) for record in previous)
+    current_fingerprints = sorted(_asset_file_fingerprint(record) for record in current)
+    return previous_fingerprints == current_fingerprints
+
+
 async def _rag_table_has_rows(kb_id: str) -> bool:
     """Return whether the LanceDB table for a KB exists and contains rows."""
     try:
@@ -233,13 +280,7 @@ async def _load_asset_folder_chunks(folder: Path) -> tuple[list[str], list[str],
         file_chunks = splitter.split_text(text)
         chunks.extend(file_chunks)
         sources.extend([str(asset_file.relative_to(ASSETS_DIR))] * len(file_chunks))
-        file_records.append(
-            {
-                "name": str(asset_file.relative_to(ASSETS_DIR)),
-                "size": len(raw),
-                "uploadedAt": _now_iso() + "Z",
-            }
-        )
+        file_records.append(await asyncio.to_thread(_asset_file_record, asset_file, raw))
 
     return chunks, sources, file_records
 
@@ -302,9 +343,16 @@ async def ensure_system_asset_knowledge_bases() -> list[str]:
             kb = db.query(KnowledgeBaseTable).filter(
                 KnowledgeBaseTable.id == kb_id,
             ).first()
-            if kb is not None and await _rag_table_has_rows(kb_id):
+            current_file_records = await _asset_folder_file_records(folder)
+            if (
+                kb is not None
+                and await _rag_table_has_rows(kb_id)
+                and _asset_files_unchanged(kb.files, current_file_records)
+            ):
                 imported_kb_ids.append(kb_id)
                 continue
+            if kb is not None:
+                await _drop_rag_tables({kb_id})
 
             chunks, sources, file_records = await _load_asset_folder_chunks(folder)
             if not chunks:
