@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import type {
   AgentProfile,
   AgentProfileVersion,
@@ -67,10 +67,15 @@ export function useAgentProfiles() {
     fetchProfiles()
   }, [user])
 
+  const visibleProfiles = useMemo(
+    () => profiles.filter((profile) => !profile.isHidden),
+    [profiles]
+  )
+
   useEffect(() => {
     if (!profilesLoaded) return
 
-    if (profiles.length === 0) {
+    if (visibleProfiles.length === 0) {
       if (selectedId) {
         setSelectedIdState(null)
         saveSelectedId(null)
@@ -78,12 +83,12 @@ export function useAgentProfiles() {
       return
     }
 
-    if (selectedId && profiles.some(p => p.id === selectedId)) return
+    if (selectedId && visibleProfiles.some(p => p.id === selectedId)) return
 
-    const defaultId = profiles[0].id
+    const defaultId = visibleProfiles[0].id
     setSelectedIdState(defaultId)
     saveSelectedId(defaultId)
-  }, [profilesLoaded, profiles, selectedId])
+  }, [profilesLoaded, visibleProfiles, selectedId])
 
   const setSelectedId = useCallback((id: string | null) => {
     setSelectedIdState(id)
@@ -249,7 +254,7 @@ export function useAgentProfiles() {
   }, [user])
 
   const selectedProfile = selectedId
-    ? profiles.find(p => p.id === selectedId) ?? null
+    ? visibleProfiles.find(p => p.id === selectedId) ?? null
     : null
 
   return {

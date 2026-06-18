@@ -56,6 +56,7 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         personaStyle=profile.persona_style,
         boundaryMode=profile.boundary_mode,
         ttsVoice=profile.tts_voice,
+        isHidden=bool(profile.is_hidden),
         voiceInterruptionEnabled=profile.voice_interruption_enabled is not False,
         speakerVerificationEnabled=bool(profile.speaker_verification_enabled),
         speakerVerificationBound=bool(profile.user_voiceprint_id),

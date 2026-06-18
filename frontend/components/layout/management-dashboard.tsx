@@ -25,6 +25,7 @@ import {
   History,
   RotateCcw,
   Share2,
+  EyeOff,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -346,6 +347,7 @@ export function ManagementDashboard({
     personaStyle: PersonaStyle
     boundaryMode: BoundaryMode
     ttsVoice: string
+    isHidden: boolean
     voiceInterruptionEnabled: boolean
     speakerVerificationEnabled: boolean
     userVoiceprintId: string | null
@@ -364,6 +366,7 @@ export function ManagementDashboard({
     personaStyle: "professional",
     boundaryMode: "business_only",
     ttsVoice: "Cherry",
+    isHidden: false,
     voiceInterruptionEnabled: true,
     speakerVerificationEnabled: false,
     userVoiceprintId: null
@@ -656,6 +659,7 @@ export function ManagementDashboard({
       personaStyle: "professional",
       boundaryMode: "business_only",
       ttsVoice: "Cherry",
+      isHidden: false,
       voiceInterruptionEnabled: true,
       speakerVerificationEnabled: false,
       userVoiceprintId: null
@@ -687,6 +691,7 @@ export function ManagementDashboard({
       personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
       boundaryMode: (profile.boundaryMode || "business_only") as BoundaryMode,
       ttsVoice: profile.ttsVoice || "Cherry",
+      isHidden: profile.isHidden || false,
       voiceInterruptionEnabled: profile.voiceInterruptionEnabled !== false,
       speakerVerificationEnabled: profile.speakerVerificationEnabled || false,
       userVoiceprintId: (profile as any).userVoiceprintId || null
@@ -744,6 +749,7 @@ export function ManagementDashboard({
       personaStyle: agentForm.personaStyle,
       boundaryMode: agentForm.boundaryMode,
       ttsVoice: agentForm.ttsVoice,
+      isHidden: agentForm.isHidden,
       voiceInterruptionEnabled: agentForm.voiceInterruptionEnabled,
       speakerVerificationEnabled: agentForm.speakerVerificationEnabled,
       userVoiceprintId: agentForm.userVoiceprintId
@@ -755,8 +761,10 @@ export function ManagementDashboard({
           setSelectedAgentId(created.id)
           // Mark saving so the useEffect won't re-enter edit mode
           isSavingRef.current = true
-          // Automatically set the newly created agent as active and return to chat
-          setSelectedAgentProfileId(created.id)
+          if (!created.isHidden) {
+            // Automatically set visible newly created agents as active and return to chat
+            setSelectedAgentProfileId(created.id)
+          }
         }
         setIsCreatingAgent(false)
         onBackToChat()
@@ -765,8 +773,8 @@ export function ManagementDashboard({
       updateAgentProfile(activeEditingAgentId, profileData)
       // Mark saving so the useEffect won't re-enter edit mode
       isSavingRef.current = true
-      // Automatically set the edited agent as active and return to chat
-      setSelectedAgentProfileId(activeEditingAgentId)
+      // Keep hidden roles out of the chat switcher and active chat selection
+      setSelectedAgentProfileId(agentForm.isHidden ? null : activeEditingAgentId)
       setIsEditingAgent(false)
       onBackToChat()
     }
@@ -1659,7 +1667,11 @@ export function ManagementDashboard({
                       }`}
                     >
                       <div className="font-semibold text-sm flex items-center gap-1.5 truncate">
-                        <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+                        {profile.isHidden ? (
+                          <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
                         {profile.name}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate">
@@ -1668,6 +1680,12 @@ export function ManagementDashboard({
 
                       {/* Visual indicators for resources */}
                       <div className="flex flex-wrap gap-1 mt-2">
+                        {profile.isHidden && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-muted text-muted-foreground border border-border flex items-center gap-0.5">
+                            <EyeOff className="w-2.5 h-2.5" />
+                            {locale === "zh" ? "已隐藏" : "Hidden"}
+                          </span>
+                        )}
                         {profile.enabledTools && profile.enabledTools.length > 0 && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/15 flex items-center gap-0.5" title={profile.enabledTools.join(", ")}>
                             <Wrench className="w-2.5 h-2.5" />
@@ -1960,6 +1978,37 @@ export function ManagementDashboard({
                           placeholder={t.agentDescPlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
+                      <div
+                        className="flex items-start gap-3 cursor-pointer group"
+                        onClick={() => setAgentForm(prev => ({
+                          ...prev,
+                          isHidden: !prev.isHidden,
+                        }))}
+                      >
+                        <span
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+                            agentForm.isHidden
+                              ? "bg-primary border-primary"
+                              : "border-muted-foreground/40 group-hover:border-primary/50"
+                          }`}
+                        >
+                          {agentForm.isHidden && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium flex items-center gap-1.5">
+                            <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+                            {locale === "zh" ? "在对话切换中隐藏" : "Hide from chat switcher"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "开启后，该角色仍可在角色管理中维护，但不会出现在对话页顶部的角色切换选项中。"
+                              : "When enabled, this role stays manageable here but is removed from the chat page role switcher."}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -2469,6 +2518,17 @@ export function ManagementDashboard({
                             {selectedAgent.model
                               ? getModelDisplayName(selectedAgent.model)
                               : (locale === "zh" ? "使用全局聊天模型" : "Global chat model")}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "对话切换" : "Chat Switcher"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1 flex items-center gap-1.5">
+                            {selectedAgent.isHidden && <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                            {selectedAgent.isHidden
+                              ? (locale === "zh" ? "已隐藏" : "Hidden")
+                              : (locale === "zh" ? "可见" : "Visible")}
                           </div>
                         </div>
                         <div className="p-3 border border-border/60 rounded-xl bg-background/50">

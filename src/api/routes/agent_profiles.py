@@ -105,6 +105,7 @@ async def create_agent_profile(
         persona_style=profile_data.personaStyle,
         boundary_mode=profile_data.boundaryMode,
         tts_voice=profile_data.ttsVoice,
+        is_hidden=profile_data.isHidden,
         voice_interruption_enabled=profile_data.voiceInterruptionEnabled,
         speaker_verification_enabled=profile_data.speakerVerificationEnabled,
         user_voiceprint_id=profile_data.userVoiceprintId,
@@ -148,6 +149,7 @@ async def update_agent_profile(
     profile.persona_style = profile_data.personaStyle
     profile.boundary_mode = profile_data.boundaryMode
     profile.tts_voice = profile_data.ttsVoice
+    profile.is_hidden = profile_data.isHidden
     profile.voice_interruption_enabled = profile_data.voiceInterruptionEnabled
     profile.speaker_verification_enabled = profile_data.speakerVerificationEnabled
     profile.user_voiceprint_id = profile_data.userVoiceprintId
@@ -226,6 +228,7 @@ async def restore_agent_profile_version(
     profile.persona_style = restored.personaStyle
     profile.boundary_mode = restored.boundaryMode
     profile.tts_voice = restored.ttsVoice
+    profile.is_hidden = restored.isHidden
     profile.voice_interruption_enabled = restored.voiceInterruptionEnabled
     profile.speaker_verification_enabled = restored.speakerVerificationEnabled
     profile.user_voiceprint_id = restored.userVoiceprintId
@@ -364,6 +367,7 @@ async def import_agent_share(
         persona_style=source_profile.persona_style,
         boundary_mode=source_profile.boundary_mode,
         tts_voice=source_profile.tts_voice,
+        is_hidden=bool(source_profile.is_hidden),
         voice_interruption_enabled=source_profile.voice_interruption_enabled is not False,
         speaker_verification_enabled=False,
         created_at=now,
@@ -402,4 +406,3 @@ async def delete_agent_profile(
     db.commit()
     _invalidate_runtime_caches(id, current_user.id)
     return {"status": "success", "message": f"Agent profile {id} deleted"}
-

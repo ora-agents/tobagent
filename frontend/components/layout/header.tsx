@@ -41,7 +41,8 @@ export function Header({
   const { locale } = useI18n()
 
   const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
-  const canSwitchAgents = !!onAgentProfileChange && agentProfiles.length > 0
+  const visibleAgentProfiles = agentProfiles.filter((profile) => !profile.isHidden)
+  const canSwitchAgents = !!onAgentProfileChange && visibleAgentProfiles.length > 0
 
   return (
     <header className="bg-background h-16 flex items-center">
@@ -53,7 +54,7 @@ export function Header({
                 className="flex min-w-0 max-w-[calc(100vw-11rem)] items-center gap-1.5 overflow-x-auto pr-2 md:max-w-[48rem]"
                 aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
               >
-                {agentProfiles.map((profile) => {
+                {visibleAgentProfiles.map((profile) => {
                   const isActive = selectedAgentProfileId === profile.id
 
                   return (
