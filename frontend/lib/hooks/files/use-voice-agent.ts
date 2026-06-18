@@ -120,6 +120,7 @@ declare global {
       stopAsr?: () => string
       returnToKws?: () => string
       configureTelemetry?: (telemetryJson: string) => string
+      syncVoiceState?: (state: string) => string
       startSpeakerEnrollment?: (requestJson: string) => string
       stopSpeakerEnrollment?: (requestId: string) => string
     }
@@ -143,6 +144,7 @@ declare global {
         voiceSessionId: string
         traceparent: string
       }) => string
+      syncVoiceState?: (state: VoiceState) => string
       startSpeakerEnrollment?: (request: {
         requestId: string
         agentId: string
@@ -414,6 +416,19 @@ export function useVoiceAgent({
       }
     } catch (err) {
       console.error("[NativeVoice] failed to configure telemetry:", err)
+    }
+  }, [])
+
+  const syncNativeVoiceState = useCallback((state: VoiceState) => {
+    if (typeof window === "undefined") return
+    try {
+      if (window.__TOB_NATIVE_VOICE__?.syncVoiceState) {
+        window.__TOB_NATIVE_VOICE__.syncVoiceState(state)
+      } else if (window.TobNativeVoice?.syncVoiceState) {
+        window.TobNativeVoice.syncVoiceState(state)
+      }
+    } catch (err) {
+      console.error("[NativeVoice] failed to sync voice state:", err)
     }
   }, [])
 
@@ -1429,6 +1444,11 @@ export function useVoiceAgent({
       setVoiceStateSync("kws")
     }
   }, [isNativeVoiceProvider, setVoiceStateSync, stopKwsListening])
+
+  useEffect(() => {
+    if (!isNativeVoiceProvider) return
+    syncNativeVoiceState(voiceState)
+  }, [isNativeVoiceProvider, syncNativeVoiceState, voiceState])
 
   useEffect(() => {
     if (!isNativeVoiceProvider || typeof window === "undefined") return
