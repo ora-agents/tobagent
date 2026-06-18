@@ -18,7 +18,7 @@ import { createLangGraphClient } from "../../api/langgraph-client"
 // Constants
 // ============================================================================
 
-import { THREAD_FETCH_LIMIT } from "../../constants/features"
+import { STORAGE_KEYS, THREAD_FETCH_LIMIT } from "../../constants/features"
 
 // ============================================================================
 // Types
@@ -279,6 +279,71 @@ export function useThreads(userId: string | undefined) {
     }
   }
 
+  /**
+   * Delete all threads owned by the current user.
+   *
+   * Searches by user metadata and deletes in batches so this is not limited to
+   * the currently rendered sidebar list.
+   */
+  const deleteAllUserThreads = async (): Promise<number> => {
+    if (!userId) {
+      throw new Error("User ID not found")
+    }
+
+    setIsLoading(true)
+    const client = createLangGraphClient(userId)
+    const deletedThreadIds: string[] = []
+
+    try {
+      while (true) {
+        const batch = (await client.threads.search({
+          metadata: {
+            user_id: userId,
+          },
+          limit: THREAD_FETCH_LIMIT,
+          offset: 0,
+        })) as any[] as Thread[]
+
+        if (batch.length === 0) {
+          break
+        }
+
+        const settledDeletes = await Promise.allSettled(
+          batch.map(async (thread) => {
+            await client.threads.delete(thread.thread_id)
+            deletedThreadIds.push(thread.thread_id)
+          }),
+        )
+
+        const failedDelete = settledDeletes.find((result) => result.status === "rejected")
+        if (failedDelete?.status === "rejected") {
+          throw failedDelete.reason
+        }
+
+        if (batch.length < THREAD_FETCH_LIMIT) {
+          break
+        }
+      }
+
+      setThreads([])
+
+      if (typeof window !== "undefined") {
+        for (const threadId of deletedThreadIds) {
+          localStorage.removeItem(`${STORAGE_KEYS.DRAFT_PREFIX}${threadId}`)
+        }
+        localStorage.removeItem(`${STORAGE_KEYS.DRAFT_PREFIX}new`)
+      }
+
+      return deletedThreadIds.length
+    } catch (error) {
+      logger.error("Error deleting all threads:", error)
+      await getUserThreads(userId, true)
+      throw error
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // ==========================================================================
   // Return API
   // ==========================================================================
@@ -291,6 +356,7 @@ export function useThreads(userId: string | undefined) {
     getUserThreads,
     updateThreadMetadata,
     deleteThread,
+    deleteAllUserThreads,
     addOptimisticThread,
   }
 }

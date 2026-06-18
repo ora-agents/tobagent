@@ -202,6 +202,7 @@ function DashboardContent() {
     isLoading: threadsLoading,
     updateThreadMetadata,
     deleteThread,
+    deleteAllUserThreads,
     addOptimisticThread,
   } = useThreads(userId || undefined)
 
@@ -247,6 +248,15 @@ function DashboardContent() {
         setThreadId(null)
       }
     })
+  }
+
+  const handleClearAllConversations = async () => {
+    const deletedCount = await deleteAllUserThreads()
+    setNewThreads(new Set())
+    setChatSessionKey(prev => prev + 1)
+    setInitialPrompt(null)
+    setThreadId(null)
+    return deletedCount
   }
 
   // Handle when thread is not found (404) or access denied (403)
@@ -689,6 +699,8 @@ function DashboardContent() {
             onElderOptimizedChange={setElderOptimized}
             voiceprints={userVoiceprints}
             onVoiceprintsChange={setUserVoiceprints}
+            onClearAllConversations={handleClearAllConversations}
+            conversationCount={threads.length}
           />
         ) : currentView === "developer-manual" ? (
           <DeveloperManualPage onBackToChat={() => setCurrentView("chat")} />
