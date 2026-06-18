@@ -350,6 +350,7 @@ export function useVoiceAgent({
   // KWS client for always-on wake word detection
   const kwsClientRef = useRef<KwsClient | null>(null)
   const wakeAcknowledgementPendingRef = useRef(false)
+  const suppressReplySpeechTranscriptRef = useRef(false)
   const wakeWordsKey = wakeWords.filter(Boolean).join("\u0000")
   const speakerVerification = useMemo(
     () => (
@@ -469,6 +470,11 @@ export function useVoiceAgent({
     () => voiceInterruptionEnabled && isReplyActive(),
     [isReplyActive, voiceInterruptionEnabled],
   )
+  const markReplySpeechSuppressed = useCallback(() => {
+    if (voiceInterruptionEnabled || !isReplyActive()) return false
+    suppressReplySpeechTranscriptRef.current = true
+    return true
+  }, [isReplyActive, voiceInterruptionEnabled])
   const syncUnifiedSessionMode = useCallback((mode: "kws" | "asr") => {
     if (isNativeVoiceProviderRef.current) return
     kwsClientRef.current?.setMode(mode)
@@ -556,7 +562,7 @@ export function useVoiceAgent({
     try {
       const kwsClient = new KwsClient({
         onDetection: (_keyword) => {
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             resetIdleTimer()
             return
           }
@@ -597,7 +603,7 @@ export function useVoiceAgent({
         },
         onSpeechStart: () => {
           resetIdleTimer()
-          if (!voiceInterruptionEnabled && isReplyActive()) return
+          if (markReplySpeechSuppressed()) return
           if (
             !speakerVerification &&
             canInterruptReply()
@@ -608,7 +614,7 @@ export function useVoiceAgent({
           }
         },
         onTranscribing: () => {
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             resetIdleTimer()
             return
           }
@@ -627,7 +633,7 @@ export function useVoiceAgent({
           handleFinalTranscriptRef.current(text)
         },
         onSpeakerRejected: (score, threshold, reason) => {
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             resetIdleTimer()
             return
           }
@@ -696,7 +702,7 @@ export function useVoiceAgent({
   }, [
     cancelPlaybackEndTimer,
     canInterruptReply,
-    isReplyActive,
+    markReplySpeechSuppressed,
     resetIdleTimer,
     syncUnifiedSessionMode,
     stopIdleTimer,
@@ -802,6 +808,7 @@ export function useVoiceAgent({
     cancelPlaybackEndTimer()
     ttsStreamEndedRef.current = false
     wakeAcknowledgementPendingRef.current = false
+    suppressReplySpeechTranscriptRef.current = false
 
     // Disconnect ASR client
     if (asrClientRef.current) {
@@ -906,6 +913,21 @@ export function useVoiceAgent({
     setCurrentTranscript("")
     onInterimTranscriptRef.current?.("")
 
+    if (
+      suppressReplySpeechTranscriptRef.current ||
+      (!voiceInterruptionEnabled && isReplyActive())
+    ) {
+      suppressReplySpeechTranscriptRef.current = false
+      resetIdleTimer()
+      if (
+        voiceStateRef.current === "transcribing" ||
+        voiceStateRef.current === "listening"
+      ) {
+        setVoiceStateSync("listening")
+      }
+      return
+    }
+
     // Filter noise (very short results)
     if (trimmed.length < 2) {
       if (
@@ -984,6 +1006,7 @@ export function useVoiceAgent({
 
     const sessionId = voiceSessionIdRef.current + 1
     voiceSessionIdRef.current = sessionId
+    suppressReplySpeechTranscriptRef.current = false
     const telemetryContext = startVoiceTelemetrySession(sessionId)
     const isCurrentSession = () => voiceSessionIdRef.current === sessionId
 
@@ -1083,7 +1106,7 @@ export function useVoiceAgent({
         onSpeechStart: () => {
           if (!isCurrentSession()) return
           resetIdleTimer()
-          if (!voiceInterruptionEnabled && isReplyActive()) return
+          if (markReplySpeechSuppressed()) return
           if (
             !speakerVerification &&
             canInterruptReply()
@@ -1093,7 +1116,7 @@ export function useVoiceAgent({
         },
         onTranscribing: () => {
           if (!isCurrentSession()) return
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             resetIdleTimer()
             return
           }
@@ -1113,7 +1136,7 @@ export function useVoiceAgent({
         },
         onSpeakerRejected: (score, threshold, reason) => {
           if (!isCurrentSession()) return
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             resetIdleTimer()
             return
           }
@@ -1202,8 +1225,8 @@ export function useVoiceAgent({
   }, [
     canInterruptReply,
     isNativeVoiceProvider,
-    isReplyActive,
     isSupported,
+    markReplySpeechSuppressed,
     speakerVerificationEnabled,
     speakerVerificationBound,
     resetIdleTimer,
@@ -1217,7 +1240,6 @@ export function useVoiceAgent({
     speakerVerification,
     setVoiceStateSync,
     startVoiceTelemetrySession,
-    voiceInterruptionEnabled,
   ])
 
   // Keep enterVoiceModeRef in sync with the latest enterVoiceMode
@@ -1517,7 +1539,7 @@ export function useVoiceAgent({
         setCurrentTranscript("")
         onInterimTranscriptRef.current?.("")
 
-        if (!voiceInterruptionEnabled && isReplyActive()) {
+        if (markReplySpeechSuppressed()) {
           setAsrConnected(true)
           resetIdleTimer()
           return
@@ -1576,7 +1598,7 @@ export function useVoiceAgent({
         if (state === "speech_start") {
           wakeAcknowledgementPendingRef.current = false
           resetIdleTimer()
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             return
           }
           if (!speakerVerification && canInterruptReply()) {
@@ -1589,7 +1611,7 @@ export function useVoiceAgent({
           }
         } else if (state === "transcribing") {
           wakeAcknowledgementPendingRef.current = false
-          if (!voiceInterruptionEnabled && isReplyActive()) {
+          if (markReplySpeechSuppressed()) {
             resetIdleTimer()
             return
           }
@@ -1604,6 +1626,7 @@ export function useVoiceAgent({
           onInterimTranscriptRef.current?.("...")
         } else if (state === "manual_interrupt" || state === "cancelled") {
           wakeAcknowledgementPendingRef.current = false
+          suppressReplySpeechTranscriptRef.current = false
           stopCurrentTts()
           onInterruptRef.current()
           stopIdleTimer()
@@ -1613,6 +1636,7 @@ export function useVoiceAgent({
           setVoiceStateSync("kws")
         } else if (state === "kws") {
           wakeAcknowledgementPendingRef.current = false
+          suppressReplySpeechTranscriptRef.current = false
           stopIdleTimer()
           setCurrentTranscript("")
           onInterimTranscriptRef.current?.("")
@@ -1620,6 +1644,7 @@ export function useVoiceAgent({
           setVoiceStateSync("kws")
         } else if (state === "idle" || state === "closed") {
           wakeAcknowledgementPendingRef.current = false
+          suppressReplySpeechTranscriptRef.current = false
           stopIdleTimer()
           setCurrentTranscript("")
           onInterimTranscriptRef.current?.("")
@@ -1678,7 +1703,7 @@ export function useVoiceAgent({
           typeof payload.threshold === "number" ? payload.threshold : null
         const reason =
           typeof payload.reason === "string" ? payload.reason : undefined
-        if (!voiceInterruptionEnabled && isReplyActive()) {
+        if (markReplySpeechSuppressed()) {
           wakeAcknowledgementPendingRef.current = false
           resetIdleTimer()
           return
@@ -1707,10 +1732,6 @@ export function useVoiceAgent({
         console.log("[NativeVoice] asr text:", text)
         if (!text.trim()) return
         wakeAcknowledgementPendingRef.current = false
-        if (!voiceInterruptionEnabled && isReplyActive()) {
-          resetIdleTimer()
-          return
-        }
 
         if (
           voiceStateRef.current === "idle" ||
@@ -1735,8 +1756,8 @@ export function useVoiceAgent({
     handleFinalTranscript,
     ensureVoiceTelemetrySession,
     interruptAndListen,
-    isReplyActive,
     isNativeVoiceProvider,
+    markReplySpeechSuppressed,
     resetIdleTimer,
     stopIdleTimer,
     speakerVerification,
