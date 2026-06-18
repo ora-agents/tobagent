@@ -16,13 +16,29 @@ function getLangGraphApiUrl(): string {
     process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
     process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL
 
-  if (!url && process.env.NODE_ENV === "development") {
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    // Check if the website is accessed via local network or loopback
+    const isLocalAddress =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.endsWith(".local") ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+
+    if (isLocalAddress) {
+      // Force local backend when developing locally
+      url = `http://${hostname}:2025`;
+    }
+  }
+
+  if (!url) {
     if (typeof window !== "undefined") {
-      // In the browser, dynamically route to the host IP/domain we are accessing it from
-      url = `http://${window.location.hostname}:2025`
+      const protocol = window.location.protocol;
+      url = `${protocol}//${window.location.hostname}:2025`;
     } else {
-      // On the server side (SSR), local loopback is fine
-      url = "http://127.0.0.1:2025"
+      url = "http://127.0.0.1:2025";
     }
   }
 

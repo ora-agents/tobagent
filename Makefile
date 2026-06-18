@@ -30,7 +30,7 @@ cd frontend && bun run $(1)
 endef
 
 define run_frontend_local
-cd frontend && NEXT_PUBLIC_LANGGRAPH_API_URL= NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL= bun run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT)
+cd frontend && bun run dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT)
 endef
 
 define run_concurrent

@@ -20,17 +20,26 @@ const localIPs = (() => {
   return ips;
 })();
 
+const allowedDevOrigins = [
+  "localhost",
+  "127.0.0.1",
+  "wsrtob.s.odn.cc",
+  "wsr.wsiri.cn",
+  "gen.wsiri.cn",
+  ...localIPs,
+];
+
+if (process.env.ALLOWED_DEV_ORIGINS) {
+  allowedDevOrigins.push(...process.env.ALLOWED_DEV_ORIGINS.split(",").map(d => d.trim()));
+}
+
 const nextConfig: NextConfig = {
   output: "standalone",
   turbopack: {
     root: rootDir,
   },
   // Allow webpack-hmr and font loading from any device on local network
-  allowedDevOrigins: [
-    "localhost",
-    "127.0.0.1",
-    ...localIPs,
-  ],
+  allowedDevOrigins,
   // Strip console calls in production builds
   compiler: {
     removeConsole: process.env.NODE_ENV === "production"
