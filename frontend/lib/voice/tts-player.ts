@@ -25,6 +25,7 @@ export class TtsPlayer {
   private isPlaying: boolean = false
   private callbacks: TtsPlayerCallbacks
   private sampleRate: number = TTS_SAMPLE_RATE
+  private playbackGeneration: number = 0
 
   constructor(callbacks: TtsPlayerCallbacks = {}) {
     this.callbacks = callbacks
@@ -78,6 +79,7 @@ export class TtsPlayer {
 
     // Create source node and schedule
     const source = this.audioCtx.createBufferSource()
+    const generation = this.playbackGeneration
     source.buffer = audioBuffer
     source.connect(this.audioCtx.destination)
 
@@ -97,6 +99,8 @@ export class TtsPlayer {
 
     // Clean up source when done
     source.onended = () => {
+      if (generation !== this.playbackGeneration) return
+
       const idx = this.sources.indexOf(source)
       if (idx !== -1) this.sources.splice(idx, 1)
 
@@ -110,6 +114,7 @@ export class TtsPlayer {
 
   /** Immediately stop all playback */
   stop(): void {
+    this.playbackGeneration += 1
     for (const source of this.sources) {
       try {
         source.stop()
@@ -119,7 +124,7 @@ export class TtsPlayer {
     }
     this.sources = []
     this.isPlaying = false
-    this.nextStartTime = 0
+    this.nextStartTime = this.audioCtx?.currentTime ?? 0
   }
 
   /** Clear any queued (not yet playing) audio */

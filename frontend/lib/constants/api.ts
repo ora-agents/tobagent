@@ -12,33 +12,36 @@
  * the existing Chat-LangChain-Frontend Vercel deployment.
  */
 function getLangGraphApiUrl(): string {
-  let url =
+  const configuredUrl =
     process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
     process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL
+  let url = configuredUrl
 
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    // Check if the website is accessed via local network or loopback
+  if (
+    typeof window !== "undefined" &&
+    process.env.NODE_ENV === "development" &&
+    !configuredUrl
+  ) {
+    const hostname = window.location.hostname
     const isLocalAddress =
       hostname === "localhost" ||
       hostname === "127.0.0.1" ||
       hostname.endsWith(".local") ||
       hostname.startsWith("192.168.") ||
       hostname.startsWith("10.") ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname);
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
 
     if (isLocalAddress) {
-      // Force local backend when developing locally
-      url = `http://${hostname}:2025`;
+      url = `http://${hostname}:2025`
     }
   }
 
   if (!url) {
     if (typeof window !== "undefined") {
-      const protocol = window.location.protocol;
-      url = `${protocol}//${window.location.hostname}:2025`;
+      const protocol = window.location.protocol
+      url = `${protocol}//${window.location.hostname}:2025`
     } else {
-      url = "http://127.0.0.1:2025";
+      url = "http://127.0.0.1:2025"
     }
   }
 

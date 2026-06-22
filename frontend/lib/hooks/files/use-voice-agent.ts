@@ -100,6 +100,7 @@ export interface UseVoiceAgentReturn {
 const WORKLET_PATH = "/voice/audio-processor.worklet.js"
 const NATIVE_VOICE_PROVIDER_PARAM = "native_voice_provider"
 const CSJ_NATIVE_VOICE_PROVIDER = "csj_sdk"
+const TTS_PLAYBACK_END_DEBOUNCE_MS = 800
 
 declare global {
   interface Window {
@@ -539,7 +540,7 @@ export function useVoiceAgent({
         setTtsConnected(false)
         ttsActiveRef.current = false
       }
-    }, 2000) // 800ms grace period for inter-chunk gaps
+    }, TTS_PLAYBACK_END_DEBOUNCE_MS)
   }, [cancelPlaybackEndTimer, resetIdleTimer, setVoiceStateSync])
 
   /** Stop the idle timer */
