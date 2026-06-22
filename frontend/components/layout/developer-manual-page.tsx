@@ -7,6 +7,7 @@ import {
   Boxes,
   Code2,
   Database,
+  ExternalLink,
   KeyRound,
   Mic,
   Network,
@@ -66,6 +67,8 @@ export function DeveloperManualPage({ onBackToChat }: DeveloperManualPageProps) 
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const apiBase = LANGGRAPH_API_URL
+  const swaggerDocsUrl = `${apiBase.replace(/\/$/, "")}/docs`
+  const redocUrl = `${apiBase.replace(/\/$/, "")}/redoc`
 
   const sections: ManualSection[] = useMemo(
     () => [
@@ -274,6 +277,36 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                   </p>
                 </div>
               </div>
+              <div className="flex flex-col gap-3 rounded-lg border border-border/40 bg-background/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-semibold">{zh ? "完整接口文档" : "Full API Reference"}</div>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {zh
+                      ? "本页是调用说明和常用端点概览；完整请求体、响应模型和调试入口以 FastAPI 自动生成文档为准。"
+                      : "This page is a calling guide and common endpoint overview. Use the generated FastAPI docs for complete schemas and interactive testing."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={swaggerDocsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-background px-3 text-xs font-medium text-foreground shadow-depth-xs transition-colors hover:bg-primary/10 hover:text-primary"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Swagger
+                  </a>
+                  <a
+                    href={redocUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-background px-3 text-xs font-medium text-foreground shadow-depth-xs transition-colors hover:bg-primary/10 hover:text-primary"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    ReDoc
+                  </a>
+                </div>
+              </div>
               <p className="text-sm leading-7 text-muted-foreground">
                 {zh
                   ? "外部调用方可以使用用户设置里的 API Key，也可以在内部前端场景继续使用用户 ID 作为 Bearer token。普通外部调用建议始终使用 API Key，并在每次 run 中带上 context.agent_id。"
@@ -348,10 +381,14 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                   endpoints={[
                     "GET/POST /api/agent-profiles",
                     "PUT/DELETE /api/agent-profiles/{id}",
+                    "POST /api/agent-profiles/{id}/share",
+                    "GET /api/agent-shares/{token}",
+                    "POST /api/agent-shares/{token}/import",
                     "GET/POST /api/skills",
                     "PUT/DELETE /api/skills/{id}",
                     "GET/POST /api/knowledge-bases",
                     "POST /api/knowledge-bases/{kb_id}/upload",
+                    "DELETE /api/knowledge-bases/{kb_id}/files/{filename}",
                   ]}
                 />
                 <EndpointGroup
@@ -361,9 +398,12 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                     "GET/POST /api/mcp-servers",
                     "PUT/DELETE /api/mcp-servers/{id}",
                     "GET /api/models",
+                    "GET /api/client-profiles/{id}",
+                    "POST /api/client-profiles",
                     "POST /agents/{agent_id}/upload",
                     "GET /agents/{agent_id}/rag-status",
                     "POST /generate-title",
+                    "GET /health",
                   ]}
                 />
                 <EndpointGroup
@@ -374,8 +414,13 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                     "WS /ws/voice/asr",
                     "WS /ws/voice/session",
                     "WS /ws/voice/tts",
+                    "GET /api/speaker-profiles/sample-text",
                     "GET/POST /api/user-voiceprints",
+                    "POST /api/speaker-profiles/verify",
+                    "POST /api/voice/telemetry",
                     "GET/POST/PUT/DELETE /api/robot-points",
+                    "GET /api/robot/sse",
+                    "POST /api/robot/commands/{command_id}/result",
                   ]}
                 />
               </div>
