@@ -20,7 +20,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 
-kws_router = APIRouter()
+kws_router = APIRouter(tags=["voice"])
 KWS_SAMPLE_RATE = 16000
 MAX_PCM_CHUNK_SECONDS = float(os.environ.get("VOICE_MAX_PCM_CHUNK_SECONDS", "5"))
 MAX_PCM_CHUNK_BYTES = int(KWS_SAMPLE_RATE * 2 * MAX_PCM_CHUNK_SECONDS)
@@ -102,7 +102,10 @@ async def _create_keyword_stream(
     return stream, keywords_string
 
 
-@kws_router.websocket("/ws/voice/kws")
+@kws_router.websocket(
+    "/ws/voice/kws",
+    name="Voice keyword spotting stream",
+)
 async def kws_websocket(websocket: WebSocket) -> None:
     """KWS WebSocket endpoint for always-on wake word detection."""
     await websocket.accept()

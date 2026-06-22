@@ -9,14 +9,19 @@ from sqlalchemy.orm import Session
 from src.api.schemas import ClientProfileSchema
 from src.utils.db import ClientProfileTable, get_db
 
-router = APIRouter()
+router = APIRouter(tags=["client-profiles"])
 
 
 # ---------------------------------------------------------------------------
 # Client Profile CRUD
 # ---------------------------------------------------------------------------
 
-@router.get("/api/client-profiles/{id}", response_model=ClientProfileSchema | None)
+@router.get(
+    "/api/client-profiles/{id}",
+    response_model=ClientProfileSchema | None,
+    summary="Get a client profile",
+    description="Returns lightweight display metadata for a client id, or null when it has not been created.",
+)
 async def get_client_profile(id: str, db: Session = Depends(get_db)):
     profile = db.query(ClientProfileTable).filter(ClientProfileTable.id == id).first()
     if not profile:
@@ -28,7 +33,12 @@ async def get_client_profile(id: str, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/api/client-profiles", response_model=ClientProfileSchema)
+@router.post(
+    "/api/client-profiles",
+    response_model=ClientProfileSchema,
+    summary="Create or update a client profile",
+    description="Upserts lightweight display metadata for a client id.",
+)
 async def upsert_client_profile(profile_data: ClientProfileSchema, db: Session = Depends(get_db)):
     profile = db.query(ClientProfileTable).filter(ClientProfileTable.id == profile_data.id).first()
     if profile:
@@ -49,5 +59,4 @@ async def upsert_client_profile(profile_data: ClientProfileSchema, db: Session =
         label=profile.label,
         avatarColor=profile.avatar_color,
     )
-
 

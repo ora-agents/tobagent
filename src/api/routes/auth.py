@@ -28,7 +28,7 @@ from src.api.schemas import (
 from src.utils.db import UserApiKeyTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
 
-router = APIRouter()
+router = APIRouter(tags=["auth"])
 
 
 def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
@@ -41,7 +41,12 @@ def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
     )
 
 
-@router.post("/api/auth/register", response_model=UserResponse)
+@router.post(
+    "/api/auth/register",
+    response_model=UserResponse,
+    summary="Register a user",
+    description="Creates a local user account and installs default skills for the new user.",
+)
 async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
     # Check if username already exists
     existing_user = db.query(UserTable).filter(UserTable.username == req.username).first()
@@ -79,7 +84,12 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     )
 
 
-@router.post("/api/auth/login", response_model=UserResponse)
+@router.post(
+    "/api/auth/login",
+    response_model=UserResponse,
+    summary="Log in a user",
+    description="Validates username and password and returns the user's profile metadata.",
+)
 async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
     user = db.query(UserTable).filter(UserTable.username == req.username).first()
     if not user or not verify_password(req.password, user.password_hash):
@@ -96,7 +106,12 @@ async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.get("/api/auth/users/{user_id}", response_model=UserResponse)
+@router.get(
+    "/api/auth/users/{user_id}",
+    response_model=UserResponse,
+    summary="Get the current user's profile",
+    description="Returns profile settings for the authenticated user. The path user id must match the bearer identity.",
+)
 async def get_user_profile(
     user_id: str,
     db: Session = Depends(get_db),
@@ -117,7 +132,12 @@ async def get_user_profile(
     )
 
 
-@router.put("/api/auth/users/{user_id}", response_model=UserResponse)
+@router.put(
+    "/api/auth/users/{user_id}",
+    response_model=UserResponse,
+    summary="Update the current user's profile",
+    description="Updates mutable profile fields such as email, preferences, and safety settings.",
+)
 async def update_user_profile(
     user_id: str,
     req: UserUpdateRequest,
@@ -153,7 +173,12 @@ async def update_user_profile(
     )
 
 
-@router.get("/api/auth/api-keys", response_model=list[UserApiKeySchema])
+@router.get(
+    "/api/auth/api-keys",
+    response_model=list[UserApiKeySchema],
+    summary="List API keys",
+    description="Lists API key metadata for the authenticated user. Raw key values are never returned here.",
+)
 async def list_user_api_keys(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
@@ -164,7 +189,12 @@ async def list_user_api_keys(
     return [_api_key_schema(key) for key in keys]
 
 
-@router.post("/api/auth/api-keys", response_model=CreateUserApiKeyResponse)
+@router.post(
+    "/api/auth/api-keys",
+    response_model=CreateUserApiKeyResponse,
+    summary="Create an API key",
+    description="Creates a bearer API key for external integrations. The raw key is returned only once.",
+)
 async def create_user_api_key(
     req: CreateUserApiKeyRequest,
     db: Session = Depends(get_db),
@@ -194,7 +224,11 @@ async def create_user_api_key(
     )
 
 
-@router.delete("/api/auth/api-keys/{key_id}")
+@router.delete(
+    "/api/auth/api-keys/{key_id}",
+    summary="Delete an API key",
+    description="Deletes one API key owned by the authenticated user.",
+)
 async def delete_user_api_key(
     key_id: str,
     db: Session = Depends(get_db),
@@ -210,4 +244,3 @@ async def delete_user_api_key(
     db.delete(api_key)
     db.commit()
     return {"ok": True}
-

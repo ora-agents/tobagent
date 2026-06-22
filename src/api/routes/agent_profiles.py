@@ -40,14 +40,19 @@ from src.utils.db import (
 )
 from src.utils.default_skills import ensure_default_skills
 
-router = APIRouter()
+router = APIRouter(tags=["agent-profiles"])
 
 
 # ---------------------------------------------------------------------------
 # Agent Profile CRUD
 # ---------------------------------------------------------------------------
 
-@router.get("/api/agent-profiles", response_model=list[AgentProfileSchema])
+@router.get(
+    "/api/agent-profiles",
+    response_model=list[AgentProfileSchema],
+    summary="List agent profiles",
+    description="Lists all custom agent profiles owned by the authenticated user.",
+)
 async def get_agent_profiles(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
@@ -76,7 +81,15 @@ async def get_agent_profiles(
     return [_agent_profile_schema(p) for p in profiles]
 
 
-@router.post("/api/agent-profiles", response_model=AgentProfileSchema)
+@router.post(
+    "/api/agent-profiles",
+    response_model=AgentProfileSchema,
+    summary="Create an agent profile",
+    description=(
+        "Creates a custom agent profile, including prompt, model, enabled tools, linked "
+        "knowledge bases, skills, MCP servers, wake words, TTS voice, and optional voiceprint binding."
+    ),
+)
 async def create_agent_profile(
     profile_data: AgentProfileSchema,
     db: Session = Depends(get_db),
@@ -120,7 +133,12 @@ async def create_agent_profile(
     return _agent_profile_schema(new_profile)
 
 
-@router.put("/api/agent-profiles/{id}", response_model=AgentProfileSchema)
+@router.put(
+    "/api/agent-profiles/{id}",
+    response_model=AgentProfileSchema,
+    summary="Update an agent profile",
+    description="Updates an owned agent profile and records a profile version snapshot.",
+)
 async def update_agent_profile(
     id: str,
     profile_data: AgentProfileSchema,
@@ -165,6 +183,8 @@ async def update_agent_profile(
 @router.get(
     "/api/agent-profiles/{id}/versions",
     response_model=list[AgentProfileVersionSchema],
+    summary="List agent profile versions",
+    description="Returns immutable version snapshots for one owned agent profile, newest first.",
 )
 async def get_agent_profile_versions(
     id: str,
@@ -188,6 +208,8 @@ async def get_agent_profile_versions(
 @router.post(
     "/api/agent-profiles/{id}/versions/{version_id}/restore",
     response_model=AgentProfileSchema,
+    summary="Restore an agent profile version",
+    description="Restores an owned agent profile from a saved version snapshot and creates a new version.",
 )
 async def restore_agent_profile_version(
     id: str,
@@ -241,7 +263,15 @@ async def restore_agent_profile_version(
     return _agent_profile_schema(profile)
 
 
-@router.post("/api/agent-profiles/{id}/share", response_model=AgentShareLinkSchema)
+@router.post(
+    "/api/agent-profiles/{id}/share",
+    response_model=AgentShareLinkSchema,
+    summary="Create or update an agent share link",
+    description=(
+        "Creates a share token for an owned agent profile or updates the existing token's "
+        "resource include options."
+    ),
+)
 async def create_agent_share_link(
     id: str,
     share_data: AgentShareLinkRequest,
@@ -282,7 +312,12 @@ async def create_agent_share_link(
     return _share_link_schema(share)
 
 
-@router.get("/api/agent-shares/{token}", response_model=AgentSharePreview)
+@router.get(
+    "/api/agent-shares/{token}",
+    response_model=AgentSharePreview,
+    summary="Preview a shared agent",
+    description="Returns a public preview for a share token without exposing private resource ids or voiceprint bindings.",
+)
 async def get_agent_share_preview(
     token: str,
     db: Session = Depends(get_db),
@@ -323,7 +358,12 @@ async def get_agent_share_preview(
     )
 
 
-@router.post("/api/agent-shares/{token}/import", response_model=AgentShareImportResponse)
+@router.post(
+    "/api/agent-shares/{token}/import",
+    response_model=AgentShareImportResponse,
+    summary="Import a shared agent",
+    description="Copies a shared agent profile into the authenticated user's account, optionally copying included resources.",
+)
 async def import_agent_share(
     token: str,
     import_data: AgentShareImportRequest,
@@ -385,7 +425,11 @@ async def import_agent_share(
     )
 
 
-@router.delete("/api/agent-profiles/{id}")
+@router.delete(
+    "/api/agent-profiles/{id}",
+    summary="Delete an agent profile",
+    description="Deletes one owned agent profile, removes links to it, and invalidates runtime caches.",
+)
 async def delete_agent_profile(
     id: str,
     db: Session = Depends(get_db),

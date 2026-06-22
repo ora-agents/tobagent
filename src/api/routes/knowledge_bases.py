@@ -18,14 +18,19 @@ from src.api.services import (
 from src.utils.db import AgentProfileTable, KnowledgeBaseTable, UserTable, get_db
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(tags=["knowledge-bases"])
 
 
 # ---------------------------------------------------------------------------
 # Knowledge Base CRUD & Upload
 # ---------------------------------------------------------------------------
 
-@router.get("/api/knowledge-bases", response_model=list[KnowledgeBaseSchema])
+@router.get(
+    "/api/knowledge-bases",
+    response_model=list[KnowledgeBaseSchema],
+    summary="List knowledge bases",
+    description="Lists system knowledge bases and knowledge bases owned by the authenticated user.",
+)
 async def get_knowledge_bases(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
@@ -41,7 +46,12 @@ async def get_knowledge_bases(
     return [_kb_schema(k) for k in kbs]
 
 
-@router.post("/api/knowledge-bases", response_model=KnowledgeBaseSchema)
+@router.post(
+    "/api/knowledge-bases",
+    response_model=KnowledgeBaseSchema,
+    summary="Create a knowledge base",
+    description="Creates knowledge base metadata for later document upload and RAG retrieval.",
+)
 async def create_knowledge_base(
     kb_data: KnowledgeBaseSchema,
     db: Session = Depends(get_db),
@@ -69,7 +79,12 @@ async def create_knowledge_base(
     return _kb_schema(new_kb)
 
 
-@router.put("/api/knowledge-bases/{id}", response_model=KnowledgeBaseSchema)
+@router.put(
+    "/api/knowledge-bases/{id}",
+    response_model=KnowledgeBaseSchema,
+    summary="Update a knowledge base",
+    description="Updates metadata and file metadata for an owned knowledge base.",
+)
 async def update_knowledge_base(
     id: str,
     kb_data: KnowledgeBaseSchema,
@@ -95,7 +110,11 @@ async def update_knowledge_base(
     return _kb_schema(kb)
 
 
-@router.delete("/api/knowledge-bases/{id}")
+@router.delete(
+    "/api/knowledge-bases/{id}",
+    summary="Delete a knowledge base",
+    description="Deletes an owned knowledge base, drops its LanceDB table when present, and removes agent links to it.",
+)
 async def delete_knowledge_base(
     id: str,
     db: Session = Depends(get_db),
@@ -157,7 +176,14 @@ async def _load_document_content(file: UploadFile, raw: bytes) -> str:
         )
 
 
-@router.post("/api/knowledge-bases/{kb_id}/upload")
+@router.post(
+    "/api/knowledge-bases/{kb_id}/upload",
+    summary="Upload a document to a knowledge base",
+    description=(
+        "Accepts multipart form data with a document file, chunk size, and chunk overlap. "
+        "The backend extracts text, chunks it, embeds it, stores vectors in LanceDB, and updates file metadata."
+    ),
+)
 async def upload_kb_document(
     kb_id: str,
     file: UploadFile = File(...),
@@ -249,7 +275,11 @@ async def upload_kb_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/api/knowledge-bases/{kb_id}/files/{filename}")
+@router.delete(
+    "/api/knowledge-bases/{kb_id}/files/{filename}",
+    summary="Delete a knowledge base file",
+    description="Removes one file's vectors from LanceDB and deletes its metadata from the knowledge base.",
+)
 async def delete_kb_file(
     kb_id: str,
     filename: str,
@@ -307,7 +337,14 @@ async def delete_kb_file(
 # Legacy agent RAG upload and statuses for backward compatibility
 # ---------------------------------------------------------------------------
 
-@router.post("/agents/{agent_id}/upload")
+@router.post(
+    "/agents/{agent_id}/upload",
+    summary="Upload a legacy agent RAG document",
+    description=(
+        "Backward-compatible document upload endpoint keyed by agent profile id. "
+        "New integrations should prefer `/api/knowledge-bases/{kb_id}/upload`."
+    ),
+)
 async def upload_document(
     agent_id: str,
     file: UploadFile = File(...),
@@ -359,7 +396,12 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/agents/{agent_id}/rag-status", response_model=AgentRAGStatusResponse)
+@router.get(
+    "/agents/{agent_id}/rag-status",
+    response_model=AgentRAGStatusResponse,
+    summary="Get legacy agent RAG status",
+    description="Returns the number of indexed rows in the legacy agent RAG LanceDB table.",
+)
 async def rag_status(
     agent_id: str,
     db: Session = Depends(get_db),
@@ -389,4 +431,3 @@ async def rag_status(
     except Exception as e:
         logger.error(f"RAG status failed for agent {agent_id}: {e}")
         return AgentRAGStatusResponse(agent_id=agent_id, document_count=0)
-

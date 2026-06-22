@@ -154,9 +154,30 @@ async def _initialize_kws(app: FastAPI) -> None:
 
 
 app = FastAPI(
-    title="Chat LangChain API Server",
-    description="Public Chat LangChain support endpoints",
+    title="TOB Agent API",
+    description=(
+        "Backend API for the LangGraph documentation agent, management UI, "
+        "voice services, robot integration, and LangSmith sharing helpers.\n\n"
+        "External callers should pass `Authorization: Bearer <api-key>`. "
+        "The web UI may also pass a user id bearer token for internal flows.\n\n"
+        "Interactive Swagger documentation is available at `/docs`; ReDoc is "
+        "available at `/redoc`; the raw OpenAPI schema is available at `/openapi.json`."
+    ),
+    version="0.1.0",
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "system", "description": "Service health, root metadata, and utility endpoints."},
+        {"name": "auth", "description": "User registration, login, profile settings, and API keys."},
+        {"name": "agent-profiles", "description": "Custom agent profile CRUD, version restore, and share import."},
+        {"name": "knowledge-bases", "description": "Knowledge base metadata, document upload, and RAG status."},
+        {"name": "skills", "description": "User-owned system prompt skill CRUD."},
+        {"name": "mcp-servers", "description": "User-owned MCP server configuration."},
+        {"name": "models", "description": "Server-side proxy for OpenAI-compatible model listings."},
+        {"name": "voice", "description": "ASR, TTS, voice telemetry, voiceprint enrollment, and speaker verification."},
+        {"name": "robot", "description": "Robot point management, SSE command stream, and command result callback."},
+        {"name": "client-profiles", "description": "Lightweight client profile metadata used by the web UI."},
+        {"name": "langsmith", "description": "LangSmith run lookup and share helpers."},
+    ],
 )
 
 app.add_middleware(
@@ -211,13 +232,27 @@ def truncate_title(message: str, max_length: int = 60) -> str:
     return title
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["system"],
+    summary="Check API health",
+    description="Returns a lightweight health payload for uptime checks and load balancers.",
+)
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "chat-langchain"}
 
 
-@app.post("/generate-title", response_model=TitleGenerationResponse)
+@app.post(
+    "/generate-title",
+    response_model=TitleGenerationResponse,
+    tags=["system"],
+    summary="Generate a deterministic conversation title",
+    description=(
+        "Creates a short title from the latest user message and optional assistant response. "
+        "This endpoint uses deterministic truncation and does not call a model."
+    ),
+)
 async def generate_conversation_title(request: TitleGenerationRequest):
     """Generate a simple conversation title for the frontend."""
     return TitleGenerationResponse(
@@ -233,12 +268,20 @@ async def import_agent_share(*args, **kwargs):
     return await agent_profile_routes.import_agent_share(*args, **kwargs)
 
 
-@app.get("/")
+@app.get(
+    "/",
+    tags=["system"],
+    summary="Get API root metadata",
+    description="Returns service metadata and links to the generated API documentation.",
+)
 async def root():
     """Root endpoint."""
     return {
         "message": "Chat LangChain API Server",
         "version": "1.0.0",
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "openapi": "/openapi.json",
         "endpoints": {
             "health": "/health",
             "generate_title": "/generate-title",

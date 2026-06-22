@@ -14,14 +14,19 @@ from src.api.services import (
 from src.utils.db import SkillTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
 
-router = APIRouter()
+router = APIRouter(tags=["skills"])
 
 
 # ---------------------------------------------------------------------------
 # Skill CRUD
 # ---------------------------------------------------------------------------
 
-@router.get("/api/skills", response_model=list[SkillSchema])
+@router.get(
+    "/api/skills",
+    response_model=list[SkillSchema],
+    summary="List skills",
+    description="Lists prompt-based skills owned by the authenticated user, creating defaults when needed.",
+)
 async def get_skills(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
@@ -33,7 +38,12 @@ async def get_skills(
     return [_skill_schema(s) for s in skills]
 
 
-@router.post("/api/skills", response_model=SkillSchema)
+@router.post(
+    "/api/skills",
+    response_model=SkillSchema,
+    summary="Create a skill",
+    description="Creates one prompt-based skill for the authenticated user.",
+)
 async def create_skill(
     skill_data: SkillSchema,
     db: Session = Depends(get_db),
@@ -59,7 +69,12 @@ async def create_skill(
     return _skill_schema(new_skill)
 
 
-@router.put("/api/skills/{id}", response_model=SkillSchema)
+@router.put(
+    "/api/skills/{id}",
+    response_model=SkillSchema,
+    summary="Update a skill",
+    description="Updates one owned prompt-based skill and invalidates runtime caches.",
+)
 async def update_skill(
     id: str,
     skill_data: SkillSchema,
@@ -84,7 +99,11 @@ async def update_skill(
     return _skill_schema(skill)
 
 
-@router.delete("/api/skills/{id}")
+@router.delete(
+    "/api/skills/{id}",
+    summary="Delete a skill",
+    description="Deletes one owned skill and removes it from agent profiles that referenced it.",
+)
 async def delete_skill(
     id: str,
     db: Session = Depends(get_db),
@@ -101,5 +120,4 @@ async def delete_skill(
     db.commit()
     _invalidate_runtime_caches(owner_user_id=current_user.id)
     return {"status": "success", "message": f"Skill {id} deleted"}
-
 
