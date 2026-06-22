@@ -2,15 +2,7 @@
  * Type definitions for voice features.
  */
 
-/** Voice agent state machine states */
-export type VoiceState =
-  | "idle" // Not in voice mode
-  | "kws" // Passive wake word listening (always-on)
-  | "loading" // WASM model downloading / initializing
-  | "listening" // ASR active, waiting for speech
-  | "transcribing" // Speech captured, ASR request in flight
-  | "processing" // Message sent, waiting for agent reply
-  | "speaking" // TTS reading agent reply aloud
+export type { VoiceState } from "@/lib/voice/protocol"
 
 // ============================================================================
 // TTS event types (DashScope Realtime API)
