@@ -1,6 +1,11 @@
 "use client"
 
 import { useCallback, useRef, useState } from "react"
+import {
+  parseNativeSpeakerEnrollmentEvent,
+  type NativeSpeakerEnrollmentEvent,
+  type NativeSpeakerEnrollmentRequest,
+} from "@/lib/voice/protocol"
 import { int16PcmToWavDataUri } from "@/lib/voice/utils/audio-encoder"
 import { isAndroidWebView } from "@/lib/voice/utils/browser"
 
@@ -19,21 +24,8 @@ export { SPEAKER_AUDIO_ACCEPT }
 // Native bridge types
 // ---------------------------------------------------------------------------
 
-type NativeSpeakerEnrollmentEvent = {
-  type?: unknown
-  requestId?: unknown
-  success?: unknown
-  status?: unknown
-  message?: unknown
-  result?: {
-    audioDataUri?: string
-    sampleText?: string
-    enrolledAt?: string
-  }
-}
-
 interface NativeSpeakerBridge {
-  start: (request: { requestId: string; agentId?: string; userId?: string; sampleText: string }) => void
+  start: (request: NativeSpeakerEnrollmentRequest) => void
   stop: (requestId: string) => void
 }
 
@@ -43,18 +35,22 @@ interface NativeSpeakerBridge {
 
 function getNativeSpeakerEnrollmentBridge(): NativeSpeakerBridge | null {
   if (typeof window === "undefined" || !isAndroidWebView()) return null
-  const nativeVoice = (window as any).__TOB_NATIVE_VOICE__
-  if (nativeVoice?.startSpeakerEnrollment && nativeVoice?.stopSpeakerEnrollment) {
+  const nativeVoice = window.__TOB_NATIVE_VOICE__
+  const startNativeEnrollment = nativeVoice?.startSpeakerEnrollment
+  const stopNativeEnrollment = nativeVoice?.stopSpeakerEnrollment
+  if (startNativeEnrollment && stopNativeEnrollment) {
     return {
-      start: (req) => nativeVoice.startSpeakerEnrollment(req),
-      stop: (requestId) => nativeVoice.stopSpeakerEnrollment(requestId),
+      start: (req) => startNativeEnrollment(req),
+      stop: (requestId) => stopNativeEnrollment(requestId),
     }
   }
-  const tobNativeVoice = (window as any).TobNativeVoice
-  if (tobNativeVoice?.startSpeakerEnrollment && tobNativeVoice?.stopSpeakerEnrollment) {
+  const tobNativeVoice = window.TobNativeVoice
+  const startTobEnrollment = tobNativeVoice?.startSpeakerEnrollment
+  const stopTobEnrollment = tobNativeVoice?.stopSpeakerEnrollment
+  if (startTobEnrollment && stopTobEnrollment) {
     return {
-      start: (req) => tobNativeVoice.startSpeakerEnrollment(JSON.stringify(req)),
-      stop: (requestId) => tobNativeVoice.stopSpeakerEnrollment(requestId),
+      start: (req) => startTobEnrollment(JSON.stringify(req)),
+      stop: (requestId) => stopTobEnrollment(requestId),
     }
   }
   return null
@@ -68,7 +64,9 @@ function waitForNativeSpeakerEnrollment(requestId: string): Promise<NativeSpeake
     }, 150_000)
 
     const handleEvent = (event: Event) => {
-      const payload = (event as CustomEvent<unknown>).detail as NativeSpeakerEnrollmentEvent | null
+      const payload = parseNativeSpeakerEnrollmentEvent(
+        (event as CustomEvent<unknown>).detail,
+      )
       if (!payload || payload.type !== "speaker_enrollment" || payload.requestId !== requestId) return
       if (payload.status !== "bound" && payload.status !== "failed") return
       window.clearTimeout(timeout)
