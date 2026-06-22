@@ -40,6 +40,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
+import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
@@ -2115,13 +2116,11 @@ export function ManagementDashboard({
 
                     <div className="space-y-1.5">
                       <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
-                      <Textarea
+                      <PromptMarkdownEditor
                         id="agent-prompt"
                         value={agentForm.systemPrompt}
-                        onChange={e => setAgentForm({ ...agentForm, systemPrompt: e.target.value })}
-                        rows={6}
+                        onChange={systemPrompt => setAgentForm({ ...agentForm, systemPrompt })}
                         placeholder={t.agentPromptPlaceholder}
-                        className="resize-none bg-background border-border/80 rounded-lg text-sm"
                       />
                     </div>
 
