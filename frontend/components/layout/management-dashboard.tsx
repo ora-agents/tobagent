@@ -30,7 +30,11 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { InputField } from "@/components/ui/input-field"
+import { FormField } from "@/components/ui/form-field"
 import { Label } from "@/components/ui/label"
+import { ListItem } from "@/components/ui/list-item"
+import { ListPanel } from "@/components/ui/list-panel"
 import {
   Select,
   SelectContent,
@@ -1249,92 +1253,78 @@ export function ManagementDashboard({
           {activeTab === "mcp" && (
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left MCP Server List */}
-              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
-                <div className="p-4 border-b border-border/40 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
-                    {t.mcpServers}
-                  </span>
+              <ListPanel
+                title={t.mcpServers}
+                className="border-border/40 bg-background/30"
+                action={
                   <Button
                     size="sm"
                     onClick={handleStartCreateMcp}
-                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none cursor-pointer"
+                    className="h-7 w-7 rounded-md border-none bg-primary p-0 text-primary-foreground hover:bg-primary-active cursor-pointer"
                     title={t.addMcpServer}
                   >
                     <Plus className="w-4 h-4" />
                   </Button>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1">
-                  {mcpServers.map(mcp => (
-                    <div
-                      key={mcp.id}
-                      onClick={() => handleSelectMcp(mcp.id)}
-                      className={`group relative flex items-center gap-3 p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
-                        selectedMcpId === mcp.id
-                          ? "border-primary/30 bg-primary/10 text-foreground animate-pulse-subtle"
-                          : "border-transparent hover:bg-muted/30 text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">{mcp.name}</div>
-                        <div className="text-xs text-muted-foreground/80 mt-0.5 uppercase tracking-wider font-mono">
-                          Streamable HTTP
-                        </div>
-                      </div>
-
-                      <div
-                        className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
-                          deleteConfirmId === mcp.id
-                            ? "opacity-100 pointer-events-auto"
-                            : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
-                        }`}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {deleteConfirmId === mcp.id ? (
-                          <>
-                            <button
-                              onClick={() => handleDeleteMcp(mcp.id)}
-                              className="p-1 rounded text-destructive hover:bg-destructive/10"
-                              title={t.confirmDelete}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(null)}
-                              className="p-1 rounded text-muted-foreground hover:bg-muted"
-                              title={t.cancel}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleStartEditMcp(mcp)}
-                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                      title={t.editAgent.replace(t.agent, "").trim()}
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(mcp.id)}
-                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              title={t.delete}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {mcpServers.length === 0 && (
-                    <div className="p-4 text-center text-xs text-muted-foreground italic">
-                      {t.noMcpServers}
-                    </div>
-                  )}
-                </div>
-              </div>
+                }
+              >
+                {mcpServers.map(mcp => (
+                  <ListItem
+                    key={mcp.id}
+                    selected={selectedMcpId === mcp.id}
+                    title={mcp.name}
+                    description="Streamable HTTP"
+                    onSelect={() => handleSelectMcp(mcp.id)}
+                    className={selectedMcpId === mcp.id ? "animate-pulse-subtle" : undefined}
+                    actionsClassName={
+                      deleteConfirmId === mcp.id
+                        ? "md:opacity-100"
+                        : "md:pointer-events-none md:group-hover:pointer-events-auto md:group-focus-within:pointer-events-auto"
+                    }
+                    actions={
+                      deleteConfirmId === mcp.id ? (
+                        <>
+                          <button
+                            onClick={() => handleDeleteMcp(mcp.id)}
+                            className="p-1 rounded text-destructive hover:bg-destructive/10"
+                            title={t.confirmDelete}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(null)}
+                            className="p-1 rounded text-muted-foreground hover:bg-muted"
+                            title={t.cancel}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleStartEditMcp(mcp)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                            title={t.editAgent.replace(t.agent, "").trim()}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmId(mcp.id)}
+                            className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title={t.delete}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )
+                    }
+                  />
+                ))}
+                {mcpServers.length === 0 && (
+                  <div className="p-4 text-center text-xs text-muted-foreground italic">
+                    {t.noMcpServers}
+                  </div>
+                )}
+              </ListPanel>
 
               {/* Right MCP Details / Form */}
               <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
@@ -1367,44 +1357,38 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="mcp-name">{t.name}</Label>
-                          <Input
-                            id="mcp-name"
-                            value={mcpForm.name}
-                            onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })}
-                            placeholder={t.mcpNamePlaceholder}
-                            className="bg-background border-border/80 rounded-lg"
-                          />
-                        </div>
-                      </div>
+                      <InputField
+                        id="mcp-name"
+                        label={t.name}
+                        value={mcpForm.name}
+                        onChange={e => setMcpForm({ ...mcpForm, name: e.target.value })}
+                        placeholder={t.mcpNamePlaceholder}
+                        className="rounded-lg"
+                      />
 
-                      <div className="space-y-1.5">
-                        <Label htmlFor="mcp-url">{t.sseServerUrl}</Label>
-                        <Input
-                          id="mcp-url"
-                          value={mcpForm.url}
-                          onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })}
-                          placeholder={t.mcpUrlPlaceholder}
-                          className="bg-background border-border/80 rounded-lg font-mono text-xs"
-                        />
-                      </div>
+                      <InputField
+                        id="mcp-url"
+                        label={t.sseServerUrl}
+                        value={mcpForm.url}
+                        onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })}
+                        placeholder={t.mcpUrlPlaceholder}
+                        className="font-mono text-xs rounded-lg"
+                      />
 
-                      <div className="space-y-1.5">
-                        <Label htmlFor="mcp-headers">{t.customHeadersJson}</Label>
+                      <FormField
+                        id="mcp-headers"
+                        label={t.customHeadersJson}
+                        description={t.mcpServerDescription}
+                      >
                         <Textarea
                           id="mcp-headers"
                           value={mcpForm.headers}
                           onChange={e => setMcpForm({ ...mcpForm, headers: e.target.value })}
                           placeholder={t.mcpHeadersPlaceholder}
                           rows={6}
-                          className="resize-none bg-background border-border/80 rounded-lg text-xs font-mono"
+                          className="resize-none rounded-lg text-xs font-mono"
                         />
-                        <p className="text-[10px] text-muted-foreground">
-                          {t.mcpServerDescription}
-                        </p>
-                      </div>
+                      </FormField>
                     </div>
                   </div>
                 ) : selectedMcpId !== null && selectedMcp ? (
@@ -1613,7 +1597,7 @@ export function ManagementDashboard({
                         onChange={e => setSkillForm({ ...skillForm, content: e.target.value })}
                         rows={16}
                         placeholder={t.skillContentPlaceholder}
-                        className="resize-none font-mono text-xs bg-background border-border/80 leading-relaxed rounded-lg"
+                        className="resize-none font-mono text-xs leading-relaxed rounded-lg"
                       />
                     </div>
 
@@ -1876,7 +1860,7 @@ export function ManagementDashboard({
                           value={agentForm.roleTemplateId || "custom"}
                           onValueChange={(value) => handleApplyRoleTemplate(value === "custom" ? "" : value)}
                         >
-                          <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                          <SelectTrigger className="rounded-lg">
                             <SelectValue placeholder={locale === "zh" ? "选择角色模板" : "Select role template"} />
                           </SelectTrigger>
                           <SelectContent>
@@ -1905,7 +1889,7 @@ export function ManagementDashboard({
                             value={agentForm.personaStyle}
                             onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
                           >
-                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
+                            <SelectTrigger className="w-full min-w-0 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1924,7 +1908,7 @@ export function ManagementDashboard({
                             value={agentForm.boundaryMode}
                             onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
                           >
-                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
+                            <SelectTrigger className="w-full min-w-0 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1943,7 +1927,7 @@ export function ManagementDashboard({
                             value={agentForm.ttsVoice}
                             onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
                           >
-                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
+                            <SelectTrigger className="w-full min-w-0 rounded-lg">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1973,7 +1957,7 @@ export function ManagementDashboard({
                           value={agentForm.name}
                           onChange={e => setAgentForm({ ...agentForm, name: e.target.value })}
                           placeholder={t.agentNamePlaceholder}
-                          className="bg-background border-border/80 rounded-lg"
+                          className="rounded-lg"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -2006,7 +1990,7 @@ export function ManagementDashboard({
                             searchPlaceholder={locale === "zh" ? "搜索模型..." : "Search model..."}
                             emptyText={locale === "zh" ? "未找到该模型" : "No model found."}
                             className="w-full"
-                            triggerClassName="w-full h-10 rounded-lg bg-background border-border/80 hover:bg-muted/30"
+                            triggerClassName="w-full h-10 rounded-lg"
                             menuClassName="w-full max-w-none"
                           />
                         )}
@@ -2021,7 +2005,7 @@ export function ManagementDashboard({
                           value={agentForm.description}
                           onChange={e => setAgentForm({ ...agentForm, description: e.target.value })}
                           placeholder={t.agentDescPlaceholder}
-                          className="bg-background border-border/80 rounded-lg"
+                          className="rounded-lg"
                         />
                       </div>
                     </div>
@@ -2126,7 +2110,7 @@ export function ManagementDashboard({
                               value={agentForm.userVoiceprintId || ""}
                               onValueChange={(value) => setAgentForm(prev => ({ ...prev, userVoiceprintId: value || null }))}
                             >
-                              <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                              <SelectTrigger className="rounded-lg">
                                 <SelectValue placeholder={locale === "zh" ? "选择一个声纹" : "Select a voiceprint"} />
                               </SelectTrigger>
                               <SelectContent>
@@ -2233,7 +2217,7 @@ export function ManagementDashboard({
                             }
                           }}
                           placeholder={locale === "zh" ? "输入唤醒词，如：小梯小梯" : "Enter wake word, e.g. hey assistant"}
-                          className="text-sm flex-1 bg-background border-border/80 rounded-lg"
+                          className="text-sm flex-1 rounded-lg"
                         />
                         <Button
                           type="button"
@@ -2267,7 +2251,7 @@ export function ManagementDashboard({
                             value={agentKbSearch}
                             onChange={e => setAgentKbSearch(e.target.value)}
                             placeholder={locale === "zh" ? "搜索知识库名称、描述、文件或 ID" : "Search knowledge bases by name, description, file, or ID"}
-                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                            className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
@@ -2318,7 +2302,7 @@ export function ManagementDashboard({
                             value={agentSkillSearch}
                             onChange={e => setAgentSkillSearch(e.target.value)}
                             placeholder={locale === "zh" ? "搜索技能名称、描述或 ID" : "Search skills by name, description, or ID"}
-                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                            className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
@@ -2369,7 +2353,7 @@ export function ManagementDashboard({
                             value={agentMcpSearch}
                             onChange={e => setAgentMcpSearch(e.target.value)}
                             placeholder={locale === "zh" ? "搜索 MCP 名称、URL 或 ID" : "Search MCP by name, URL, or ID"}
-                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                            className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
@@ -2422,7 +2406,7 @@ export function ManagementDashboard({
                             value={agentRoleSearch}
                             onChange={e => setAgentRoleSearch(e.target.value)}
                             placeholder={locale === "zh" ? "搜索角色名称、描述或 ID" : "Search roles by name, description, or ID"}
-                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                            className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
@@ -3048,7 +3032,7 @@ export function ManagementDashboard({
                           value={kbForm.name}
                           onChange={e => setKbForm({ ...kbForm, name: e.target.value })}
                           placeholder={t.kbNamePlaceholder}
-                          className="bg-background border-border/80 rounded-lg"
+                          className="rounded-lg"
                         />
                       </div>
                       <div className="space-y-1.5">
@@ -3058,7 +3042,7 @@ export function ManagementDashboard({
                           value={kbForm.description}
                           onChange={e => setKbForm({ ...kbForm, description: e.target.value })}
                           placeholder={t.kbDescPlaceholder}
-                          className="bg-background border-border/80 rounded-lg"
+                          className="rounded-lg"
                         />
                       </div>
                     </div>
