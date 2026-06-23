@@ -1167,10 +1167,8 @@ export function ManagementDashboard({
     : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
-  const isEditingAgentForm = activeTab === "agents" && (isCreatingAgent || isEditingAgent)
-
   return (
-    <div className={`${isEditingAgentForm ? "min-h-screen overflow-visible" : "h-screen overflow-hidden"} flex flex-col bg-background text-foreground`}>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
       <header className="h-16 px-6 border-b border-border/60 bg-background/95 backdrop-blur flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -1196,9 +1194,9 @@ export function ManagementDashboard({
       </header>
 
       {/* 2. Main Content Area */}
-      <div className={`flex-1 flex ${isEditingAgentForm ? "overflow-visible" : "overflow-hidden"}`}>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Content Detail View */}
-        <main className={`flex-1 flex bg-background ${isEditingAgentForm ? "overflow-visible" : "overflow-hidden"}`}>
+        <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
           {/* ========================================== */}
           {/* MCP TAB PANEL                              */}
           {/* ========================================== */}
@@ -1634,7 +1632,7 @@ export function ManagementDashboard({
           {/* AGENTS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "agents" && (
-            <div className={`flex-1 flex ${isEditingAgentForm ? "overflow-visible" : "overflow-hidden"}`}>
+            <div className="flex min-h-0 flex-1 overflow-hidden">
               {/* Left Role List */}
               <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
@@ -1771,7 +1769,7 @@ export function ManagementDashboard({
               </div>
 
               {/* Right Role Form / Details */}
-              <div className={`flex-1 p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent ${isEditingAgentForm ? "overflow-visible" : "overflow-y-auto"}`}>
+              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingAgent || isEditingAgent ? (
                   <div className="max-w-none space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
