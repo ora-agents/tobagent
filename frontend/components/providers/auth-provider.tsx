@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { LANGGRAPH_API_URL } from '@/lib/constants/api'
-import { useT } from '@/lib/i18n'
+import { useT, type Translations } from '@/lib/i18n'
 
 // ============================================================================
 // Types & Interfaces
@@ -50,6 +50,99 @@ export function useAuth() {
 
 const USER_SESSION_KEY = 'chat-langchain-auth-user'
 
+function authFieldLabel(field: string | undefined, t: Translations) {
+  switch (field) {
+    case 'username':
+      return t.username
+    case 'password':
+      return t.password
+    case 'email':
+      return t.email
+    default:
+      return t.authErrorField
+  }
+}
+
+function localizeAuthMessage(message: string, t: Translations, fallback: string) {
+  const normalized = message.trim()
+  const lower = normalized.toLowerCase()
+
+  if (!normalized) {
+    return fallback
+  }
+
+  if (normalized === 'Invalid username or password') {
+    return t.authErrorInvalidCredentials
+  }
+
+  if (normalized === 'Username already exists') {
+    return t.authErrorUsernameExists
+  }
+
+  if (normalized === 'Authentication required' || normalized === 'User login required') {
+    return t.authErrorAuthenticationRequired
+  }
+
+  if (normalized === 'Invalid user') {
+    return t.authErrorInvalidUser
+  }
+
+  if (lower.includes('failed to fetch') || lower.includes('networkerror')) {
+    return t.authErrorNetwork
+  }
+
+  return normalized
+}
+
+function localizeValidationError(item: any, t: Translations) {
+  const rawMessage = String(item?.msg || item?.message || item?.detail || '').trim()
+  const errorType = String(item?.type || '').trim()
+  const loc = Array.isArray(item?.loc) ? item.loc : []
+  const field = typeof loc.at(-1) === 'string' ? loc.at(-1) : undefined
+  const label = authFieldLabel(field, t)
+
+  if (errorType === 'missing' || rawMessage.toLowerCase() === 'field required') {
+    return t.authErrorFieldRequired.replace('{field}', label)
+  }
+
+  if (errorType.includes('string_type')) {
+    return t.authErrorFieldInvalid.replace('{field}', label)
+  }
+
+  return rawMessage
+    ? `${label}: ${localizeAuthMessage(rawMessage, t, t.authErrorInvalidRequest)}`
+    : t.authErrorInvalidRequest
+}
+
+async function getAuthErrorMessage(resp: Response, t: Translations, fallback: string) {
+  try {
+    const data = await resp.json()
+    const detail = data?.detail ?? data?.message ?? data?.error
+
+    if (typeof detail === 'string' && detail.trim()) {
+      return localizeAuthMessage(detail, t, fallback)
+    }
+
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item) => localizeValidationError(item, t))
+        .filter((message): message is string => typeof message === 'string' && message.trim().length > 0)
+
+      if (messages.length > 0) {
+        return messages.join('\n')
+      }
+    }
+
+    if (detail && typeof detail === 'object') {
+      return JSON.stringify(detail)
+    }
+  } catch {
+    // Fall through to the localized fallback when the server returns no JSON body.
+  }
+
+  return fallback
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const t = useT()
   const [user, setUser] = useState<User | null>(null)
@@ -80,7 +173,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 2. Login function
   const login = useCallback(async (username: string, password: string) => {
-    setLoading(true)
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/login`, {
@@ -90,8 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (!resp.ok) {
-        const data = await resp.json()
-        throw new Error(data.detail || t.loginFailed)
+        throw new Error(await getAuthErrorMessage(resp, t, t.loginFailed))
       }
 
       const loggedInUser = (await resp.json()) as User
@@ -100,16 +191,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info('[Auth] Login successful:', loggedInUser.username)
     } catch (err: any) {
       console.error('[Auth] Login error:', err)
-      setError(err.message || t.loginError)
+      setError(localizeAuthMessage(err.message || '', t, t.loginError))
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [t.loginError, t.loginFailed])
+  }, [t])
 
   // 3. Register function
   const register = useCallback(async (username: string, password: string, email?: string) => {
-    setLoading(true)
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/register`, {
@@ -119,8 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (!resp.ok) {
-        const data = await resp.json()
-        throw new Error(data.detail || t.registrationFailed)
+        throw new Error(await getAuthErrorMessage(resp, t, t.registrationFailed))
       }
 
       const registeredUser = (await resp.json()) as User
@@ -129,12 +216,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info('[Auth] Registration successful:', registeredUser.username)
     } catch (err: any) {
       console.error('[Auth] Registration error:', err)
-      setError(err.message || t.registrationError)
+      setError(localizeAuthMessage(err.message || '', t, t.registrationError))
       throw err
-    } finally {
-      setLoading(false)
     }
-  }, [t.registrationError, t.registrationFailed])
+  }, [t])
 
   // 4. Logout function
   const logout = useCallback(() => {
