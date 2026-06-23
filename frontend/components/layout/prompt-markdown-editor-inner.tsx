@@ -106,9 +106,9 @@ export function PromptMarkdownEditorInner({
           id={id}
           value={value}
           onChange={event => onChange(event.target.value)}
-          rows={10}
+          rows={6}
           placeholder={placeholder}
-          className="min-h-[280px] resize-y rounded-lg border-border/80 bg-background font-mono text-sm"
+          className="resize-y rounded-lg border-border/80 bg-background font-mono text-sm"
         />
         <p className="text-xs text-destructive">{editorError}</p>
       </div>

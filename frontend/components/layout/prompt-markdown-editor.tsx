@@ -18,10 +18,10 @@ const PromptMarkdownEditorInner = dynamic(
     loading: () => (
       <Textarea
         readOnly
-        rows={10}
+        rows={3}
         value=""
         placeholder="Loading markdown editor..."
-        className="min-h-[280px] resize-none rounded-lg border-border/80 bg-background text-sm"
+        className="resize-none rounded-lg border-border/80 bg-background text-sm"
       />
     ),
   }

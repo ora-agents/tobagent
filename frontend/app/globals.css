@@ -159,8 +159,7 @@
 @layer components {
   .prompt-mdx-editor.mdxeditor,
   .prompt-mdx-editor {
-    min-height: 280px;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid var(--border);
     border-radius: 0.5rem;
     background: var(--background);
@@ -252,9 +251,8 @@
   }
 
   .prompt-mdx-content {
-    min-height: 220px;
-    max-height: 460px;
-    overflow-y: auto;
+    min-height: 0;
+    overflow-y: visible;
     padding: 0.875rem 1rem;
     color: var(--foreground);
     font-size: 0.875rem;
