@@ -148,6 +148,12 @@
 }
 
 @layer base {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -269,6 +275,12 @@
   .prompt-mdx-editor .cm-scroller {
     min-height: 0 !important;
     height: auto !important;
+  }
+
+  .prompt-mdx-editor .cm-scroller,
+  .prompt-mdx-editor .cm-content,
+  .prompt-mdx-editor .cm-gutters {
+    overflow: visible !important;
   }
 
   .prompt-mdx-content p {
