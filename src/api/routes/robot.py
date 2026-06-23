@@ -17,10 +17,15 @@ from src.api.schemas import (
 from src.tools.robot_control_tool import receive_robot_result, register_robot_client
 from src.utils.db import RobotPointTable, get_db
 
-router = APIRouter()
+router = APIRouter(tags=["robot"])
 
 
-@router.post("/api/robot-points", response_model=RobotPointResponse)
+@router.post(
+    "/api/robot-points",
+    response_model=RobotPointResponse,
+    summary="Create or update a robot point",
+    description="Upserts a named robot navigation point and its introduction text for tool-driven robot movement.",
+)
 async def upsert_robot_point(
     point_data: RobotPointRequest,
     db: Session = Depends(get_db),
@@ -70,7 +75,12 @@ async def upsert_robot_point(
     )
 
 
-@router.get("/api/robot-points", response_model=list[RobotPointListItem])
+@router.get(
+    "/api/robot-points",
+    response_model=list[RobotPointListItem],
+    summary="List robot points",
+    description="Lists all registered robot navigation points in id order.",
+)
 async def list_robot_points(db: Session = Depends(get_db)):
     points = db.query(RobotPointTable).order_by(RobotPointTable.id.asc()).all()
     return [
@@ -89,7 +99,12 @@ async def list_robot_points(db: Session = Depends(get_db)):
     ]
 
 
-@router.put("/api/robot-points/{point_id}", response_model=RobotPointResponse)
+@router.put(
+    "/api/robot-points/{point_id}",
+    response_model=RobotPointResponse,
+    summary="Update a robot point",
+    description="Updates one robot navigation point by id and rejects duplicate point names.",
+)
 async def update_robot_point(
     point_id: int,
     point_data: RobotPointRequest,
@@ -134,7 +149,11 @@ async def update_robot_point(
     )
 
 
-@router.delete("/api/robot-points/{point_id}")
+@router.delete(
+    "/api/robot-points/{point_id}",
+    summary="Delete a robot point",
+    description="Deletes one robot navigation point by id.",
+)
 async def delete_robot_point(
     point_id: int,
     db: Session = Depends(get_db),
@@ -148,7 +167,11 @@ async def delete_robot_point(
     return {"status": "success", "message": f"Robot point {point_id} deleted"}
 
 
-@router.get("/api/robot/sse")
+@router.get(
+    "/api/robot/sse",
+    summary="Open the robot command SSE stream",
+    description="Streams robot command events to a display or robot client using Server-Sent Events.",
+)
 async def robot_sse(clientId: str = "robot-display"):
     async def event_stream():
         async for event in register_robot_client(clientId.strip() or "robot-display"):
@@ -169,7 +192,11 @@ async def robot_sse(clientId: str = "robot-display"):
     )
 
 
-@router.post("/api/robot/commands/{command_id}/result")
+@router.post(
+    "/api/robot/commands/{command_id}/result",
+    summary="Report a robot command result",
+    description="Receives completion status and payload for a robot command previously sent over SSE.",
+)
 async def robot_command_result(
     command_id: str,
     result_data: RobotCommandResultRequest,
@@ -188,4 +215,3 @@ async def robot_command_result(
         },
     )
     return {"ok": accepted}
-

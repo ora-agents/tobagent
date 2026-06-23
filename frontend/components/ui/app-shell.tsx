@@ -7,7 +7,7 @@ type AppShellProps = React.HTMLAttributes<HTMLDivElement>
 function AppShell({ className, ...props }: AppShellProps) {
   return (
     <div
-      className={cn("flex h-screen overflow-hidden bg-background text-foreground", className)}
+      className={cn("flex h-dvh overflow-hidden bg-background text-foreground", className)}
       {...props}
     />
   )

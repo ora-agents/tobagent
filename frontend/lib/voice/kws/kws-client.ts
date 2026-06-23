@@ -17,6 +17,11 @@
 
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import { getAudioContextConstructor } from "@/lib/voice/utils/browser"
+import type {
+  SpeakerVerificationConfig,
+  VoiceSessionClientMessage,
+  VoiceSessionMode,
+} from "@/lib/voice/protocol"
 import { VOICE_SESSION_WS_PATH } from "../utils/constants"
 
 /** Path to the shared AudioWorklet processor */
@@ -33,7 +38,7 @@ export interface KwsCallbacks {
   /** Wake word detected */
   onDetection: (keyword: string) => void
   /** Backend voice mode changed */
-  onMode?: (mode: "kws" | "asr") => void
+  onMode?: (mode: VoiceSessionMode) => void
   /** Backend VAD detected speech start */
   onSpeechStart?: () => void
   /** Backend started transcribing a completed speech segment */
@@ -56,11 +61,6 @@ export interface KwsCallbacks {
   onConnected?: () => void
   /** WebSocket disconnected */
   onDisconnected?: () => void
-}
-
-interface SpeakerVerificationConfig {
-  agentId: string
-  userId: string
 }
 
 /** Build WebSocket URL for KWS endpoint */
@@ -155,15 +155,15 @@ export class KwsClient {
           keywords: this.keywords,
           ttsVoice: this.ttsVoice,
           speakerVerification: this.speakerVerification,
-        }),
+        } satisfies VoiceSessionClientMessage),
       )
     }
   }
 
   /** Switch how the unified backend session handles subsequent audio frames. */
-  setMode(mode: "kws" | "asr"): void {
+  setMode(mode: VoiceSessionMode): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "mode", mode }))
+      this.ws.send(JSON.stringify({ type: "mode", mode } satisfies VoiceSessionClientMessage))
     }
   }
 
@@ -242,15 +242,13 @@ export class KwsClient {
           return
         }
         // Send config message with keywords
-        ws.send(
-          JSON.stringify({
-            type: "config",
-            keywords: this.keywords,
-            ttsVoice: this.ttsVoice,
-            speakerVerification: this.speakerVerification,
-          }),
-        )
-        ws.send(JSON.stringify({ type: "mode", mode: "kws" }))
+        ws.send(JSON.stringify({
+          type: "config",
+          keywords: this.keywords,
+          ttsVoice: this.ttsVoice || undefined,
+          speakerVerification: this.speakerVerification,
+        } satisfies VoiceSessionClientMessage))
+        ws.send(JSON.stringify({ type: "mode", mode: "kws" } satisfies VoiceSessionClientMessage))
 
         // Wire audio: mic -> worklet -> WebSocket
         this.sourceNode = audioContext.createMediaStreamSource(

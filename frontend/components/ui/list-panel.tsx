@@ -12,7 +12,7 @@ function ListPanel({ title, action, children, className, ...props }: ListPanelPr
   return (
     <aside
       className={cn(
-        "flex w-[300px] flex-shrink-0 flex-col border-r border-border/50 bg-background/50",
+        "flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/50 bg-background/50 md:max-h-none md:w-[300px] md:border-b-0 md:border-r",
         className
       )}
       {...props}

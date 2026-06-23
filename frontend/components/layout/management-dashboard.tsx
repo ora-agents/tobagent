@@ -25,6 +25,8 @@ import {
   History,
   RotateCcw,
   Share2,
+  EyeOff,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -37,17 +39,9 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { AppHeader, AppShell } from "@/components/ui/app-shell"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
-import { ActionButton } from "@/components/ui/action-button"
-import { EmptyState } from "@/components/ui/empty-state"
-import { FormField } from "@/components/ui/form-field"
-import { ListItem } from "@/components/ui/list-item"
-import { ListPanel } from "@/components/ui/list-panel"
-import { SelectField } from "@/components/ui/select-field"
-import { SettingsSwitch } from "@/components/ui/settings-switch"
-import { ToolbarButton } from "@/components/ui/toolbar-button"
+import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
@@ -278,7 +272,7 @@ interface ManagementDashboardProps {
   restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
   createAgentShareLink: (id: string, include: AgentShareOptions) => Promise<AgentShareLink | null>
   editAgentIdOnOpen?: string | null
-  onEditAgentIdHandled?: () => void
+  onEditAgentChange?: (id: string | null) => void
   createAgentOnOpenSignal?: number
   // User voiceprints
   userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
@@ -298,7 +292,7 @@ export function ManagementDashboard({
   restoreAgentProfileVersion,
   createAgentShareLink,
   editAgentIdOnOpen,
-  onEditAgentIdHandled,
+  onEditAgentChange,
   createAgentOnOpenSignal = 0,
   userVoiceprints,
   onNavigateToUserSettings,
@@ -355,6 +349,7 @@ export function ManagementDashboard({
     personaStyle: PersonaStyle
     boundaryMode: BoundaryMode
     ttsVoice: string
+    isHidden: boolean
     voiceInterruptionEnabled: boolean
     speakerVerificationEnabled: boolean
     userVoiceprintId: string | null
@@ -373,6 +368,7 @@ export function ManagementDashboard({
     personaStyle: "professional",
     boundaryMode: "business_only",
     ttsVoice: "Cherry",
+    isHidden: false,
     voiceInterruptionEnabled: true,
     speakerVerificationEnabled: false,
     userVoiceprintId: null
@@ -380,6 +376,10 @@ export function ManagementDashboard({
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
+  const [agentKbSearch, setAgentKbSearch] = useState("")
+  const [agentSkillSearch, setAgentSkillSearch] = useState("")
+  const [agentMcpSearch, setAgentMcpSearch] = useState("")
+  const [agentRoleSearch, setAgentRoleSearch] = useState("")
   // Guard: prevents the selectedAgentProfileId useEffect from re-entering edit mode right after a save
   const isSavingRef = useRef(false)
   const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null)
@@ -519,8 +519,7 @@ export function ManagementDashboard({
     if (profile) {
       handleStartEditAgent(profile)
     }
-    onEditAgentIdHandled?.()
-  }, [activeTab, editAgentIdOnOpen, agentProfiles, onEditAgentIdHandled])
+  }, [activeTab, editAgentIdOnOpen, agentProfiles])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -643,6 +642,7 @@ export function ManagementDashboard({
     setSelectedAgentId(id)
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
+    onEditAgentChange?.(null)
     setDeleteConfirmId(null)
     setShareLink(null)
   }
@@ -650,6 +650,11 @@ export function ManagementDashboard({
   const handleStartCreateAgent = useCallback(() => {
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
+    onEditAgentChange?.(null)
+    setAgentKbSearch("")
+    setAgentSkillSearch("")
+    setAgentMcpSearch("")
+    setAgentRoleSearch("")
     setAgentForm({
       name: "",
       description: "",
@@ -665,12 +670,13 @@ export function ManagementDashboard({
       personaStyle: "professional",
       boundaryMode: "business_only",
       ttsVoice: "Cherry",
+      isHidden: false,
       voiceInterruptionEnabled: true,
       speakerVerificationEnabled: false,
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }, [])
+  }, [onEditAgentChange])
 
   useEffect(() => {
     if (activeTab !== "agents" || createAgentOnOpenSignal <= 0) return
@@ -681,6 +687,11 @@ export function ManagementDashboard({
     setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
     setIsCreatingAgent(false)
+    onEditAgentChange?.(profile.id)
+    setAgentKbSearch("")
+    setAgentSkillSearch("")
+    setAgentMcpSearch("")
+    setAgentRoleSearch("")
     setAgentForm({
       name: profile.name,
       description: profile.description,
@@ -696,6 +707,7 @@ export function ManagementDashboard({
       personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
       boundaryMode: (profile.boundaryMode || "business_only") as BoundaryMode,
       ttsVoice: profile.ttsVoice || "Cherry",
+      isHidden: profile.isHidden || false,
       voiceInterruptionEnabled: profile.voiceInterruptionEnabled !== false,
       speakerVerificationEnabled: profile.speakerVerificationEnabled || false,
       userVoiceprintId: (profile as any).userVoiceprintId || null
@@ -753,6 +765,7 @@ export function ManagementDashboard({
       personaStyle: agentForm.personaStyle,
       boundaryMode: agentForm.boundaryMode,
       ttsVoice: agentForm.ttsVoice,
+      isHidden: agentForm.isHidden,
       voiceInterruptionEnabled: agentForm.voiceInterruptionEnabled,
       speakerVerificationEnabled: agentForm.speakerVerificationEnabled,
       userVoiceprintId: agentForm.userVoiceprintId
@@ -764,19 +777,23 @@ export function ManagementDashboard({
           setSelectedAgentId(created.id)
           // Mark saving so the useEffect won't re-enter edit mode
           isSavingRef.current = true
-          // Automatically set the newly created agent as active and return to chat
-          setSelectedAgentProfileId(created.id)
+          if (!created.isHidden) {
+            // Automatically set visible newly created agents as active and return to chat
+            setSelectedAgentProfileId(created.id)
+          }
         }
         setIsCreatingAgent(false)
+        onEditAgentChange?.(null)
         onBackToChat()
       })
     } else if (isEditingAgent && activeEditingAgentId) {
       updateAgentProfile(activeEditingAgentId, profileData)
       // Mark saving so the useEffect won't re-enter edit mode
       isSavingRef.current = true
-      // Automatically set the edited agent as active and return to chat
-      setSelectedAgentProfileId(activeEditingAgentId)
+      // Keep hidden roles out of the chat switcher and active chat selection
+      setSelectedAgentProfileId(agentForm.isHidden ? null : activeEditingAgentId)
       setIsEditingAgent(false)
+      onEditAgentChange?.(null)
       onBackToChat()
     }
   }
@@ -785,6 +802,13 @@ export function ManagementDashboard({
     deleteAgentProfile(id)
     setDeleteConfirmId(null)
     setSelectedAgentId(null)
+    onEditAgentChange?.(null)
+  }
+
+  const handleCancelAgentForm = () => {
+    setIsEditingAgent(false)
+    setIsCreatingAgent(false)
+    onEditAgentChange?.(null)
   }
 
   const handleRestoreAgentVersion = async (versionId: string) => {
@@ -1167,11 +1191,32 @@ export function ManagementDashboard({
     : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
-
+  const filteredAgentKnowledgeBases = knowledgeBases.filter(kb => {
+    const query = agentKbSearch.trim().toLowerCase()
+    if (!query) return true
+    const fileNames = (kb.files || []).map(file => file.name).join(" ")
+    return [kb.name, kb.description, kb.id, fileNames].some(value => value.toLowerCase().includes(query))
+  })
+  const filteredAgentSkills = skills.filter(skill => {
+    const query = agentSkillSearch.trim().toLowerCase()
+    if (!query) return true
+    return [skill.name, skill.description, skill.id].some(value => value.toLowerCase().includes(query))
+  })
+  const filteredAgentMcpServers = mcpServers.filter(mcp => {
+    const query = agentMcpSearch.trim().toLowerCase()
+    if (!query) return true
+    return [mcp.name, mcp.url || "", mcp.id].some(value => value.toLowerCase().includes(query))
+  })
+  const linkableAgentProfiles = agentProfiles.filter(p => p.id !== activeEditingAgentId)
+  const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
+    const query = agentRoleSearch.trim().toLowerCase()
+    if (!query) return true
+    return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
+  })
   return (
-    <AppShell className="flex-col">
+    <div className="flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
-      <AppHeader className="justify-between px-6">
+      <header className="flex min-h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-base font-semibold tracking-wide flex items-center gap-1.5 font-display">
@@ -1192,105 +1237,132 @@ export function ManagementDashboard({
           <ArrowLeft className="w-4 h-4" />
           {t.backToChat}
         </Button>
-      </AppHeader>
+      </header>
 
       {/* 2. Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Content Detail View */}
-        <main className="flex-1 flex overflow-hidden bg-background">
+        <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
           {/* ========================================== */}
           {/* MCP TAB PANEL                              */}
           {/* ========================================== */}
           {activeTab === "mcp" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left MCP Server List */}
-              <ListPanel
-                title={t.mcpServers}
-                action={
-                  <ToolbarButton
-                    active
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
+                <div className="p-4 border-b border-border/40 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
+                    {t.mcpServers}
+                  </span>
+                  <Button
+                    size="sm"
                     onClick={handleStartCreateMcp}
+                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none cursor-pointer"
                     title={t.addMcpServer}
                   >
                     <Plus className="w-4 h-4" />
-                  </ToolbarButton>
-                }
-              >
+                  </Button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1">
                   {mcpServers.map(mcp => (
-                    <ListItem
+                    <div
                       key={mcp.id}
-                      selected={selectedMcpId === mcp.id}
-                      onSelect={() => handleSelectMcp(mcp.id)}
-                      title={mcp.name}
-                      description="Streamable HTTP"
-                      actions={
-                        deleteConfirmId === mcp.id ? (
+                      onClick={() => handleSelectMcp(mcp.id)}
+                      className={`group relative flex items-center gap-3 p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
+                        selectedMcpId === mcp.id
+                          ? "border-primary/30 bg-primary/10 text-foreground animate-pulse-subtle"
+                          : "border-transparent hover:bg-muted/30 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold truncate">{mcp.name}</div>
+                        <div className="text-xs text-muted-foreground/80 mt-0.5 uppercase tracking-wider font-mono">
+                          Streamable HTTP
+                        </div>
+                      </div>
+
+                      <div
+                        className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                          deleteConfirmId === mcp.id
+                            ? "opacity-100 pointer-events-auto"
+                            : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
+                        }`}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {deleteConfirmId === mcp.id ? (
                           <>
-                            <ToolbarButton
+                            <button
                               onClick={() => handleDeleteMcp(mcp.id)}
-                              destructive
+                              className="p-1 rounded text-destructive hover:bg-destructive/10"
                               title={t.confirmDelete}
                             >
                               <Check className="w-3.5 h-3.5" />
-                            </ToolbarButton>
-                            <ToolbarButton
+                            </button>
+                            <button
                               onClick={() => setDeleteConfirmId(null)}
+                              className="p-1 rounded text-muted-foreground hover:bg-muted"
                               title={t.cancel}
                             >
                               <X className="w-3.5 h-3.5" />
-                            </ToolbarButton>
+                            </button>
                           </>
                         ) : (
                           <>
-                            <ToolbarButton
+                            <button
                               onClick={() => handleStartEditMcp(mcp)}
-                              title={t.editAgent.replace(t.agent, "").trim()}
+                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                      title={t.editAgent.replace(t.agent, "").trim()}
                             >
                               <Pencil className="w-3.5 h-3.5" />
-                            </ToolbarButton>
-                            <ToolbarButton
+                            </button>
+                            <button
                               onClick={() => setDeleteConfirmId(mcp.id)}
-                              destructive
+                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               title={t.delete}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                            </ToolbarButton>
+                            </button>
                           </>
-                        )
-                      }
-                    >
-                    </ListItem>
+                        )}
+                      </div>
+                    </div>
                   ))}
                   {mcpServers.length === 0 && (
-                    <EmptyState description={t.noMcpServers} className="min-h-24" />
+                    <div className="p-4 text-center text-xs text-muted-foreground italic">
+                      {t.noMcpServers}
+                    </div>
                   )}
-              </ListPanel>
+                </div>
+              </div>
 
               {/* Right MCP Details / Form */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingMcp || isEditingMcp ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Cpu className="w-5 h-5 text-primary" />
                         {isCreatingMcp ? t.addMcpServer : t.editMcpServer}
                       </h2>
                       <div className="flex items-center gap-2">
-                        <ActionButton
+                        <Button
                           onClick={handleSaveMcp}
                           disabled={!mcpForm.name.trim()}
+                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
-                        </ActionButton>
-                        <ActionButton
+                        </Button>
+                        <Button
                           variant="ghost"
                           onClick={() => {
                             setIsEditingMcp(false)
                             setIsCreatingMcp(false)
                           }}
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
-                        </ActionButton>
+                        </Button>
                       </div>
                     </div>
 
@@ -1337,7 +1409,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedMcpId !== null && selectedMcp ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Cpu className="w-6 h-6 text-primary" />
@@ -1398,96 +1470,123 @@ export function ManagementDashboard({
           {/* SKILLS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "skills" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left Skill List */}
-              <ListPanel
-                title={t.skillsManager}
-                action={
-                  <ToolbarButton active onClick={handleStartCreateSkill} title={t.addSkill}>
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
+                <div className="p-4 border-b border-border/40 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
+                    {t.skillsManager}
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleStartCreateSkill}
+                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none"
+                    title={t.addSkill}
+                  >
                     <Plus className="w-4 h-4" />
-                  </ToolbarButton>
-                }
-              >
+                  </Button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
                   {skills.length === 0 ? (
-                    <EmptyState
-                      icon={<Wrench className="w-8 h-8" />}
-                      description={t.noSkills}
-                      className="min-h-32"
-                    />
+                    <div className="py-8 text-center text-xs text-muted-foreground/80">
+                      <Wrench className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
+                      {t.noSkills}
+                    </div>
                   ) : (
                     skills.map(skill => (
-                      <ListItem
+                      <div
                         key={skill.id}
-                        selected={selectedSkillId === skill.id}
-                        onSelect={() => handleSelectSkill(skill.id)}
-                        title={skill.name}
-                        description={skill.description || t.noDescriptionProvided}
-                        actions={
-                          deleteConfirmId === skill.id ? (
+                        onClick={() => handleSelectSkill(skill.id)}
+                        className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
+                          selectedSkillId === skill.id
+                            ? "border-primary/60 bg-primary/5 shadow-depth-xs"
+                            : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
+                        }`}
+                      >
+                        <div className="font-semibold text-sm truncate">{skill.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1 truncate">
+                          {skill.description || t.noDescriptionProvided}
+                        </div>
+
+                        {/* List Actions */}
+                        <div
+                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                            deleteConfirmId === skill.id
+                              ? "opacity-100 pointer-events-auto"
+                              : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
+                          }`}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {deleteConfirmId === skill.id ? (
                             <>
-                              <ToolbarButton
+                              <button
                                 onClick={() => handleDeleteSkill(skill.id)}
-                                destructive
+                                className="p-1 rounded text-destructive hover:bg-destructive/10"
                                 title={t.confirmDeleteTitle}
                               >
                                 <Check className="w-3.5 h-3.5" />
-                              </ToolbarButton>
-                              <ToolbarButton
+                              </button>
+                              <button
                                 onClick={() => setDeleteConfirmId(null)}
+                                className="p-1 rounded text-muted-foreground hover:bg-muted"
                                 title={t.cancelTitle}
                               >
                                 <X className="w-3.5 h-3.5" />
-                              </ToolbarButton>
+                              </button>
                             </>
                           ) : (
                             <>
-                              <ToolbarButton
+                              <button
                                 onClick={() => handleStartEditSkill(skill)}
+                                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
                                 title={t.editTitle}
                               >
                                 <Pencil className="w-3.5 h-3.5" />
-                              </ToolbarButton>
-                              <ToolbarButton
+                              </button>
+                              <button
                                 onClick={() => setDeleteConfirmId(skill.id)}
-                                destructive
+                                className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                 title={t.deleteTitle}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                              </ToolbarButton>
+                              </button>
                             </>
-                          )
-                        }
-                      >
-                      </ListItem>
+                          )}
+                        </div>
+                      </div>
                     ))
                   )}
-              </ListPanel>
+                </div>
+              </div>
 
               {/* Right Skill Edit Form / Details */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
                 {isCreatingSkill || isEditingSkill ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Code2 className="w-5 h-5 text-primary" />
                         {isCreatingSkill ? t.addSkill : t.editSkill}
                       </h2>
                       <div className="flex items-center gap-2">
-                        <ActionButton
+                        <Button
                           onClick={handleSaveSkill}
                           disabled={!skillForm.content.trim()}
+                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
-                        </ActionButton>
-                        <ActionButton
+                        </Button>
+                        <Button
                           variant="ghost"
                           onClick={() => {
                             setIsEditingSkill(false)
                             setIsCreatingSkill(false)
                           }}
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
-                        </ActionButton>
+                        </Button>
                       </div>
                     </div>
 
@@ -1496,7 +1595,7 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <Label htmlFor="skill-content">{t.skillContent}</Label>
                         <Button
                           variant="ghost"
@@ -1522,7 +1621,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedSkill ? (
                   <div className="max-w-2xl space-y-4 flex-1 flex flex-col">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display">{selectedSkill.name}</h2>
                         <p className="text-sm text-muted-foreground mt-1">
@@ -1579,9 +1678,9 @@ export function ManagementDashboard({
           {/* AGENTS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "agents" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left Role List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.agentsManager}
@@ -1596,7 +1695,7 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
                   {agentProfiles.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                       {t.createAgentPrompt}
@@ -1614,7 +1713,11 @@ export function ManagementDashboard({
                       }`}
                     >
                       <div className="font-semibold text-sm flex items-center gap-1.5 truncate">
-                        <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+                        {profile.isHidden ? (
+                          <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+                        ) : (
+                          <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
                         {profile.name}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate">
@@ -1623,6 +1726,12 @@ export function ManagementDashboard({
 
                       {/* Visual indicators for resources */}
                       <div className="flex flex-wrap gap-1 mt-2">
+                        {profile.isHidden && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-muted text-muted-foreground border border-border flex items-center gap-0.5">
+                            <EyeOff className="w-2.5 h-2.5" />
+                            {locale === "zh" ? "已隐藏" : "Hidden"}
+                          </span>
+                        )}
                         {profile.enabledTools && profile.enabledTools.length > 0 && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/15 flex items-center gap-0.5" title={profile.enabledTools.join(", ")}>
                             <Wrench className="w-2.5 h-2.5" />
@@ -1660,7 +1769,7 @@ export function ManagementDashboard({
                         className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
                           deleteConfirmId === profile.id
                             ? "opacity-100 pointer-events-auto"
-                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                            : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
                         }`}
                         onClick={e => e.stopPropagation()}
                       >
@@ -1706,30 +1815,29 @@ export function ManagementDashboard({
               </div>
 
               {/* Right Role Form / Details */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingAgent || isEditingAgent ? (
-                  <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                  <div className="max-w-none space-y-4">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Bot className="w-5 h-5 text-primary" />
                         {isCreatingAgent ? t.addAgent : t.editAgent}
                       </h2>
                       <div className="flex items-center gap-2">
-                        <ActionButton
+                        <Button
                           onClick={handleSaveAgent}
                           disabled={!agentForm.name.trim()}
+                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
-                        </ActionButton>
-                        <ActionButton
+                        </Button>
+                        <Button
                           variant="ghost"
-                          onClick={() => {
-                            setIsEditingAgent(false)
-                            setIsCreatingAgent(false)
-                          }}
+                          onClick={handleCancelAgentForm}
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
-                        </ActionButton>
+                        </Button>
                       </div>
                     </div>
 
@@ -1759,68 +1867,107 @@ export function ManagementDashboard({
                       </div>
                     )}
 
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,42rem)_minmax(26rem,1fr)] xl:items-start">
+                      <div className="min-w-0 space-y-4">
                     <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-background/50">
-                      <SelectField
-                        label={locale === "zh" ? "角色模板" : "Role Template"}
-                        value={agentForm.roleTemplateId || "custom"}
-                        onValueChange={(value) => handleApplyRoleTemplate(value === "custom" ? "" : value)}
-                        placeholder={locale === "zh" ? "选择角色模板" : "Select role template"}
-                        description={agentForm.roleTemplateId ? (() => {
-                          const template = ROLE_TEMPLATES.find((item) => item.id === agentForm.roleTemplateId)
-                          return template ? (locale === "zh" ? template.descriptionZh : template.descriptionEn) : null
-                        })() : undefined}
-                        options={[
-                          { value: "custom", label: locale === "zh" ? "自定义角色" : "Custom role" },
-                          ...ROLE_TEMPLATES.map((template) => ({
-                            value: template.id,
-                            label: locale === "zh" ? template.nameZh : template.nameEn,
-                          })),
-                        ]}
-                      />
+                      <div className="space-y-1.5">
+                        <Label>{locale === "zh" ? "角色模板" : "Role Template"}</Label>
+                        <Select
+                          value={agentForm.roleTemplateId || "custom"}
+                          onValueChange={(value) => handleApplyRoleTemplate(value === "custom" ? "" : value)}
+                        >
+                          <SelectTrigger className="bg-background border-border/80 rounded-lg">
+                            <SelectValue placeholder={locale === "zh" ? "选择角色模板" : "Select role template"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="custom">{locale === "zh" ? "自定义角色" : "Custom role"}</SelectItem>
+                            {ROLE_TEMPLATES.map((template) => (
+                              <SelectItem key={template.id} value={template.id}>
+                                {locale === "zh" ? template.nameZh : template.nameEn}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {agentForm.roleTemplateId && (
+                          <p className="text-xs text-muted-foreground">
+                            {(() => {
+                              const template = ROLE_TEMPLATES.find((item) => item.id === agentForm.roleTemplateId)
+                              return template ? (locale === "zh" ? template.descriptionZh : template.descriptionEn) : null
+                            })()}
+                          </p>
+                        )}
+                      </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
-                        <SelectField
-                          label={locale === "zh" ? "人物形象" : "Persona"}
-                          value={agentForm.personaStyle}
-                          onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
-                          className="min-w-0"
-                          options={Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => ({
-                            value,
-                            label: locale === "zh" ? label.zh : label.en,
-                          }))}
-                        />
+                        <div className="space-y-1.5 min-w-0">
+                          <Label>{locale === "zh" ? "人物形象" : "Persona"}</Label>
+                          <Select
+                            value={agentForm.personaStyle}
+                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
+                          >
+                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {locale === "zh" ? label.zh : label.en}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                        <SelectField
-                          label={locale === "zh" ? "客服边界" : "Support Boundary"}
-                          value={agentForm.boundaryMode}
-                          onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
-                          className="min-w-0"
-                          options={Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => ({
-                            value,
-                            label: locale === "zh" ? label.zh : label.en,
-                          }))}
-                        />
+                        <div className="space-y-1.5 min-w-0">
+                          <Label>{locale === "zh" ? "客服边界" : "Support Boundary"}</Label>
+                          <Select
+                            value={agentForm.boundaryMode}
+                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
+                          >
+                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => (
+                                <SelectItem key={value} value={value}>
+                                  {locale === "zh" ? label.zh : label.en}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                        <SelectField
-                          label={locale === "zh" ? "语音风格" : "Voice Style"}
-                          value={agentForm.ttsVoice}
-                          onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
-                          className="min-w-0"
-                          description={(() => {
-                            const voice = TTS_VOICES.find(item => item.voice === agentForm.ttsVoice)
-                            if (!voice) return null
-                            return locale === "zh" ? voice.descriptionZh : voice.descriptionEn
-                          })()}
-                          options={TTS_VOICES.map((voice) => ({
-                            value: voice.voice,
-                            label: `${voice.nameZh} · ${voice.voice}`,
-                          }))}
-                        />
+                        <div className="space-y-1.5 min-w-0">
+                          <Label>{locale === "zh" ? "语音风格" : "Voice Style"}</Label>
+                          <Select
+                            value={agentForm.ttsVoice}
+                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
+                          >
+                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TTS_VOICES.map((voice) => (
+                                <SelectItem key={voice.voice} value={voice.voice}>
+                                  {voice.nameZh} · {voice.voice}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {(() => {
+                              const voice = TTS_VOICES.find(item => item.voice === agentForm.ttsVoice)
+                              if (!voice) return null
+                              return locale === "zh" ? voice.descriptionZh : voice.descriptionEn
+                            })()}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField id="agent-name" label={locale === "zh" ? "角色名称" : "Role Name"}>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="agent-name">{locale === "zh" ? "角色名称" : "Role Name"}</Label>
                         <Input
                           id="agent-name"
                           value={agentForm.name}
@@ -1828,7 +1975,7 @@ export function ManagementDashboard({
                           placeholder={t.agentNamePlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
-                      </FormField>
+                      </div>
                       <div className="space-y-1.5">
                         <Label>{locale === "zh" ? "模型" : "Model"}</Label>
                         {modelsLoading ? (
@@ -1867,7 +2014,8 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                      <FormField id="agent-desc" label={locale === "zh" ? "角色描述" : "Role Description"}>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="agent-desc">{locale === "zh" ? "角色描述" : "Role Description"}</Label>
                         <Input
                           id="agent-desc"
                           value={agentForm.description}
@@ -1875,38 +2023,98 @@ export function ManagementDashboard({
                           placeholder={t.agentDescPlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
-                      </FormField>
+                      </div>
                     </div>
 
-                    <SettingsSwitch
-                      checked={agentForm.voiceInterruptionEnabled}
-                      onCheckedChange={(checked) => setAgentForm(prev => ({
-                        ...prev,
-                        voiceInterruptionEnabled: checked,
-                      }))}
-                      label={locale === "zh" ? "启用语音打断" : "Enable voice interruption"}
-                      description={
-                        locale === "zh"
-                          ? "开启后，语音模式下用户说话可中断当前回复并开始新一轮对话。"
-                          : "When enabled, speaking in voice mode interrupts the current reply and starts a new turn."
-                      }
-                    />
-
-                    <div className="space-y-2 rounded-xl border border-border/50 bg-background/50 p-4">
-                      <SettingsSwitch
-                        checked={agentForm.speakerVerificationEnabled}
-                        onCheckedChange={(checked) => setAgentForm(prev => ({
+                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
+                      <div
+                        className="flex items-start gap-3 cursor-pointer group"
+                        onClick={() => setAgentForm(prev => ({
                           ...prev,
-                          speakerVerificationEnabled: checked,
+                          isHidden: !prev.isHidden,
                         }))}
-                        label={locale === "zh" ? "启用声纹验证" : "Enable voiceprint verification"}
-                        description={
-                          locale === "zh"
-                            ? "开启后，语音对话会先用已绑定声纹做相似度判断，通过后才转写。"
-                            : "When enabled, voice turns must match the bound speaker before ASR runs."
-                        }
-                        className="border-border/50 bg-background"
-                      />
+                      >
+                        <span
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+                            agentForm.isHidden
+                              ? "bg-primary border-primary"
+                              : "border-muted-foreground/40 group-hover:border-primary/50"
+                          }`}
+                        >
+                          {agentForm.isHidden && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium flex items-center gap-1.5">
+                            <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />
+                            {locale === "zh" ? "在对话切换中隐藏" : "Hide from chat switcher"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "开启后，该角色仍可在角色管理中维护，但不会出现在对话页顶部的角色切换选项中。"
+                              : "When enabled, this role stays manageable here but is removed from the chat page role switcher."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
+                      <div
+                        className="flex items-start gap-3 cursor-pointer group"
+                        onClick={() => setAgentForm(prev => ({
+                          ...prev,
+                          voiceInterruptionEnabled: !prev.voiceInterruptionEnabled,
+                        }))}
+                      >
+                        <span
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+                            agentForm.voiceInterruptionEnabled
+                              ? "bg-primary border-primary"
+                              : "border-muted-foreground/40 group-hover:border-primary/50"
+                          }`}
+                        >
+                          {agentForm.voiceInterruptionEnabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">
+                            {locale === "zh" ? "启用语音打断" : "Enable voice interruption"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "开启后，语音模式下用户说话可中断当前回复并开始新一轮对话。"
+                              : "When enabled, speaking in voice mode interrupts the current reply and starts a new turn."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
+                      <div
+                        className="flex items-start gap-3 cursor-pointer group"
+                        onClick={() => setAgentForm(prev => ({
+                          ...prev,
+                          speakerVerificationEnabled: !prev.speakerVerificationEnabled,
+                        }))}
+                      >
+                        <span
+                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
+                            agentForm.speakerVerificationEnabled
+                              ? "bg-primary border-primary"
+                              : "border-muted-foreground/40 group-hover:border-primary/50"
+                          }`}
+                        >
+                          {agentForm.speakerVerificationEnabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">
+                            {locale === "zh" ? "启用声纹验证" : "Enable voiceprint verification"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "开启后，语音对话会先用已绑定声纹做相似度判断，通过后才转写。"
+                              : "When enabled, voice turns must match the bound speaker before ASR runs."}
+                          </div>
+                        </div>
+                      </div>
 
                       {agentForm.speakerVerificationEnabled && (
                         <div className="space-y-2 pt-2 border-t border-border/40">
@@ -1948,18 +2156,6 @@ export function ManagementDashboard({
                           </Button>
                         </div>
                       )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
-                      <Textarea
-                        id="agent-prompt"
-                        value={agentForm.systemPrompt}
-                        onChange={e => setAgentForm({ ...agentForm, systemPrompt: e.target.value })}
-                        rows={6}
-                        placeholder={t.agentPromptPlaceholder}
-                        className="resize-none bg-background border-border/80 rounded-lg text-sm"
-                      />
                     </div>
 
                     <div className="space-y-2">
@@ -2059,9 +2255,23 @@ export function ManagementDashboard({
 
                     {agentForm.enabledTools.includes("rag_search") && knowledgeBases.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {knowledgeBases.map((kb) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.knowledgeBaseIds.length}/{knowledgeBases.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentKbSearch}
+                            onChange={e => setAgentKbSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索知识库名称、描述、文件或 ID" : "Search knowledge bases by name, description, file, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentKnowledgeBases.length > 0 ? filteredAgentKnowledgeBases.map((kb) => {
                             const linked = agentForm.knowledgeBaseIds.includes(kb.id)
                             return (
                               <div
@@ -2085,16 +2295,34 @@ export function ManagementDashboard({
                                 </div>
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的知识库" : "No matching knowledge bases found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
 
                     {skills.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {skills.map((sk) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.skillIds.length}/{skills.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentSkillSearch}
+                            onChange={e => setAgentSkillSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索技能名称、描述或 ID" : "Search skills by name, description, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentSkills.length > 0 ? filteredAgentSkills.map((sk) => {
                             const linked = agentForm.skillIds.includes(sk.id)
                             return (
                               <div
@@ -2118,16 +2346,34 @@ export function ManagementDashboard({
                                 </div>
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的技能" : "No matching skills found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
 
                     {mcpServers.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkMcpServers}</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {mcpServers.map((mcp) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkMcpServers}</Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.mcpIds.length}/{mcpServers.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentMcpSearch}
+                            onChange={e => setAgentMcpSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索 MCP 名称、URL 或 ID" : "Search MCP by name, URL, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentMcpServers.length > 0 ? filteredAgentMcpServers.map((mcp) => {
                             const linked = agentForm.mcpIds.includes(mcp.id)
                             return (
                               <div
@@ -2151,20 +2397,36 @@ export function ManagementDashboard({
                                 </div>
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的 MCP" : "No matching MCP servers found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {agentProfiles.filter(p => p.id !== activeEditingAgentId).length > 0 && (
+                    {linkableAgentProfiles.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          {locale === "zh" ? "关联其他角色 (多角色协同)" : "Link Other Roles (Multi-Role)"}
-                        </Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {agentProfiles
-                            .filter(p => p.id !== activeEditingAgentId)
-                            .map((agent) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {locale === "zh" ? "关联其他角色 (多角色协同)" : "Link Other Roles (Multi-Role)"}
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {(agentForm.agentIds || []).length}/{linkableAgentProfiles.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentRoleSearch}
+                            onChange={e => setAgentRoleSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索角色名称、描述或 ID" : "Search roles by name, description, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredLinkableAgentProfiles.length > 0 ? filteredLinkableAgentProfiles.map((agent) => {
                               const linked = agentForm.agentIds?.includes(agent.id)
                               return (
                                 <div
@@ -2188,16 +2450,32 @@ export function ManagementDashboard({
                                   </div>
                                 </div>
                               )
-                            })}
+                            }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的角色" : "No matching roles found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
+                      </div>
 
-
+                      <div className="min-w-0 space-y-1.5">
+                        <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
+                        <div className="agent-prompt-editor">
+                          <PromptMarkdownEditor
+                            id="agent-prompt"
+                            value={agentForm.systemPrompt}
+                            onChange={systemPrompt => setAgentForm({ ...agentForm, systemPrompt })}
+                            placeholder={t.agentPromptPlaceholder}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : selectedAgent ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Bot className="w-6 h-6 text-primary" />
@@ -2355,6 +2633,17 @@ export function ManagementDashboard({
                             {selectedAgent.model
                               ? getModelDisplayName(selectedAgent.model)
                               : (locale === "zh" ? "使用全局聊天模型" : "Global chat model")}
+                          </div>
+                        </div>
+                        <div className="p-3 border border-border/60 rounded-xl bg-background/50">
+                          <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {locale === "zh" ? "对话切换" : "Chat Switcher"}
+                          </div>
+                          <div className="text-xs font-semibold mt-1 flex items-center gap-1.5">
+                            {selectedAgent.isHidden && <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
+                            {selectedAgent.isHidden
+                              ? (locale === "zh" ? "已隐藏" : "Hidden")
+                              : (locale === "zh" ? "可见" : "Visible")}
                           </div>
                         </div>
                         <div className="p-3 border border-border/60 rounded-xl bg-background/50">
@@ -2621,9 +2910,9 @@ export function ManagementDashboard({
           {/* KNOWLEDGE BASE TAB PANEL                   */}
           {/* ========================================== */}
           {activeTab === "knowledge" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left KB List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.kbManager}
@@ -2638,7 +2927,7 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
                   {knowledgeBases.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
                       <Database className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
@@ -2674,7 +2963,7 @@ export function ManagementDashboard({
                             className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
                               deleteConfirmId === kb.id
                                 ? "opacity-100 pointer-events-auto"
-                                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                                : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
                             }`}
                             onClick={e => e.stopPropagation()}
                           >
@@ -2722,10 +3011,10 @@ export function ManagementDashboard({
               </div>
 
               {/* Right KB Edit Form / Details */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingKB || isEditingKB ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <BookOpen className="w-5 h-5 text-primary" />
                         {isCreatingKB ? t.addKnowledge : t.editKnowledge}
@@ -2744,14 +3033,14 @@ export function ManagementDashboard({
                             setIsEditingKB(false)
                             setIsCreatingKB(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
                         </Button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="kb-name">{t.kbName}</Label>
                         <Input
@@ -2778,7 +3067,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedKB ? (
                   <div className="max-w-3xl space-y-6">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Database className="w-6 h-6 text-primary" />
@@ -2805,7 +3094,7 @@ export function ManagementDashboard({
 
                     {/* KB File Management */}
                     <div className="space-y-4 border border-border/40 rounded-xl bg-background/50 p-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <h3 className="text-sm font-semibold tracking-wide flex items-center gap-1.5">
                           <FileText className="w-4 h-4 text-primary" />
                           {t.kbFiles}
@@ -2898,6 +3187,6 @@ export function ManagementDashboard({
           )}
         </main>
       </div>
-    </AppShell>
+    </div>
   )
 }

@@ -7,7 +7,6 @@
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { StatusNotice } from "@/components/ui/status-notice"
 import { LoaderCircle, Plus, SendHorizontal, Square } from "lucide-react"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
@@ -93,23 +92,23 @@ export function ChatInput({
       {/* Enhanced visibility layer */}
       <div className="absolute inset-0 bg-card/20 pointer-events-none" />
 
-      <div className="relative border-t border-border/60 bg-background backdrop-blur-sm">
-        <div className="w-full max-w-4xl mx-auto px-3 sm:px-4 py-1.5">
+      <div className="relative bg-background backdrop-blur-sm">
+        <div className="mx-auto w-full max-w-4xl px-2.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5 sm:px-4 sm:pb-1.5">
           {/* File Previews */}
           <FilePreviewGrid files={attachedFiles} onRemove={onRemoveFile} />
 
           {/* Upload Error */}
           {uploadError && (
-            <StatusNotice tone="error" compact className="mb-2">
+            <div className="mb-2 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
               {uploadError}
-            </StatusNotice>
+            </div>
           )}
 
           {/* Voice Error */}
           {voiceError && (
-            <StatusNotice tone="error" compact className="mb-2">
+            <div className="mb-2 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
               {voiceError}
-            </StatusNotice>
+            </div>
           )}
 
           {/* Queued Messages */}
@@ -118,7 +117,7 @@ export function ChatInput({
               {queuedMessages.map((msg) => (
                 <div
                   key={msg.id}
-                  className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/60 px-3 py-2 text-sm"
+                  className="flex items-center gap-2 px-3 py-2 bg-muted/70 rounded-lg text-sm"
                 >
                   <div className="flex items-center gap-1.5 text-muted-foreground flex-shrink-0">
                     <svg
@@ -144,10 +143,10 @@ export function ChatInput({
 
               {/* Main input container with enhanced contrast */}
               <div
-                className={`relative bg-background/95 backdrop-blur-sm border rounded-xl transition-all duration-300 group-hover:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
+                className={`relative bg-muted/70 backdrop-blur-sm rounded-xl transition-all duration-300 group-hover:bg-muted group-focus-within:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
                   isDragging
-                    ? 'border-primary bg-primary/5 ring-2 ring-primary/25'
-                    : 'border-border/70 group-hover:border-primary/50 group-focus-within:border-primary/65'
+                    ? 'bg-primary/10 ring-2 ring-primary/25'
+                    : ''
                 }`}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -158,7 +157,7 @@ export function ChatInput({
                     <div className="text-primary font-medium">{t.dropFilesHere}</div>
                   </div>
                 )}
-                <div className="flex items-end gap-2 px-3 py-1.5">
+                <div className="flex items-end gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-3">
                   {/* Hidden File Input */}
                   <input
                     ref={fileInputRef}
@@ -176,7 +175,7 @@ export function ChatInput({
                       variant="ghost"
                       size="sm"
                       disabled={isLoading || !userId}
-                      className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                      className="group mb-0.5 h-10 w-10 flex-shrink-0 rounded-full bg-muted/50 p-0 text-muted-foreground transition-all duration-200 hover:scale-105 hover:bg-primary/10 hover:text-primary active:scale-95 sm:h-9 sm:w-9"
                       type="button"
                       title={t.attachFiles}
                     >
@@ -199,7 +198,7 @@ export function ChatInput({
                           ? t.typeNextMessage
                           : t.askAnything
                     }
-                    className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
+                    className="custom-scrollbar relative z-10 min-h-[40px] max-h-[32dvh] w-full resize-none break-words bg-transparent px-2 py-2.5 text-base leading-relaxed text-foreground transition-all duration-200 placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[36px] sm:max-h-[240px] sm:px-3 sm:py-2 sm:text-sm"
                     disabled={!userId}
                     rows={1}
                   />
@@ -210,7 +209,7 @@ export function ChatInput({
                       variant="ghost"
                       size="sm"
                       disabled={!userId}
-                      className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary-active hover:text-primary-foreground border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                      className="group mb-0.5 h-10 w-10 flex-shrink-0 rounded-full bg-primary p-0 text-primary-foreground transition-all duration-200 hover:scale-105 hover:bg-primary-active hover:text-primary-foreground active:scale-95 sm:h-9 sm:w-9"
                       type="button"
                       title={t.sendMessage}
                       aria-label={t.sendMessage}
@@ -234,9 +233,9 @@ export function ChatInput({
                       size="sm"
                       disabled={isStopping}
                       className={`
-                        h-9 px-4 mb-0.5 rounded-full flex-shrink-0
+                        h-10 px-3 sm:h-9 sm:px-4 mb-0.5 rounded-full flex-shrink-0
                         transition-all duration-200 hover:scale-105 active:scale-95
-                        bg-muted text-primary hover:text-primary hover:bg-muted/80 border-2 border-primary
+                        bg-primary/10 text-primary hover:text-primary hover:bg-primary/15
                         ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                       `}
                       type="button"

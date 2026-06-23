@@ -112,6 +112,7 @@ class AgentProfileSchema(BaseModel):
     personaStyle: str | None = None
     boundaryMode: str | None = None
     ttsVoice: str | None = None
+    isHidden: bool = False
     voiceInterruptionEnabled: bool = True
     speakerVerificationEnabled: bool = False
     speakerVerificationBound: bool = False

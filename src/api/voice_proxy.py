@@ -36,7 +36,7 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from websockets.asyncio.client import ClientConnection
 
@@ -139,7 +139,7 @@ VAD_MODEL_PATH = Path(os.environ.get("VOICE_TEN_VAD_MODEL_PATH", DEFAULT_VAD_MOD
 TEN_VAD_DATA_START = 1076
 TEN_VAD_DATA_END = 333287
 
-voice_router = APIRouter()
+voice_router = APIRouter(tags=["voice"])
 _audio_logger = VoiceAudioLogger.from_env()
 
 VOICE_MODE_KWS = "kws"
@@ -458,60 +458,69 @@ class AsrTranscribeRequest(BaseModel):
     Expected format: ``data:audio/wav;base64,<base64_encoded_wav>``
     """
 
-    audio: str
+    audio: str = Field(
+        description="Base64 audio data URI, for example `data:audio/wav;base64,<payload>`.",
+        examples=["data:audio/wav;base64,UklGRiQAAABXQVZF..."],
+    )
 
 
 class AsrTranscribeResponse(BaseModel):
     """Transcription result."""
 
-    text: str
-    language: str | None = None
-    duration_seconds: float | None = None
+    text: str = Field(description="Recognized transcript text.")
+    language: str | None = Field(default=None, description="Detected language code when available.")
+    duration_seconds: float | None = Field(default=None, description="Audio duration in seconds when available.")
 
 
 class SpeakerVerificationRequest(BaseModel):
     """Verify a speech segment against an agent profile voiceprint."""
 
-    audio: str
-    agentId: str
+    audio: str = Field(
+        description="Base64 speech sample data URI, for example `data:audio/wav;base64,<payload>`.",
+        examples=["data:audio/wav;base64,UklGRiQAAABXQVZF..."],
+    )
+    agentId: str = Field(description="Agent profile id whose bound voiceprint should be used.")
 
 
 class SpeakerVerificationResponse(BaseModel):
     """Speaker verification result."""
 
-    accepted: bool
-    enabled: bool
-    bound: bool
-    score: float | None = None
-    threshold: float = SPEAKER_PROFILE_THRESHOLD
+    accepted: bool = Field(description="Whether the sample passed speaker verification.")
+    enabled: bool = Field(description="Whether the selected agent has speaker verification enabled.")
+    bound: bool = Field(description="Whether the selected agent has a user voiceprint bound.")
+    score: float | None = Field(default=None, description="Cosine similarity score when verification ran.")
+    threshold: float = Field(default=SPEAKER_PROFILE_THRESHOLD, description="Minimum score required for acceptance.")
 
 
 class UserVoiceprintCreateRequest(BaseModel):
     """Create a user-level voiceprint from an audio sample."""
 
-    name: str = "My Voiceprint"
-    audio: str
-    sampleText: str | None = None
+    name: str = Field(default="My Voiceprint", description="Human-readable voiceprint name.")
+    audio: str = Field(
+        description="Base64 enrollment audio data URI, for example `data:audio/wav;base64,<payload>`.",
+        examples=["data:audio/wav;base64,UklGRiQAAABXQVZF..."],
+    )
+    sampleText: str | None = Field(default=None, description="Text the user read while enrolling.")
 
 
 class UserVoiceprintResponse(BaseModel):
     """User-level voiceprint metadata (no embedding exposed)."""
 
-    id: str
-    name: str
-    sampleText: str | None = None
-    enrolledAt: str | None = None
-    createdAt: str
+    id: str = Field(description="Voiceprint id.")
+    name: str = Field(description="Human-readable voiceprint name.")
+    sampleText: str | None = Field(default=None, description="Enrollment sample text.")
+    enrolledAt: str | None = Field(default=None, description="Enrollment timestamp in ISO format.")
+    createdAt: str = Field(description="Creation timestamp in ISO format.")
 
 
 class VoiceTelemetryEventRequest(BaseModel):
     """Client-side voice latency event for OpenTelemetry export."""
 
-    event: str
-    voiceSessionId: str | None = None
-    traceparent: str | None = None
-    timestampMs: float | None = None
-    payload: dict[str, Any] = {}
+    event: str = Field(description="Short event name, appended to the `voice.client.` span name.")
+    voiceSessionId: str | None = Field(default=None, description="Client-generated voice session id.")
+    traceparent: str | None = Field(default=None, description="W3C traceparent header value for trace correlation.")
+    timestampMs: float | None = Field(default=None, description="Client event timestamp in milliseconds.")
+    payload: dict[str, Any] = Field(default_factory=dict, description="Additional telemetry attributes.")
 
 
 def _extract_bearer_user_id(authorization: str | None) -> str:
@@ -871,7 +880,15 @@ def _call_dashscope_asr(
                 pass
 
 
-@voice_router.post("/api/asr/transcribe", response_model=AsrTranscribeResponse)
+@voice_router.post(
+    "/api/asr/transcribe",
+    response_model=AsrTranscribeResponse,
+    summary="Transcribe an audio sample",
+    description=(
+        "Transcribes a base64 audio data URI using the configured DashScope ASR model. "
+        "Expected input is `data:audio/...;base64,<payload>`."
+    ),
+)
 async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse:
     """Transcribe a speech segment using DashScope ``qwen3-asr-flash``.
 
@@ -921,7 +938,11 @@ async def asr_transcribe(request: AsrTranscribeRequest) -> AsrTranscribeResponse
         ) from exc
 
 
-@voice_router.post("/api/voice/telemetry")
+@voice_router.post(
+    "/api/voice/telemetry",
+    summary="Record a voice telemetry event",
+    description="Records one browser or native voice latency event as an OpenTelemetry span.",
+)
 async def record_voice_telemetry_event(
     request: VoiceTelemetryEventRequest,
 ) -> dict[str, bool]:
@@ -945,7 +966,11 @@ async def record_voice_telemetry_event(
     return {"recorded": recorded}
 
 
-@voice_router.get("/api/speaker-profiles/sample-text")
+@voice_router.get(
+    "/api/speaker-profiles/sample-text",
+    summary="Get voiceprint enrollment sample text",
+    description="Returns the sentence users should read when enrolling a voiceprint.",
+)
 async def get_speaker_profile_sample_text() -> dict[str, str]:
     """Return the sentence users should read for voiceprint enrollment."""
     return {"sampleText": SPEAKER_PROFILE_SAMPLE_TEXT}
@@ -970,6 +995,8 @@ def _voiceprint_to_response(vp: UserVoiceprintTable) -> UserVoiceprintResponse:
 @voice_router.get(
     "/api/user-voiceprints",
     response_model=list[UserVoiceprintResponse],
+    summary="List user voiceprints",
+    description="Lists voiceprint metadata for the authenticated user. Speaker embeddings are never returned.",
 )
 async def list_user_voiceprints(
     authorization: str | None = Header(default=None),
@@ -989,6 +1016,11 @@ async def list_user_voiceprints(
 @voice_router.post(
     "/api/user-voiceprints",
     response_model=UserVoiceprintResponse,
+    summary="Enroll a user voiceprint",
+    description=(
+        "Creates a user-level speaker voiceprint from an audio data URI after audio quality checks. "
+        "The returned response contains metadata only, not the embedding."
+    ),
 )
 async def create_user_voiceprint(
     request: UserVoiceprintCreateRequest,
@@ -1039,7 +1071,11 @@ async def create_user_voiceprint(
     return _voiceprint_to_response(vp)
 
 
-@voice_router.delete("/api/user-voiceprints/{voiceprint_id}")
+@voice_router.delete(
+    "/api/user-voiceprints/{voiceprint_id}",
+    summary="Delete a user voiceprint",
+    description="Deletes one voiceprint owned by the authenticated user and clears agent profile bindings to it.",
+)
 async def delete_user_voiceprint(
     voiceprint_id: str,
     authorization: str | None = Header(default=None),
@@ -1072,6 +1108,11 @@ async def delete_user_voiceprint(
 @voice_router.post(
     "/api/speaker-profiles/verify",
     response_model=SpeakerVerificationResponse,
+    summary="Verify an agent speaker",
+    description=(
+        "Verifies an audio sample against the voiceprint bound to the selected agent profile. "
+        "Returns whether verification is enabled, whether a voiceprint is bound, the score, and threshold."
+    ),
 )
 async def verify_agent_speaker(
     request: SpeakerVerificationRequest,
@@ -1164,7 +1205,10 @@ def _parse_asr_response(response: Any) -> AsrTranscribeResponse:
 # ---------------------------------------------------------------------------
 
 
-@voice_router.websocket("/ws/voice/asr")
+@voice_router.websocket(
+    "/ws/voice/asr",
+    name="Voice ASR stream",
+)
 async def asr_stream(websocket: WebSocket) -> None:
     """Stream microphone PCM to backend VAD and return ASR transcripts."""
     await websocket.accept()
@@ -1552,7 +1596,10 @@ async def _send_wake_ack_tts(
         logger.warning("Wake acknowledgement TTS failed: %s", exc)
 
 
-@voice_router.websocket("/ws/voice/session")
+@voice_router.websocket(
+    "/ws/voice/session",
+    name="Unified voice session stream",
+)
 async def voice_session(websocket: WebSocket) -> None:
     """Unified voice session WebSocket for KWS + VAD + ASR.
 
@@ -2043,7 +2090,10 @@ async def _relay(
         task.cancel()
 
 
-@voice_router.websocket("/ws/voice/tts")
+@voice_router.websocket(
+    "/ws/voice/tts",
+    name="Voice TTS proxy stream",
+)
 async def tts_proxy(websocket: WebSocket) -> None:
     """TTS WebSocket proxy.
 

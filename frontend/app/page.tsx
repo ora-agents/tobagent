@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef, useMemo } from "react"
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -11,7 +11,6 @@ import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { AuthPanel } from "@/components/layout/auth-panel"
-import { AppMain, AppShell, AppSidebar } from "@/components/ui/app-shell"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -33,12 +32,17 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
-type DashboardView = "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual"
+const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "mcp", "settings", "developer-manual"] as const
+type DashboardView = (typeof DASHBOARD_VIEWS)[number]
+
+function isDashboardView(value: string | null): value is DashboardView {
+  return DASHBOARD_VIEWS.includes(value as DashboardView)
+}
 
 function DashboardFallback() {
   return (
-    <AppShell aria-busy="true" aria-label="Loading dashboard" role="status">
-      <AppSidebar className="w-56">
+    <div className="flex h-screen bg-background" aria-busy="true" aria-label="Loading dashboard" role="status">
+      <aside className="hidden w-56 flex-col border-r border-border/60 bg-sidebar md:flex">
         <div className="flex h-16 items-center border-b border-border/60 px-3">
           <LoadingPlaceholder variant="button" className="h-9 w-9" />
         </div>
@@ -55,9 +59,9 @@ function DashboardFallback() {
           <LoadingPlaceholder variant="button" className="h-9 w-full" />
           <LoadingPlaceholder variant="button" className="h-9 w-4/5" />
         </div>
-      </AppSidebar>
+      </aside>
 
-      <AppMain className="flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b border-border/60 px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <LoadingPlaceholder variant="button" className="h-9 w-9 md:hidden" />
@@ -86,8 +90,8 @@ function DashboardFallback() {
             </div>
           </div>
         </main>
-      </AppMain>
-    </AppShell>
+      </div>
+    </div>
   )
 }
 
@@ -95,13 +99,12 @@ function DashboardContent() {
   const t = useT()
   const { user, loading: authLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [currentView, setCurrentView] = useState<DashboardView>("chat")
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
-  const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
   const [createAgentOnOpenSignal, setCreateAgentOnOpenSignal] = useState(0)
   const [chatSessionKey, setChatSessionKey] = useState(0)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [elderOptimized, setElderOptimized] = useState(false)
   const [userVoiceprints, setUserVoiceprints] = useState<import("@/components/layout/user-settings-page").UserVoiceprint[]>([])
 
@@ -130,8 +133,48 @@ function DashboardContent() {
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
   const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
+  const [viewParam, setViewParam] = useQueryState("view")
+  const [editAgentIdParam, setEditAgentIdParam] = useQueryState("editAgent")
+  const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
+  const setCurrentView = useCallback((view: DashboardView) => {
+    if (view !== "agents") {
+      setEditAgentIdParam(null)
+    }
+    setViewParam(view === "chat" ? null : view)
+  }, [setEditAgentIdParam, setViewParam])
   const hasInitialPrompt = !!initialPrompt?.trim()
   const activeThreadId = hasInitialPrompt ? null : threadId
+
+  useEffect(() => {
+    if (viewParam && !isDashboardView(viewParam)) {
+      setViewParam(null)
+    }
+  }, [setViewParam, viewParam])
+
+  useEffect(() => {
+    if (hasInitialPrompt && currentView !== "chat") {
+      setCurrentView("chat")
+    }
+  }, [currentView, hasInitialPrompt, setCurrentView])
+
+  useEffect(() => {
+    if (editAgentIdParam && !hasInitialPrompt && currentView !== "agents") {
+      setCurrentView("agents")
+    }
+  }, [currentView, editAgentIdParam, hasInitialPrompt, setCurrentView])
+
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isMobileSidebarOpen])
 
   // Get browser-specific user ID
   const userId = useUserId()
@@ -203,6 +246,7 @@ function DashboardContent() {
     isLoading: threadsLoading,
     updateThreadMetadata,
     deleteThread,
+    deleteAllUserThreads,
     addOptimisticThread,
   } = useThreads(userId || undefined)
 
@@ -248,6 +292,15 @@ function DashboardContent() {
         setThreadId(null)
       }
     })
+  }
+
+  const handleClearAllConversations = async () => {
+    const deletedCount = await deleteAllUserThreads()
+    setNewThreads(new Set())
+    setChatSessionKey(prev => prev + 1)
+    setInitialPrompt(null)
+    setThreadId(null)
+    return deletedCount
   }
 
   // Handle when thread is not found (404) or access denied (403)
@@ -413,13 +466,14 @@ function DashboardContent() {
         }
         setCurrentView("chat")
         setThreadId(null)
+        setEditAgentIdParam(null)
         setAgentShareToken(null)
       })
       .catch((err) => {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, importAgentShareLink, setAgentShareToken, setThreadId, user])
+  }, [agentShareToken, importAgentShareLink, setAgentShareToken, setEditAgentIdParam, setThreadId, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -484,11 +538,12 @@ function DashboardContent() {
   }
 
   const handleOpenActiveAgentSettings = () => {
-    setEditAgentIdOnOpen(selectedAgentProfileId)
+    setEditAgentIdParam(selectedAgentProfileId)
     setCurrentView("agents")
   }
 
   const handleOpenCreateAgent = () => {
+    setEditAgentIdParam(null)
     setCreateAgentOnOpenSignal(prev => prev + 1)
     setCurrentView("agents")
   }
@@ -634,7 +689,7 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <AppShell className={elderOptimized ? "elder-optimized-ui" : ""}>
+      <div className={`flex h-dvh bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -646,7 +701,32 @@ function DashboardContent() {
           currentView={currentView}
           onViewChange={setCurrentView}
         />
-      <AppMain className="flex flex-col">
+        {isMobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="菜单">
+            <button
+              type="button"
+              className="absolute inset-0 bg-foreground/35"
+              onClick={() => setIsMobileSidebarOpen(false)}
+              aria-label="关闭菜单"
+            />
+            <div className="relative h-full">
+              <Sidebar
+                isCollapsed={false}
+                onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
+                currentThreadId={activeThreadId || ''}
+                onSelectThread={handleSelectThread}
+                onDeleteThread={handleDeleteThread}
+                isLoading={threadsLoading}
+                currentView={currentView}
+                onViewChange={setCurrentView}
+                isMobileDrawer
+                onMobileClose={() => setIsMobileSidebarOpen(false)}
+              />
+            </div>
+          </div>
+        )}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
           aria-hidden={currentView !== "chat"}
@@ -664,6 +744,7 @@ function DashboardContent() {
               onAgentProfileChange={setSelectedAgentProfileId}
               onCreateAgent={handleOpenCreateAgent}
               onOpenAgentSettings={handleOpenActiveAgentSettings}
+              onOpenSidebar={() => setIsMobileSidebarOpen(true)}
             />
             <ChatInterface
               key={chatSessionKey}
@@ -690,31 +771,38 @@ function DashboardContent() {
             onElderOptimizedChange={setElderOptimized}
             voiceprints={userVoiceprints}
             onVoiceprintsChange={setUserVoiceprints}
+            onClearAllConversations={handleClearAllConversations}
+            conversationCount={threads.length}
           />
         ) : currentView === "developer-manual" ? (
-          <DeveloperManualPage onBackToChat={() => setCurrentView("chat")} />
-        ) : currentView !== "chat" ? (
-          <ManagementDashboard
-            initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
+          <DeveloperManualPage
             onBackToChat={() => setCurrentView("chat")}
-            agentProfiles={agentProfiles}
-            selectedAgentProfileId={selectedAgentProfileId}
-            setSelectedAgentProfileId={setSelectedAgentProfileId}
-            createAgentProfile={createAgentProfile}
-            updateAgentProfile={updateAgentProfile}
-            fetchAgentProfileVersions={fetchAgentProfileVersions}
-            restoreAgentProfileVersion={restoreAgentProfileVersion}
-            createAgentShareLink={createAgentShareLink}
-            userVoiceprints={userVoiceprints}
-            onNavigateToUserSettings={() => setCurrentView("settings")}
-            deleteAgentProfile={deleteAgentProfile}
-            editAgentIdOnOpen={editAgentIdOnOpen}
-            onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}
-            createAgentOnOpenSignal={createAgentOnOpenSignal}
+            onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
+        ) : currentView !== "chat" ? (
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <ManagementDashboard
+              initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
+              onBackToChat={() => setCurrentView("chat")}
+              agentProfiles={agentProfiles}
+              selectedAgentProfileId={selectedAgentProfileId}
+              setSelectedAgentProfileId={setSelectedAgentProfileId}
+              createAgentProfile={createAgentProfile}
+              updateAgentProfile={updateAgentProfile}
+              fetchAgentProfileVersions={fetchAgentProfileVersions}
+              restoreAgentProfileVersion={restoreAgentProfileVersion}
+              createAgentShareLink={createAgentShareLink}
+              userVoiceprints={userVoiceprints}
+              onNavigateToUserSettings={() => setCurrentView("settings")}
+              deleteAgentProfile={deleteAgentProfile}
+              editAgentIdOnOpen={editAgentIdParam}
+              onEditAgentChange={setEditAgentIdParam}
+              createAgentOnOpenSignal={createAgentOnOpenSignal}
+            />
+          </div>
         ) : null}
-      </AppMain>
-    </AppShell>
+      </div>
+    </div>
     </>
   )
 }

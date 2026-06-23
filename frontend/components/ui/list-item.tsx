@@ -65,7 +65,7 @@ function ListItem({
       </span>
       {actions && (
         <span
-          className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+          className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
           onClick={(event) => event.stopPropagation()}
         >
           {actions}

@@ -13,14 +13,19 @@ from src.api.services import (
 )
 from src.utils.db import McpServerTable, UserTable, get_db
 
-router = APIRouter()
+router = APIRouter(tags=["mcp-servers"])
 
 
 # ---------------------------------------------------------------------------
 # MCP Server CRUD
 # ---------------------------------------------------------------------------
 
-@router.get("/api/mcp-servers", response_model=list[McpServerSchema])
+@router.get(
+    "/api/mcp-servers",
+    response_model=list[McpServerSchema],
+    summary="List MCP servers",
+    description="Lists MCP server configurations owned by the authenticated user.",
+)
 async def get_mcp_servers(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
@@ -31,7 +36,12 @@ async def get_mcp_servers(
     return [_mcp_schema(s) for s in servers]
 
 
-@router.post("/api/mcp-servers", response_model=McpServerSchema)
+@router.post(
+    "/api/mcp-servers",
+    response_model=McpServerSchema,
+    summary="Create an MCP server",
+    description="Creates a streamable HTTP MCP server configuration and clears MCP runtime caches.",
+)
 async def create_mcp_server(
     server_data: McpServerSchema,
     db: Session = Depends(get_db),
@@ -67,7 +77,12 @@ async def create_mcp_server(
     return _mcp_schema(new_server)
 
 
-@router.put("/api/mcp-servers/{id}", response_model=McpServerSchema)
+@router.put(
+    "/api/mcp-servers/{id}",
+    response_model=McpServerSchema,
+    summary="Update an MCP server",
+    description="Updates one owned MCP server configuration and clears MCP runtime caches.",
+)
 async def update_mcp_server(
     id: str,
     server_data: McpServerSchema,
@@ -101,7 +116,11 @@ async def update_mcp_server(
     return _mcp_schema(server)
 
 
-@router.delete("/api/mcp-servers/{id}")
+@router.delete(
+    "/api/mcp-servers/{id}",
+    summary="Delete an MCP server",
+    description="Deletes one owned MCP server, removes agent links to it, and clears MCP runtime caches.",
+)
 async def delete_mcp_server(
     id: str,
     db: Session = Depends(get_db),
@@ -127,5 +146,4 @@ async def delete_mcp_server(
     _invalidate_runtime_caches(owner_user_id=current_user.id)
 
     return {"status": "success", "message": f"MCP Server {id} deleted"}
-
 

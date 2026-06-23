@@ -19,7 +19,7 @@ export function LoadingPlaceholder({ className, label, variant = "text" }: Loadi
   return (
     <div
       className={cn(
-        "loading-placeholder relative overflow-hidden border border-border/60 bg-muted/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)]",
+        "loading-placeholder relative overflow-hidden bg-muted/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.24)]",
         variantClasses[variant],
         className
       )}
@@ -34,7 +34,7 @@ export function LoadingPlaceholder({ className, label, variant = "text" }: Loadi
 export function ThreadSkeleton({ label }: { label?: string }) {
   return (
     <div
-      className="flex h-[34px] items-center rounded-lg border border-transparent px-3"
+      className="flex h-[34px] items-center rounded-lg px-3"
       aria-busy={label ? true : undefined}
       aria-label={label}
       role={label ? "status" : undefined}
@@ -50,7 +50,7 @@ export function ComboboxSkeleton({ label, className }: { label?: string; classNa
   return (
     <div
       className={cn(
-        "flex h-8 min-w-36 items-center gap-2 rounded-md border border-border/60 bg-background/75 px-2.5 shadow-sm",
+        "flex h-8 min-w-36 items-center gap-2 rounded-md bg-muted/70 px-2.5",
         className
       )}
       aria-busy={label ? true : undefined}

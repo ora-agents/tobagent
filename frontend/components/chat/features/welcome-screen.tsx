@@ -132,7 +132,7 @@ export function WelcomeScreen({
         </div>
 
         {!isAgentLoading && !hasActiveAgent && (
-          <div className="mb-4 rounded-lg border border-dashed border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-4 rounded-lg bg-muted/70 px-4 py-3 text-sm text-muted-foreground flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{t.createAgentPrompt}</span>
             {onCreateAgent && (
               <Button
@@ -171,10 +171,10 @@ export function WelcomeScreen({
             <div className="absolute -inset-0.5 bg-primary/5 rounded-xl opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
 
             <div
-              className={`relative bg-background/95 backdrop-blur-sm border rounded-xl transition-all duration-300 group-hover:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
+              className={`relative bg-muted/70 backdrop-blur-sm rounded-xl transition-all duration-300 group-hover:bg-muted group-focus-within:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
                 isDragging
-                  ? 'border-primary bg-primary/5 ring-2 ring-primary/25'
-                  : 'border-border/70 group-hover:border-primary/50 group-focus-within:border-primary/65'
+                  ? 'bg-primary/10 ring-2 ring-primary/25'
+                  : ''
               }`}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
@@ -201,7 +201,7 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
-                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                   type="button"
                   title={t.attachFiles}
                 >
@@ -218,7 +218,7 @@ export function WelcomeScreen({
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
                 placeholder={!userId || isAgentLoading ? t.initializing : !hasActiveAgent ? t.selectAgentRequired : isLoading ? t.typeNextMessage : t.askAnything}
-                className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent border-0 w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
+                className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                 disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
                 rows={1}
               />
@@ -229,7 +229,7 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={!userId || isAgentLoading || !hasActiveAgent}
-                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary-active hover:text-primary-foreground border-0 flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary-active hover:text-primary-foreground flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
                   type="button"
                   title={t.sendMessage}
                   aria-label={t.sendMessage}
@@ -255,7 +255,7 @@ export function WelcomeScreen({
                   className={`
                     h-9 px-4 mb-0.5 rounded-full flex-shrink-0
                     transition-all duration-200 hover:scale-105 active:scale-95
-                    bg-muted text-primary hover:text-primary hover:bg-muted/80 border-2 border-primary
+                    bg-primary/10 text-primary hover:text-primary hover:bg-primary/15
                     ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                   `}
                   type="button"

@@ -141,6 +141,7 @@ class AgentProfileTable(Base):
     persona_style = Column(String(50), nullable=True)
     boundary_mode = Column(String(50), nullable=True)
     tts_voice = Column(String(100), nullable=True)
+    is_hidden = Column(Boolean, nullable=False, default=False)
     voice_interruption_enabled = Column(Boolean, nullable=False, default=True)
     # Optional per-agent speaker verification.
     speaker_verification_enabled = Column(Boolean, nullable=False, default=False)
@@ -300,6 +301,7 @@ def ensure_database_schema() -> None:
         ("agent_profiles", "persona_style", "persona_style VARCHAR(50)"),
         ("agent_profiles", "boundary_mode", "boundary_mode VARCHAR(50)"),
         ("agent_profiles", "tts_voice", "tts_voice VARCHAR(100)"),
+        ("agent_profiles", "is_hidden", "is_hidden BOOLEAN DEFAULT FALSE"),
         (
             "agent_profiles",
             "voice_interruption_enabled",

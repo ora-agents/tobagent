@@ -1,10 +1,11 @@
-# LangSmith API proxy routes for FastAPI app
+"""LangSmith API proxy routes for FastAPI app."""
+
 import asyncio
 import logging
 import os
+
 from fastapi import APIRouter, HTTPException
 from langsmith import Client as LangSmithClient
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ LANGSMITH_API_KEY = os.getenv("CHAT_LANGCHAIN_LANGSMITH_API_KEY") or os.getenv(
 LANGSMITH_BASE_URL = os.getenv("LANGSMITH_BASE_URL", "https://api.smith.langchain.com")
 
 # Primary client (singleton)
-_langsmith_client: Optional[LangSmithClient] = None
+_langsmith_client: LangSmithClient | None = None
 
 
 def get_langsmith_client() -> LangSmithClient:
@@ -41,7 +42,11 @@ def get_langsmith_client() -> LangSmithClient:
     return _langsmith_client
 
 
-@router.get("/runs/{runId}")
+@router.get(
+    "/runs/{runId}",
+    summary="Read a LangSmith run",
+    description="Fetches run details from LangSmith using the server-side LangSmith client configuration.",
+)
 async def read_run(runId: str):
     """Read run details from LangSmith."""
     try:
@@ -57,7 +62,11 @@ async def read_run(runId: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/runs/{runId}/share")
+@router.post(
+    "/runs/{runId}/share",
+    summary="Share a LangSmith run",
+    description="Creates or returns a public share URL for a LangSmith run.",
+)
 async def share_run(runId: str):
     """Create a public share URL for a LangSmith run."""
     try:

@@ -18,6 +18,7 @@ import {
   TTS_WS_PATH,
 } from "./utils/constants"
 import type { TtsEvent } from "./types"
+import type { VoiceTelemetryContext } from "@/lib/voice/protocol"
 
 /** Build WebSocket URL for TTS proxy from LANGGRAPH_API_URL */
 function getTtsWsUrl(telemetry?: VoiceTelemetryContext | null): string {
@@ -29,11 +30,6 @@ function getTtsWsUrl(telemetry?: VoiceTelemetryContext | null): string {
     traceparent: telemetry.traceparent,
   })
   return `${base}${TTS_WS_PATH}?${params.toString()}`
-}
-
-export interface VoiceTelemetryContext {
-  voiceSessionId: string
-  traceparent: string
 }
 
 /** Callback interface for TTS events */

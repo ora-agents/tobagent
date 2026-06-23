@@ -6,6 +6,7 @@ import {
   Mail,
   Shield,
   Loader2,
+  AlertCircle,
   Settings2,
   ArrowLeft,
   MessagesSquare,
@@ -33,6 +34,14 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { InputField } from "@/components/ui/input-field"
 import { ListItem } from "@/components/ui/list-item"
 import { SettingsSwitch } from "@/components/ui/settings-switch"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
@@ -59,6 +68,8 @@ interface UserSettingsPageProps {
   onElderOptimizedChange: (enabled: boolean) => void
   voiceprints: UserVoiceprint[]
   onVoiceprintsChange: (vps: UserVoiceprint[]) => void
+  onClearAllConversations: () => Promise<number>
+  conversationCount: number
 }
 
 interface UserApiKey {
@@ -96,6 +107,7 @@ const NAV_SECTIONS: NavSection[] = [
   { id: "section-safety", icon: Shield, labelZh: "安全选项", labelEn: "Safety" },
   { id: "section-voiceprint", icon: Waves, labelZh: "声纹管理", labelEn: "Voiceprints" },
   { id: "section-apikeys", icon: KeyRound, labelZh: "API Key", labelEn: "API Keys" },
+  { id: "section-danger", icon: Trash2, labelZh: "危险操作", labelEn: "Danger Zone" },
 ]
 
 // ---------------------------------------------------------------------------
@@ -108,6 +120,8 @@ export function UserSettingsPage({
   onElderOptimizedChange,
   voiceprints,
   onVoiceprintsChange,
+  onClearAllConversations,
+  conversationCount,
 }: UserSettingsPageProps) {
   const { user, updateProfile } = useAuth()
   const { locale } = useI18n()
@@ -132,6 +146,12 @@ export function UserSettingsPage({
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
   const [apiKeysLoading, setApiKeysLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // ---- Dangerous actions state ----
+  const [clearConversationsOpen, setClearConversationsOpen] = useState(false)
+  const [clearConversationsConfirmText, setClearConversationsConfirmText] = useState("")
+  const [clearConversationsLoading, setClearConversationsLoading] = useState(false)
+  const [clearConversationsStatus, setClearConversationsStatus] = useState<string | null>(null)
 
   // ---- Voiceprint state ----
   const [newVoiceprintName, setNewVoiceprintName] = useState("")
@@ -453,6 +473,33 @@ export function UserSettingsPage({
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const clearConversationsPhrase = zh ? "清空所有对话" : "CLEAR ALL CONVERSATIONS"
+  const clearConversationsConfirmed = clearConversationsConfirmText.trim() === clearConversationsPhrase
+
+  const handleClearAllConversations = async () => {
+    if (!clearConversationsConfirmed) return
+
+    setError(null)
+    setClearConversationsStatus(null)
+    setClearConversationsLoading(true)
+    try {
+      const deletedCount = await onClearAllConversations()
+      setClearConversationsOpen(false)
+      setClearConversationsConfirmText("")
+      setClearConversationsStatus(
+        zh
+          ? `已清空 ${deletedCount} 条对话记录。`
+          : `Cleared ${deletedCount} conversation${deletedCount === 1 ? "" : "s"}.`,
+      )
+      setTimeout(() => setClearConversationsStatus(null), 3000)
+    } catch (err: any) {
+      console.error("[UserSettingsPage] Failed to clear conversations:", err)
+      setError(err.message || (zh ? "清空对话失败，请重试" : "Failed to clear conversations, please try again"))
+    } finally {
+      setClearConversationsLoading(false)
+    }
+  }
+
   // ---- Computed: combined status for voiceprint section ----
   const effectiveVoiceprintStatus = voiceprintStatus || recorderStatus
 
@@ -462,6 +509,7 @@ export function UserSettingsPage({
   const sectionTitleCompact = !elderOptimized
 
   return (
+    <>
     <AppShell className={`flex-col ${elderOptimized ? "text-[17px]" : ""}`}>
       {/* Header */}
       <AppHeader className={`${elderOptimized ? "min-h-20 px-5 py-3 sm:px-8" : "px-6"} justify-between gap-3`}>
@@ -870,11 +918,120 @@ export function UserSettingsPage({
               }
             />
 
+            {/* ============ Section: Danger Zone ============ */}
+            <PageSection
+              id="section-danger"
+              ref={registerSectionRef("section-danger")}
+              className="border-destructive/25 bg-destructive/5"
+            >
+              <PageSectionTitle icon={Trash2} compact={sectionTitleCompact} className="text-destructive">
+                {zh ? "危险操作" : "Danger Zone"}
+              </PageSectionTitle>
+
+              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-xl border border-destructive/20 bg-background/70 sm:flex-row sm:items-center sm:justify-between`}>
+                <div className="min-w-0">
+                  <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
+                    {zh ? "清空所有对话记录" : "Clear all conversations"}
+                  </div>
+                  <div className={`${elderOptimized ? "text-base mt-2 leading-7" : "text-xs mt-1 leading-relaxed"} text-muted-foreground`}>
+                    {zh
+                      ? `将永久删除当前账号的全部对话记录。当前已加载 ${conversationCount} 条，删除后无法恢复。`
+                      : `Permanently deletes every conversation for this account. ${conversationCount} loaded now. This cannot be undone.`}
+                  </div>
+                  {clearConversationsStatus && (
+                    <div className={`${elderOptimized ? "text-sm mt-2" : "text-xs mt-2"} text-green-600 dark:text-green-400`}>
+                      {clearConversationsStatus}
+                    </div>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size={elderOptimized ? "lg" : "sm"}
+                  onClick={() => setClearConversationsOpen(true)}
+                  disabled={clearConversationsLoading}
+                  className="shrink-0 gap-1.5 rounded-lg"
+                >
+                  {clearConversationsLoading ? (
+                    <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />
+                  ) : (
+                    <Trash2 className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />
+                  )}
+                  {zh ? "清空对话" : "Clear conversations"}
+                </Button>
+              </div>
+            </PageSection>
+
             {/* Bottom spacing */}
             <div className="h-8" />
           </div>
         </main>
       </div>
     </AppShell>
+
+    <Dialog
+      open={clearConversationsOpen}
+      onOpenChange={(open) => {
+        if (clearConversationsLoading) return
+        setClearConversationsOpen(open)
+        if (!open) {
+          setClearConversationsConfirmText("")
+        }
+      }}
+    >
+      <DialogContent className={elderOptimized ? "sm:max-w-xl p-7" : "sm:max-w-lg"}>
+        <DialogHeader>
+          <DialogTitle className={`${elderOptimized ? "text-2xl" : "text-lg"} flex items-center gap-2 text-destructive`}>
+            <AlertCircle className={elderOptimized ? "w-6 h-6" : "w-5 h-5"} />
+            {zh ? "确认清空所有对话记录" : "Confirm clearing all conversations"}
+          </DialogTitle>
+          <DialogDescription className={elderOptimized ? "text-base leading-7" : "text-sm leading-6"}>
+            {zh
+              ? "此操作会永久删除当前账号下的全部对话记录和本地输入草稿，删除后无法恢复。"
+              : "This permanently deletes every conversation for this account and local input drafts. It cannot be undone."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label htmlFor="clear-conversations-confirm" className={`${elderOptimized ? "text-base" : "text-xs"} font-semibold text-muted-foreground`}>
+            {zh ? "请输入以下文字进行确认：" : "Type this phrase to confirm:"}
+          </Label>
+          <div className={`${elderOptimized ? "text-base px-4 py-3" : "text-sm px-3 py-2"} rounded-lg border border-destructive/20 bg-destructive/5 font-mono text-destructive`}>
+            {clearConversationsPhrase}
+          </div>
+          <Input
+            id="clear-conversations-confirm"
+            value={clearConversationsConfirmText}
+            onChange={(e) => setClearConversationsConfirmText(e.target.value)}
+            disabled={clearConversationsLoading}
+            className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} rounded-lg border-border/60 bg-background`}
+            autoComplete="off"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setClearConversationsOpen(false)}
+            disabled={clearConversationsLoading}
+            className={elderOptimized ? "h-12 px-5 text-base" : ""}
+          >
+            {zh ? "取消" : "Cancel"}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleClearAllConversations}
+            disabled={!clearConversationsConfirmed || clearConversationsLoading}
+            className={`${elderOptimized ? "h-12 px-5 text-base" : ""} gap-1.5`}
+          >
+            {clearConversationsLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+            {zh ? "永久清空" : "Clear permanently"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

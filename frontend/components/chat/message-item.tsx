@@ -1,4 +1,4 @@
-import { Copy, Check, RefreshCw } from "lucide-react"
+import { Check, Copy, FileText, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import ReactMarkdown from "react-markdown"
@@ -141,7 +141,7 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
   }, [codeString])
 
   return (
-    <div className="relative group my-4">
+    <div className="relative group my-3 max-w-full overflow-hidden sm:my-4">
       <SyntaxHighlighter
         language={language}
         style={customTheme}
@@ -151,6 +151,8 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
           border: `1px solid ${CODE_COLORS.blockBorder}`,
           borderRadius: '8px',
           padding: '1rem',
+          maxWidth: '100%',
+          overflowX: 'auto',
         }}
         codeTagProps={{
           style: {
@@ -372,13 +374,13 @@ export const MessageItem = memo(function MessageItem({
           transition: opacity 0.1s ease-out;
         }
       `}</style>
-      <div className={`flex gap-3 sm:gap-4 items-start group/message ${message.role === "user" ? "justify-end" : ""}`}>
+      <div className={`flex min-w-0 gap-3 sm:gap-4 items-start group/message ${message.role === "user" ? "justify-end" : ""}`}>
       <div
         className={`min-w-0 space-y-2 ${
           message.role === "user"
             ? useAndroidWebViewLayout
-              ? "ml-auto w-fit max-w-[85%] sm:max-w-[80%]"
-              : "max-w-[80%]"
+              ? "ml-auto w-fit max-w-[92%] sm:max-w-[80%]"
+              : "max-w-[92%] sm:max-w-[80%]"
             : "flex-1"
         }`}
       >
@@ -474,7 +476,7 @@ export const MessageItem = memo(function MessageItem({
               <div className="space-y-2">
                 {/* File attachments - uniform grid layout */}
                 {message.images && message.images.length > 0 && (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 mb-3">
+                  <div className="mb-3 grid grid-cols-[repeat(auto-fill,minmax(128px,1fr))] gap-2 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
                     {message.images.map((file) => {
                       const isImage = file.mimeType?.startsWith('image/')
                       const fileName = file.name || "File"
@@ -508,19 +510,7 @@ export const MessageItem = memo(function MessageItem({
                           ) : (
                             // File card with icon
                             <div className="h-full flex flex-col items-center justify-center p-3 text-center">
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className={`w-10 h-10 mb-2 ${getFileColor()}`}
-                              >
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <polyline points="14 2 14 8 20 8"></polyline>
-                              </svg>
+                              <FileText className={`mb-2 h-10 w-10 ${getFileColor()}`} />
                               <span className="text-xs font-medium text-foreground truncate w-full px-1 mb-1" title={fileName}>
                                 {fileName}
                               </span>
@@ -585,7 +575,7 @@ export const MessageItem = memo(function MessageItem({
           ) : (
             <div className="relative">
               <div
-                className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none break-words overflow-wrap break-word transition-opacity duration-200 ease-out"
+                className="prose prose-sm max-w-none break-words text-sm leading-relaxed transition-opacity duration-200 ease-out dark:prose-invert [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
                 style={{
                   animation: message.isThinking ? 'none' : 'fadeIn 0.3s ease-out',
                   willChange: message.isThinking ? 'contents, opacity' : 'auto',

@@ -3,11 +3,9 @@
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
 import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
-import { AppSidebar } from "@/components/ui/app-shell"
-import { IconAction } from "@/components/ui/icon-action"
-import { NavItem } from "@/components/ui/nav-item"
 import type { Thread } from "@/lib/hooks/threads"
 import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
@@ -61,6 +59,8 @@ interface SidebarProps {
   isLoading?: boolean
   currentView?: string
   onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual") => void
+  isMobileDrawer?: boolean
+  onMobileClose?: () => void
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -135,7 +135,7 @@ const UserProfileSection = memo(function UserProfileSection({
       return (
         <button
           onClick={onOpenAuth}
-          className="p-2.5 rounded-lg border border-transparent text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground transition-all duration-200 cursor-pointer"
+          className="p-2.5 rounded-lg text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground transition-all duration-200 cursor-pointer"
           title="Sign In"
         >
           <User className="w-5 h-5" />
@@ -145,7 +145,7 @@ const UserProfileSection = memo(function UserProfileSection({
     return (
       <button
         onClick={onOpenAuth}
-        className="flex items-center justify-center gap-2 px-3 py-2 text-sm w-full font-medium rounded-lg text-primary bg-primary/10 border border-primary/20 hover:bg-primary hover:text-primary-foreground shadow-depth-xs hover:shadow-depth-hover transition-all duration-200 cursor-pointer"
+        className="flex items-center justify-center gap-2 px-3 py-2 text-sm w-full font-medium rounded-lg text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground shadow-depth-xs hover:shadow-depth-hover transition-all duration-200 cursor-pointer"
       >
         <LogIn className="w-4 h-4" />
         <span>Sign In</span>
@@ -169,7 +169,7 @@ const UserProfileSection = memo(function UserProfileSection({
   }
 
   return (
-    <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/15 border border-border/40 gap-3 group/profile">
+    <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/25 gap-3 group/profile">
       <button
         onClick={onOpenSettings}
         className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-80 transition-all duration-200 cursor-pointer text-left"
@@ -206,6 +206,8 @@ export const Sidebar = memo(function Sidebar({
   isLoading = false,
   currentView = "chat",
   onViewChange,
+  isMobileDrawer = false,
+  onMobileClose,
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -233,18 +235,18 @@ export const Sidebar = memo(function Sidebar({
   // Memoize grouped threads to avoid recalculating on every render
   const groupedThreads = useMemo(() => groupThreads(filteredThreads), [filteredThreads])
   const { today, yesterday, last7Days, older } = groupedThreads
-  const configItems = [
-    { view: "skills" as const, icon: Wrench, label: t.skills },
-    { view: "agents" as const, icon: Bot, label: t.agents },
-    { view: "knowledge" as const, icon: Database, label: t.knowledgeBase },
-    { view: "mcp" as const, icon: Cpu, label: t.mcpServers },
-  ]
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleSelectThread = useCallback((threadId: string) => {
     onSelectThread(threadId)
     onViewChange?.("chat")
-  }, [onSelectThread, onViewChange])
+    onMobileClose?.()
+  }, [onSelectThread, onViewChange, onMobileClose])
+
+  const handleViewChange = useCallback((view: "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual") => {
+    onViewChange?.(view)
+    onMobileClose?.()
+  }, [onViewChange, onMobileClose])
 
   const handleDeleteThread = useCallback((threadId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -270,10 +272,10 @@ export const Sidebar = memo(function Sidebar({
             return (
               <div
                 key={thread.thread_id}
-                className={`group flex items-center gap-2 px-3 py-1.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer border ${
+                className={`group flex items-center gap-2 px-3 py-1.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                   thread.thread_id === currentThreadId
-                    ? "bg-primary/15 text-sidebar-foreground border-primary/30"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+                    ? "bg-primary/15 text-sidebar-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/30"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
               >
@@ -295,77 +297,133 @@ export const Sidebar = memo(function Sidebar({
   }, [currentThreadId, handleSelectThread, handleDeleteThread])
 
   // Early return for collapsed state (after all hooks)
-  if (isCollapsed) {
+  if (isCollapsed && !isMobileDrawer) {
     return (
-      <AppSidebar className="h-screen w-16 justify-between bg-sidebar shadow-depth-sm">
-        <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
-          <IconAction icon={PanelLeft} onClick={onToggle} title={locale === "zh" ? "展开侧栏" : "Expand sidebar"} aria-label={locale === "zh" ? "展开侧栏" : "Expand sidebar"} />
+      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar flex-col justify-between shadow-depth-sm h-screen">
+        <div className="px-3 py-4 h-16 flex items-center justify-center">
+          <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
+            <PanelLeft className="w-5 h-5" />
+          </Button>
         </div>
 
         {/* Collapsed bottom shortcuts */}
         <div className="flex flex-col items-center gap-3.5 pb-6">
-          <NavItem
+          <button
             onClick={() => setIsConfigOpen((open) => !open)}
-            icon={Settings}
-            active={isConfigView}
-            collapsed
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+              isConfigView
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+            }`}
             title={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
             aria-label={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
             aria-expanded={isConfigOpen}
-          />
+          >
+            <Settings className="w-5 h-5" />
+          </button>
           {isConfigOpen && (
             <div className="flex flex-col items-center gap-3.5">
-              {configItems.map((item) => (
-                <NavItem
-                  key={item.view}
-                  onClick={() => onViewChange?.(item.view)}
-                  icon={item.icon}
-                  active={currentView === item.view}
-                  collapsed
-                  title={item.label}
-                  aria-label={item.label}
-                />
-              ))}
+              <button
+                onClick={() => handleViewChange("skills")}
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "skills"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+                }`}
+                title={t.skills}
+              >
+                <Wrench className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleViewChange("agents")}
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "agents"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+                }`}
+                title={t.agents}
+              >
+                <Bot className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleViewChange("knowledge")}
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "knowledge"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+                }`}
+                title={t.knowledgeBase}
+              >
+                <Database className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => handleViewChange("mcp")}
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "mcp"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+                }`}
+                title={t.mcpServers}
+              >
+                <Cpu className="w-5 h-5" />
+              </button>
             </div>
           )}
-          <NavItem
+          <button
             onClick={openAdminDashboard}
-            icon={LayoutDashboard}
-            collapsed
+            className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
             title={t.backend}
-            aria-label={t.backend}
-          />
-          <NavItem
-            onClick={() => onViewChange?.("developer-manual")}
-            icon={BookOpenText}
-            active={currentView === "developer-manual"}
-            collapsed
+          >
+            <LayoutDashboard className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => handleViewChange("developer-manual")}
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+              currentView === "developer-manual"
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+            }`}
             title={t.developerManual}
-            aria-label={t.developerManual}
-          />
-          <NavItem
+          >
+            <BookOpenText className="w-5 h-5" />
+          </button>
+          <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            icon={mounted && resolvedTheme === "dark" ? Sun : Moon}
-            collapsed
+            className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
             title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
-            aria-label={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
-          />
+          >
+            {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
           
-          <div className="w-8 border-t border-border/40 my-1 flex-shrink-0" />
+          <div className="w-8 h-1 rounded-full bg-sidebar-accent/40 my-1 flex-shrink-0" />
           
-          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => onViewChange?.("settings")} />
+          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
         </div>
-      </AppSidebar>
+      </aside>
     )
   }
 
   return (
     <>
       <style>{scrollbarStyles}</style>
-      <AppSidebar className="w-56 bg-sidebar shadow-depth-md">
-        <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-sidebar">
+      <aside
+        className={
+          isMobileDrawer
+            ? "flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-lg"
+            : "hidden w-56 flex-col bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-md md:flex"
+        }
+      >
+        <div className="px-3 pt-[13px] pb-[14px] bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
           <div className="flex items-center justify-between">
-            <IconAction icon={PanelLeftClose} onClick={onToggle} title={locale === "zh" ? "收起侧栏" : "Collapse sidebar"} aria-label={locale === "zh" ? "收起侧栏" : "Collapse sidebar"} />
+            {isMobileDrawer ? (
+              <Button variant="ghost" size="icon" onClick={onMobileClose} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg" aria-label={locale === "zh" ? "关闭菜单" : "Close menu"}>
+                <X className="w-5 h-5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
+                <PanelLeftClose className="w-5 h-5" />
+              </Button>
+            )}
             <Image
               src="/logo.png"
               alt="WSIRI"
@@ -378,7 +436,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
 
       {/* Search Bar */}
-      <div className="px-3 py-2">
+      <div className="px-3 py-2 bg-gradient-to-r from-sidebar-accent/5 via-transparent to-transparent">
         <div className="relative group">
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10">
             <Search className="w-4 h-4 text-muted-foreground/70 group-focus-within:text-primary transition-all duration-200" />
@@ -388,7 +446,7 @@ export const Sidebar = memo(function Sidebar({
             placeholder={t.searchThreads}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm border-border/40 focus:border-primary/60 focus:bg-background/90 focus:shadow-sm transition-all duration-200 shadow-sm hover:shadow-md hover:bg-background/90 rounded-lg"
+            className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm focus:bg-background/90 transition-all duration-200 hover:bg-background/90 rounded-lg"
           />
           {searchQuery && (
             <button
@@ -403,7 +461,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 custom-scrollbar">
+      <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-sidebar-accent/5 via-transparent to-sidebar-accent/10 custom-scrollbar">
         {isLoading ? (
           <div className="mt-3 px-3">
             <div className="px-3 mb-1.5">
@@ -444,53 +502,110 @@ export const Sidebar = memo(function Sidebar({
       </nav>
 
       {/* Bottom Management Navigation */}
-      <div className="px-3 py-2 border-t border-border/40 flex flex-col gap-1 flex-shrink-0">
-        <NavItem
+      <div className="px-3 py-2 bg-gradient-to-b from-transparent to-sidebar-accent/10 flex flex-col gap-1 flex-shrink-0">
+        <button
           onClick={() => setIsConfigOpen((open) => !open)}
-          icon={Settings}
-          active={isConfigView}
-          label={t.configuration}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+            isConfigView
+              ? "bg-primary/15 text-primary font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30"
+          }`}
           aria-expanded={isConfigOpen}
         >
+          <Settings className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          <span className="truncate flex-1 text-left">{t.configuration}</span>
           <ChevronDown className={`w-4 h-4 flex-shrink-0 text-muted-foreground/80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
-        </NavItem>
+        </button>
         {isConfigOpen && (
           <div className="flex flex-col gap-1 pl-3">
-            {configItems.map((item) => (
-              <NavItem
-                key={item.view}
-                onClick={() => onViewChange?.(item.view)}
-                icon={item.icon}
-                active={currentView === item.view}
-                label={item.label}
-              />
-            ))}
+            <button
+              onClick={() => handleViewChange("skills")}
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                currentView === "skills"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
+              }`}
+            >
+              <Wrench className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <span className="truncate">{t.skills}</span>
+            </button>
+            <button
+              onClick={() => handleViewChange("agents")}
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                currentView === "agents"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
+              }`}
+            >
+              <Bot className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <span className="truncate">{t.agents}</span>
+            </button>
+            <button
+              onClick={() => handleViewChange("knowledge")}
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                currentView === "knowledge"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
+              }`}
+            >
+              <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <span className="truncate">{t.knowledgeBase}</span>
+            </button>
+            <button
+              onClick={() => handleViewChange("mcp")}
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                currentView === "mcp"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
+              }`}
+            >
+              <Cpu className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <span className="truncate">{t.mcpServers}</span>
+            </button>
           </div>
         )}
-        <NavItem
-          onClick={openAdminDashboard}
-          icon={LayoutDashboard}
-          label={t.backend}
-        />
-        <NavItem
-          onClick={() => onViewChange?.("developer-manual")}
-          icon={BookOpenText}
-          active={currentView === "developer-manual"}
-          label={t.developerManual}
-        />
-        <NavItem
+        <button
+          onClick={() => {
+            onMobileClose?.()
+            openAdminDashboard()
+          }}
+          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-foreground group"
+        >
+          <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+          <span className="truncate">{t.backend}</span>
+        </button>
+        <button
+          onClick={() => handleViewChange("developer-manual")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+            currentView === "developer-manual"
+              ? "bg-primary/15 text-primary font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
+          }`}
+        >
+          <BookOpenText className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          <span className="truncate">{t.developerManual}</span>
+        </button>
+        <button
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          icon={mounted && resolvedTheme === "dark" ? Sun : Moon}
-          label={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
-        />
+          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30"
+        >
+          {mounted && resolvedTheme === "dark" ? (
+            <Sun className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          ) : (
+            <Moon className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          )}
+          <span className="truncate">
+            {mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+          </span>
+        </button>
       </div>
 
       <div className="pt-2 pb-3 px-3">
-        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => onViewChange?.("settings")} />
+        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
       </div>
 
       <AuthPanel open={isAuthOpen} onOpenChange={setIsAuthOpen} />
-    </AppSidebar>
+    </aside>
     </>
   )
 })

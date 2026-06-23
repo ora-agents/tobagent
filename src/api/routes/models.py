@@ -11,7 +11,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(tags=["models"])
 
 _MODEL_LIST_CACHE: dict[tuple[str, str], tuple[float, dict]] = {}
 _MODEL_LIST_CACHE_LOCK = asyncio.Lock()
@@ -42,7 +42,14 @@ def clear_model_list_cache() -> None:
     _MODEL_LIST_CACHE.clear()
 
 
-@router.get("/api/models")
+@router.get(
+    "/api/models",
+    summary="List available upstream models",
+    description=(
+        "Proxies the configured OpenAI-compatible `/models` endpoint using server-side "
+        "environment variables, so browser clients do not receive the upstream API key."
+    ),
+)
 async def list_models():
     """Proxy to the OpenAI-compatible /models endpoint.
 
@@ -98,5 +105,4 @@ async def list_models():
     except Exception as e:
         logger.error(f"Failed to proxy /models: {e}")
         raise HTTPException(status_code=502, detail=f"Failed to reach model API: {e}")
-
 

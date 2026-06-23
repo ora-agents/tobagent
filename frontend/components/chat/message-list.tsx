@@ -374,7 +374,7 @@ export const MessageList = memo(function MessageList({
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        <div className="mx-auto w-full max-w-4xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-8">
           {messages.map((message, idx) => {
             const isLastMessage = idx === messages.length - 1
             return (
@@ -402,7 +402,7 @@ export const MessageList = memo(function MessageList({
       {showScrollButton && (
         <button
           onClick={scrollToBottom}
-          className="scroll-button fixed bottom-32 right-4 sm:right-8 p-3 rounded-full shadow-lg hover:scale-110 active:scale-95 transition-transform z-50"
+          className="scroll-button fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-3 z-40 rounded-full p-3 shadow-lg transition-transform hover:scale-110 active:scale-95 sm:right-8"
           style={{
             background: '#164199',
             color: 'white',
