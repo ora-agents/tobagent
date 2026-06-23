@@ -245,7 +245,7 @@ const zh = {
   loginMetricKnowledgeDesc: "接入企业资料库",
   loginMetricTools: "工具",
   loginMetricToolsDesc: "编排任务与动作",
-  authSecureAccess: "安全访问",
+
   authWorkspaceTitle: "威思瑞 Agent 工作台",
   authFeatureRole: "角色",
   authFeatureKnowledge: "知识",
@@ -527,7 +527,6 @@ const en = {
   loginMetricKnowledgeDesc: "Enterprise sources",
   loginMetricTools: "Tools",
   loginMetricToolsDesc: "Task orchestration",
-  authSecureAccess: "Secure access",
   authWorkspaceTitle: "WSIRI Agent Workspace",
   authFeatureRole: "Role",
   authFeatureKnowledge: "Knowledge",

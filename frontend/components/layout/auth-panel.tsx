@@ -102,10 +102,7 @@ export function AuthPanel({
       <div className="relative space-y-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              {t.authSecureAccess}
-            </div>
+          
             {!inline && (
               <Button
                 type="button"
