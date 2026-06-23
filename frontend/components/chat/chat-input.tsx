@@ -139,11 +139,11 @@ export function ChatInput({
           <div className="relative group">
             {/* Multi-layered input container */}
             <div className="relative">
-              <div className="absolute -inset-0.5 bg-primary/5 rounded-xl opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
+              <div className="absolute -inset-0.5 bg-primary/5 rounded-lg opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
 
               {/* Main input container with enhanced contrast */}
               <div
-                className={`relative bg-muted/70 backdrop-blur-sm rounded-xl transition-all duration-300 group-hover:bg-muted group-focus-within:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
+                className={`relative bg-muted/70 backdrop-blur-sm rounded-lg transition-all duration-300 group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
                   isDragging
                     ? 'bg-primary/10 ring-2 ring-primary/25'
                     : ''
@@ -153,7 +153,7 @@ export function ChatInput({
                 onDrop={onDrop}
               >
                 {isDragging && (
-                  <div className="absolute inset-0 bg-primary/10 rounded-xl flex items-center justify-center z-20 pointer-events-none">
+                  <div className="absolute inset-0 bg-primary/10 rounded-lg flex items-center justify-center z-20 pointer-events-none">
                     <div className="text-primary font-medium">{t.dropFilesHere}</div>
                   </div>
                 )}
@@ -198,7 +198,7 @@ export function ChatInput({
                           ? t.typeNextMessage
                           : t.askAnything
                     }
-                    className="custom-scrollbar relative z-10 min-h-[40px] max-h-[32dvh] w-full resize-none break-words bg-transparent px-2 py-2.5 text-base leading-relaxed text-foreground transition-all duration-200 placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[36px] sm:max-h-[240px] sm:px-3 sm:py-2 sm:text-sm"
+                    className="custom-scrollbar relative z-10 min-h-[40px] max-h-[32dvh] w-full resize-none break-words bg-transparent px-2 py-2.5 text-base leading-relaxed text-foreground transition-all duration-200 placeholder:text-muted-foreground focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[36px] sm:max-h-[240px] sm:px-3 sm:py-2 sm:text-sm"
                     disabled={!userId}
                     rows={1}
                   />
