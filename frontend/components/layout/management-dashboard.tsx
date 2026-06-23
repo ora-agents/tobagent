@@ -1205,9 +1205,9 @@ export function ManagementDashboard({
     return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
   })
   return (
-    <div className="flex h-screen w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
-      <header className="h-16 px-6 border-b border-border/60 bg-background/95 backdrop-blur flex items-center justify-between flex-shrink-0">
+      <header className="flex min-h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-base font-semibold tracking-wide flex items-center gap-1.5 font-display">
@@ -1231,16 +1231,16 @@ export function ManagementDashboard({
       </header>
 
       {/* 2. Main Content Area */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Content Detail View */}
         <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
           {/* ========================================== */}
           {/* MCP TAB PANEL                              */}
           {/* ========================================== */}
           {activeTab === "mcp" && (
-            <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left MCP Server List */}
-              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.mcpServers}
@@ -1277,7 +1277,7 @@ export function ManagementDashboard({
                         className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
                           deleteConfirmId === mcp.id
                             ? "opacity-100 pointer-events-auto"
-                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                            : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
                         }`}
                         onClick={e => e.stopPropagation()}
                       >
@@ -1328,10 +1328,10 @@ export function ManagementDashboard({
               </div>
 
               {/* Right MCP Details / Form */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingMcp || isEditingMcp ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Cpu className="w-5 h-5 text-primary" />
                         {isCreatingMcp ? t.addMcpServer : t.editMcpServer}
@@ -1400,7 +1400,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedMcpId !== null && selectedMcp ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Cpu className="w-6 h-6 text-primary" />
@@ -1461,9 +1461,9 @@ export function ManagementDashboard({
           {/* SKILLS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "skills" && (
-            <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left Skill List */}
-              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.skillsManager}
@@ -1505,7 +1505,7 @@ export function ManagementDashboard({
                           className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
                             deleteConfirmId === skill.id
                               ? "opacity-100 pointer-events-auto"
-                              : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                              : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
                           }`}
                           onClick={e => e.stopPropagation()}
                         >
@@ -1552,10 +1552,10 @@ export function ManagementDashboard({
               </div>
 
               {/* Right Skill Edit Form / Details */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
                 {isCreatingSkill || isEditingSkill ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Code2 className="w-5 h-5 text-primary" />
                         {isCreatingSkill ? t.addSkill : t.editSkill}
@@ -1586,7 +1586,7 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <Label htmlFor="skill-content">{t.skillContent}</Label>
                         <Button
                           variant="ghost"
@@ -1612,7 +1612,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedSkill ? (
                   <div className="max-w-2xl space-y-4 flex-1 flex flex-col">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display">{selectedSkill.name}</h2>
                         <p className="text-sm text-muted-foreground mt-1">
@@ -1669,9 +1669,9 @@ export function ManagementDashboard({
           {/* AGENTS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "agents" && (
-            <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left Role List */}
-              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.agentsManager}
@@ -1760,7 +1760,7 @@ export function ManagementDashboard({
                         className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
                           deleteConfirmId === profile.id
                             ? "opacity-100 pointer-events-auto"
-                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                            : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
                         }`}
                         onClick={e => e.stopPropagation()}
                       >
@@ -1806,10 +1806,10 @@ export function ManagementDashboard({
               </div>
 
               {/* Right Role Form / Details */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingAgent || isEditingAgent ? (
                   <div className="max-w-none space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Bot className="w-5 h-5 text-primary" />
                         {isCreatingAgent ? t.addAgent : t.editAgent}
@@ -1956,7 +1956,7 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="agent-name">{locale === "zh" ? "角色名称" : "Role Name"}</Label>
                         <Input
@@ -2448,7 +2448,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedAgent ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Bot className="w-6 h-6 text-primary" />
@@ -2883,9 +2883,9 @@ export function ManagementDashboard({
           {/* KNOWLEDGE BASE TAB PANEL                   */}
           {/* ========================================== */}
           {activeTab === "knowledge" && (
-            <div className="flex min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
               {/* Left KB List */}
-              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/40 bg-background/30 md:max-h-none md:w-[300px] md:border-b-0 md:border-r">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.kbManager}
@@ -2936,7 +2936,7 @@ export function ManagementDashboard({
                             className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
                               deleteConfirmId === kb.id
                                 ? "opacity-100 pointer-events-auto"
-                                : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
+                                : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
                             }`}
                             onClick={e => e.stopPropagation()}
                           >
@@ -2984,10 +2984,10 @@ export function ManagementDashboard({
               </div>
 
               {/* Right KB Edit Form / Details */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingKB || isEditingKB ? (
                   <div className="max-w-2xl space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <BookOpen className="w-5 h-5 text-primary" />
                         {isCreatingKB ? t.addKnowledge : t.editKnowledge}
@@ -3013,7 +3013,7 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-1.5">
                         <Label htmlFor="kb-name">{t.kbName}</Label>
                         <Input
@@ -3040,7 +3040,7 @@ export function ManagementDashboard({
                   </div>
                 ) : selectedKB ? (
                   <div className="max-w-3xl space-y-6">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
                           <Database className="w-6 h-6 text-primary" />
@@ -3067,7 +3067,7 @@ export function ManagementDashboard({
 
                     {/* KB File Management */}
                     <div className="space-y-4 border border-border/40 rounded-xl bg-background/50 p-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <h3 className="text-sm font-semibold tracking-wide flex items-center gap-1.5">
                           <FileText className="w-4 h-4 text-primary" />
                           {t.kbFiles}
