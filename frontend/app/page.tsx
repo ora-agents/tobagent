@@ -775,7 +775,10 @@ function DashboardContent() {
             conversationCount={threads.length}
           />
         ) : currentView === "developer-manual" ? (
-          <DeveloperManualPage onBackToChat={() => setCurrentView("chat")} />
+          <DeveloperManualPage
+            onBackToChat={() => setCurrentView("chat")}
+            onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+          />
         ) : currentView !== "chat" ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <ManagementDashboard
