@@ -135,6 +135,8 @@ class AgentProfileTable(Base):
     mcp_ids = Column(JSON, nullable=True, default=list)
     # agent_ids is a JSON list of linked other agents, e.g., ["agent_1", "agent_2"]
     agent_ids = Column(JSON, nullable=True, default=list)
+    # form_ids is a JSON list of linked custom forms, e.g., ["form_1", "form_2"]
+    form_ids = Column(JSON, nullable=True, default=list)
     # wake_words is a JSON list of wake word strings for KWS, e.g., ["小梯小梯", "hey assistant"]
     wake_words = Column(JSON, nullable=True, default=list)
     role_template_id = Column(String(100), nullable=True)
@@ -218,6 +220,33 @@ class McpServerTable(Base):
     updated_at = Column(String(50), nullable=False)
 
 
+class FormTable(Base):
+    """User-defined structured data form metadata."""
+
+    __tablename__ = "forms"
+
+    id = Column(String(255), primary_key=True, index=True)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    fields = Column(JSON, nullable=False, default=list)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
+class FormRecordTable(Base):
+    """One record in a user-defined form."""
+
+    __tablename__ = "form_records"
+
+    id = Column(String(255), primary_key=True, index=True)
+    form_id = Column(String(255), index=True, nullable=False)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
 
 class KnowledgeBaseTable(Base):
     """Document collection for RAG capability."""
@@ -293,6 +322,7 @@ def ensure_database_schema() -> None:
         ("agent_profiles", "model", "model VARCHAR(255)"),
         ("agent_profiles", "mcp_ids", "mcp_ids JSON"),
         ("agent_profiles", "agent_ids", "agent_ids JSON"),
+        ("agent_profiles", "form_ids", "form_ids JSON"),
         ("mcp_servers", "headers", "headers JSON"),
         ("users", "preferences", "preferences TEXT"),
         ("users", "safety_enabled", "safety_enabled VARCHAR(10) DEFAULT 'false'"),

@@ -24,6 +24,7 @@ from src.agent.config import (
 from src.middleware.dynamic_config_middleware import dynamic_config_middleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.fetch_tool import fetch
+from src.tools.form_tool import QueryFormDataTool
 from src.tools.rag_tool import RagSearchTool
 from src.tools.robot_control_tool import navigate_robot_to_point
 from src.tools.skill_tool import ReadSkillTool
@@ -87,7 +88,8 @@ class GenericAgentContext(BaseModel):
 
 _rag_tool = RagSearchTool()
 _read_skill_tool = ReadSkillTool()
-_all_tools = [_rag_tool, fetch, _read_skill_tool, navigate_robot_to_point]
+_query_form_data_tool = QueryFormDataTool()
+_all_tools = [_rag_tool, fetch, _read_skill_tool, _query_form_data_tool, navigate_robot_to_point]
 logger.info(f"Generic agent tools: {[t.name for t in _all_tools]}")
 
 # ---------------------------------------------------------------------------

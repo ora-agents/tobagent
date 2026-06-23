@@ -63,6 +63,7 @@ class AgentShareOptions(BaseModel):
     skills: bool = False
     mcpServers: bool = False
     agents: bool = False
+    forms: bool = False
 
 
 class AgentShareLinkRequest(BaseModel):
@@ -95,6 +96,15 @@ class AgentShareImportResponse(BaseModel):
     warnings: list[str] = []
 
 
+class AgentConfigTomlImportRequest(BaseModel):
+    toml: str
+
+
+class AgentConfigTomlImportResponse(BaseModel):
+    agents: list["AgentProfileSchema"]
+    resourceIdMap: dict[str, dict[str, str]]
+    warnings: list[str] = []
+
 
 class AgentProfileSchema(BaseModel):
     id: str
@@ -107,6 +117,7 @@ class AgentProfileSchema(BaseModel):
     skillIds: list[str] = []
     mcpIds: list[str] = []
     agentIds: list[str] = []
+    formIds: list[str] = []
     wakeWords: list[str] = []
     roleTemplateId: str | None = None
     personaStyle: str | None = None
@@ -139,6 +150,39 @@ class McpServerSchema(BaseModel):
     headers: dict[str, str] = {}
     createdAt: str
     updatedAt: str
+
+
+class FormFieldSchema(BaseModel):
+    id: str
+    label: str
+    type: str = "text"
+    required: bool = False
+    options: list[str] = []
+
+
+class FormSchema(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    fields: list[FormFieldSchema] = []
+    recordCount: int = 0
+    createdAt: str
+    updatedAt: str
+
+
+class FormRecordSchema(BaseModel):
+    id: str
+    formId: str
+    data: dict = {}
+    createdAt: str
+    updatedAt: str
+
+
+class FormRecordListResponse(BaseModel):
+    records: list[FormRecordSchema]
+    total: int
+    page: int
+    pageSize: int
 
 
 class SkillSchema(BaseModel):

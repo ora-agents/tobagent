@@ -27,6 +27,8 @@ import {
   Share2,
   EyeOff,
   Search,
+  TableProperties,
+  Download,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,7 +49,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentConfigTomlImportResponse, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -604,11 +606,37 @@ export interface McpServer {
 
 const normalizeMcpTransport = (_type?: string): McpTransport => "streamable_http"
 
+export interface CustomFormField {
+  id: string
+  label: string
+  type: "text" | "number" | "date" | "boolean" | "select"
+  required: boolean
+  options: string[]
+}
+
+export interface CustomForm {
+  id: string
+  name: string
+  description: string
+  fields: CustomFormField[]
+  recordCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CustomFormRecord {
+  id: string
+  formId: string
+  data: Record<string, string | number | boolean | null>
+  createdAt: string
+  updatedAt: string
+}
+
 // ---------------------------------------------------------------------------
 // Properties Interface
 // ---------------------------------------------------------------------------
 interface ManagementDashboardProps {
-  initialTab: "skills" | "agents" | "knowledge" | "mcp"
+  initialTab: "skills" | "agents" | "knowledge" | "forms" | "mcp"
   onBackToChat: () => void
   // Agent Profiles bindings
   agentProfiles: AgentProfile[]
@@ -620,6 +648,7 @@ interface ManagementDashboardProps {
   fetchAgentProfileVersions: (id: string) => Promise<AgentProfileVersion[]>
   restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
   createAgentShareLink: (id: string, include: AgentShareOptions) => Promise<AgentShareLink | null>
+  importAgentTomlConfig: (toml: string) => Promise<AgentConfigTomlImportResponse | null>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
   createAgentOnOpenSignal?: number
@@ -640,6 +669,7 @@ export function ManagementDashboard({
   fetchAgentProfileVersions,
   restoreAgentProfileVersion,
   createAgentShareLink,
+  importAgentTomlConfig,
   editAgentIdOnOpen,
   onEditAgentChange,
   createAgentOnOpenSignal = 0,
@@ -653,7 +683,7 @@ export function ManagementDashboard({
     () => user ? { Authorization: `Bearer ${user.id}` } : undefined,
     [user],
   )
-  const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "mcp">(initialTab)
+  const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "forms" | "mcp">(initialTab)
 
   // ---------------------------------------------------------------------------
   // Local States
@@ -670,7 +700,20 @@ export function ManagementDashboard({
   const [isCreatingKB, setIsCreatingKB] = useState(false)
   const [kbForm, setKbForm] = useState({ name: "", description: "" })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const tomlInputRef = useRef<HTMLInputElement>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
+
+  const [forms, setForms] = useState<CustomForm[]>([])
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
+  const [formRecords, setFormRecords] = useState<CustomFormRecord[]>([])
+  const [formRecordTotal, setFormRecordTotal] = useState(0)
+  const [isEditingForm, setIsEditingForm] = useState(false)
+  const [isCreatingForm, setIsCreatingForm] = useState(false)
+  const [formDefinition, setFormDefinition] = useState({ name: "", description: "", fieldsJson: "[]" })
+  const [recordJson, setRecordJson] = useState("{}")
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
+  const [recordQuery, setRecordQuery] = useState("")
+  const [recordPage, setRecordPage] = useState(1)
 
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [selectedMcpId, setSelectedMcpId] = useState<string | null>(null)
@@ -693,6 +736,7 @@ export function ManagementDashboard({
     skillIds: string[]
     mcpIds: string[]
     agentIds: string[]
+    formIds: string[]
     wakeWords: string[]
     roleTemplateId: string
     personaStyle: PersonaStyle
@@ -712,6 +756,7 @@ export function ManagementDashboard({
     skillIds: [],
     mcpIds: [],
     agentIds: [],
+    formIds: [],
     wakeWords: [],
     roleTemplateId: "",
     personaStyle: "professional",
@@ -742,6 +787,7 @@ export function ManagementDashboard({
     skills: true,
     mcpServers: true,
     agents: true,
+    forms: true,
   })
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
@@ -795,6 +841,18 @@ export function ManagementDashboard({
         }
       } catch (err) {
         console.error("Failed to load MCP servers from database", err)
+      }
+
+      // 4. Fetch Forms
+      try {
+        const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms`, { headers: authHeaders })
+        if (resp.ok) {
+          const data = await resp.json()
+          setForms(data)
+          if (data.length > 0) setSelectedFormId(data[0].id)
+        }
+      } catch (err) {
+        console.error("Failed to load forms from database", err)
       }
     }
 
@@ -869,6 +927,32 @@ export function ManagementDashboard({
       handleStartEditAgent(profile)
     }
   }, [activeTab, editAgentIdOnOpen, agentProfiles])
+
+  useEffect(() => {
+    if (!LANGGRAPH_API_URL || !authHeaders || activeTab !== "forms" || !selectedFormId) {
+      setFormRecords([])
+      setFormRecordTotal(0)
+      return
+    }
+
+    const params = new URLSearchParams({
+      page: String(recordPage),
+      pageSize: "25",
+    })
+    if (recordQuery.trim()) params.set("q", recordQuery.trim())
+    fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records?${params.toString()}`, {
+      headers: authHeaders,
+    })
+      .then(resp => resp.ok ? resp.json() : { records: [], total: 0 })
+      .then(data => {
+        setFormRecords(data.records || [])
+        setFormRecordTotal(data.total || 0)
+      })
+      .catch(() => {
+        setFormRecords([])
+        setFormRecordTotal(0)
+      })
+  }, [activeTab, authHeaders, selectedFormId, recordPage, recordQuery])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -1014,6 +1098,7 @@ export function ManagementDashboard({
       skillIds: [],
       mcpIds: [],
       agentIds: [],
+      formIds: [],
       wakeWords: [],
       roleTemplateId: "",
       personaStyle: "professional",
@@ -1051,6 +1136,7 @@ export function ManagementDashboard({
       skillIds: profile.skillIds || [],
       mcpIds: profile.mcpIds || [],
       agentIds: (profile as any).agentIds || [],
+      formIds: profile.formIds || [],
       wakeWords: (profile as any).wakeWords || [],
       roleTemplateId: profile.roleTemplateId || "",
       personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
@@ -1109,6 +1195,7 @@ export function ManagementDashboard({
       skillIds: agentForm.skillIds,
       mcpIds: agentForm.mcpIds,
       agentIds: agentForm.agentIds,
+      formIds: agentForm.formIds,
       wakeWords: agentForm.wakeWords,
       roleTemplateId: agentForm.roleTemplateId || null,
       personaStyle: agentForm.personaStyle,
@@ -1511,6 +1598,186 @@ export function ManagementDashboard({
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Form Actions
+  // ---------------------------------------------------------------------------
+  const handleSelectForm = (id: string) => {
+    setSelectedFormId(id)
+    setIsEditingForm(false)
+    setIsCreatingForm(false)
+    setEditingRecordId(null)
+    setRecordJson("{}")
+    setDeleteConfirmId(null)
+    setRecordPage(1)
+  }
+
+  const handleStartCreateForm = () => {
+    setIsCreatingForm(true)
+    setIsEditingForm(false)
+    setFormDefinition({
+      name: "",
+      description: "",
+      fieldsJson: JSON.stringify([{ id: "name", label: locale === "zh" ? "名称" : "Name", type: "text", required: false, options: [] }], null, 2),
+    })
+    setDeleteConfirmId(null)
+  }
+
+  const handleStartEditForm = (form: CustomForm) => {
+    setSelectedFormId(form.id)
+    setIsEditingForm(true)
+    setIsCreatingForm(false)
+    setFormDefinition({
+      name: form.name,
+      description: form.description,
+      fieldsJson: JSON.stringify(form.fields || [], null, 2),
+    })
+    setDeleteConfirmId(null)
+  }
+
+  const parseFormFields = (): CustomFormField[] | null => {
+    try {
+      const parsed = JSON.parse(formDefinition.fieldsJson || "[]")
+      if (!Array.isArray(parsed)) throw new Error("Fields must be an array")
+      return parsed.map((field) => ({
+        id: String(field.id || "").trim(),
+        label: String(field.label || field.id || "").trim(),
+        type: (field.type || "text") as CustomFormField["type"],
+        required: Boolean(field.required),
+        options: Array.isArray(field.options) ? field.options.map(String) : [],
+      })).filter(field => field.id && field.label)
+    } catch (err) {
+      alert(locale === "zh" ? "字段 JSON 无效" : "Invalid fields JSON")
+      return null
+    }
+  }
+
+  const handleSaveForm = async () => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !formDefinition.name.trim()) return
+    const fields = parseFormFields()
+    if (!fields) return
+    const now = new Date().toISOString()
+    if (isCreatingForm) {
+      const payload: CustomForm = {
+        id: generateUUID(),
+        name: formDefinition.name.trim(),
+        description: formDefinition.description.trim(),
+        fields,
+        recordCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      }
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify(payload),
+      })
+      if (resp.ok) {
+        const saved = await resp.json()
+        setForms(prev => [...prev, saved])
+        setSelectedFormId(saved.id)
+        setIsCreatingForm(false)
+      }
+    } else if (isEditingForm && selectedFormId) {
+      const target = forms.find(form => form.id === selectedFormId)
+      if (!target) return
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ ...target, name: formDefinition.name.trim(), description: formDefinition.description.trim(), fields, updatedAt: now }),
+      })
+      if (resp.ok) {
+        const saved = await resp.json()
+        setForms(prev => prev.map(form => form.id === selectedFormId ? saved : form))
+        setIsEditingForm(false)
+      }
+    }
+  }
+
+  const handleDeleteForm = async (id: string) => {
+    if (!LANGGRAPH_API_URL || !authHeaders) return
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${id}`, { method: "DELETE", headers: authHeaders })
+    if (resp.ok) {
+      setForms(prev => {
+        const updated = prev.filter(form => form.id !== id)
+        setSelectedFormId(updated[0]?.id || null)
+        return updated
+      })
+      setDeleteConfirmId(null)
+    }
+  }
+
+  const handleSaveFormRecord = async () => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
+    let data: Record<string, string | number | boolean | null>
+    try {
+      data = JSON.parse(recordJson || "{}")
+      if (!data || Array.isArray(data) || typeof data !== "object") throw new Error("Record must be an object")
+    } catch {
+      alert(locale === "zh" ? "记录 JSON 无效" : "Invalid record JSON")
+      return
+    }
+    const now = new Date().toISOString()
+    const method = editingRecordId ? "PUT" : "POST"
+    const url = editingRecordId
+      ? `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${editingRecordId}`
+      : `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records`
+    const payload = {
+      id: editingRecordId || generateUUID(),
+      formId: selectedFormId,
+      data,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const resp = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify(payload),
+    })
+    if (resp.ok) {
+      const saved = await resp.json()
+      setFormRecords(prev => editingRecordId ? prev.map(record => record.id === editingRecordId ? saved : record) : [saved, ...prev])
+      setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: editingRecordId ? form.recordCount : form.recordCount + 1 } : form))
+      setEditingRecordId(null)
+      setRecordJson("{}")
+    }
+  }
+
+  const handleDeleteFormRecord = async (recordId: string) => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${recordId}`, {
+      method: "DELETE",
+      headers: authHeaders,
+    })
+    if (resp.ok) {
+      setFormRecords(prev => prev.filter(record => record.id !== recordId))
+      setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: Math.max(0, form.recordCount - 1) } : form))
+    }
+  }
+
+  const handleExportAgentToml = async (id: string) => {
+    if (!LANGGRAPH_API_URL || !authHeaders) return
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/export.toml`, { headers: authHeaders })
+    if (!resp.ok) return
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${id}.toml`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleTomlFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      await importAgentTomlConfig(text)
+    } finally {
+      event.target.value = ""
+    }
+  }
+
   // Format Helper
   const formatBytes = (bytes: number, decimals = 2) => {
     if (!+bytes) return "0 Bytes"
@@ -1544,6 +1811,7 @@ export function ManagementDashboard({
     : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
+  const selectedForm = forms.find(form => form.id === selectedFormId) || null
   const renderHeaderConfigActions = () => {
     if (activeTab === "mcp") {
       if (isCreatingMcp || isEditingMcp) {
@@ -1710,6 +1978,48 @@ export function ManagementDashboard({
       }
     }
 
+    if (activeTab === "forms") {
+      if (isCreatingForm || isEditingForm) {
+        return (
+          <>
+            <Button
+              size="sm"
+              onClick={handleSaveForm}
+              disabled={!formDefinition.name.trim()}
+              className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
+            >
+              {t.save}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setIsEditingForm(false)
+                setIsCreatingForm(false)
+              }}
+              className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+            >
+              {t.cancel}
+            </Button>
+          </>
+        )
+      }
+
+      if (selectedForm) {
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleStartEditForm(selectedForm)}
+            className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            {locale === "zh" ? "编辑表单" : "Edit Form"}
+          </Button>
+        )
+      }
+    }
+
     return null
   }
 
@@ -1728,6 +2038,11 @@ export function ManagementDashboard({
     const query = agentMcpSearch.trim().toLowerCase()
     if (!query) return true
     return [mcp.name, mcp.url || "", mcp.id].some(value => value.toLowerCase().includes(query))
+  })
+  const filteredAgentForms = forms.filter(form => {
+    const query = agentRoleSearch.trim().toLowerCase()
+    if (!query) return true
+    return [form.name, form.description, form.id].some(value => value.toLowerCase().includes(query))
   })
   const linkableAgentProfiles = agentProfiles.filter(p => p.id !== activeEditingAgentId)
   const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
@@ -1768,6 +2083,205 @@ export function ManagementDashboard({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Content Detail View */}
         <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
+          {/* ========================================== */}
+          {/* FORMS TAB PANEL                            */}
+          {/* ========================================== */}
+          {activeTab === "forms" && (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+              <ListPanel
+                title={locale === "zh" ? "表单" : "Forms"}
+                className="border-border/40 bg-background/30"
+                action={
+                  <Button
+                    size="sm"
+                    onClick={handleStartCreateForm}
+                    className="h-7 w-7 rounded-md border-none bg-primary p-0 text-primary-foreground hover:bg-primary-active cursor-pointer"
+                    title={locale === "zh" ? "新建表单" : "Create form"}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                }
+              >
+                {forms.map(form => (
+                  <ListItem
+                    key={form.id}
+                    selected={selectedFormId === form.id}
+                    title={form.name}
+                    description={`${form.fields.length} ${locale === "zh" ? "字段" : "fields"} · ${form.recordCount} ${locale === "zh" ? "记录" : "records"}`}
+                    onSelect={() => handleSelectForm(form.id)}
+                    actionsClassName={deleteConfirmId === form.id ? "md:opacity-100" : "md:pointer-events-none md:group-hover:pointer-events-auto md:group-focus-within:pointer-events-auto"}
+                    actions={
+                      deleteConfirmId === form.id ? (
+                        <>
+                          <button onClick={() => handleDeleteForm(form.id)} className="p-1 rounded text-destructive hover:bg-destructive/10" title={t.confirmDelete}>
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteConfirmId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" title={t.cancel}>
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => handleStartEditForm(form)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80" title={locale === "zh" ? "编辑" : "Edit"}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteConfirmId(form.id)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10" title={t.delete}>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )
+                    }
+                  />
+                ))}
+              </ListPanel>
+
+              <div className="min-h-0 flex-1 overflow-y-auto bg-background">
+                {isCreatingForm || isEditingForm ? (
+                  <div className="mx-auto max-w-4xl space-y-5 p-6">
+                    <div>
+                      <h2 className="text-lg font-semibold">{isCreatingForm ? (locale === "zh" ? "新建表单" : "Create Form") : (locale === "zh" ? "编辑表单" : "Edit Form")}</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {locale === "zh" ? "字段使用标准 JSON 数组定义，可包含 id、label、type、required、options。" : "Fields use a JSON array with id, label, type, required, and options."}
+                      </p>
+                    </div>
+                    <InputField
+                      id="form-name"
+                      label={locale === "zh" ? "表单名称" : "Form Name"}
+                      value={formDefinition.name}
+                      onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
+                    />
+                    <FormField label={locale === "zh" ? "描述" : "Description"}>
+                      <Textarea
+                        value={formDefinition.description}
+                        onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
+                        className="min-h-20 rounded-lg"
+                      />
+                    </FormField>
+                    <FormField label={locale === "zh" ? "字段 JSON" : "Fields JSON"}>
+                      <Textarea
+                        value={formDefinition.fieldsJson}
+                        onChange={(e) => setFormDefinition(prev => ({ ...prev, fieldsJson: e.target.value }))}
+                        className="min-h-64 rounded-lg font-mono text-xs"
+                      />
+                    </FormField>
+                  </div>
+                ) : selectedForm ? (
+                  <div className="mx-auto max-w-6xl space-y-5 p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <TableProperties className="h-5 w-5 text-primary" />
+                          <h2 className="text-lg font-semibold">{selectedForm.name}</h2>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">{selectedForm.description || (locale === "zh" ? "无描述" : "No description")}</p>
+                        <p className="mt-2 font-mono text-xs text-muted-foreground">{selectedForm.id}</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleStartEditForm(selectedForm)} className="gap-1.5 rounded-lg">
+                        <Pencil className="h-3.5 w-3.5" />
+                        {locale === "zh" ? "编辑表单" : "Edit Form"}
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {selectedForm.fields.map(field => (
+                        <div key={field.id} className="rounded-xl border border-border/50 bg-background/50 p-3">
+                          <div className="font-mono text-[11px] text-muted-foreground">{field.id}</div>
+                          <div className="mt-1 text-sm font-semibold">{field.label}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{field.type}{field.required ? " · required" : ""}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
+                      <div className="rounded-xl border border-border/50 bg-background/50">
+                        <div className="flex items-center justify-between gap-3 border-b border-border/40 p-3">
+                          <div className="font-semibold text-sm">{locale === "zh" ? "记录" : "Records"} ({formRecordTotal})</div>
+                          <div className="relative w-64 max-w-full">
+                            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              value={recordQuery}
+                              onChange={(e) => {
+                                setRecordQuery(e.target.value)
+                                setRecordPage(1)
+                              }}
+                              placeholder={locale === "zh" ? "搜索记录" : "Search records"}
+                              className="h-8 rounded-lg pl-8 text-xs"
+                            />
+                          </div>
+                        </div>
+                        <div className="divide-y divide-border/30">
+                          {formRecords.length > 0 ? formRecords.map(record => (
+                            <div key={record.id} className="p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0 font-mono text-[11px] text-muted-foreground truncate">{record.id}</div>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setEditingRecordId(record.id)
+                                      setRecordJson(JSON.stringify(record.data || {}, null, 2))
+                                    }}
+                                    className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    title={locale === "zh" ? "编辑记录" : "Edit record"}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteFormRecord(record.id)}
+                                    className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                    title={t.delete}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <pre className="mt-2 max-h-36 overflow-auto rounded-lg bg-muted/25 p-2 text-xs text-foreground">{JSON.stringify(record.data, null, 2)}</pre>
+                            </div>
+                          )) : (
+                            <div className="p-8 text-center text-sm text-muted-foreground">
+                              {locale === "zh" ? "暂无记录" : "No records yet."}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between border-t border-border/40 p-3">
+                          <Button variant="outline" size="sm" disabled={recordPage <= 1} onClick={() => setRecordPage(page => Math.max(1, page - 1))} className="h-8 rounded-lg">
+                            {locale === "zh" ? "上一页" : "Previous"}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">Page {recordPage}</span>
+                          <Button variant="outline" size="sm" disabled={recordPage * 25 >= formRecordTotal} onClick={() => setRecordPage(page => page + 1)} className="h-8 rounded-lg">
+                            {locale === "zh" ? "下一页" : "Next"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border/50 bg-background/50 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <h3 className="text-sm font-semibold">{editingRecordId ? (locale === "zh" ? "编辑记录" : "Edit Record") : (locale === "zh" ? "新增记录" : "Add Record")}</h3>
+                          {editingRecordId && (
+                            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => { setEditingRecordId(null); setRecordJson("{}") }}>
+                              {t.cancel}
+                            </button>
+                          )}
+                        </div>
+                        <Textarea
+                          value={recordJson}
+                          onChange={(e) => setRecordJson(e.target.value)}
+                          className="min-h-72 rounded-lg font-mono text-xs"
+                        />
+                        <Button onClick={handleSaveFormRecord} className="mt-3 w-full rounded-lg">
+                          {editingRecordId ? (locale === "zh" ? "保存记录" : "Save Record") : (locale === "zh" ? "添加记录" : "Add Record")}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
+                    {locale === "zh" ? "选择或新建一个表单。" : "Select or create a form."}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* ========================================== */}
           {/* MCP TAB PANEL                              */}
           {/* ========================================== */}
@@ -2831,6 +3345,49 @@ export function ManagementDashboard({
                       </div>
                     )}
 
+                    {forms.length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-border/40">
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {locale === "zh" ? "关联表单数据" : "Link Forms"}
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.formIds.length}/{forms.length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentForms.map((form) => {
+                            const linked = agentForm.formIds.includes(form.id)
+                            return (
+                              <div
+                                key={form.id}
+                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  const nextIds = linked
+                                    ? agentForm.formIds.filter(id => id !== form.id)
+                                    : [...agentForm.formIds, form.id]
+                                  const nextTools = agentForm.enabledTools.includes("query_form_data")
+                                    ? agentForm.enabledTools
+                                    : [...agentForm.enabledTools, "query_form_data" as BuiltinToolId]
+                                  setAgentForm({ ...agentForm, formIds: nextIds, enabledTools: nextIds.length > 0 ? nextTools : agentForm.enabledTools })
+                                }}
+                              >
+                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                  linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                }`}>
+                                  {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium truncate">{form.name}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{form.fields.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {linkableAgentProfiles.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
                         <div className="flex items-center justify-between gap-3">
@@ -2971,6 +3528,7 @@ export function ManagementDashboard({
                             ["skills", locale === "zh" ? "Skills" : "Skills"],
                             ["mcpServers", "MCP"],
                             ["agents", locale === "zh" ? "多角色" : "Roles"],
+                            ["forms", locale === "zh" ? "表单" : "Forms"],
                           ] as [keyof AgentShareOptions, string][]).map(([key, label]) => (
                             <button
                               key={key}
@@ -2993,6 +3551,36 @@ export function ManagementDashboard({
                             {shareLink}
                           </div>
                         )}
+
+                        <div className="flex flex-wrap gap-2 border-t border-border/40 pt-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExportAgentToml(selectedAgent.id)}
+                            className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            {locale === "zh" ? "导出 TOML" : "Export TOML"}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => tomlInputRef.current?.click()}
+                            className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                          >
+                            <Upload className="h-3.5 w-3.5" />
+                            {locale === "zh" ? "批量导入 TOML" : "Import TOML"}
+                          </Button>
+                          <input
+                            ref={tomlInputRef}
+                            type="file"
+                            accept=".toml,application/toml,text/plain"
+                            className="hidden"
+                            onChange={handleTomlFileImport}
+                          />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

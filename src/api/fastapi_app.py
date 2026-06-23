@@ -23,6 +23,7 @@ from src.api.routes import models as model_routes
 from src.api.routes.agent_profiles import router as agent_profiles_router
 from src.api.routes.auth import router as auth_router
 from src.api.routes.client_profiles import router as client_profiles_router
+from src.api.routes.forms import router as forms_router
 from src.api.routes.knowledge_bases import router as knowledge_bases_router
 from src.api.routes.mcp_servers import router as mcp_servers_router
 from src.api.routes.models import router as models_router
@@ -169,6 +170,7 @@ app = FastAPI(
         {"name": "system", "description": "Service health, root metadata, and utility endpoints."},
         {"name": "auth", "description": "User registration, login, profile settings, and API keys."},
         {"name": "agent-profiles", "description": "Custom agent profile CRUD, version restore, and share import."},
+        {"name": "forms", "description": "Custom structured forms and records exposed to configured agents."},
         {"name": "knowledge-bases", "description": "Knowledge base metadata, document upload, and RAG status."},
         {"name": "skills", "description": "User-owned system prompt skill CRUD."},
         {"name": "mcp-servers", "description": "User-owned MCP server configuration."},
@@ -196,6 +198,7 @@ app.include_router(models_router)
 app.include_router(robot_router)
 app.include_router(client_profiles_router)
 app.include_router(agent_profiles_router)
+app.include_router(forms_router)
 app.include_router(skills_router)
 app.include_router(knowledge_bases_router)
 app.include_router(mcp_servers_router)

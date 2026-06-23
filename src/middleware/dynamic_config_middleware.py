@@ -23,7 +23,13 @@ from src.agent.config import (
     OPENAI_COMPATIBLE_BASE_URL,
 )
 from src.tools.robot_control_tool import list_robot_points_for_prompt
-from src.utils.db import AgentProfileTable, KnowledgeBaseTable, SessionLocal, SkillTable
+from src.utils.db import (
+    AgentProfileTable,
+    FormTable,
+    KnowledgeBaseTable,
+    SessionLocal,
+    SkillTable,
+)
 from src.utils.debug_logging import write_debug_event
 from src.utils.mcp import McpPoolManager
 from src.utils.runtime_context import get_runtime_context_value
@@ -40,6 +46,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     system_prompt = getattr(agent_row, "system_prompt", "")
     enabled_tools = getattr(agent_row, "enabled_tools", None)
     agent_ids = getattr(agent_row, "agent_ids", None)
+    form_ids = getattr(agent_row, "form_ids", None)
     knowledge_base_ids = getattr(agent_row, "knowledge_base_ids", None)
     skill_ids = getattr(agent_row, "skill_ids", None)
     model = getattr(agent_row, "model", None)
@@ -56,6 +63,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "model": model.strip() if isinstance(model, str) and model.strip() else "",
         "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
         "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
+        "form_ids": list(form_ids) if isinstance(form_ids, list) else [],
         "knowledge_base_ids": list(knowledge_base_ids) if isinstance(knowledge_base_ids, list) else [],
         "skill_ids": list(skill_ids) if isinstance(skill_ids, list) else [],
         "role_template_id": role_template_id if isinstance(role_template_id, str) else "",
@@ -323,6 +331,7 @@ def _load_agent_runtime_resources(
                 "skills": [],
                 "knowledge_bases": [],
                 "linked_agents": [],
+                "forms": [],
                 "linked_ids": [],
             }
 
@@ -368,6 +377,26 @@ def _load_agent_runtime_resources(
             for kb in knowledge_base_rows
         ]
 
+        form_ids = list(agent_profile.form_ids or [])
+        form_rows = []
+        if form_ids:
+            form_rows = db.query(FormTable).filter(
+                FormTable.id.in_(form_ids),
+                FormTable.owner_user_id == owner_user_id,
+            ).all()
+            order = {form_id: idx for idx, form_id in enumerate(form_ids)}
+            form_rows = sorted(form_rows, key=lambda form: order.get(form.id, len(order)))
+
+        forms = [
+            {
+                "id": form.id,
+                "name": form.name,
+                "description": form.description or "No description.",
+                "fields": form.fields or [],
+            }
+            for form in form_rows
+        ]
+
         linked_ids = (
             list(agent_ids_override)
             if agent_ids_override is not None
@@ -385,6 +414,7 @@ def _load_agent_runtime_resources(
             "profile": profile_data,
             "skills": skills,
             "knowledge_bases": knowledge_bases,
+            "forms": forms,
             "linked_agents": [_extract_agent_data(a) for a in linked_agent_rows],
             "linked_ids": linked_ids,
         }
@@ -516,6 +546,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
         robot_environment = bool(getattr(ctx, "robot_environment", False))
         linked_agent_tools: list[BaseTool] = []
         has_linked_skills = False
+        has_linked_forms = False
 
         write_debug_event(
             "middleware.model_call.context",
@@ -550,6 +581,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         profile_agent_ids=profile.get("agent_ids", []),
                         skills_count=len(resources.get("skills", [])),
                         linked_agents_count=len(resources.get("linked_agents", [])),
+                        forms_count=len(resources.get("forms", [])),
                         linked_ids=resources.get("linked_ids", []),
                     )
                     if not _context_field_was_set(ctx, "system_prompt"):
@@ -579,6 +611,28 @@ class DynamicConfigMiddleware(AgentMiddleware):
                                 f"- **{kb['name']}** (ID: `{kb['id']}`): {kb['description']}\n"
                             )
                         system_prompt += kb_instructions
+
+                    # ---- Linked forms ----
+                    forms = resources.get("forms", [])
+                    if forms:
+                        has_linked_forms = True
+                        form_instructions = (
+                            "\n\nYou have access to structured form data through `query_form_data`. "
+                            "Use it when the user asks about records, rows, customers, orders, cases, "
+                            "or any data stored in the linked forms. You can pass `fields`, `q`, "
+                            "`filter_field`, `filter_value`, `filter_op`, `page`, and `page_size`.\n"
+                            "Linked Forms:\n"
+                        )
+                        for form in forms:
+                            field_list = ", ".join(
+                                f"{field.get('id', '')} ({field.get('label', '')})"
+                                for field in form.get("fields", [])
+                            )
+                            form_instructions += (
+                                f"- **{form['name']}** (ID: `{form['id']}`): "
+                                f"{form['description']} Fields: {field_list or 'none'}\n"
+                            )
+                        system_prompt += form_instructions
 
                     # ---- Linked skills ----
                     skills = resources["skills"]
@@ -738,6 +792,10 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 tool_set.add("read_skill")
             else:
                 tool_set.discard("read_skill")
+            if has_linked_forms:
+                tool_set.add("query_form_data")
+            else:
+                tool_set.discard("query_form_data")
             if not robot_environment:
                 tool_set.discard("navigate_robot_to_point")
             filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]

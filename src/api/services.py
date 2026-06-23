@@ -3,6 +3,7 @@
 
 import copy
 import logging
+import tomllib
 import uuid
 from datetime import UTC, datetime
 
@@ -14,6 +15,8 @@ from src.api.schemas import (
     AgentProfileVersionSchema,
     AgentShareLinkSchema,
     AgentShareOptions,
+    FormRecordSchema,
+    FormSchema,
     KBFileSchema,
     KnowledgeBaseSchema,
     McpServerSchema,
@@ -23,6 +26,8 @@ from src.utils.db import (
     AgentProfileTable,
     AgentProfileVersionTable,
     AgentShareLinkTable,
+    FormRecordTable,
+    FormTable,
     KnowledgeBaseTable,
     McpServerTable,
     SkillTable,
@@ -51,6 +56,7 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         skillIds=profile.skill_ids or [],
         mcpIds=profile.mcp_ids or [],
         agentIds=profile.agent_ids or [],
+        formIds=profile.form_ids or [],
         wakeWords=profile.wake_words or [],
         roleTemplateId=profile.role_template_id,
         personaStyle=profile.persona_style,
@@ -144,6 +150,28 @@ def _mcp_schema(server: McpServerTable) -> McpServerSchema:
     )
 
 
+def _form_schema(form: FormTable, record_count: int = 0) -> FormSchema:
+    return FormSchema(
+        id=form.id,
+        name=form.name,
+        description=form.description,
+        fields=form.fields or [],
+        recordCount=record_count,
+        createdAt=form.created_at,
+        updatedAt=form.updated_at,
+    )
+
+
+def _form_record_schema(record: FormRecordTable) -> FormRecordSchema:
+    return FormRecordSchema(
+        id=record.id,
+        formId=record.form_id,
+        data=record.data or {},
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )
+
+
 def _share_options_from_row(share: AgentShareLinkTable) -> AgentShareOptions:
     return AgentShareOptions.model_validate(share.include_options or {})
 
@@ -213,6 +241,7 @@ def _validate_agent_profile_links(
     _require_accessible_knowledge_base_ids(db, profile_data.knowledgeBaseIds, owner_user_id)
     _require_owned_ids(db, SkillTable, profile_data.skillIds, owner_user_id, "skillIds")
     _require_owned_ids(db, McpServerTable, profile_data.mcpIds, owner_user_id, "mcpIds")
+    _require_owned_ids(db, FormTable, profile_data.formIds, owner_user_id, "formIds")
     if profile_data.userVoiceprintId:
         _require_owned_ids(
             db,
@@ -329,6 +358,7 @@ def _copy_shared_agent_resources(
         "skillIds": list(source_profile.skill_ids or []),
         "mcpIds": list(source_profile.mcp_ids or []),
         "agentIds": list(source_profile.agent_ids or []),
+        "formIds": list(source_profile.form_ids or []),
     }
     target_ids = {key: [] for key in source_ids}
     id_map: dict[str, dict[str, str]] = {
@@ -336,6 +366,7 @@ def _copy_shared_agent_resources(
         "skillIds": {},
         "mcpIds": {},
         "agentIds": {},
+        "formIds": {},
     }
     warnings: list[str] = []
 
@@ -425,6 +456,44 @@ def _copy_shared_agent_resources(
             target_ids["mcpIds"].append(target_id)
             id_map["mcpIds"][source_id] = target_id
 
+    if include.forms:
+        forms = db.query(FormTable).filter(
+            FormTable.id.in_(source_ids["formIds"]),
+            FormTable.owner_user_id == source_profile.owner_user_id,
+        ).all()
+        by_id = {form.id: form for form in forms}
+        for source_id in source_ids["formIds"]:
+            form = by_id.get(source_id)
+            if not form:
+                warnings.append(f"Form {source_id} was not found and was skipped.")
+                continue
+            target_id = _new_resource_id("form")
+            db.add(FormTable(
+                id=target_id,
+                owner_user_id=target_owner_user_id,
+                name=form.name,
+                description=form.description,
+                fields=copy.deepcopy(form.fields or []),
+                created_at=now,
+                updated_at=now,
+            ))
+            target_ids["formIds"].append(target_id)
+            id_map["formIds"][source_id] = target_id
+
+            records = db.query(FormRecordTable).filter(
+                FormRecordTable.form_id == source_id,
+                FormRecordTable.owner_user_id == source_profile.owner_user_id,
+            ).all()
+            for record in records:
+                db.add(FormRecordTable(
+                    id=_new_resource_id("record"),
+                    form_id=target_id,
+                    owner_user_id=target_owner_user_id,
+                    data=copy.deepcopy(record.data or {}),
+                    created_at=now,
+                    updated_at=now,
+                ))
+
     if include.agents:
         linked_agents = db.query(AgentProfileTable).filter(
             AgentProfileTable.id.in_(source_ids["agentIds"]),
@@ -449,6 +518,7 @@ def _copy_shared_agent_resources(
                 skill_ids=[],
                 mcp_ids=[],
                 agent_ids=[],
+                form_ids=[],
                 wake_words=copy.deepcopy(agent.wake_words or []),
                 role_template_id=agent.role_template_id,
                 persona_style=agent.persona_style,
@@ -465,3 +535,96 @@ def _copy_shared_agent_resources(
             id_map["agentIds"][source_id] = target_id
 
     return target_ids, id_map, warnings
+
+
+def _toml_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
+
+
+def _toml_scalar(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    if value is None:
+        return '""'
+    return _toml_quote(str(value))
+
+
+def _toml_array(values: list) -> str:
+    return "[" + ", ".join(_toml_scalar(value) for value in values) + "]"
+
+
+def _toml_path(*parts: str) -> str:
+    return ".".join(_toml_quote(str(part)) for part in parts)
+
+
+def _toml_dict(prefix: str, payload: dict, lines: list[str]) -> None:
+    lines.append(f"[{prefix}]")
+    for key, value in payload.items():
+        if isinstance(value, list):
+            lines.append(f"{key} = {_toml_array(value)}")
+        else:
+            lines.append(f"{key} = {_toml_scalar(value)}")
+    lines.append("")
+
+
+def agent_profiles_to_toml(
+    profiles: list[AgentProfileTable],
+    forms_by_id: dict[str, FormTable] | None = None,
+    records_by_form_id: dict[str, list[FormRecordTable]] | None = None,
+) -> str:
+    """Serialize agent profiles and selected form data as a standard TOML bundle."""
+    lines = [
+        "[bundle]",
+        'format = "tob-agent-config"',
+        "version = 1",
+        f"exported_at = {_toml_quote(datetime.now(UTC).isoformat().replace('+00:00', 'Z'))}",
+        "",
+    ]
+    forms_by_id = forms_by_id or {}
+    records_by_form_id = records_by_form_id or {}
+
+    for profile in profiles:
+        payload = _agent_profile_snapshot(profile)
+        payload.pop("speakerVerificationBound", None)
+        payload.pop("speakerSampleText", None)
+        payload.pop("speakerEnrolledAt", None)
+        payload.pop("userVoiceprintId", None)
+        _toml_dict(_toml_path("agents", profile.id), payload, lines)
+
+    for form_id, form in forms_by_id.items():
+        _toml_dict(
+            _toml_path("forms", form_id),
+            {
+                "id": form.id,
+                "name": form.name,
+                "description": form.description or "",
+                "createdAt": form.created_at,
+                "updatedAt": form.updated_at,
+            },
+            lines,
+        )
+        for field in form.fields or []:
+            _toml_dict(_toml_path("forms", form_id, "fields", str(field.get("id", uuid.uuid4()))), field, lines)
+        for record in records_by_form_id.get(form_id, []):
+            _toml_dict(
+                _toml_path("forms", form_id, "records", record.id),
+                {"id": record.id, **(record.data or {}), "createdAt": record.created_at, "updatedAt": record.updated_at},
+                lines,
+            )
+
+    return "\n".join(lines)
+
+
+def parse_agent_config_toml(raw_toml: str) -> dict:
+    """Parse and validate a standard agent configuration TOML bundle."""
+    try:
+        data = tomllib.loads(raw_toml)
+    except tomllib.TOMLDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid TOML: {exc}") from exc
+
+    bundle = data.get("bundle")
+    if not isinstance(bundle, dict) or bundle.get("format") != "tob-agent-config":
+        raise HTTPException(status_code=400, detail="TOML bundle.format must be tob-agent-config")
+    return data

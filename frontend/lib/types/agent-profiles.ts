@@ -1,5 +1,5 @@
 /** Built-in tool identifiers for generic agents. */
-export type BuiltinToolId = "rag_search" | "fetch" | "navigate_robot_to_point"
+export type BuiltinToolId = "rag_search" | "fetch" | "query_form_data" | "navigate_robot_to_point"
 
 export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: string }[] = [
   {
@@ -11,6 +11,11 @@ export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: str
     id: "fetch",
     label: "Fetch URL",
     description: "Retrieve the content of any web page or API endpoint.",
+  },
+  {
+    id: "query_form_data",
+    label: "Form Data",
+    description: "Query linked custom forms with field filters, selected fields, and pagination.",
   },
   {
     id: "navigate_robot_to_point",
@@ -34,6 +39,7 @@ export interface AgentProfile {
   skillIds?: string[]
   mcpIds?: string[]
   agentIds?: string[]
+  formIds?: string[]
   wakeWords?: string[]
   roleTemplateId?: string | null
   personaStyle?: string | null
@@ -63,6 +69,7 @@ export interface AgentShareOptions {
   skills: boolean
   mcpServers: boolean
   agents: boolean
+  forms: boolean
 }
 
 export interface AgentShareLink {
@@ -75,6 +82,12 @@ export interface AgentShareLink {
 
 export interface AgentShareImportResponse {
   agent: AgentProfile
+  resourceIdMap: Record<string, Record<string, string>>
+  warnings: string[]
+}
+
+export interface AgentConfigTomlImportResponse {
+  agents: AgentProfile[]
   resourceIdMap: Record<string, Record<string, string>>
   warnings: string[]
 }

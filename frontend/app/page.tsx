@@ -31,7 +31,7 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
-const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "mcp", "settings", "developer-manual"] as const
+const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
@@ -131,6 +131,7 @@ function DashboardContent() {
     restoreProfileVersion: restoreAgentProfileVersion,
     createShareLink: createAgentShareLink,
     importShareLink: importAgentShareLink,
+    importTomlConfig: importAgentTomlConfig,
   } = useAgentProfiles()
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
@@ -713,7 +714,7 @@ function DashboardContent() {
         ) : currentView !== "chat" ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <ManagementDashboard
-              initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
+              initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : currentView === "forms" ? "forms" : "knowledge"}
               onBackToChat={() => setCurrentView("chat")}
               agentProfiles={agentProfiles}
               selectedAgentProfileId={selectedAgentProfileId}
@@ -723,6 +724,7 @@ function DashboardContent() {
               fetchAgentProfileVersions={fetchAgentProfileVersions}
               restoreAgentProfileVersion={restoreAgentProfileVersion}
               createAgentShareLink={createAgentShareLink}
+              importAgentTomlConfig={importAgentTomlConfig}
               userVoiceprints={userVoiceprints}
               onNavigateToUserSettings={() => setCurrentView("settings")}
               deleteAgentProfile={deleteAgentProfile}

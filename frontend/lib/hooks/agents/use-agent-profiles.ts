@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react"
 import type {
   AgentProfile,
+  AgentConfigTomlImportResponse,
   AgentProfileVersion,
   AgentShareImportResponse,
   AgentShareLink,
@@ -233,6 +234,33 @@ export function useAgentProfiles() {
     return null
   }, [user])
 
+  const importTomlConfig = useCallback(async (
+    toml: string,
+  ): Promise<AgentConfigTomlImportResponse | null> => {
+    if (!LANGGRAPH_API_URL || !user) return null
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/import.toml`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}` },
+        body: JSON.stringify({ toml }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        setProfiles(prev => [...prev, ...data.agents])
+        const firstAgent = data.agents[0]
+        if (firstAgent) {
+          setSelectedIdState(firstAgent.id)
+          saveSelectedId(firstAgent.id)
+        }
+        return data
+      }
+    } catch (err) {
+      console.error("Failed to import TOML agent configuration", err)
+    }
+    return null
+  }, [user])
+
   const deleteProfile = useCallback(async (id: string) => {
     if (!LANGGRAPH_API_URL || !user) return
 
@@ -271,5 +299,6 @@ export function useAgentProfiles() {
     restoreProfileVersion,
     createShareLink,
     importShareLink,
+    importTomlConfig,
   }
 }
