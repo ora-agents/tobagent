@@ -272,7 +272,7 @@ interface ManagementDashboardProps {
   restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
   createAgentShareLink: (id: string, include: AgentShareOptions) => Promise<AgentShareLink | null>
   editAgentIdOnOpen?: string | null
-  onEditAgentIdHandled?: () => void
+  onEditAgentChange?: (id: string | null) => void
   createAgentOnOpenSignal?: number
   // User voiceprints
   userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
@@ -292,7 +292,7 @@ export function ManagementDashboard({
   restoreAgentProfileVersion,
   createAgentShareLink,
   editAgentIdOnOpen,
-  onEditAgentIdHandled,
+  onEditAgentChange,
   createAgentOnOpenSignal = 0,
   userVoiceprints,
   onNavigateToUserSettings,
@@ -518,8 +518,7 @@ export function ManagementDashboard({
     if (profile) {
       handleStartEditAgent(profile)
     }
-    onEditAgentIdHandled?.()
-  }, [activeTab, editAgentIdOnOpen, agentProfiles, onEditAgentIdHandled])
+  }, [activeTab, editAgentIdOnOpen, agentProfiles])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -642,6 +641,7 @@ export function ManagementDashboard({
     setSelectedAgentId(id)
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
+    onEditAgentChange?.(null)
     setDeleteConfirmId(null)
     setShareLink(null)
   }
@@ -649,6 +649,7 @@ export function ManagementDashboard({
   const handleStartCreateAgent = useCallback(() => {
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
+    onEditAgentChange?.(null)
     setAgentSkillSearch("")
     setAgentMcpSearch("")
     setAgentRoleSearch("")
@@ -673,7 +674,7 @@ export function ManagementDashboard({
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }, [])
+  }, [onEditAgentChange])
 
   useEffect(() => {
     if (activeTab !== "agents" || createAgentOnOpenSignal <= 0) return
@@ -684,6 +685,7 @@ export function ManagementDashboard({
     setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
     setIsCreatingAgent(false)
+    onEditAgentChange?.(profile.id)
     setAgentSkillSearch("")
     setAgentMcpSearch("")
     setAgentRoleSearch("")
@@ -778,6 +780,7 @@ export function ManagementDashboard({
           }
         }
         setIsCreatingAgent(false)
+        onEditAgentChange?.(null)
         onBackToChat()
       })
     } else if (isEditingAgent && activeEditingAgentId) {
@@ -787,6 +790,7 @@ export function ManagementDashboard({
       // Keep hidden roles out of the chat switcher and active chat selection
       setSelectedAgentProfileId(agentForm.isHidden ? null : activeEditingAgentId)
       setIsEditingAgent(false)
+      onEditAgentChange?.(null)
       onBackToChat()
     }
   }
@@ -795,6 +799,13 @@ export function ManagementDashboard({
     deleteAgentProfile(id)
     setDeleteConfirmId(null)
     setSelectedAgentId(null)
+    onEditAgentChange?.(null)
+  }
+
+  const handleCancelAgentForm = () => {
+    setIsEditingAgent(false)
+    setIsCreatingAgent(false)
+    onEditAgentChange?.(null)
   }
 
   const handleRestoreAgentVersion = async (versionId: string) => {
@@ -1813,10 +1824,7 @@ export function ManagementDashboard({
                         </Button>
                         <Button
                           variant="ghost"
-                          onClick={() => {
-                            setIsEditingAgent(false)
-                            setIsCreatingAgent(false)
-                          }}
+                          onClick={handleCancelAgentForm}
                           className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
                         >
                           {t.cancel}

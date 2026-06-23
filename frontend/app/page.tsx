@@ -102,7 +102,6 @@ function DashboardContent() {
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
-  const [editAgentIdOnOpen, setEditAgentIdOnOpen] = useState<string | null>(null)
   const [createAgentOnOpenSignal, setCreateAgentOnOpenSignal] = useState(0)
   const [chatSessionKey, setChatSessionKey] = useState(0)
   const [elderOptimized, setElderOptimized] = useState(false)
@@ -134,10 +133,14 @@ function DashboardContent() {
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
   const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
   const [viewParam, setViewParam] = useQueryState("view")
+  const [editAgentIdParam, setEditAgentIdParam] = useQueryState("editAgent")
   const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
   const setCurrentView = useCallback((view: DashboardView) => {
+    if (view !== "agents") {
+      setEditAgentIdParam(null)
+    }
     setViewParam(view === "chat" ? null : view)
-  }, [setViewParam])
+  }, [setEditAgentIdParam, setViewParam])
   const hasInitialPrompt = !!initialPrompt?.trim()
   const activeThreadId = hasInitialPrompt ? null : threadId
 
@@ -152,6 +155,12 @@ function DashboardContent() {
       setCurrentView("chat")
     }
   }, [currentView, hasInitialPrompt, setCurrentView])
+
+  useEffect(() => {
+    if (editAgentIdParam && !hasInitialPrompt && currentView !== "agents") {
+      setCurrentView("agents")
+    }
+  }, [currentView, editAgentIdParam, hasInitialPrompt, setCurrentView])
 
   // Get browser-specific user ID
   const userId = useUserId()
@@ -443,13 +452,14 @@ function DashboardContent() {
         }
         setCurrentView("chat")
         setThreadId(null)
+        setEditAgentIdParam(null)
         setAgentShareToken(null)
       })
       .catch((err) => {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, importAgentShareLink, setAgentShareToken, setThreadId, user])
+  }, [agentShareToken, importAgentShareLink, setAgentShareToken, setEditAgentIdParam, setThreadId, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -514,11 +524,12 @@ function DashboardContent() {
   }
 
   const handleOpenActiveAgentSettings = () => {
-    setEditAgentIdOnOpen(selectedAgentProfileId)
+    setEditAgentIdParam(selectedAgentProfileId)
     setCurrentView("agents")
   }
 
   const handleOpenCreateAgent = () => {
+    setEditAgentIdParam(null)
     setCreateAgentOnOpenSignal(prev => prev + 1)
     setCurrentView("agents")
   }
@@ -741,8 +752,8 @@ function DashboardContent() {
               userVoiceprints={userVoiceprints}
               onNavigateToUserSettings={() => setCurrentView("settings")}
               deleteAgentProfile={deleteAgentProfile}
-              editAgentIdOnOpen={editAgentIdOnOpen}
-              onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}
+              editAgentIdOnOpen={editAgentIdParam}
+              onEditAgentChange={setEditAgentIdParam}
               createAgentOnOpenSignal={createAgentOnOpenSignal}
             />
           </div>
