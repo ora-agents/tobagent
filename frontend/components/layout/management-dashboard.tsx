@@ -1194,7 +1194,7 @@ export function ManagementDashboard({
     return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
   })
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
       <header className="h-16 px-6 border-b border-border/60 bg-background/95 backdrop-blur flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -1227,9 +1227,9 @@ export function ManagementDashboard({
           {/* MCP TAB PANEL                              */}
           {/* ========================================== */}
           {activeTab === "mcp" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
               {/* Left MCP Server List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.mcpServers}
@@ -1244,7 +1244,7 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="min-h-0 flex-1 overflow-y-auto p-2 space-y-1">
                   {mcpServers.map(mcp => (
                     <div
                       key={mcp.id}
@@ -1317,7 +1317,7 @@ export function ManagementDashboard({
               </div>
 
               {/* Right MCP Details / Form */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingMcp || isEditingMcp ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
@@ -1450,9 +1450,9 @@ export function ManagementDashboard({
           {/* SKILLS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "skills" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
               {/* Left Skill List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.skillsManager}
@@ -1467,7 +1467,7 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
                   {skills.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
                       <Wrench className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
@@ -1541,7 +1541,7 @@ export function ManagementDashboard({
               </div>
 
               {/* Right Skill Edit Form / Details */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
+              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
                 {isCreatingSkill || isEditingSkill ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
@@ -1660,7 +1660,7 @@ export function ManagementDashboard({
           {activeTab === "agents" && (
             <div className="flex min-h-0 flex-1 overflow-hidden">
               {/* Left Role List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.agentsManager}
@@ -1675,7 +1675,7 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
                   {agentProfiles.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                       {t.createAgentPrompt}
@@ -2875,9 +2875,9 @@ export function ManagementDashboard({
           {/* KNOWLEDGE BASE TAB PANEL                   */}
           {/* ========================================== */}
           {activeTab === "knowledge" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex min-h-0 flex-1 overflow-hidden">
               {/* Left KB List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
+              <div className="w-[300px] min-h-0 border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.kbManager}
@@ -2892,7 +2892,7 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
                   {knowledgeBases.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
                       <Database className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
@@ -2976,7 +2976,7 @@ export function ManagementDashboard({
               </div>
 
               {/* Right KB Edit Form / Details */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className="min-h-0 flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingKB || isEditingKB ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
