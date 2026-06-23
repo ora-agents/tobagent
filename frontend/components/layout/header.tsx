@@ -1,11 +1,15 @@
 "use client"
 
-import { LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ChevronLeft, ChevronRight, GripVertical, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
+
+const AGENT_SWITCHER_ORDER_KEY = "agent-switcher-order"
+const COLLAPSED_AGENT_LIMIT = 3
 
 interface HeaderProps {
   onNewChat?: () => void
@@ -46,6 +50,65 @@ export function Header({
   const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
   const visibleAgentProfiles = agentProfiles.filter((profile) => !profile.isHidden)
   const canSwitchAgents = !!onAgentProfileChange && visibleAgentProfiles.length > 0
+  const [isAgentListExpanded, setIsAgentListExpanded] = useState(false)
+  const [orderedAgentIds, setOrderedAgentIds] = useState<string[]>([])
+  const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null)
+  const [dragOverAgentId, setDragOverAgentId] = useState<string | null>(null)
+  const suppressNextClickRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const savedOrder = localStorage.getItem(AGENT_SWITCHER_ORDER_KEY)
+      if (savedOrder) {
+        const parsed = JSON.parse(savedOrder)
+        if (Array.isArray(parsed)) {
+          setOrderedAgentIds(parsed.filter((id): id is string => typeof id === "string"))
+        }
+      }
+    } catch {
+      setOrderedAgentIds([])
+    }
+  }, [])
+
+  const orderedAgentProfiles = useMemo(() => {
+    const profileById = new Map(visibleAgentProfiles.map((profile) => [profile.id, profile]))
+    const orderedProfiles = orderedAgentIds
+      .map((id) => profileById.get(id))
+      .filter((profile): profile is AgentProfile => Boolean(profile))
+    const orderedIds = new Set(orderedProfiles.map((profile) => profile.id))
+    const newProfiles = visibleAgentProfiles.filter((profile) => !orderedIds.has(profile.id))
+
+    return [...orderedProfiles, ...newProfiles]
+  }, [orderedAgentIds, visibleAgentProfiles])
+
+  const hasMoreAgents = orderedAgentProfiles.length > COLLAPSED_AGENT_LIMIT
+  const displayedAgentProfiles = isAgentListExpanded
+    ? orderedAgentProfiles
+    : orderedAgentProfiles.slice(0, COLLAPSED_AGENT_LIMIT)
+
+  const persistAgentOrder = (nextIds: string[]) => {
+    setOrderedAgentIds(nextIds)
+    try {
+      localStorage.setItem(AGENT_SWITCHER_ORDER_KEY, JSON.stringify(nextIds))
+    } catch {
+      // Ignore storage failures; sorting still works for the current session.
+    }
+  }
+
+  const handleAgentDrop = (targetId: string) => {
+    if (!draggedAgentId || draggedAgentId === targetId) return
+
+    const currentIds = orderedAgentProfiles.map((profile) => profile.id)
+    const fromIndex = currentIds.indexOf(draggedAgentId)
+    const toIndex = currentIds.indexOf(targetId)
+    if (fromIndex === -1 || toIndex === -1) return
+
+    const nextIds = [...currentIds]
+    const [movedId] = nextIds.splice(fromIndex, 1)
+    nextIds.splice(toIndex, 0, movedId)
+    suppressNextClickRef.current = true
+    persistAgentOrder(nextIds)
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center bg-background sm:h-16">
@@ -70,29 +133,84 @@ export function Header({
                 className="flex min-w-0 max-w-[calc(100vw-12rem)] items-center gap-1.5 overflow-x-auto pr-1 md:max-w-[48rem] md:pr-2"
                 aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
               >
-                {visibleAgentProfiles.map((profile) => {
+                {displayedAgentProfiles.map((profile) => {
                   const isActive = selectedAgentProfileId === profile.id
+                  const isDragging = draggedAgentId === profile.id
+                  const isDragTarget = dragOverAgentId === profile.id && draggedAgentId !== profile.id
 
                   return (
                     <Button
                       key={profile.id}
                       type="button"
                       variant="ghost"
-                      onClick={() => onAgentProfileChange(profile.id)}
+                      draggable
+                      onDragStart={(event) => {
+                        setDraggedAgentId(profile.id)
+                        event.dataTransfer.effectAllowed = "move"
+                        event.dataTransfer.setData("text/plain", profile.id)
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = "move"
+                        setDragOverAgentId(profile.id)
+                      }}
+                      onDragLeave={() => setDragOverAgentId(null)}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        handleAgentDrop(profile.id)
+                        setDraggedAgentId(null)
+                        setDragOverAgentId(null)
+                      }}
+                      onDragEnd={() => {
+                        setDraggedAgentId(null)
+                        setDragOverAgentId(null)
+                        window.setTimeout(() => {
+                          suppressNextClickRef.current = false
+                        }, 0)
+                      }}
+                      onClick={() => {
+                        if (suppressNextClickRef.current) return
+                        onAgentProfileChange(profile.id)
+                      }}
                       aria-pressed={isActive}
                       title={profile.name}
                       className={cn(
-                        "h-9 max-w-28 shrink-0 rounded-lg px-2.5 text-sm font-medium transition-colors sm:max-w-36 sm:px-3",
+                        "h-9 max-w-28 cursor-grab shrink-0 rounded-lg px-2 text-sm font-medium transition-colors active:cursor-grabbing sm:max-w-36 sm:px-2.5",
                         "truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                         isActive
                           ? "bg-primary text-primary-foreground shadow-depth-xs"
-                          : "bg-muted/70 text-foreground/80 hover:bg-primary/10 hover:text-foreground"
+                          : "bg-muted/70 text-foreground/80 hover:bg-primary/10 hover:text-foreground",
+                        isDragging && "opacity-50",
+                        isDragTarget && "ring-2 ring-primary/30"
                       )}
                     >
-                      {profile.name}
+                      <GripVertical className="h-3.5 w-3.5 shrink-0 opacity-45" />
+                      <span className="truncate">{profile.name}</span>
                     </Button>
                   )
                 })}
+                {hasMoreAgents && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsAgentListExpanded((current) => !current)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    title={
+                      isAgentListExpanded
+                        ? locale === "zh" ? "收起角色" : "Collapse agents"
+                        : locale === "zh" ? "展开角色" : "Expand agents"
+                    }
+                    aria-label={
+                      isAgentListExpanded
+                        ? locale === "zh" ? "收起角色" : "Collapse agents"
+                        : locale === "zh" ? "展开角色" : "Expand agents"
+                    }
+                    aria-expanded={isAgentListExpanded}
+                  >
+                    {isAgentListExpanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </Button>
+                )}
               </div>
             ) : (
               <span
