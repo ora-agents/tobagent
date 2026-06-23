@@ -40,6 +40,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { AppHeader, AppShell } from "@/components/ui/app-shell"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
+import {
+  ActionButton,
+  EmptyState,
+  FormField,
+  ListItem,
+  ListPanel,
+  SelectField,
+  SettingsSwitch,
+  ToolbarButton,
+} from "@/components/ui/settings-controls"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
@@ -1196,92 +1206,67 @@ export function ManagementDashboard({
           {activeTab === "mcp" && (
             <div className="flex-1 flex overflow-hidden">
               {/* Left MCP Server List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
-                <div className="p-4 border-b border-border/40 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
-                    {t.mcpServers}
-                  </span>
-                  <Button
-                    size="sm"
+              <ListPanel
+                title={t.mcpServers}
+                action={
+                  <ToolbarButton
+                    active
                     onClick={handleStartCreateMcp}
-                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none cursor-pointer"
                     title={t.addMcpServer}
                   >
                     <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  </ToolbarButton>
+                }
+              >
                   {mcpServers.map(mcp => (
-                    <div
+                    <ListItem
                       key={mcp.id}
-                      onClick={() => handleSelectMcp(mcp.id)}
-                      className={`group relative flex items-center gap-3 p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
-                        selectedMcpId === mcp.id
-                          ? "border-primary/30 bg-primary/10 text-foreground animate-pulse-subtle"
-                          : "border-transparent hover:bg-muted/30 text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold truncate">{mcp.name}</div>
-                        <div className="text-xs text-muted-foreground/80 mt-0.5 uppercase tracking-wider font-mono">
-                          Streamable HTTP
-                        </div>
-                      </div>
-
-                      <div
-                        className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
-                          deleteConfirmId === mcp.id
-                            ? "opacity-100 pointer-events-auto"
-                            : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                        }`}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {deleteConfirmId === mcp.id ? (
+                      selected={selectedMcpId === mcp.id}
+                      onSelect={() => handleSelectMcp(mcp.id)}
+                      title={mcp.name}
+                      description="Streamable HTTP"
+                      actions={
+                        deleteConfirmId === mcp.id ? (
                           <>
-                            <button
+                            <ToolbarButton
                               onClick={() => handleDeleteMcp(mcp.id)}
-                              className="p-1 rounded text-destructive hover:bg-destructive/10"
+                              destructive
                               title={t.confirmDelete}
                             >
                               <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                            </ToolbarButton>
+                            <ToolbarButton
                               onClick={() => setDeleteConfirmId(null)}
-                              className="p-1 rounded text-muted-foreground hover:bg-muted"
                               title={t.cancel}
                             >
                               <X className="w-3.5 h-3.5" />
-                            </button>
+                            </ToolbarButton>
                           </>
                         ) : (
                           <>
-                            <button
+                            <ToolbarButton
                               onClick={() => handleStartEditMcp(mcp)}
-                              className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                      title={t.editAgent.replace(t.agent, "").trim()}
+                              title={t.editAgent.replace(t.agent, "").trim()}
                             >
                               <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                            </ToolbarButton>
+                            <ToolbarButton
                               onClick={() => setDeleteConfirmId(mcp.id)}
-                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              destructive
                               title={t.delete}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            </ToolbarButton>
                           </>
-                        )}
-                      </div>
-                    </div>
+                        )
+                      }
+                    >
+                    </ListItem>
                   ))}
                   {mcpServers.length === 0 && (
-                    <div className="p-4 text-center text-xs text-muted-foreground italic">
-                      {t.noMcpServers}
-                    </div>
+                    <EmptyState description={t.noMcpServers} className="min-h-24" />
                   )}
-                </div>
-              </div>
+              </ListPanel>
 
               {/* Right MCP Details / Form */}
               <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
@@ -1293,23 +1278,21 @@ export function ManagementDashboard({
                         {isCreatingMcp ? t.addMcpServer : t.editMcpServer}
                       </h2>
                       <div className="flex items-center gap-2">
-                        <Button
+                        <ActionButton
                           onClick={handleSaveMcp}
                           disabled={!mcpForm.name.trim()}
-                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
-                        </Button>
-                        <Button
+                        </ActionButton>
+                        <ActionButton
                           variant="ghost"
                           onClick={() => {
                             setIsEditingMcp(false)
                             setIsCreatingMcp(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
                         >
                           {t.cancel}
-                        </Button>
+                        </ActionButton>
                       </div>
                     </div>
 
@@ -1419,93 +1402,68 @@ export function ManagementDashboard({
           {activeTab === "skills" && (
             <div className="flex-1 flex overflow-hidden">
               {/* Left Skill List */}
-              <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
-                <div className="p-4 border-b border-border/40 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
-                    {t.skillsManager}
-                  </span>
-                  <Button
-                    size="sm"
-                    onClick={handleStartCreateSkill}
-                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none"
-                    title={t.addSkill}
-                  >
+              <ListPanel
+                title={t.skillsManager}
+                action={
+                  <ToolbarButton active onClick={handleStartCreateSkill} title={t.addSkill}>
                     <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  </ToolbarButton>
+                }
+              >
                   {skills.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-muted-foreground/80">
-                      <Wrench className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
-                      {t.noSkills}
-                    </div>
+                    <EmptyState
+                      icon={<Wrench className="w-8 h-8" />}
+                      description={t.noSkills}
+                      className="min-h-32"
+                    />
                   ) : (
                     skills.map(skill => (
-                      <div
+                      <ListItem
                         key={skill.id}
-                        onClick={() => handleSelectSkill(skill.id)}
-                        className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
-                          selectedSkillId === skill.id
-                            ? "border-primary/60 bg-primary/5 shadow-depth-xs"
-                            : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
-                        }`}
-                      >
-                        <div className="font-semibold text-sm truncate">{skill.name}</div>
-                        <div className="text-xs text-muted-foreground mt-1 truncate">
-                          {skill.description || t.noDescriptionProvided}
-                        </div>
-
-                        {/* List Actions */}
-                        <div
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
-                            deleteConfirmId === skill.id
-                              ? "opacity-100 pointer-events-auto"
-                              : "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto"
-                          }`}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {deleteConfirmId === skill.id ? (
+                        selected={selectedSkillId === skill.id}
+                        onSelect={() => handleSelectSkill(skill.id)}
+                        title={skill.name}
+                        description={skill.description || t.noDescriptionProvided}
+                        actions={
+                          deleteConfirmId === skill.id ? (
                             <>
-                              <button
+                              <ToolbarButton
                                 onClick={() => handleDeleteSkill(skill.id)}
-                                className="p-1 rounded text-destructive hover:bg-destructive/10"
+                                destructive
                                 title={t.confirmDeleteTitle}
                               >
                                 <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
+                              </ToolbarButton>
+                              <ToolbarButton
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="p-1 rounded text-muted-foreground hover:bg-muted"
                                 title={t.cancelTitle}
                               >
                                 <X className="w-3.5 h-3.5" />
-                              </button>
+                              </ToolbarButton>
                             </>
                           ) : (
                             <>
-                              <button
+                              <ToolbarButton
                                 onClick={() => handleStartEditSkill(skill)}
-                                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
                                 title={t.editTitle}
                               >
                                 <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
+                              </ToolbarButton>
+                              <ToolbarButton
                                 onClick={() => setDeleteConfirmId(skill.id)}
-                                className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                destructive
                                 title={t.deleteTitle}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              </ToolbarButton>
                             </>
-                          )}
-                        </div>
-                      </div>
+                          )
+                        }
+                      >
+                      </ListItem>
                     ))
                   )}
-                </div>
-              </div>
+              </ListPanel>
 
               {/* Right Skill Edit Form / Details */}
               <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
@@ -1517,23 +1475,21 @@ export function ManagementDashboard({
                         {isCreatingSkill ? t.addSkill : t.editSkill}
                       </h2>
                       <div className="flex items-center gap-2">
-                        <Button
+                        <ActionButton
                           onClick={handleSaveSkill}
                           disabled={!skillForm.content.trim()}
-                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
-                        </Button>
-                        <Button
+                        </ActionButton>
+                        <ActionButton
                           variant="ghost"
                           onClick={() => {
                             setIsEditingSkill(false)
                             setIsCreatingSkill(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
                         >
                           {t.cancel}
-                        </Button>
+                        </ActionButton>
                       </div>
                     </div>
 
@@ -1761,23 +1717,21 @@ export function ManagementDashboard({
                         {isCreatingAgent ? t.addAgent : t.editAgent}
                       </h2>
                       <div className="flex items-center gap-2">
-                        <Button
+                        <ActionButton
                           onClick={handleSaveAgent}
                           disabled={!agentForm.name.trim()}
-                          className="bg-primary hover:bg-primary-active text-primary-foreground rounded-lg cursor-pointer"
                         >
                           {t.save}
-                        </Button>
-                        <Button
+                        </ActionButton>
+                        <ActionButton
                           variant="ghost"
                           onClick={() => {
                             setIsEditingAgent(false)
                             setIsCreatingAgent(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
                         >
                           {t.cancel}
-                        </Button>
+                        </ActionButton>
                       </div>
                     </div>
 
@@ -1808,104 +1762,67 @@ export function ManagementDashboard({
                     )}
 
                     <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-background/50">
-                      <div className="space-y-1.5">
-                        <Label>{locale === "zh" ? "角色模板" : "Role Template"}</Label>
-                        <Select
-                          value={agentForm.roleTemplateId || "custom"}
-                          onValueChange={(value) => handleApplyRoleTemplate(value === "custom" ? "" : value)}
-                        >
-                          <SelectTrigger className="bg-background border-border/80 rounded-lg">
-                            <SelectValue placeholder={locale === "zh" ? "选择角色模板" : "Select role template"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="custom">{locale === "zh" ? "自定义角色" : "Custom role"}</SelectItem>
-                            {ROLE_TEMPLATES.map((template) => (
-                              <SelectItem key={template.id} value={template.id}>
-                                {locale === "zh" ? template.nameZh : template.nameEn}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {agentForm.roleTemplateId && (
-                          <p className="text-xs text-muted-foreground">
-                            {(() => {
-                              const template = ROLE_TEMPLATES.find((item) => item.id === agentForm.roleTemplateId)
-                              return template ? (locale === "zh" ? template.descriptionZh : template.descriptionEn) : null
-                            })()}
-                          </p>
-                        )}
-                      </div>
+                      <SelectField
+                        label={locale === "zh" ? "角色模板" : "Role Template"}
+                        value={agentForm.roleTemplateId || "custom"}
+                        onValueChange={(value) => handleApplyRoleTemplate(value === "custom" ? "" : value)}
+                        placeholder={locale === "zh" ? "选择角色模板" : "Select role template"}
+                        description={agentForm.roleTemplateId ? (() => {
+                          const template = ROLE_TEMPLATES.find((item) => item.id === agentForm.roleTemplateId)
+                          return template ? (locale === "zh" ? template.descriptionZh : template.descriptionEn) : null
+                        })() : undefined}
+                        options={[
+                          { value: "custom", label: locale === "zh" ? "自定义角色" : "Custom role" },
+                          ...ROLE_TEMPLATES.map((template) => ({
+                            value: template.id,
+                            label: locale === "zh" ? template.nameZh : template.nameEn,
+                          })),
+                        ]}
+                      />
 
                       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
-                        <div className="space-y-1.5 min-w-0">
-                          <Label>{locale === "zh" ? "人物形象" : "Persona"}</Label>
-                          <Select
-                            value={agentForm.personaStyle}
-                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
-                          >
-                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {locale === "zh" ? label.zh : label.en}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <SelectField
+                          label={locale === "zh" ? "人物形象" : "Persona"}
+                          value={agentForm.personaStyle}
+                          onValueChange={(value) => setAgentForm(prev => ({ ...prev, personaStyle: value as PersonaStyle }))}
+                          className="min-w-0"
+                          options={Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => ({
+                            value,
+                            label: locale === "zh" ? label.zh : label.en,
+                          }))}
+                        />
 
-                        <div className="space-y-1.5 min-w-0">
-                          <Label>{locale === "zh" ? "客服边界" : "Support Boundary"}</Label>
-                          <Select
-                            value={agentForm.boundaryMode}
-                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
-                          >
-                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {locale === "zh" ? label.zh : label.en}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <SelectField
+                          label={locale === "zh" ? "客服边界" : "Support Boundary"}
+                          value={agentForm.boundaryMode}
+                          onValueChange={(value) => setAgentForm(prev => ({ ...prev, boundaryMode: value as BoundaryMode }))}
+                          className="min-w-0"
+                          options={Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => ({
+                            value,
+                            label: locale === "zh" ? label.zh : label.en,
+                          }))}
+                        />
 
-                        <div className="space-y-1.5 min-w-0">
-                          <Label>{locale === "zh" ? "语音风格" : "Voice Style"}</Label>
-                          <Select
-                            value={agentForm.ttsVoice}
-                            onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
-                          >
-                            <SelectTrigger className="w-full min-w-0 bg-background border-border/80 rounded-lg">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {TTS_VOICES.map((voice) => (
-                                <SelectItem key={voice.voice} value={voice.voice}>
-                                  {voice.nameZh} · {voice.voice}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-[11px] text-muted-foreground truncate">
-                            {(() => {
-                              const voice = TTS_VOICES.find(item => item.voice === agentForm.ttsVoice)
-                              if (!voice) return null
-                              return locale === "zh" ? voice.descriptionZh : voice.descriptionEn
-                            })()}
-                          </p>
-                        </div>
+                        <SelectField
+                          label={locale === "zh" ? "语音风格" : "Voice Style"}
+                          value={agentForm.ttsVoice}
+                          onValueChange={(value) => setAgentForm(prev => ({ ...prev, ttsVoice: value }))}
+                          className="min-w-0"
+                          description={(() => {
+                            const voice = TTS_VOICES.find(item => item.voice === agentForm.ttsVoice)
+                            if (!voice) return null
+                            return locale === "zh" ? voice.descriptionZh : voice.descriptionEn
+                          })()}
+                          options={TTS_VOICES.map((voice) => ({
+                            value: voice.voice,
+                            label: `${voice.nameZh} · ${voice.voice}`,
+                          }))}
+                        />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="agent-name">{locale === "zh" ? "角色名称" : "Role Name"}</Label>
+                      <FormField id="agent-name" label={locale === "zh" ? "角色名称" : "Role Name"}>
                         <Input
                           id="agent-name"
                           value={agentForm.name}
@@ -1913,7 +1830,7 @@ export function ManagementDashboard({
                           placeholder={t.agentNamePlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
-                      </div>
+                      </FormField>
                       <div className="space-y-1.5">
                         <Label>{locale === "zh" ? "模型" : "Model"}</Label>
                         {modelsLoading ? (
@@ -1952,8 +1869,7 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="agent-desc">{locale === "zh" ? "角色描述" : "Role Description"}</Label>
+                      <FormField id="agent-desc" label={locale === "zh" ? "角色描述" : "Role Description"}>
                         <Input
                           id="agent-desc"
                           value={agentForm.description}
@@ -1961,67 +1877,38 @@ export function ManagementDashboard({
                           placeholder={t.agentDescPlaceholder}
                           className="bg-background border-border/80 rounded-lg"
                         />
-                      </div>
+                      </FormField>
                     </div>
 
-                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
-                      <div
-                        className="flex items-start gap-3 cursor-pointer group"
-                        onClick={() => setAgentForm(prev => ({
-                          ...prev,
-                          voiceInterruptionEnabled: !prev.voiceInterruptionEnabled,
-                        }))}
-                      >
-                        <span
-                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
-                            agentForm.voiceInterruptionEnabled
-                              ? "bg-primary border-primary"
-                              : "border-muted-foreground/40 group-hover:border-primary/50"
-                          }`}
-                        >
-                          {agentForm.voiceInterruptionEnabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium">
-                            {locale === "zh" ? "启用语音打断" : "Enable voice interruption"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {locale === "zh"
-                              ? "开启后，语音模式下用户说话可中断当前回复并开始新一轮对话。"
-                              : "When enabled, speaking in voice mode interrupts the current reply and starts a new turn."}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <SettingsSwitch
+                      checked={agentForm.voiceInterruptionEnabled}
+                      onCheckedChange={(checked) => setAgentForm(prev => ({
+                        ...prev,
+                        voiceInterruptionEnabled: checked,
+                      }))}
+                      label={locale === "zh" ? "启用语音打断" : "Enable voice interruption"}
+                      description={
+                        locale === "zh"
+                          ? "开启后，语音模式下用户说话可中断当前回复并开始新一轮对话。"
+                          : "When enabled, speaking in voice mode interrupts the current reply and starts a new turn."
+                      }
+                    />
 
-                    <div className="space-y-2 border border-border/50 rounded-xl p-4 bg-background/50">
-                      <div
-                        className="flex items-start gap-3 cursor-pointer group"
-                        onClick={() => setAgentForm(prev => ({
+                    <div className="space-y-2 rounded-xl border border-border/50 bg-background/50 p-4">
+                      <SettingsSwitch
+                        checked={agentForm.speakerVerificationEnabled}
+                        onCheckedChange={(checked) => setAgentForm(prev => ({
                           ...prev,
-                          speakerVerificationEnabled: !prev.speakerVerificationEnabled,
+                          speakerVerificationEnabled: checked,
                         }))}
-                      >
-                        <span
-                          className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
-                            agentForm.speakerVerificationEnabled
-                              ? "bg-primary border-primary"
-                              : "border-muted-foreground/40 group-hover:border-primary/50"
-                          }`}
-                        >
-                          {agentForm.speakerVerificationEnabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                        </span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium">
-                            {locale === "zh" ? "启用声纹验证" : "Enable voiceprint verification"}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {locale === "zh"
-                              ? "开启后，语音对话会先用已绑定声纹做相似度判断，通过后才转写。"
-                              : "When enabled, voice turns must match the bound speaker before ASR runs."}
-                          </div>
-                        </div>
-                      </div>
+                        label={locale === "zh" ? "启用声纹验证" : "Enable voiceprint verification"}
+                        description={
+                          locale === "zh"
+                            ? "开启后，语音对话会先用已绑定声纹做相似度判断，通过后才转写。"
+                            : "When enabled, voice turns must match the bound speaker before ASR runs."
+                        }
+                        className="border-border/50 bg-background"
+                      />
 
                       {agentForm.speakerVerificationEnabled && (
                         <div className="space-y-2 pt-2 border-t border-border/40">
