@@ -1,6 +1,7 @@
 "use client"
 
 import { LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
@@ -51,15 +52,17 @@ export function Header({
       <div className="flex w-full items-center justify-between gap-2 px-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {onOpenSidebar && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={onOpenSidebar}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary md:hidden"
               title={locale === "zh" ? "打开菜单" : "Open menu"}
               aria-label={locale === "zh" ? "打开菜单" : "Open menu"}
             >
               <Menu className="h-4 w-4" />
-            </button>
+            </Button>
           )}
           {agentProfilesLoaded ? (
             canSwitchAgents ? (
@@ -71,9 +74,10 @@ export function Header({
                   const isActive = selectedAgentProfileId === profile.id
 
                   return (
-                    <button
+                    <Button
                       key={profile.id}
                       type="button"
+                      variant="ghost"
                       onClick={() => onAgentProfileChange(profile.id)}
                       aria-pressed={isActive}
                       title={profile.name}
@@ -86,7 +90,7 @@ export function Header({
                       )}
                     >
                       {profile.name}
-                    </button>
+                    </Button>
                   )
                 })}
               </div>
@@ -105,22 +109,26 @@ export function Header({
           )}
 
           {onCreateAgent && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={onCreateAgent}
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
               title={t.addAgent}
               aria-label={t.addAgent}
             >
               <Plus className="h-4 w-4" />
-            </button>
+            </Button>
           )}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           {/* Agent configuration button */}
           {onOpenAgentSettings && (
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               onClick={onOpenAgentSettings}
               className="group inline-flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-sm font-medium text-foreground/80 transition-all duration-200 hover:bg-muted/80 hover:text-foreground sm:w-auto sm:gap-2 sm:px-4"
               title={locale === "zh" ? "角色设置" : "Agent Settings"}
@@ -128,18 +136,20 @@ export function Header({
             >
               <Settings className="w-4 h-4 text-muted-foreground group-hover:rotate-45 group-hover:text-foreground transition-all duration-300" />
               <span className="hidden sm:inline">{locale === "zh" ? "角色设置" : "Agent Settings"}</span>
-            </button>
+            </Button>
           )}
 
           {/* New Chat button */}
-          <button
+          <Button
+            type="button"
+            variant="ghost"
             onClick={onNewChat}
             className="group inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-medium text-foreground/80 transition-all duration-200 hover:bg-primary/20 hover:text-foreground sm:w-auto sm:gap-2 sm:px-4"
             aria-label={t.newChat}
           >
             <Sparkles className="h-4 w-4 text-primary transition-transform duration-200 group-hover:rotate-12" />
             <span className="hidden sm:inline">{t.newChat}</span>
-          </button>
+          </Button>
         </div>
       </div>
     </header>

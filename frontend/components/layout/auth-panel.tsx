@@ -92,14 +92,16 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
               {t.authSecureAccess}
             </div>
             {!inline && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => onOpenChange(false)}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
                 aria-label="Close auth panel"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </Button>
             )}
           </div>
 
@@ -114,8 +116,9 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
         </div>
 
         <div className="grid grid-cols-2 rounded-lg border border-border bg-secondary p-1">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setActiveTab('login')}
             className={`rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
               activeTab === 'login'
@@ -124,9 +127,10 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
             }`}
           >
             {t.signIn}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setActiveTab('register')}
             className={`rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
               activeTab === 'register'
@@ -135,7 +139,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
             }`}
           >
             {t.register}
-          </button>
+          </Button>
         </div>
 
         <div className="rounded-xl bg-secondary p-3 dark:bg-background/50">
@@ -182,7 +186,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
-                className="h-10 rounded-md border-border bg-background pl-9 text-sm transition-all duration-200 hover:border-primary/50 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/15"
+                className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
                 required
               />
             </div>
@@ -204,7 +208,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className="h-10 rounded-md border-border bg-background pl-9 text-sm transition-all duration-200 hover:border-primary/50 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/15"
+                  className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
                 />
               </div>
             </div>
@@ -225,7 +229,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="h-10 rounded-md border-border bg-background pl-9 text-sm transition-all duration-200 hover:border-primary/50 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/15"
+                className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
                 required
               />
             </div>
@@ -247,7 +251,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={loading}
-                  className="h-10 rounded-md border-border bg-background pl-9 text-sm transition-all duration-200 hover:border-primary/50 focus-visible:border-primary focus-visible:ring-4 focus-visible:ring-primary/15"
+                  className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
                   required
                 />
               </div>
@@ -276,24 +280,26 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
           {activeTab === 'login' ? (
             <>
               {t.dontHaveAccount}{' '}
-              <button
+              <Button
                 type="button"
+                variant="link"
                 onClick={() => setActiveTab('register')}
-                className="cursor-pointer font-medium text-primary hover:text-primary-active hover:underline"
+                className="h-auto cursor-pointer p-0 font-medium text-primary hover:text-primary-active"
               >
                 {t.createOneNow}
-              </button>
+              </Button>
             </>
           ) : (
             <>
               {t.alreadyHaveAccount}{' '}
-              <button
+              <Button
                 type="button"
+                variant="link"
                 onClick={() => setActiveTab('login')}
-                className="cursor-pointer font-medium text-primary hover:text-primary-active hover:underline"
+                className="h-auto cursor-pointer p-0 font-medium text-primary hover:text-primary-active"
               >
                 {t.signInHere}
-              </button>
+              </Button>
             </>
           )}
         </div>
