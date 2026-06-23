@@ -7,6 +7,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { StatusNotice } from "@/components/ui/status-notice"
 import { LoaderCircle, Plus, SendHorizontal, Square } from "lucide-react"
 import { FilePreviewGrid } from "./features/file-preview-grid"
 import { VoiceInputButton } from "./features/voice-input-button"
@@ -99,16 +100,16 @@ export function ChatInput({
 
           {/* Upload Error */}
           {uploadError && (
-            <div className="mb-2 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+            <StatusNotice tone="error" compact className="mb-2">
               {uploadError}
-            </div>
+            </StatusNotice>
           )}
 
           {/* Voice Error */}
           {voiceError && (
-            <div className="mb-2 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+            <StatusNotice tone="error" compact className="mb-2">
               {voiceError}
-            </div>
+            </StatusNotice>
           )}
 
           {/* Queued Messages */}
@@ -117,7 +118,7 @@ export function ChatInput({
               {queuedMessages.map((msg) => (
                 <div
                   key={msg.id}
-                  className="flex items-center gap-2 px-3 py-2 bg-muted/50 border border-border/50 rounded-lg text-sm"
+                  className="flex items-center gap-2 rounded-lg border border-border/50 bg-secondary/60 px-3 py-2 text-sm"
                 >
                   <div className="flex items-center gap-1.5 text-muted-foreground flex-shrink-0">
                     <svg

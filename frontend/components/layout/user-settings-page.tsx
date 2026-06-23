@@ -6,7 +6,6 @@ import {
   Mail,
   Shield,
   Loader2,
-  AlertCircle,
   Settings2,
   ArrowLeft,
   MessagesSquare,
@@ -25,6 +24,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { AppHeader, AppShell } from "@/components/ui/app-shell"
+import { NavItem } from "@/components/ui/nav-item"
+import { PageSection, PageSectionTitle } from "@/components/ui/page-section"
+import { StatusNotice } from "@/components/ui/status-notice"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
@@ -465,19 +468,13 @@ export function UserSettingsPage({
 
   if (!user) return null
 
-  // ---- Section card class ----
-  const sectionCardClass = elderOptimized
-    ? "space-y-5 rounded-xl p-6"
-    : "space-y-4 rounded-xl p-5"
-
-  const sectionTitleClass = elderOptimized
-    ? "text-base"
-    : "text-xs uppercase tracking-wider"
+  const sectionDensity = elderOptimized ? "roomy" : "default"
+  const sectionTitleCompact = !elderOptimized
 
   return (
-    <div className={`h-screen flex flex-col bg-background text-foreground overflow-hidden ${elderOptimized ? "text-[17px]" : ""}`}>
+    <AppShell className={`flex-col ${elderOptimized ? "text-[17px]" : ""}`}>
       {/* Header */}
-      <header className={`${elderOptimized ? "min-h-20 px-5 sm:px-8 py-3" : "h-16 px-6"} border-b border-border/60 bg-background/95 backdrop-blur flex items-center justify-between flex-shrink-0 gap-3`}>
+      <AppHeader className={`${elderOptimized ? "min-h-20 px-5 py-3 sm:px-8" : "px-6"} justify-between gap-3`}>
         <div className="flex items-center gap-3">
           <div>
             <h1 className={`${elderOptimized ? "text-2xl gap-2" : "text-base gap-1.5"} font-semibold tracking-wide flex items-center font-display`}>
@@ -513,7 +510,7 @@ export function UserSettingsPage({
             {zh ? "返回对话" : "Back to Chat"}
           </Button>
         </div>
-      </header>
+      </AppHeader>
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
@@ -525,18 +522,13 @@ export function UserSettingsPage({
                 {zh ? "配置目录" : "Sections"}
               </div>
               {NAV_SECTIONS.map(({ id, icon: Icon, labelZh, labelEn }) => (
-                <button
+                <NavItem
                   key={id}
                   onClick={() => scrollToSection(id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-all duration-150 ${
-                    activeSection === id
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="truncate">{zh ? labelZh : labelEn}</span>
-                </button>
+                  icon={Icon}
+                  active={activeSection === id}
+                  label={zh ? labelZh : labelEn}
+                />
               ))}
             </nav>
           </aside>
@@ -554,22 +546,21 @@ export function UserSettingsPage({
 
             {/* Error */}
             {error && (
-              <div className={`flex items-center gap-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive ${elderOptimized ? "p-4 text-base" : "p-3 text-sm"}`}>
-                <AlertCircle className={`${elderOptimized ? "w-5 h-5" : "w-4 h-4"} shrink-0`} />
-                <div className="font-medium truncate">{error}</div>
-              </div>
+              <StatusNotice tone="error" className={elderOptimized ? "p-4 text-base" : undefined}>
+                {error}
+              </StatusNotice>
             )}
 
             {/* ============ Section: Optimized Display ============ */}
-            <div
+            <PageSection
               id="section-display"
               ref={registerSectionRef("section-display")}
-              className={`${sectionCardClass} border border-primary/20 bg-primary/5`}
+              tone="primary"
+              density={sectionDensity}
             >
-              <h3 className={`${sectionTitleClass} font-bold text-muted-foreground flex items-center gap-1.5`}>
-                <Accessibility className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} text-primary`} />
+              <PageSectionTitle icon={Accessibility} compact={sectionTitleCompact}>
                 {zh ? "优化显示" : "Optimized Display"}
-              </h3>
+              </PageSectionTitle>
               <button
                 type="button"
                 role="switch"
@@ -601,18 +592,17 @@ export function UserSettingsPage({
                   </div>
                 </div>
               </button>
-            </div>
+            </PageSection>
 
             {/* ============ Section: Profile Info ============ */}
-            <div
+            <PageSection
               id="section-profile"
               ref={registerSectionRef("section-profile")}
-              className={`${sectionCardClass} border border-border/40 bg-background/50`}
+              density={sectionDensity}
             >
-              <h3 className={`${sectionTitleClass} font-bold text-muted-foreground flex items-center gap-1.5`}>
-                <User className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"}`} />
+              <PageSectionTitle icon={User} compact={sectionTitleCompact}>
                 {zh ? "基本信息" : "Profile Information"}
-              </h3>
+              </PageSectionTitle>
 
               {/* Username */}
               <div className={elderOptimized ? "space-y-2" : "space-y-1.5"}>
@@ -655,18 +645,17 @@ export function UserSettingsPage({
                   />
                 </div>
               </div>
-            </div>
+            </PageSection>
 
             {/* ============ Section: Preferences ============ */}
-            <div
+            <PageSection
               id="section-prefs"
               ref={registerSectionRef("section-prefs")}
-              className={`${sectionCardClass} border border-border/40 bg-background/50`}
+              density={sectionDensity}
             >
-              <h3 className={`${sectionTitleClass} font-bold text-muted-foreground flex items-center gap-1.5`}>
-                <Settings2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"}`} />
+              <PageSectionTitle icon={Settings2} compact={sectionTitleCompact}>
                 {zh ? "通用偏好 (提示词注入)" : "General Preferences (Prompt Injection)"}
-              </h3>
+              </PageSectionTitle>
 
               <div className={elderOptimized ? "space-y-2" : "space-y-1.5"}>
                 <Label htmlFor="settings-preferences" className={`${elderOptimized ? "text-base" : "text-xs"} font-semibold text-muted-foreground`}>
@@ -690,18 +679,17 @@ export function UserSettingsPage({
                     : "This information will be injected into the agent's system prompt to help it better understand your needs and preferences."}
                 </p>
               </div>
-            </div>
+            </PageSection>
 
             {/* ============ Section: Safety ============ */}
-            <div
+            <PageSection
               id="section-safety"
               ref={registerSectionRef("section-safety")}
-              className={`${sectionCardClass} border border-border/40 bg-background/50`}
+              density={sectionDensity}
             >
-              <h3 className={`${sectionTitleClass} font-bold text-muted-foreground flex items-center gap-1.5`}>
-                <Shield className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"}`} />
+              <PageSectionTitle icon={Shield} compact={sectionTitleCompact}>
                 {zh ? "安全选项" : "Safety Options"}
-              </h3>
+              </PageSectionTitle>
 
               <button
                 type="button"
@@ -734,18 +722,17 @@ export function UserSettingsPage({
                   </div>
                 </div>
               </button>
-            </div>
+            </PageSection>
 
             {/* ============ Section: Voiceprint Management ============ */}
-            <div
+            <PageSection
               id="section-voiceprint"
               ref={registerSectionRef("section-voiceprint")}
-              className={`${sectionCardClass} border border-border/40 bg-background/50`}
+              density={sectionDensity}
             >
-              <h3 className={`${sectionTitleClass} font-bold text-muted-foreground flex items-center gap-1.5`}>
-                <Waves className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"}`} />
+              <PageSectionTitle icon={Waves} compact={sectionTitleCompact}>
                 {zh ? "声纹管理" : "Voiceprint Management"}
-              </h3>
+              </PageSectionTitle>
 
               <p className={`${elderOptimized ? "text-base leading-7" : "text-xs leading-relaxed"} text-muted-foreground`}>
                 {zh
@@ -849,18 +836,17 @@ export function UserSettingsPage({
                   <p className={`${elderOptimized ? "text-sm" : "text-xs"} text-muted-foreground`}>{effectiveVoiceprintStatus}</p>
                 )}
               </div>
-            </div>
+            </PageSection>
 
             {/* ============ Section: API Keys ============ */}
-            <div
+            <PageSection
               id="section-apikeys"
               ref={registerSectionRef("section-apikeys")}
-              className={`${sectionCardClass} border border-border/40 bg-background/50`}
+              density={sectionDensity}
             >
-              <h3 className={`${sectionTitleClass} font-bold text-muted-foreground flex items-center gap-1.5`}>
-                <KeyRound className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"}`} />
+              <PageSectionTitle icon={KeyRound} compact={sectionTitleCompact}>
                 {zh ? "API Key 与远程调用" : "API Keys & Remote Calls"}
-              </h3>
+              </PageSectionTitle>
 
               <p className={`${elderOptimized ? "text-base leading-7" : "text-xs leading-relaxed"} text-muted-foreground`}>
                 {zh
@@ -927,7 +913,7 @@ export function UserSettingsPage({
                   </div>
                 )}
               </div>
-            </div>
+            </PageSection>
 
             {/* Multi-agent toggle (kept at bottom) */}
             <Button
@@ -966,6 +952,6 @@ export function UserSettingsPage({
           </div>
         </main>
       </div>
-    </div>
+    </AppShell>
   )
 }

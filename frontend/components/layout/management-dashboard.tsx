@@ -37,6 +37,7 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { AppHeader, AppShell } from "@/components/ui/app-shell"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { useT, useI18n } from "@/lib/i18n"
@@ -1160,9 +1161,9 @@ export function ManagementDashboard({
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
+    <AppShell className="flex-col">
       {/* 1. Header Area */}
-      <header className="h-16 px-6 border-b border-border/60 bg-background/95 backdrop-blur flex items-center justify-between flex-shrink-0">
+      <AppHeader className="justify-between px-6">
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-base font-semibold tracking-wide flex items-center gap-1.5 font-display">
@@ -1183,7 +1184,7 @@ export function ManagementDashboard({
           <ArrowLeft className="w-4 h-4" />
           {t.backToChat}
         </Button>
-      </header>
+      </AppHeader>
 
       {/* 2. Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
@@ -3012,6 +3013,6 @@ export function ManagementDashboard({
           )}
         </main>
       </div>
-    </div>
+    </AppShell>
   )
 }

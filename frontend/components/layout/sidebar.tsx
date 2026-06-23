@@ -3,9 +3,11 @@
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
 import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
+import { AppSidebar } from "@/components/ui/app-shell"
+import { IconAction } from "@/components/ui/icon-action"
+import { NavItem } from "@/components/ui/nav-item"
 import type { Thread } from "@/lib/hooks/threads"
 import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
@@ -231,6 +233,12 @@ export const Sidebar = memo(function Sidebar({
   // Memoize grouped threads to avoid recalculating on every render
   const groupedThreads = useMemo(() => groupThreads(filteredThreads), [filteredThreads])
   const { today, yesterday, last7Days, older } = groupedThreads
+  const configItems = [
+    { view: "skills" as const, icon: Wrench, label: t.skills },
+    { view: "agents" as const, icon: Bot, label: t.agents },
+    { view: "knowledge" as const, icon: Database, label: t.knowledgeBase },
+    { view: "mcp" as const, icon: Cpu, label: t.mcpServers },
+  ]
 
   // Memoize event handlers to prevent unnecessary re-renders
   const handleSelectThread = useCallback((threadId: string) => {
@@ -289,119 +297,75 @@ export const Sidebar = memo(function Sidebar({
   // Early return for collapsed state (after all hooks)
   if (isCollapsed) {
     return (
-      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col justify-between shadow-depth-sm h-screen">
+      <AppSidebar className="h-screen w-16 justify-between bg-sidebar shadow-depth-sm">
         <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
-          <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
-            <PanelLeft className="w-5 h-5" />
-          </Button>
+          <IconAction icon={PanelLeft} onClick={onToggle} title={locale === "zh" ? "展开侧栏" : "Expand sidebar"} aria-label={locale === "zh" ? "展开侧栏" : "Expand sidebar"} />
         </div>
 
         {/* Collapsed bottom shortcuts */}
         <div className="flex flex-col items-center gap-3.5 pb-6">
-          <button
+          <NavItem
             onClick={() => setIsConfigOpen((open) => !open)}
-            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-              isConfigView
-                ? "bg-primary/15 text-primary border-primary/20"
-                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
-            }`}
+            icon={Settings}
+            active={isConfigView}
+            collapsed
             title={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
             aria-label={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
             aria-expanded={isConfigOpen}
-          >
-            <Settings className="w-5 h-5" />
-          </button>
+          />
           {isConfigOpen && (
             <div className="flex flex-col items-center gap-3.5">
-              <button
-                onClick={() => onViewChange?.("skills")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-                  currentView === "skills"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
-                }`}
-                title={t.skills}
-              >
-                <Wrench className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => onViewChange?.("agents")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-                  currentView === "agents"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
-                }`}
-                title={t.agents}
-              >
-                <Bot className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => onViewChange?.("knowledge")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-                  currentView === "knowledge"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
-                }`}
-                title={t.knowledgeBase}
-              >
-                <Database className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => onViewChange?.("mcp")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-                  currentView === "mcp"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
-                }`}
-                title={t.mcpServers}
-              >
-                <Cpu className="w-5 h-5" />
-              </button>
+              {configItems.map((item) => (
+                <NavItem
+                  key={item.view}
+                  onClick={() => onViewChange?.(item.view)}
+                  icon={item.icon}
+                  active={currentView === item.view}
+                  collapsed
+                  title={item.label}
+                  aria-label={item.label}
+                />
+              ))}
             </div>
           )}
-          <button
+          <NavItem
             onClick={openAdminDashboard}
-            className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            icon={LayoutDashboard}
+            collapsed
             title={t.backend}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-          </button>
-          <button
+            aria-label={t.backend}
+          />
+          <NavItem
             onClick={() => onViewChange?.("developer-manual")}
-            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
-              currentView === "developer-manual"
-                ? "bg-primary/15 text-primary border-primary/20"
-                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
-            }`}
+            icon={BookOpenText}
+            active={currentView === "developer-manual"}
+            collapsed
             title={t.developerManual}
-          >
-            <BookOpenText className="w-5 h-5" />
-          </button>
-          <button
+            aria-label={t.developerManual}
+          />
+          <NavItem
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            icon={mounted && resolvedTheme === "dark" ? Sun : Moon}
+            collapsed
             title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
-          >
-            {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+            aria-label={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+          />
           
           <div className="w-8 border-t border-border/40 my-1 flex-shrink-0" />
           
           <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => onViewChange?.("settings")} />
         </div>
-      </aside>
+      </AppSidebar>
     )
   }
 
   return (
     <>
       <style>{scrollbarStyles}</style>
-      <aside className="hidden md:flex w-56 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter border-r border-border/60 flex-col shadow-depth-md">
-        <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
+      <AppSidebar className="w-56 bg-sidebar shadow-depth-md">
+        <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-sidebar">
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
-              <PanelLeftClose className="w-5 h-5" />
-            </Button>
+            <IconAction icon={PanelLeftClose} onClick={onToggle} title={locale === "zh" ? "收起侧栏" : "Collapse sidebar"} aria-label={locale === "zh" ? "收起侧栏" : "Collapse sidebar"} />
             <Image
               src="/logo.png"
               alt="WSIRI"
@@ -414,7 +378,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
 
       {/* Search Bar */}
-      <div className="px-3 py-2 bg-gradient-to-r from-sidebar-accent/5 via-transparent to-transparent">
+      <div className="px-3 py-2">
         <div className="relative group">
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10">
             <Search className="w-4 h-4 text-muted-foreground/70 group-focus-within:text-primary transition-all duration-200" />
@@ -439,7 +403,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 bg-gradient-to-b from-sidebar-accent/5 via-transparent to-sidebar-accent/10 custom-scrollbar">
+      <nav className="flex-1 overflow-y-auto py-2 custom-scrollbar">
         {isLoading ? (
           <div className="mt-3 px-3">
             <div className="px-3 mb-1.5">
@@ -480,99 +444,45 @@ export const Sidebar = memo(function Sidebar({
       </nav>
 
       {/* Bottom Management Navigation */}
-      <div className="px-3 py-2 border-t border-border/40 bg-gradient-to-b from-transparent to-sidebar-accent/10 flex flex-col gap-1 flex-shrink-0">
-        <button
+      <div className="px-3 py-2 border-t border-border/40 flex flex-col gap-1 flex-shrink-0">
+        <NavItem
           onClick={() => setIsConfigOpen((open) => !open)}
-          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
-            isConfigView
-              ? "bg-primary/15 text-primary border-primary/20 font-medium"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
-          }`}
+          icon={Settings}
+          active={isConfigView}
+          label={t.configuration}
           aria-expanded={isConfigOpen}
         >
-          <Settings className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
-          <span className="truncate flex-1 text-left">{t.configuration}</span>
           <ChevronDown className={`w-4 h-4 flex-shrink-0 text-muted-foreground/80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
-        </button>
+        </NavItem>
         {isConfigOpen && (
           <div className="flex flex-col gap-1 pl-3">
-            <button
-              onClick={() => onViewChange?.("skills")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
-                currentView === "skills"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
-              }`}
-            >
-              <Wrench className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-              <span className="truncate">{t.skills}</span>
-            </button>
-            <button
-              onClick={() => onViewChange?.("agents")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
-                currentView === "agents"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
-              }`}
-            >
-              <Bot className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-              <span className="truncate">{t.agents}</span>
-            </button>
-            <button
-              onClick={() => onViewChange?.("knowledge")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
-                currentView === "knowledge"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
-              }`}
-            >
-              <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-              <span className="truncate">{t.knowledgeBase}</span>
-            </button>
-            <button
-              onClick={() => onViewChange?.("mcp")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
-                currentView === "mcp"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
-              }`}
-            >
-              <Cpu className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-              <span className="truncate">{t.mcpServers}</span>
-            </button>
+            {configItems.map((item) => (
+              <NavItem
+                key={item.view}
+                onClick={() => onViewChange?.(item.view)}
+                icon={item.icon}
+                active={currentView === item.view}
+                label={item.label}
+              />
+            ))}
           </div>
         )}
-        <button
+        <NavItem
           onClick={openAdminDashboard}
-          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground group"
-        >
-          <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-          <span className="truncate">{t.backend}</span>
-        </button>
-        <button
+          icon={LayoutDashboard}
+          label={t.backend}
+        />
+        <NavItem
           onClick={() => onViewChange?.("developer-manual")}
-          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
-            currentView === "developer-manual"
-              ? "bg-primary/15 text-primary border-primary/20 font-medium"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground"
-          }`}
-        >
-          <BookOpenText className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
-          <span className="truncate">{t.developerManual}</span>
-        </button>
-        <button
+          icon={BookOpenText}
+          active={currentView === "developer-manual"}
+          label={t.developerManual}
+        />
+        <NavItem
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
-        >
-          {mounted && resolvedTheme === "dark" ? (
-            <Sun className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
-          ) : (
-            <Moon className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
-          )}
-          <span className="truncate">
-            {mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
-          </span>
-        </button>
+          icon={mounted && resolvedTheme === "dark" ? Sun : Moon}
+          label={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+        />
       </div>
 
       <div className="pt-2 pb-3 px-3">
@@ -580,7 +490,7 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <AuthPanel open={isAuthOpen} onOpenChange={setIsAuthOpen} />
-    </aside>
+    </AppSidebar>
     </>
   )
 })

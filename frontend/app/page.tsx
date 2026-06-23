@@ -11,6 +11,7 @@ import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { AuthPanel } from "@/components/layout/auth-panel"
+import { AppMain, AppShell, AppSidebar } from "@/components/ui/app-shell"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -36,8 +37,8 @@ type DashboardView = "chat" | "skills" | "agents" | "knowledge" | "mcp" | "setti
 
 function DashboardFallback() {
   return (
-    <div className="flex h-screen bg-background" aria-busy="true" aria-label="Loading dashboard" role="status">
-      <aside className="hidden w-56 flex-col border-r border-border/60 bg-sidebar md:flex">
+    <AppShell aria-busy="true" aria-label="Loading dashboard" role="status">
+      <AppSidebar className="w-56">
         <div className="flex h-16 items-center border-b border-border/60 px-3">
           <LoadingPlaceholder variant="button" className="h-9 w-9" />
         </div>
@@ -54,9 +55,9 @@ function DashboardFallback() {
           <LoadingPlaceholder variant="button" className="h-9 w-full" />
           <LoadingPlaceholder variant="button" className="h-9 w-4/5" />
         </div>
-      </aside>
+      </AppSidebar>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <AppMain className="flex flex-col">
         <header className="flex h-16 items-center justify-between border-b border-border/60 px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <LoadingPlaceholder variant="button" className="h-9 w-9 md:hidden" />
@@ -85,8 +86,8 @@ function DashboardFallback() {
             </div>
           </div>
         </main>
-      </div>
-    </div>
+      </AppMain>
+    </AppShell>
   )
 }
 
@@ -633,7 +634,7 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className={`flex h-screen bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
+      <AppShell className={elderOptimized ? "elder-optimized-ui" : ""}>
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -645,7 +646,7 @@ function DashboardContent() {
           currentView={currentView}
           onViewChange={setCurrentView}
         />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <AppMain className="flex flex-col">
         <div
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
           aria-hidden={currentView !== "chat"}
@@ -712,8 +713,8 @@ function DashboardContent() {
             createAgentOnOpenSignal={createAgentOnOpenSignal}
           />
         ) : null}
-      </div>
-    </div>
+      </AppMain>
+    </AppShell>
     </>
   )
 }
