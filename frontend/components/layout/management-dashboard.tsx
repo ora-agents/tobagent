@@ -376,6 +376,7 @@ export function ManagementDashboard({
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
+  const [agentKbSearch, setAgentKbSearch] = useState("")
   const [agentSkillSearch, setAgentSkillSearch] = useState("")
   const [agentMcpSearch, setAgentMcpSearch] = useState("")
   const [agentRoleSearch, setAgentRoleSearch] = useState("")
@@ -650,6 +651,7 @@ export function ManagementDashboard({
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
     onEditAgentChange?.(null)
+    setAgentKbSearch("")
     setAgentSkillSearch("")
     setAgentMcpSearch("")
     setAgentRoleSearch("")
@@ -686,6 +688,7 @@ export function ManagementDashboard({
     setIsEditingAgent(true)
     setIsCreatingAgent(false)
     onEditAgentChange?.(profile.id)
+    setAgentKbSearch("")
     setAgentSkillSearch("")
     setAgentMcpSearch("")
     setAgentRoleSearch("")
@@ -1188,6 +1191,12 @@ export function ManagementDashboard({
     : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
+  const filteredAgentKnowledgeBases = knowledgeBases.filter(kb => {
+    const query = agentKbSearch.trim().toLowerCase()
+    if (!query) return true
+    const fileNames = (kb.files || []).map(file => file.name).join(" ")
+    return [kb.name, kb.description, kb.id, fileNames].some(value => value.toLowerCase().includes(query))
+  })
   const filteredAgentSkills = skills.filter(skill => {
     const query = agentSkillSearch.trim().toLowerCase()
     if (!query) return true
@@ -2246,9 +2255,23 @@ export function ManagementDashboard({
 
                     {agentForm.enabledTools.includes("rag_search") && knowledgeBases.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {knowledgeBases.map((kb) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.knowledgeBaseIds.length}/{knowledgeBases.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentKbSearch}
+                            onChange={e => setAgentKbSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索知识库名称、描述、文件或 ID" : "Search knowledge bases by name, description, file, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentKnowledgeBases.length > 0 ? filteredAgentKnowledgeBases.map((kb) => {
                             const linked = agentForm.knowledgeBaseIds.includes(kb.id)
                             return (
                               <div
@@ -2272,7 +2295,11 @@ export function ManagementDashboard({
                                 </div>
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的知识库" : "No matching knowledge bases found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
