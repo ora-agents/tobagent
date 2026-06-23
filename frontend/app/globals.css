@@ -162,201 +162,232 @@
   }
 }
 
-@layer components {
-  .prompt-mdx-editor.mdxeditor,
-  .prompt-mdx-editor {
-    display: flex;
-    flex-direction: column;
-    overflow: visible;
-    border-radius: 0.5rem;
-    background: var(--secondary);
-    color: var(--foreground);
-    padding: 0;
-    --prompt-mdx-toolbar-sticky-top: 0px;
-  }
+/* Keep MDXEditor overrides unlayered so they win over the package's unlayered CSS. */
+.prompt-mdx-editor.mdxeditor,
+.prompt-mdx-editor {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  border-radius: 0.5rem;
+  background: var(--secondary);
+  color: var(--foreground);
+  padding: 0;
+  --basePageBg: var(--card);
+  --baseBgSubtle: var(--secondary);
+  --baseBg: var(--muted);
+  --baseBgHover: color-mix(in srgb, var(--muted) 72%, var(--foreground) 8%);
+  --baseBgActive: var(--primary-soft);
+  --baseBorder: var(--border);
+  --baseBorderHover: var(--muted-foreground);
+  --baseText: var(--muted-foreground);
+  --baseTextContrast: var(--foreground);
+  --accentText: var(--primary);
+  --prompt-mdx-toolbar-sticky-top: 0px;
+}
 
-  .prompt-mdx-editor.mdxeditor:focus-within,
-  .prompt-mdx-editor:focus-within {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 14%, transparent);
-  }
+.prompt-mdx-editor.mdxeditor:focus-within,
+.prompt-mdx-editor:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 14%, transparent);
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar,
-  .mdxeditor-toolbar.prompt-mdx-toolbar,
-  .prompt-mdx-toolbar {
-    position: sticky;
-    top: var(--prompt-mdx-toolbar-sticky-top);
-    z-index: 20;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 0.25rem;
-    width: 100%;
-    min-height: 2.5rem;
-    margin: 0;
-    padding: 0.375rem;
-    border-radius: 0.5rem 0.5rem 0 0;
-    background: var(--muted);
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
+.prompt-mdx-editor .mdxeditor-toolbar,
+.mdxeditor-toolbar.prompt-mdx-toolbar,
+.prompt-mdx-toolbar {
+  position: sticky;
+  top: var(--prompt-mdx-toolbar-sticky-top);
+  z-index: 20;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  min-height: 2.5rem;
+  margin: 0;
+  padding: 0.375rem;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: var(--muted);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
 
-  .prompt-mdx-editor .mdxeditor-root-contenteditable {
-    margin: 0;
-    padding: 0;
-  }
+.prompt-mdx-editor .mdxeditor-root-contenteditable {
+  margin: 0;
+  padding: 0;
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar > *,
-  .mdxeditor-toolbar.prompt-mdx-toolbar > *,
-  .prompt-mdx-toolbar > * {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    align-items: center;
-    flex: 0 0 auto;
-    gap: 0.25rem;
-  }
+.prompt-mdx-editor .mdxeditor-toolbar > *,
+.mdxeditor-toolbar.prompt-mdx-toolbar > *,
+.prompt-mdx-toolbar > *,
+.prompt-mdx-editor .mdxeditor-toolbar [role="group"] {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
 
-  .agent-prompt-editor .prompt-mdx-editor {
-    --prompt-mdx-toolbar-sticky-top: -1.5rem;
-  }
+.agent-prompt-editor .prompt-mdx-editor {
+  --prompt-mdx-toolbar-sticky-top: -1.5rem;
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar button,
-  .mdxeditor-toolbar.prompt-mdx-toolbar button {
-    display: inline-flex;
-    width: 1.75rem;
-    height: 1.75rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.375rem;
-    color: var(--foreground);
-  }
+.prompt-mdx-editor .mdxeditor-toolbar button,
+.mdxeditor-toolbar.prompt-mdx-toolbar button {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: var(--foreground);
+  line-height: 1;
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar button:hover,
-  .mdxeditor-toolbar.prompt-mdx-toolbar button:hover {
-    background: var(--muted);
-  }
+.prompt-mdx-editor .mdxeditor-toolbar button:hover,
+.mdxeditor-toolbar.prompt-mdx-toolbar button:hover {
+  background: color-mix(in srgb, var(--muted) 76%, var(--foreground) 8%);
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar button[data-state="on"],
-  .mdxeditor-toolbar.prompt-mdx-toolbar button[data-state="on"] {
-    background: var(--primary-soft);
-    color: var(--primary);
-  }
+.prompt-mdx-editor .mdxeditor-toolbar button[data-state="on"],
+.mdxeditor-toolbar.prompt-mdx-toolbar button[data-state="on"] {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar div[role="separator"],
-  .mdxeditor-toolbar.prompt-mdx-toolbar div[role="separator"] {
-    width: 0.25rem;
-    height: 1.25rem;
-    margin: 0 0.25rem;
-    border-radius: 9999px;
-    background: var(--background);
-  }
+.prompt-mdx-editor .mdxeditor-toolbar div[role="separator"],
+.mdxeditor-toolbar.prompt-mdx-toolbar div[role="separator"] {
+  width: 0.25rem;
+  height: 1.25rem;
+  margin: 0 0.25rem;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--background);
+}
 
-  .prompt-mdx-editor .mdxeditor-toolbar [role="combobox"],
-  .mdxeditor-toolbar.prompt-mdx-toolbar [role="combobox"] {
-    display: inline-flex;
-    min-width: 7.5rem;
-    height: 1.75rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.375rem;
-    border-radius: 0.375rem;
-    background: var(--secondary);
-    padding: 0 0.5rem;
-    color: var(--foreground);
-    font-size: 0.8125rem;
-  }
+.prompt-mdx-editor .mdxeditor-toolbar [role="combobox"],
+.mdxeditor-toolbar.prompt-mdx-toolbar [role="combobox"] {
+  display: inline-flex;
+  min-width: 7.5rem;
+  width: auto;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  border-radius: 0.375rem;
+  background: var(--secondary);
+  padding: 0 0.5rem;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  line-height: 1;
+}
 
-  .prompt-mdx-content {
-    min-height: 0;
-    height: auto;
-    overflow-y: visible;
-    padding: 0.875rem 1rem;
-    color: var(--foreground);
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
+.prompt-mdx-editor .mdxeditor-toolbar [role="combobox"] > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  .prompt-mdx-content:focus {
-    outline: none;
-  }
+.prompt-mdx-editor .mdxeditor-toolbar svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  color: currentColor;
+}
 
-  .prompt-mdx-editor [contenteditable="true"],
-  .prompt-mdx-editor .cm-editor,
-  .prompt-mdx-editor .cm-scroller {
-    min-height: 0 !important;
-    height: auto !important;
-  }
+.prompt-mdx-content {
+  min-height: 0;
+  height: auto;
+  overflow-y: visible;
+  padding: 0.875rem 1rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
 
-  .prompt-mdx-editor .cm-scroller,
-  .prompt-mdx-editor .cm-content,
-  .prompt-mdx-editor .cm-gutters {
-    overflow: visible !important;
-  }
+.prompt-mdx-content:focus {
+  outline: none;
+}
 
-  .prompt-mdx-content p {
-    margin: 0.35rem 0;
-  }
+.prompt-mdx-editor [contenteditable="true"],
+.prompt-mdx-editor .cm-editor,
+.prompt-mdx-editor .cm-scroller {
+  min-height: 0 !important;
+  height: auto !important;
+}
 
-  .prompt-mdx-content h1,
-  .prompt-mdx-content h2,
-  .prompt-mdx-content h3 {
-    margin: 0.75rem 0 0.35rem;
-    color: var(--foreground);
-    font-weight: 600;
-    letter-spacing: 0;
-  }
+.prompt-mdx-editor .cm-scroller,
+.prompt-mdx-editor .cm-content,
+.prompt-mdx-editor .cm-gutters {
+  overflow: visible !important;
+}
 
-  .prompt-mdx-content h1 {
-    font-size: 1.25rem;
-  }
+.prompt-mdx-content p {
+  margin: 0.35rem 0;
+}
 
-  .prompt-mdx-content h2 {
-    font-size: 1.125rem;
-  }
+.prompt-mdx-content h1,
+.prompt-mdx-content h2,
+.prompt-mdx-content h3 {
+  margin: 0.75rem 0 0.35rem;
+  color: var(--foreground);
+  font-weight: 600;
+  letter-spacing: 0;
+}
 
-  .prompt-mdx-content h3 {
-    font-size: 1rem;
-  }
+.prompt-mdx-content h1 {
+  font-size: 1.25rem;
+}
 
-  .prompt-mdx-content ul,
-  .prompt-mdx-content ol {
-    margin: 0.4rem 0;
-    padding-left: 1.25rem;
-  }
+.prompt-mdx-content h2 {
+  font-size: 1.125rem;
+}
 
-  .prompt-mdx-content blockquote {
-    margin: 0.625rem 0;
-    border-left: 3px solid var(--primary);
-    padding-left: 0.75rem;
-    color: var(--muted-foreground);
-  }
+.prompt-mdx-content h3 {
+  font-size: 1rem;
+}
 
-  .prompt-mdx-content code {
-    border-radius: 0.25rem;
-    background: var(--muted);
-    padding: 0.125rem 0.25rem;
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-  }
+.prompt-mdx-content ul,
+.prompt-mdx-content ol {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+}
 
-  .prompt-mdx-content pre {
-    overflow-x: auto;
-    border-radius: 0.5rem;
-    background: var(--secondary);
-    padding: 0.75rem;
-  }
+.prompt-mdx-content blockquote {
+  margin: 0.625rem 0;
+  border-left: 3px solid var(--primary);
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+}
 
-  .prompt-mdx-editor .cm-editor {
-    background: var(--secondary);
-    color: var(--foreground);
-  }
+.prompt-mdx-content code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.125rem 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
 
-  .prompt-mdx-editor .cm-gutters {
-    background: var(--muted);
-    color: var(--muted-foreground);
-    border-right-color: transparent;
-  }
+.prompt-mdx-content pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--secondary);
+  padding: 0.75rem;
+}
+
+.prompt-mdx-editor .cm-editor {
+  background: var(--secondary);
+  color: var(--foreground);
+}
+
+.prompt-mdx-editor .cm-gutters {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border-right-color: transparent;
 }
 
 @keyframes loading-shimmer {
