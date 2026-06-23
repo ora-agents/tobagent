@@ -252,6 +252,7 @@
 
   .prompt-mdx-content {
     min-height: 0;
+    height: auto;
     overflow-y: visible;
     padding: 0.875rem 1rem;
     color: var(--foreground);
@@ -261,6 +262,13 @@
 
   .prompt-mdx-content:focus {
     outline: none;
+  }
+
+  .prompt-mdx-editor [contenteditable="true"],
+  .prompt-mdx-editor .cm-editor,
+  .prompt-mdx-editor .cm-scroller {
+    min-height: 0 !important;
+    height: auto !important;
   }
 
   .prompt-mdx-content p {

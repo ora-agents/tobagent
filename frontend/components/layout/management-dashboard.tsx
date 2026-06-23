@@ -1633,7 +1633,7 @@ export function ManagementDashboard({
           {/* AGENTS TAB PANEL                           */}
           {/* ========================================== */}
           {activeTab === "agents" && (
-            <div className="flex-1 flex overflow-hidden">
+            <div className={`flex-1 flex ${isCreatingAgent || isEditingAgent ? "overflow-y-auto" : "overflow-hidden"}`}>
               {/* Left Role List */}
               <div className="w-[300px] border-r border-border/40 flex flex-col flex-shrink-0 bg-background/30">
                 <div className="p-4 border-b border-border/40 flex items-center justify-between">
@@ -1770,7 +1770,7 @@ export function ManagementDashboard({
               </div>
 
               {/* Right Role Form / Details */}
-              <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <div className={`flex-1 p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent ${isCreatingAgent || isEditingAgent ? "overflow-visible" : "overflow-y-auto"}`}>
                 {isCreatingAgent || isEditingAgent ? (
                   <div className="max-w-none space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
@@ -2348,7 +2348,7 @@ export function ManagementDashboard({
                     )}
                       </div>
 
-                      <div className="min-w-0 space-y-1.5 xl:sticky xl:top-0">
+                      <div className="min-w-0 space-y-1.5">
                         <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
                         <PromptMarkdownEditor
                           id="agent-prompt"
