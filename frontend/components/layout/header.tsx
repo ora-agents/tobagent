@@ -47,14 +47,14 @@ export function Header({
   const canSwitchAgents = !!onAgentProfileChange && visibleAgentProfiles.length > 0
 
   return (
-    <header className="flex h-14 shrink-0 items-center border-b border-border/50 bg-background sm:h-16 md:border-b-0">
+    <header className="flex h-14 shrink-0 items-center bg-background sm:h-16">
       <div className="flex w-full items-center justify-between gap-2 px-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {onOpenSidebar && (
             <button
               type="button"
               onClick={onOpenSidebar}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition-colors hover:border-primary/45 hover:bg-primary/10 hover:text-primary md:hidden"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary md:hidden"
               title={locale === "zh" ? "打开菜单" : "Open menu"}
               aria-label={locale === "zh" ? "打开菜单" : "Open menu"}
             >
@@ -78,11 +78,11 @@ export function Header({
                       aria-pressed={isActive}
                       title={profile.name}
                       className={cn(
-                        "h-9 max-w-28 shrink-0 rounded-lg border px-2.5 text-sm font-medium transition-colors sm:max-w-36 sm:px-3",
+                        "h-9 max-w-28 shrink-0 rounded-lg px-2.5 text-sm font-medium transition-colors sm:max-w-36 sm:px-3",
                         "truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                         isActive
-                          ? "border-primary bg-primary text-primary-foreground shadow-depth-xs"
-                          : "border-border/70 bg-card/70 text-foreground/80 hover:border-primary/45 hover:bg-primary/10 hover:text-foreground"
+                          ? "bg-primary text-primary-foreground shadow-depth-xs"
+                          : "bg-muted/70 text-foreground/80 hover:bg-primary/10 hover:text-foreground"
                       )}
                     >
                       {profile.name}
@@ -108,7 +108,7 @@ export function Header({
             <button
               type="button"
               onClick={onCreateAgent}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-background text-muted-foreground transition-colors hover:border-primary/45 hover:bg-primary/10 hover:text-primary"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
               title={t.addAgent}
               aria-label={t.addAgent}
             >
@@ -122,7 +122,7 @@ export function Header({
           {onOpenAgentSettings && (
             <button
               onClick={onOpenAgentSettings}
-              className="group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-muted text-sm font-medium text-foreground/80 transition-all duration-200 hover:border-border hover:bg-muted/80 hover:text-foreground sm:w-auto sm:gap-2 sm:px-4"
+              className="group inline-flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-sm font-medium text-foreground/80 transition-all duration-200 hover:bg-muted/80 hover:text-foreground sm:w-auto sm:gap-2 sm:px-4"
               title={locale === "zh" ? "角色设置" : "Agent Settings"}
               aria-label={locale === "zh" ? "角色设置" : "Agent Settings"}
             >
@@ -134,7 +134,7 @@ export function Header({
           {/* New Chat button */}
           <button
             onClick={onNewChat}
-            className="group inline-flex h-9 w-9 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-sm font-medium text-foreground/80 transition-all duration-200 hover:border-primary/40 hover:bg-primary/20 hover:text-foreground sm:w-auto sm:gap-2 sm:px-4"
+            className="group inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-medium text-foreground/80 transition-all duration-200 hover:bg-primary/20 hover:text-foreground sm:w-auto sm:gap-2 sm:px-4"
             aria-label={t.newChat}
           >
             <Sparkles className="h-4 w-4 text-primary transition-transform duration-200 group-hover:rotate-12" />

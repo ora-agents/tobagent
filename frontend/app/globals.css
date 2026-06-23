@@ -168,9 +168,8 @@
     display: flex;
     flex-direction: column;
     overflow: visible;
-    border: 1px solid var(--border);
     border-radius: 0.5rem;
-    background: var(--background);
+    background: var(--secondary);
     color: var(--foreground);
     padding: 0;
     --prompt-mdx-toolbar-sticky-top: 0px;
@@ -178,7 +177,6 @@
 
   .prompt-mdx-editor.mdxeditor:focus-within,
   .prompt-mdx-editor:focus-within {
-    border-color: var(--ring);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 14%, transparent);
   }
 
@@ -197,9 +195,8 @@
     min-height: 2.5rem;
     margin: 0;
     padding: 0.375rem;
-    border-bottom: 1px solid var(--border);
     border-radius: 0.5rem 0.5rem 0 0;
-    background: var(--secondary);
+    background: var(--muted);
     overflow-x: auto;
     overflow-y: hidden;
   }
@@ -248,10 +245,11 @@
 
   .prompt-mdx-editor .mdxeditor-toolbar div[role="separator"],
   .mdxeditor-toolbar.prompt-mdx-toolbar div[role="separator"] {
-    width: 1px;
+    width: 0.25rem;
     height: 1.25rem;
     margin: 0 0.25rem;
-    border-left: 1px solid var(--border);
+    border-radius: 9999px;
+    background: var(--background);
   }
 
   .prompt-mdx-editor .mdxeditor-toolbar [role="combobox"],
@@ -262,9 +260,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.375rem;
-    border: 1px solid var(--border);
     border-radius: 0.375rem;
-    background: var(--background);
+    background: var(--secondary);
     padding: 0 0.5rem;
     color: var(--foreground);
     font-size: 0.8125rem;
@@ -351,14 +348,14 @@
   }
 
   .prompt-mdx-editor .cm-editor {
-    background: var(--background);
+    background: var(--secondary);
     color: var(--foreground);
   }
 
   .prompt-mdx-editor .cm-gutters {
-    background: var(--secondary);
+    background: var(--muted);
     color: var(--muted-foreground);
-    border-right-color: var(--border);
+    border-right-color: transparent;
   }
 }
 
@@ -517,12 +514,10 @@
 
 .prose h1 {
   font-size: 1.75em;
-  border-bottom: 1px solid var(--color-border);
   padding-bottom: 0.3em;
 }
 .prose h2 {
   font-size: 1.5em;
-  border-bottom: 1px solid var(--color-border);
   padding-bottom: 0.25em;
 }
 .prose h3 {
@@ -546,13 +541,11 @@
   font-size: 0.9em;
   font-family: var(--font-mono);
   color: var(--primary);
-  border: 1px solid var(--border);
 }
 
 .dark .prose code {
   background: #1f1e1b;
   color: #faf9f5;
-  border-color: #37342f;
 }
 
 .prose pre {
@@ -582,13 +575,12 @@
 .prose a {
   color: var(--coral);
   text-decoration: none;
-  border-bottom: 1px solid rgba(22, 65, 153, 0.35);
   transition: all 0.2s ease;
 }
 
 .prose a:hover {
   color: var(--coral-active);
-  border-bottom-color: var(--coral);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
 .prose ul, .prose ol {
@@ -620,7 +612,6 @@
 }
 
 .prose blockquote {
-  border-left: 4px solid var(--coral);
   padding-left: 1.25em;
   padding-top: 0.5em;
   padding-bottom: 0.5em;
@@ -656,7 +647,9 @@
 
 .prose hr {
   border: none;
-  border-top: 1px solid var(--color-border);
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--secondary);
   margin: 2em 0;
 }
 
@@ -673,7 +666,6 @@
   text-align: left;
   font-weight: 600;
   color: #111827;
-  border: 1px solid var(--color-border);
 }
 
 .dark .prose th {
@@ -683,7 +675,6 @@
 
 .prose td {
   padding: 0.75em 1em;
-  border: 1px solid var(--color-border);
   color: #334155;
 }
 

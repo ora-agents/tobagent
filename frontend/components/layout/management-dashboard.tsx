@@ -1359,7 +1359,7 @@ export function ManagementDashboard({
                             setIsEditingMcp(false)
                             setIsCreatingMcp(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
                         </Button>
@@ -1583,7 +1583,7 @@ export function ManagementDashboard({
                             setIsEditingSkill(false)
                             setIsCreatingSkill(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
                         </Button>
@@ -1834,7 +1834,7 @@ export function ManagementDashboard({
                         <Button
                           variant="ghost"
                           onClick={handleCancelAgentForm}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
                         </Button>
@@ -3033,7 +3033,7 @@ export function ManagementDashboard({
                             setIsEditingKB(false)
                             setIsCreatingKB(false)
                           }}
-                          className="rounded-lg border border-border/60 hover:bg-muted/40 cursor-pointer"
+                          className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                         >
                           {t.cancel}
                         </Button>

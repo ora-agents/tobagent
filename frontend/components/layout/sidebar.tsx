@@ -135,7 +135,7 @@ const UserProfileSection = memo(function UserProfileSection({
       return (
         <button
           onClick={onOpenAuth}
-          className="p-2.5 rounded-lg border border-transparent text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground transition-all duration-200 cursor-pointer"
+          className="p-2.5 rounded-lg text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground transition-all duration-200 cursor-pointer"
           title="Sign In"
         >
           <User className="w-5 h-5" />
@@ -145,7 +145,7 @@ const UserProfileSection = memo(function UserProfileSection({
     return (
       <button
         onClick={onOpenAuth}
-        className="flex items-center justify-center gap-2 px-3 py-2 text-sm w-full font-medium rounded-lg text-primary bg-primary/10 border border-primary/20 hover:bg-primary hover:text-primary-foreground shadow-depth-xs hover:shadow-depth-hover transition-all duration-200 cursor-pointer"
+        className="flex items-center justify-center gap-2 px-3 py-2 text-sm w-full font-medium rounded-lg text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground shadow-depth-xs hover:shadow-depth-hover transition-all duration-200 cursor-pointer"
       >
         <LogIn className="w-4 h-4" />
         <span>Sign In</span>
@@ -169,7 +169,7 @@ const UserProfileSection = memo(function UserProfileSection({
   }
 
   return (
-    <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/15 border border-border/40 gap-3 group/profile">
+    <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/25 gap-3 group/profile">
       <button
         onClick={onOpenSettings}
         className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-80 transition-all duration-200 cursor-pointer text-left"
@@ -272,10 +272,10 @@ export const Sidebar = memo(function Sidebar({
             return (
               <div
                 key={thread.thread_id}
-                className={`group flex items-center gap-2 px-3 py-1.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer border ${
+                className={`group flex items-center gap-2 px-3 py-1.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                   thread.thread_id === currentThreadId
-                    ? "bg-primary/15 text-sidebar-foreground border-primary/30"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+                    ? "bg-primary/15 text-sidebar-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/30"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
               >
@@ -299,8 +299,8 @@ export const Sidebar = memo(function Sidebar({
   // Early return for collapsed state (after all hooks)
   if (isCollapsed && !isMobileDrawer) {
     return (
-      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col justify-between shadow-depth-sm h-screen">
-        <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
+      <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar flex-col justify-between shadow-depth-sm h-screen">
+        <div className="px-3 py-4 h-16 flex items-center justify-center">
           <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
             <PanelLeft className="w-5 h-5" />
           </Button>
@@ -310,10 +310,10 @@ export const Sidebar = memo(function Sidebar({
         <div className="flex flex-col items-center gap-3.5 pb-6">
           <button
             onClick={() => setIsConfigOpen((open) => !open)}
-            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               isConfigView
-                ? "bg-primary/15 text-primary border-primary/20"
-                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
             }`}
             title={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
             aria-label={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
@@ -325,10 +325,10 @@ export const Sidebar = memo(function Sidebar({
             <div className="flex flex-col items-center gap-3.5">
               <button
                 onClick={() => handleViewChange("skills")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "skills"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
                 }`}
                 title={t.skills}
               >
@@ -336,10 +336,10 @@ export const Sidebar = memo(function Sidebar({
               </button>
               <button
                 onClick={() => handleViewChange("agents")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "agents"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
                 }`}
                 title={t.agents}
               >
@@ -347,10 +347,10 @@ export const Sidebar = memo(function Sidebar({
               </button>
               <button
                 onClick={() => handleViewChange("knowledge")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "knowledge"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
                 }`}
                 title={t.knowledgeBase}
               >
@@ -358,10 +358,10 @@ export const Sidebar = memo(function Sidebar({
               </button>
               <button
                 onClick={() => handleViewChange("mcp")}
-                className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "mcp"
-                    ? "bg-primary/15 text-primary border-primary/20"
-                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
                 }`}
                 title={t.mcpServers}
               >
@@ -371,17 +371,17 @@ export const Sidebar = memo(function Sidebar({
           )}
           <button
             onClick={openAdminDashboard}
-            className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
             title={t.backend}
           >
             <LayoutDashboard className="w-5 h-5" />
           </button>
           <button
             onClick={() => handleViewChange("developer-manual")}
-            className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               currentView === "developer-manual"
-                ? "bg-primary/15 text-primary border-primary/20"
-                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
             }`}
             title={t.developerManual}
           >
@@ -389,13 +389,13 @@ export const Sidebar = memo(function Sidebar({
           </button>
           <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="p-2.5 rounded-lg border transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground border-transparent"
+            className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
             title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
           >
             {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
           
-          <div className="w-8 border-t border-border/40 my-1 flex-shrink-0" />
+          <div className="w-8 h-1 rounded-full bg-sidebar-accent/40 my-1 flex-shrink-0" />
           
           <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
         </div>
@@ -409,11 +409,11 @@ export const Sidebar = memo(function Sidebar({
       <aside
         className={
           isMobileDrawer
-            ? "flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col border-r border-border/60 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-lg"
-            : "hidden w-56 flex-col border-r border-border/60 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-md md:flex"
+            ? "flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-lg"
+            : "hidden w-56 flex-col bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-md md:flex"
         }
       >
-        <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
+        <div className="px-3 pt-[13px] pb-[14px] bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
           <div className="flex items-center justify-between">
             {isMobileDrawer ? (
               <Button variant="ghost" size="icon" onClick={onMobileClose} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg" aria-label={locale === "zh" ? "关闭菜单" : "Close menu"}>
@@ -446,7 +446,7 @@ export const Sidebar = memo(function Sidebar({
             placeholder={t.searchThreads}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm border-border/40 focus:border-primary/60 focus:bg-background/90 focus:shadow-sm transition-all duration-200 shadow-sm hover:shadow-md hover:bg-background/90 rounded-lg"
+            className="pl-10 pr-8 h-10 text-sm bg-background/80 backdrop-blur-sm focus:bg-background/90 transition-all duration-200 hover:bg-background/90 rounded-lg"
           />
           {searchQuery && (
             <button
@@ -502,13 +502,13 @@ export const Sidebar = memo(function Sidebar({
       </nav>
 
       {/* Bottom Management Navigation */}
-      <div className="px-3 py-2 border-t border-border/40 bg-gradient-to-b from-transparent to-sidebar-accent/10 flex flex-col gap-1 flex-shrink-0">
+      <div className="px-3 py-2 bg-gradient-to-b from-transparent to-sidebar-accent/10 flex flex-col gap-1 flex-shrink-0">
         <button
           onClick={() => setIsConfigOpen((open) => !open)}
-          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             isConfigView
-              ? "bg-primary/15 text-primary border-primary/20 font-medium"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+              ? "bg-primary/15 text-primary font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30"
           }`}
           aria-expanded={isConfigOpen}
         >
@@ -520,10 +520,10 @@ export const Sidebar = memo(function Sidebar({
           <div className="flex flex-col gap-1 pl-3">
             <button
               onClick={() => handleViewChange("skills")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "skills"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
               }`}
             >
               <Wrench className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
@@ -531,10 +531,10 @@ export const Sidebar = memo(function Sidebar({
             </button>
             <button
               onClick={() => handleViewChange("agents")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "agents"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
               }`}
             >
               <Bot className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
@@ -542,10 +542,10 @@ export const Sidebar = memo(function Sidebar({
             </button>
             <button
               onClick={() => handleViewChange("knowledge")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "knowledge"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
               }`}
             >
               <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
@@ -553,10 +553,10 @@ export const Sidebar = memo(function Sidebar({
             </button>
             <button
               onClick={() => handleViewChange("mcp")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "mcp"
-                  ? "bg-primary/15 text-primary border-primary/20 font-medium"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+                  ? "bg-primary/15 text-primary font-medium"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent/30"
               }`}
             >
               <Cpu className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
@@ -569,17 +569,17 @@ export const Sidebar = memo(function Sidebar({
             onMobileClose?.()
             openAdminDashboard()
           }}
-          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground group"
+          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-foreground group"
         >
           <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.backend}</span>
         </button>
         <button
           onClick={() => handleViewChange("developer-manual")}
-          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             currentView === "developer-manual"
-              ? "bg-primary/15 text-primary border-primary/20 font-medium"
-              : "text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground"
+              ? "bg-primary/15 text-primary font-medium"
+              : "text-sidebar-foreground hover:bg-sidebar-accent/30 hover:text-foreground"
           }`}
         >
           <BookOpenText className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
@@ -587,7 +587,7 @@ export const Sidebar = memo(function Sidebar({
         </button>
         <button
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent"
+          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30"
         >
           {mounted && resolvedTheme === "dark" ? (
             <Sun className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
