@@ -655,7 +655,7 @@ function DashboardContent() {
           currentView={currentView}
           onViewChange={setCurrentView}
         />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
           aria-hidden={currentView !== "chat"}
@@ -705,24 +705,26 @@ function DashboardContent() {
         ) : currentView === "developer-manual" ? (
           <DeveloperManualPage onBackToChat={() => setCurrentView("chat")} />
         ) : currentView !== "chat" ? (
-          <ManagementDashboard
-            initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
-            onBackToChat={() => setCurrentView("chat")}
-            agentProfiles={agentProfiles}
-            selectedAgentProfileId={selectedAgentProfileId}
-            setSelectedAgentProfileId={setSelectedAgentProfileId}
-            createAgentProfile={createAgentProfile}
-            updateAgentProfile={updateAgentProfile}
-            fetchAgentProfileVersions={fetchAgentProfileVersions}
-            restoreAgentProfileVersion={restoreAgentProfileVersion}
-            createAgentShareLink={createAgentShareLink}
-            userVoiceprints={userVoiceprints}
-            onNavigateToUserSettings={() => setCurrentView("settings")}
-            deleteAgentProfile={deleteAgentProfile}
-            editAgentIdOnOpen={editAgentIdOnOpen}
-            onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}
-            createAgentOnOpenSignal={createAgentOnOpenSignal}
-          />
+          <div className="flex min-h-0 flex-1 overflow-hidden">
+            <ManagementDashboard
+              initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : "knowledge"}
+              onBackToChat={() => setCurrentView("chat")}
+              agentProfiles={agentProfiles}
+              selectedAgentProfileId={selectedAgentProfileId}
+              setSelectedAgentProfileId={setSelectedAgentProfileId}
+              createAgentProfile={createAgentProfile}
+              updateAgentProfile={updateAgentProfile}
+              fetchAgentProfileVersions={fetchAgentProfileVersions}
+              restoreAgentProfileVersion={restoreAgentProfileVersion}
+              createAgentShareLink={createAgentShareLink}
+              userVoiceprints={userVoiceprints}
+              onNavigateToUserSettings={() => setCurrentView("settings")}
+              deleteAgentProfile={deleteAgentProfile}
+              editAgentIdOnOpen={editAgentIdOnOpen}
+              onEditAgentIdHandled={() => setEditAgentIdOnOpen(null)}
+              createAgentOnOpenSignal={createAgentOnOpenSignal}
+            />
+          </div>
         ) : null}
       </div>
     </div>
