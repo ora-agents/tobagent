@@ -28,13 +28,11 @@ import { AppHeader, AppShell } from "@/components/ui/app-shell"
 import { NavItem } from "@/components/ui/nav-item"
 import { PageSection, PageSectionTitle } from "@/components/ui/page-section"
 import { StatusNotice } from "@/components/ui/status-notice"
-import {
-  ActionButton,
-  EmptyState,
-  InputField,
-  ListItem,
-  SettingsSwitch,
-} from "@/components/ui/settings-controls"
+import { ActionButton } from "@/components/ui/action-button"
+import { EmptyState } from "@/components/ui/empty-state"
+import { InputField } from "@/components/ui/input-field"
+import { ListItem } from "@/components/ui/list-item"
+import { SettingsSwitch } from "@/components/ui/settings-switch"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"

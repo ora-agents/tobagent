@@ -40,16 +40,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { AppHeader, AppShell } from "@/components/ui/app-shell"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
-import {
-  ActionButton,
-  EmptyState,
-  FormField,
-  ListItem,
-  ListPanel,
-  SelectField,
-  SettingsSwitch,
-  ToolbarButton,
-} from "@/components/ui/settings-controls"
+import { ActionButton } from "@/components/ui/action-button"
+import { EmptyState } from "@/components/ui/empty-state"
+import { FormField } from "@/components/ui/form-field"
+import { ListItem } from "@/components/ui/list-item"
+import { ListPanel } from "@/components/ui/list-panel"
+import { SelectField } from "@/components/ui/select-field"
+import { SettingsSwitch } from "@/components/ui/settings-switch"
+import { ToolbarButton } from "@/components/ui/toolbar-button"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
