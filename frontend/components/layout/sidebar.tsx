@@ -59,6 +59,8 @@ interface SidebarProps {
   isLoading?: boolean
   currentView?: string
   onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual") => void
+  isMobileDrawer?: boolean
+  onMobileClose?: () => void
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -204,6 +206,8 @@ export const Sidebar = memo(function Sidebar({
   isLoading = false,
   currentView = "chat",
   onViewChange,
+  isMobileDrawer = false,
+  onMobileClose,
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -236,7 +240,13 @@ export const Sidebar = memo(function Sidebar({
   const handleSelectThread = useCallback((threadId: string) => {
     onSelectThread(threadId)
     onViewChange?.("chat")
-  }, [onSelectThread, onViewChange])
+    onMobileClose?.()
+  }, [onSelectThread, onViewChange, onMobileClose])
+
+  const handleViewChange = useCallback((view: "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual") => {
+    onViewChange?.(view)
+    onMobileClose?.()
+  }, [onViewChange, onMobileClose])
 
   const handleDeleteThread = useCallback((threadId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -287,7 +297,7 @@ export const Sidebar = memo(function Sidebar({
   }, [currentThreadId, handleSelectThread, handleDeleteThread])
 
   // Early return for collapsed state (after all hooks)
-  if (isCollapsed) {
+  if (isCollapsed && !isMobileDrawer) {
     return (
       <aside className="hidden md:flex w-16 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar border-r border-border/60 flex-col justify-between shadow-depth-sm h-screen">
         <div className="px-3 py-4 border-b border-border/60 h-16 flex items-center justify-center">
@@ -314,7 +324,7 @@ export const Sidebar = memo(function Sidebar({
           {isConfigOpen && (
             <div className="flex flex-col items-center gap-3.5">
               <button
-                onClick={() => onViewChange?.("skills")}
+                onClick={() => handleViewChange("skills")}
                 className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   currentView === "skills"
                     ? "bg-primary/15 text-primary border-primary/20"
@@ -325,7 +335,7 @@ export const Sidebar = memo(function Sidebar({
                 <Wrench className="w-5 h-5" />
               </button>
               <button
-                onClick={() => onViewChange?.("agents")}
+                onClick={() => handleViewChange("agents")}
                 className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   currentView === "agents"
                     ? "bg-primary/15 text-primary border-primary/20"
@@ -336,7 +346,7 @@ export const Sidebar = memo(function Sidebar({
                 <Bot className="w-5 h-5" />
               </button>
               <button
-                onClick={() => onViewChange?.("knowledge")}
+                onClick={() => handleViewChange("knowledge")}
                 className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   currentView === "knowledge"
                     ? "bg-primary/15 text-primary border-primary/20"
@@ -347,7 +357,7 @@ export const Sidebar = memo(function Sidebar({
                 <Database className="w-5 h-5" />
               </button>
               <button
-                onClick={() => onViewChange?.("mcp")}
+                onClick={() => handleViewChange("mcp")}
                 className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
                   currentView === "mcp"
                     ? "bg-primary/15 text-primary border-primary/20"
@@ -367,7 +377,7 @@ export const Sidebar = memo(function Sidebar({
             <LayoutDashboard className="w-5 h-5" />
           </button>
           <button
-            onClick={() => onViewChange?.("developer-manual")}
+            onClick={() => handleViewChange("developer-manual")}
             className={`p-2.5 rounded-lg border transition-all duration-200 cursor-pointer ${
               currentView === "developer-manual"
                 ? "bg-primary/15 text-primary border-primary/20"
@@ -387,7 +397,7 @@ export const Sidebar = memo(function Sidebar({
           
           <div className="w-8 border-t border-border/40 my-1 flex-shrink-0" />
           
-          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => onViewChange?.("settings")} />
+          <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
         </div>
       </aside>
     )
@@ -396,12 +406,24 @@ export const Sidebar = memo(function Sidebar({
   return (
     <>
       <style>{scrollbarStyles}</style>
-      <aside className="hidden md:flex w-56 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter border-r border-border/60 flex-col shadow-depth-md">
+      <aside
+        className={
+          isMobileDrawer
+            ? "flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col border-r border-border/60 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-lg"
+            : "hidden w-56 flex-col border-r border-border/60 bg-gradient-to-b from-sidebar via-sidebar-light to-sidebar-lighter shadow-depth-md md:flex"
+        }
+      >
         <div className="px-3 pt-[13px] pb-[14px] border-b border-border/60 bg-gradient-to-r from-sidebar-accent/20 via-sidebar-accent/10 to-transparent">
           <div className="flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
-              <PanelLeftClose className="w-5 h-5" />
-            </Button>
+            {isMobileDrawer ? (
+              <Button variant="ghost" size="icon" onClick={onMobileClose} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg" aria-label={locale === "zh" ? "关闭菜单" : "Close menu"}>
+                <X className="w-5 h-5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
+                <PanelLeftClose className="w-5 h-5" />
+              </Button>
+            )}
             <Image
               src="/logo.png"
               alt="WSIRI"
@@ -497,7 +519,7 @@ export const Sidebar = memo(function Sidebar({
         {isConfigOpen && (
           <div className="flex flex-col gap-1 pl-3">
             <button
-              onClick={() => onViewChange?.("skills")}
+              onClick={() => handleViewChange("skills")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
                 currentView === "skills"
                   ? "bg-primary/15 text-primary border-primary/20 font-medium"
@@ -508,7 +530,7 @@ export const Sidebar = memo(function Sidebar({
               <span className="truncate">{t.skills}</span>
             </button>
             <button
-              onClick={() => onViewChange?.("agents")}
+              onClick={() => handleViewChange("agents")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
                 currentView === "agents"
                   ? "bg-primary/15 text-primary border-primary/20 font-medium"
@@ -519,7 +541,7 @@ export const Sidebar = memo(function Sidebar({
               <span className="truncate">{t.agents}</span>
             </button>
             <button
-              onClick={() => onViewChange?.("knowledge")}
+              onClick={() => handleViewChange("knowledge")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
                 currentView === "knowledge"
                   ? "bg-primary/15 text-primary border-primary/20 font-medium"
@@ -530,7 +552,7 @@ export const Sidebar = memo(function Sidebar({
               <span className="truncate">{t.knowledgeBase}</span>
             </button>
             <button
-              onClick={() => onViewChange?.("mcp")}
+              onClick={() => handleViewChange("mcp")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
                 currentView === "mcp"
                   ? "bg-primary/15 text-primary border-primary/20 font-medium"
@@ -543,14 +565,17 @@ export const Sidebar = memo(function Sidebar({
           </div>
         )}
         <button
-          onClick={openAdminDashboard}
+          onClick={() => {
+            onMobileClose?.()
+            openAdminDashboard()
+          }}
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent/30 border-transparent hover:text-foreground group"
         >
           <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.backend}</span>
         </button>
         <button
-          onClick={() => onViewChange?.("developer-manual")}
+          onClick={() => handleViewChange("developer-manual")}
           className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 border cursor-pointer ${
             currentView === "developer-manual"
               ? "bg-primary/15 text-primary border-primary/20 font-medium"
@@ -576,7 +601,7 @@ export const Sidebar = memo(function Sidebar({
       </div>
 
       <div className="pt-2 pb-3 px-3">
-        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => onViewChange?.("settings")} />
+        <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
       </div>
 
       <AuthPanel open={isAuthOpen} onOpenChange={setIsAuthOpen} />

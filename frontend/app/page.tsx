@@ -104,6 +104,7 @@ function DashboardContent() {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [createAgentOnOpenSignal, setCreateAgentOnOpenSignal] = useState(0)
   const [chatSessionKey, setChatSessionKey] = useState(0)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [elderOptimized, setElderOptimized] = useState(false)
   const [userVoiceprints, setUserVoiceprints] = useState<import("@/components/layout/user-settings-page").UserVoiceprint[]>([])
 
@@ -161,6 +162,19 @@ function DashboardContent() {
       setCurrentView("agents")
     }
   }, [currentView, editAgentIdParam, hasInitialPrompt, setCurrentView])
+
+  useEffect(() => {
+    if (!isMobileSidebarOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsMobileSidebarOpen(false)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isMobileSidebarOpen])
 
   // Get browser-specific user ID
   const userId = useUserId()
@@ -675,7 +689,7 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className={`flex h-screen bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
+      <div className={`flex h-dvh bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -687,6 +701,31 @@ function DashboardContent() {
           currentView={currentView}
           onViewChange={setCurrentView}
         />
+        {isMobileSidebarOpen && (
+          <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="菜单">
+            <button
+              type="button"
+              className="absolute inset-0 bg-foreground/35"
+              onClick={() => setIsMobileSidebarOpen(false)}
+              aria-label="关闭菜单"
+            />
+            <div className="relative h-full">
+              <Sidebar
+                isCollapsed={false}
+                onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
+                currentThreadId={activeThreadId || ''}
+                onSelectThread={handleSelectThread}
+                onDeleteThread={handleDeleteThread}
+                isLoading={threadsLoading}
+                currentView={currentView}
+                onViewChange={setCurrentView}
+                isMobileDrawer
+                onMobileClose={() => setIsMobileSidebarOpen(false)}
+              />
+            </div>
+          </div>
+        )}
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         <div
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
@@ -705,6 +744,7 @@ function DashboardContent() {
               onAgentProfileChange={setSelectedAgentProfileId}
               onCreateAgent={handleOpenCreateAgent}
               onOpenAgentSettings={handleOpenActiveAgentSettings}
+              onOpenSidebar={() => setIsMobileSidebarOpen(true)}
             />
             <ChatInterface
               key={chatSessionKey}
