@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState, useEffect, useRef, useMemo } from "react"
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -32,7 +32,12 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
-type DashboardView = "chat" | "skills" | "agents" | "knowledge" | "mcp" | "settings" | "developer-manual"
+const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "mcp", "settings", "developer-manual"] as const
+type DashboardView = (typeof DASHBOARD_VIEWS)[number]
+
+function isDashboardView(value: string | null): value is DashboardView {
+  return DASHBOARD_VIEWS.includes(value as DashboardView)
+}
 
 function DashboardFallback() {
   return (
@@ -94,7 +99,6 @@ function DashboardContent() {
   const t = useT()
   const { user, loading: authLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [currentView, setCurrentView] = useState<DashboardView>("chat")
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
@@ -129,8 +133,25 @@ function DashboardContent() {
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
   const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
+  const [viewParam, setViewParam] = useQueryState("view")
+  const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
+  const setCurrentView = useCallback((view: DashboardView) => {
+    setViewParam(view === "chat" ? null : view)
+  }, [setViewParam])
   const hasInitialPrompt = !!initialPrompt?.trim()
   const activeThreadId = hasInitialPrompt ? null : threadId
+
+  useEffect(() => {
+    if (viewParam && !isDashboardView(viewParam)) {
+      setViewParam(null)
+    }
+  }, [setViewParam, viewParam])
+
+  useEffect(() => {
+    if (hasInitialPrompt && currentView !== "chat") {
+      setCurrentView("chat")
+    }
+  }, [currentView, hasInitialPrompt, setCurrentView])
 
   // Get browser-specific user ID
   const userId = useUserId()
