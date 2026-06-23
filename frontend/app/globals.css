@@ -234,6 +234,11 @@
   --prompt-mdx-toolbar-sticky-top: -1.5rem;
 }
 
+.skill-content-editor .prompt-mdx-content,
+.skill-content-editor .cm-editor {
+  min-height: 24rem !important;
+}
+
 .prompt-mdx-editor .mdxeditor-toolbar button,
 .mdxeditor-toolbar.prompt-mdx-toolbar button {
   display: inline-flex;

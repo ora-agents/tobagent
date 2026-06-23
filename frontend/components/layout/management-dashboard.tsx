@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   Wrench,
@@ -1591,14 +1593,14 @@ export function ManagementDashboard({
                           {t.skillTemplate}
                         </Button>
                       </div>
-                      <Textarea
-                        id="skill-content"
-                        value={skillForm.content}
-                        onChange={e => setSkillForm({ ...skillForm, content: e.target.value })}
-                        rows={16}
-                        placeholder={t.skillContentPlaceholder}
-                        className="resize-none font-mono text-xs leading-relaxed rounded-lg"
-                      />
+                      <div className="skill-content-editor">
+                        <PromptMarkdownEditor
+                          id="skill-content"
+                          value={skillForm.content}
+                          onChange={content => setSkillForm({ ...skillForm, content })}
+                          placeholder={t.skillContentPlaceholder}
+                        />
+                      </div>
                     </div>
 
 
@@ -1632,8 +1634,19 @@ export function ManagementDashboard({
                           {new Date(selectedSkill.updatedAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <div className="flex-1 p-4 overflow-auto font-mono text-xs text-muted-foreground/90 whitespace-pre-wrap leading-relaxed select-all">
-                        {selectedSkill.content}
+                      <div className="flex-1 overflow-auto p-4 select-text prose prose-sm max-w-none break-words text-sm leading-relaxed dark:prose-invert [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            a: ({ children, ...props }) => (
+                              <a {...props} target="_blank" rel="noopener noreferrer">
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
+                          {selectedSkill.content}
+                        </ReactMarkdown>
                       </div>
                     </div>
                   </div>
