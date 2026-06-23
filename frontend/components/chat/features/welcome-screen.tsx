@@ -168,10 +168,10 @@ export function WelcomeScreen({
         {/* Centered Input Container */}
         <div className="relative group">
           <div className="relative">
-            <div className="absolute -inset-0.5 bg-primary/5 rounded-xl opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
+            <div className="absolute -inset-0.5 bg-primary/5 rounded-lg opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
 
             <div
-              className={`relative bg-muted/70 backdrop-blur-sm rounded-xl transition-all duration-300 group-hover:bg-muted group-focus-within:bg-background group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
+              className={`relative bg-muted/70 backdrop-blur-sm rounded-lg transition-all duration-300 group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
                 isDragging
                   ? 'bg-primary/10 ring-2 ring-primary/25'
                   : ''
@@ -181,7 +181,7 @@ export function WelcomeScreen({
               onDrop={onDrop}
             >
             {isDragging && (
-              <div className="absolute inset-0 bg-primary/10 rounded-xl flex items-center justify-center z-20 pointer-events-none">
+              <div className="absolute inset-0 bg-primary/10 rounded-lg flex items-center justify-center z-20 pointer-events-none">
                 <div className="text-primary font-medium">{t.dropFilesHere}</div>
               </div>
             )}
@@ -218,7 +218,7 @@ export function WelcomeScreen({
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
                 placeholder={!userId || isAgentLoading ? t.initializing : !hasActiveAgent ? t.selectAgentRequired : isLoading ? t.typeNextMessage : t.askAnything}
-                className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
+                className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                 disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
                 rows={1}
               />

@@ -82,7 +82,7 @@ export function Combobox({
         }}
         disabled={disabled}
         className={cn(
-          "h-8 text-sm bg-muted/70 hover:bg-muted px-3 gap-1 rounded-md transition-all duration-200 font-medium flex items-center justify-between text-foreground min-w-[140px]",
+          "h-8 text-sm bg-muted/70 hover:bg-muted px-3 gap-1 rounded-lg transition-all duration-200 font-medium flex items-center justify-between text-foreground min-w-[140px]",
           open && "bg-background ring-2 ring-primary/20",
           disabled && "cursor-not-allowed opacity-70 hover:bg-muted/70",
           triggerClassName
