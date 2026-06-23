@@ -2427,12 +2427,14 @@ export function ManagementDashboard({
 
                       <div className="min-w-0 space-y-1.5">
                         <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
-                        <PromptMarkdownEditor
-                          id="agent-prompt"
-                          value={agentForm.systemPrompt}
-                          onChange={systemPrompt => setAgentForm({ ...agentForm, systemPrompt })}
-                          placeholder={t.agentPromptPlaceholder}
-                        />
+                        <div className="agent-prompt-editor">
+                          <PromptMarkdownEditor
+                            id="agent-prompt"
+                            value={agentForm.systemPrompt}
+                            onChange={systemPrompt => setAgentForm({ ...agentForm, systemPrompt })}
+                            placeholder={t.agentPromptPlaceholder}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

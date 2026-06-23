@@ -173,6 +173,7 @@
     background: var(--background);
     color: var(--foreground);
     padding: 0;
+    --prompt-mdx-toolbar-sticky-top: 0px;
   }
 
   .prompt-mdx-editor.mdxeditor:focus-within,
@@ -185,8 +186,8 @@
   .mdxeditor-toolbar.prompt-mdx-toolbar,
   .prompt-mdx-toolbar {
     position: sticky;
-    top: 0;
-    z-index: 1;
+    top: var(--prompt-mdx-toolbar-sticky-top);
+    z-index: 20;
     display: flex;
     flex-direction: row;
     flex-wrap: nowrap;
@@ -217,6 +218,10 @@
     align-items: center;
     flex: 0 0 auto;
     gap: 0.25rem;
+  }
+
+  .agent-prompt-editor .prompt-mdx-editor {
+    --prompt-mdx-toolbar-sticky-top: -1.5rem;
   }
 
   .prompt-mdx-editor .mdxeditor-toolbar button,
