@@ -5,26 +5,42 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/components/providers/auth-provider'
-import { User, Lock, Mail, AlertCircle, Loader2, X } from 'lucide-react'
+import { User, Lock, Mail, AlertCircle, Loader2, ShieldCheck, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
 interface AuthPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   inline?: boolean
+  mode?: 'login' | 'register'
+  onModeChange?: (mode: 'login' | 'register') => void
+  onAuthenticated?: () => void
 }
 
-export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps) {
+export function AuthPanel({
+  open,
+  onOpenChange,
+  inline = false,
+  mode,
+  onModeChange,
+  onAuthenticated,
+}: AuthPanelProps) {
   const t = useT()
   const { login, register, error, clearError } = useAuth()
 
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
+  const [internalTab, setInternalTab] = useState<'login' | 'register'>(mode ?? 'login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const activeTab = mode ?? internalTab
+
+  const setActiveTab = (nextMode: 'login' | 'register') => {
+    setInternalTab(nextMode)
+    onModeChange?.(nextMode)
+  }
 
   useEffect(() => {
     clearError()
@@ -63,6 +79,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
       setPassword('')
       setConfirmPassword('')
       setEmail('')
+      onAuthenticated?.()
     } catch (err: any) {
       // AuthProvider owns the network error message.
     } finally {
@@ -86,9 +103,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary px-3 py-1.5 text-[12px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              <svg className="h-3.5 w-3.5 text-primary" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M12 2c0 5.523 4.477 10 10 10-5.523 0-10 4.477-10 10 0-5.523-4.477-10-10-10 5.523 0 10-4.477 10-10z" />
-              </svg>
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               {t.authSecureAccess}
             </div>
             {!inline && (
@@ -167,7 +182,7 @@ export function AuthPanel({ open, onOpenChange, inline = false }: AuthPanelProps
           {shownError && (
             <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <div className="font-medium">{shownError}</div>
+              <div className="whitespace-pre-line font-medium">{shownError}</div>
             </div>
           )}
 
