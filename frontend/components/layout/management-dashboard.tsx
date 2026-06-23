@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Share2,
   EyeOff,
+  Search,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -375,6 +376,9 @@ export function ManagementDashboard({
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isEditingAgent, setIsEditingAgent] = useState(false)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
+  const [agentSkillSearch, setAgentSkillSearch] = useState("")
+  const [agentMcpSearch, setAgentMcpSearch] = useState("")
+  const [agentRoleSearch, setAgentRoleSearch] = useState("")
   // Guard: prevents the selectedAgentProfileId useEffect from re-entering edit mode right after a save
   const isSavingRef = useRef(false)
   const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null)
@@ -645,6 +649,9 @@ export function ManagementDashboard({
   const handleStartCreateAgent = useCallback(() => {
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
+    setAgentSkillSearch("")
+    setAgentMcpSearch("")
+    setAgentRoleSearch("")
     setAgentForm({
       name: "",
       description: "",
@@ -677,6 +684,9 @@ export function ManagementDashboard({
     setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
     setIsCreatingAgent(false)
+    setAgentSkillSearch("")
+    setAgentMcpSearch("")
+    setAgentRoleSearch("")
     setAgentForm({
       name: profile.name,
       description: profile.description,
@@ -1167,6 +1177,22 @@ export function ManagementDashboard({
     : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
+  const filteredAgentSkills = skills.filter(skill => {
+    const query = agentSkillSearch.trim().toLowerCase()
+    if (!query) return true
+    return [skill.name, skill.description, skill.id].some(value => value.toLowerCase().includes(query))
+  })
+  const filteredAgentMcpServers = mcpServers.filter(mcp => {
+    const query = agentMcpSearch.trim().toLowerCase()
+    if (!query) return true
+    return [mcp.name, mcp.url || "", mcp.id].some(value => value.toLowerCase().includes(query))
+  })
+  const linkableAgentProfiles = agentProfiles.filter(p => p.id !== activeEditingAgentId)
+  const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
+    const query = agentRoleSearch.trim().toLowerCase()
+    if (!query) return true
+    return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
+  })
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
@@ -2245,9 +2271,23 @@ export function ManagementDashboard({
 
                     {skills.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {skills.map((sk) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.skillIds.length}/{skills.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentSkillSearch}
+                            onChange={e => setAgentSkillSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索技能名称、描述或 ID" : "Search skills by name, description, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentSkills.length > 0 ? filteredAgentSkills.map((sk) => {
                             const linked = agentForm.skillIds.includes(sk.id)
                             return (
                               <div
@@ -2271,16 +2311,34 @@ export function ManagementDashboard({
                                 </div>
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的技能" : "No matching skills found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
 
                     {mcpServers.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkMcpServers}</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {mcpServers.map((mcp) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkMcpServers}</Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {agentForm.mcpIds.length}/{mcpServers.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentMcpSearch}
+                            onChange={e => setAgentMcpSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索 MCP 名称、URL 或 ID" : "Search MCP by name, URL, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredAgentMcpServers.length > 0 ? filteredAgentMcpServers.map((mcp) => {
                             const linked = agentForm.mcpIds.includes(mcp.id)
                             return (
                               <div
@@ -2304,20 +2362,36 @@ export function ManagementDashboard({
                                 </div>
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的 MCP" : "No matching MCP servers found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
 
-                    {agentProfiles.filter(p => p.id !== activeEditingAgentId).length > 0 && (
+                    {linkableAgentProfiles.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
-                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          {locale === "zh" ? "关联其他角色 (多角色协同)" : "Link Other Roles (Multi-Role)"}
-                        </Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
-                          {agentProfiles
-                            .filter(p => p.id !== activeEditingAgentId)
-                            .map((agent) => {
+                        <div className="flex items-center justify-between gap-3">
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {locale === "zh" ? "关联其他角色 (多角色协同)" : "Link Other Roles (Multi-Role)"}
+                          </Label>
+                          <span className="text-[10px] text-muted-foreground">
+                            {(agentForm.agentIds || []).length}/{linkableAgentProfiles.length}
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={agentRoleSearch}
+                            onChange={e => setAgentRoleSearch(e.target.value)}
+                            placeholder={locale === "zh" ? "搜索角色名称、描述或 ID" : "Search roles by name, description, or ID"}
+                            className="h-8 rounded-lg border-border/80 bg-background pl-8 text-xs"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                          {filteredLinkableAgentProfiles.length > 0 ? filteredLinkableAgentProfiles.map((agent) => {
                               const linked = agentForm.agentIds?.includes(agent.id)
                               return (
                                 <div
@@ -2341,7 +2415,11 @@ export function ManagementDashboard({
                                   </div>
                                 </div>
                               )
-                            })}
+                            }) : (
+                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "未找到匹配的角色" : "No matching roles found."}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
