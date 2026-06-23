@@ -1772,7 +1772,7 @@ export function ManagementDashboard({
               {/* Right Role Form / Details */}
               <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
                 {isCreatingAgent || isEditingAgent ? (
-                  <div className="max-w-2xl space-y-4">
+                  <div className="max-w-none space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-border/40">
                       <h2 className="text-lg font-semibold tracking-wide font-display text-primary flex items-center gap-2">
                         <Bot className="w-5 h-5 text-primary" />
@@ -1825,6 +1825,8 @@ export function ManagementDashboard({
                       </div>
                     )}
 
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,42rem)_minmax(26rem,1fr)] xl:items-start">
+                      <div className="min-w-0 space-y-4">
                     <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-background/50">
                       <div className="space-y-1.5">
                         <Label>{locale === "zh" ? "角色模板" : "Role Template"}</Label>
@@ -2114,16 +2116,6 @@ export function ManagementDashboard({
                       )}
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
-                      <PromptMarkdownEditor
-                        id="agent-prompt"
-                        value={agentForm.systemPrompt}
-                        onChange={systemPrompt => setAgentForm({ ...agentForm, systemPrompt })}
-                        placeholder={t.agentPromptPlaceholder}
-                      />
-                    </div>
-
                     <div className="space-y-2">
                       <Label>{t.tools}</Label>
                       <div className="space-y-2 border border-border/50 rounded-xl p-3 bg-background/50">
@@ -2354,8 +2346,18 @@ export function ManagementDashboard({
                         </div>
                       </div>
                     )}
+                      </div>
 
-
+                      <div className="min-w-0 space-y-1.5 xl:sticky xl:top-0">
+                        <Label htmlFor="agent-prompt">{t.systemPrompt}</Label>
+                        <PromptMarkdownEditor
+                          id="agent-prompt"
+                          value={agentForm.systemPrompt}
+                          onChange={systemPrompt => setAgentForm({ ...agentForm, systemPrompt })}
+                          placeholder={t.agentPromptPlaceholder}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ) : selectedAgent ? (
                   <div className="max-w-2xl space-y-4">
