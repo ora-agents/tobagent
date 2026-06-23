@@ -47,7 +47,7 @@ function InputField({
           id={id}
           aria-invalid={Boolean(error) || undefined}
           className={cn(
-            "h-10 rounded-lg border-border/80 bg-background text-sm focus-visible:border-primary",
+            "h-10 rounded-lg text-sm",
             leadingIcon && "pl-9",
             className
           )}

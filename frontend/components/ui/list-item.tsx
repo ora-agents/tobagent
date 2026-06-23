@@ -9,6 +9,7 @@ interface ListItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "titl
   icon?: React.ReactNode
   meta?: React.ReactNode
   actions?: React.ReactNode
+  actionsClassName?: string
   onSelect?: () => void
 }
 
@@ -19,6 +20,7 @@ function ListItem({
   icon,
   meta,
   actions,
+  actionsClassName,
   className,
   children,
   onClick,
@@ -65,7 +67,10 @@ function ListItem({
       </span>
       {actions && (
         <span
-          className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+          className={cn(
+            "absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+            actionsClassName
+          )}
           onClick={(event) => event.stopPropagation()}
         >
           {actions}

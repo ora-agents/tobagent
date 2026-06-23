@@ -44,7 +44,7 @@ function SelectField({
       <Select {...props}>
         <SelectTrigger
           aria-invalid={Boolean(error) || undefined}
-          className={cn("w-full rounded-lg border-border/80 bg-background", triggerClassName)}
+          className={cn("w-full rounded-lg", triggerClassName)}
         >
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
