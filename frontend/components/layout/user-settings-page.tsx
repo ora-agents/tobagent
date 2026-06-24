@@ -22,6 +22,7 @@ import {
   Waves,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { NavActionButton } from "@/components/ui/nav-action-button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -538,15 +539,14 @@ export function UserSettingsPage({
               {zh ? "已保存" : "Saved"}
             </span>
           )}
-          <Button
+          <NavActionButton
             variant="outline"
-            size="sm"
             onClick={onBackToChat}
-            className={`${elderOptimized ? "h-11 px-4 text-base" : ""} gap-2 hover:bg-primary/10 hover:text-primary transition-all duration-200 border-border/80 shadow-depth-xs rounded-lg`}
+            className={elderOptimized ? "h-11 min-w-[8.5rem] px-4 text-base" : ""}
           >
             <ArrowLeft className={`${elderOptimized ? "w-5 h-5" : "w-4 h-4"}`} />
             {zh ? "返回对话" : "Back to Chat"}
-          </Button>
+          </NavActionButton>
         </div>
       </AppHeader>
 

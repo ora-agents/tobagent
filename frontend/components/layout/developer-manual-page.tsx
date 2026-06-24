@@ -16,6 +16,7 @@ import {
   TerminalSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { NavActionButton } from "@/components/ui/nav-action-button"
 import { useI18n } from "@/lib/i18n"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
@@ -226,16 +227,14 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
             </p>
           </div>
         </div>
-        <Button
+        <NavActionButton
           variant="outline"
-          size="sm"
           onClick={onBackToChat}
-          className="h-9 flex-shrink-0 gap-2 rounded-lg border-border/80 px-2.5 shadow-depth-xs transition-all duration-200 hover:bg-primary/10 hover:text-primary sm:px-3"
         >
           <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">{zh ? "返回对话" : "Back to Chat"}</span>
           <span className="sm:hidden">{zh ? "返回" : "Back"}</span>
-        </Button>
+        </NavActionButton>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
