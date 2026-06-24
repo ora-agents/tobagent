@@ -1112,7 +1112,7 @@ function FormRecordsTable({
   onSaveDirtyRecords,
 }: FormRecordsTableProps) {
   const [pinnedFieldIds, setPinnedFieldIds] = useState<Set<string>>(new Set())
-  const [pinnedRecordIds, setPinnedRecordIds] = useState<Set<string>>(new Set())
+  const allRecordFields = useMemo(() => [...form.fields, ...SYSTEM_FORM_FIELDS], [form.fields])
 
   const togglePinnedField = useCallback((fieldId: string) => {
     setPinnedFieldIds(prev => {
@@ -1123,19 +1123,13 @@ function FormRecordsTable({
     })
   }, [])
 
-  const togglePinnedRecord = useCallback((recordId: string) => {
-    setPinnedRecordIds(prev => {
-      const next = new Set(prev)
-      if (next.has(recordId)) next.delete(recordId)
-      else next.add(recordId)
-      return next
-    })
-  }, [])
-
   const getStickyColumnStyle = (columnId: string): React.CSSProperties | undefined => {
     if (columnId === "_row") return { left: 0 }
-    const fieldIndex = form.fields.findIndex(field => field.id === columnId)
-    if (fieldIndex >= 0 && pinnedFieldIds.has(columnId)) return { left: 56 + fieldIndex * 192 }
+    if (!pinnedFieldIds.has(columnId)) return undefined
+    const pinnedIndex = allRecordFields
+      .filter(field => pinnedFieldIds.has(field.id))
+      .findIndex(field => field.id === columnId)
+    if (pinnedIndex >= 0) return { left: 56 + pinnedIndex * 192 }
     return undefined
   }
 
@@ -1146,18 +1140,43 @@ function FormRecordsTable({
     return ""
   }
 
+  const renderFieldHeader = useCallback((field: CustomFormField, isSystemField = false) => (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div className="min-w-0 cursor-context-menu">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {isSystemField && <Lock className="h-3.5 w-3.5 shrink-0 text-primary" />}
+            {pinnedFieldIds.has(field.id) && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />}
+            <div className="truncate text-sm font-semibold">
+              {isSystemField ? getSystemFieldLabel(field, locale) : field.label}
+              {!isSystemField && field.required ? <span className="text-destructive"> *</span> : null}
+            </div>
+          </div>
+          <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">
+            {isSystemField ? "system" : field.type}
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
+          <ContextMenu.Item
+            onSelect={() => togglePinnedField(field.id)}
+            className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
+          >
+            {pinnedFieldIds.has(field.id) ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+            {pinnedFieldIds.has(field.id)
+              ? (locale === "zh" ? "取消固定字段" : "Unpin field")
+              : (locale === "zh" ? "固定字段" : "Pin field")}
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  ), [locale, pinnedFieldIds, togglePinnedField])
+
   const columns = useMemo<ColumnDef<CustomFormRecord>[]>(() => {
     const systemColumns: ColumnDef<CustomFormRecord>[] = SYSTEM_FORM_FIELDS.map(field => ({
       id: field.id,
-      header: () => (
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Lock className="h-3.5 w-3.5 shrink-0 text-primary" />
-            <div className="truncate text-sm font-semibold">{getSystemFieldLabel(field, locale)}</div>
-          </div>
-          <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">system</div>
-        </div>
-      ),
+      header: () => renderFieldHeader(field, true),
       cell: ({ row }) => (
         <span className="block truncate px-2 text-sm text-muted-foreground">
           {formatRecordTimestamp(field.id === "createdAt" ? row.original.createdAt : row.original.updatedAt, locale)}
@@ -1166,32 +1185,7 @@ function FormRecordsTable({
     }))
     const fieldColumns: ColumnDef<CustomFormRecord>[] = form.fields.map(field => ({
       id: field.id,
-      header: () => (
-        <ContextMenu.Root>
-          <ContextMenu.Trigger asChild>
-            <div className="min-w-0 cursor-context-menu">
-              <div className="flex min-w-0 items-center gap-1.5">
-                {pinnedFieldIds.has(field.id) && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                <div className="truncate text-sm font-semibold">{field.label}{field.required ? <span className="text-destructive"> *</span> : null}</div>
-              </div>
-              <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">{field.type}</div>
-            </div>
-          </ContextMenu.Trigger>
-          <ContextMenu.Portal>
-            <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
-              <ContextMenu.Item
-                onSelect={() => togglePinnedField(field.id)}
-                className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
-              >
-                {pinnedFieldIds.has(field.id) ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                {pinnedFieldIds.has(field.id)
-                  ? (locale === "zh" ? "取消固定字段" : "Unpin field")
-                  : (locale === "zh" ? "固定字段" : "Pin field")}
-              </ContextMenu.Item>
-            </ContextMenu.Content>
-          </ContextMenu.Portal>
-        </ContextMenu.Root>
-      ),
+      header: () => renderFieldHeader(field),
       cell: ({ row }) => (
         <EditableRecordCell
           field={field}
@@ -1236,7 +1230,7 @@ function FormRecordsTable({
         ),
       },
     ]
-  }, [dirtyRecordIds, form.fields, locale, onDeleteRecord, onSaveRecord, onUpdateCell, page, pinnedFieldIds, togglePinnedField, validationErrors])
+  }, [dirtyRecordIds, form.fields, onDeleteRecord, onSaveRecord, onUpdateCell, page, renderFieldHeader, validationErrors])
 
   const table = useReactTable({
     data: records,
@@ -1308,18 +1302,10 @@ function FormRecordsTable({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => {
-              const pinnedRecordIndex = records
-                .filter(record => pinnedRecordIds.has(record.id))
-                .findIndex(record => record.id === row.original.id)
-              const isPinnedRecord = pinnedRecordIndex >= 0
-              return (
+            {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => (
               <ContextMenu.Root key={row.id}>
                 <ContextMenu.Trigger asChild>
-                  <tr
-                    style={isPinnedRecord ? { top: 57 + pinnedRecordIndex * 44 } : undefined}
-                    className={`group/record cursor-context-menu hover:bg-primary/5 ${isPinnedRecord ? "sticky z-10 bg-background shadow-[0_1px_0_var(--border)]" : ""}`}
-                  >
+                  <tr className="group/record cursor-context-menu hover:bg-primary/5">
                     {row.getVisibleCells().map(cell => (
                       <td
                         key={cell.id}
@@ -1334,16 +1320,6 @@ function FormRecordsTable({
                 <ContextMenu.Portal>
                   <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
                     <ContextMenu.Item
-                      onSelect={() => togglePinnedRecord(row.original.id)}
-                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
-                    >
-                      {pinnedRecordIds.has(row.original.id) ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                      {pinnedRecordIds.has(row.original.id)
-                        ? (locale === "zh" ? "取消固定记录" : "Unpin record")
-                        : (locale === "zh" ? "固定记录" : "Pin record")}
-                    </ContextMenu.Item>
-                    <ContextMenu.Separator className="-mx-1 my-1 h-px bg-muted" />
-                    <ContextMenu.Item
                       onSelect={() => onDeleteRecord(row.original.id)}
                       className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-none focus:bg-destructive/10"
                     >
@@ -1353,8 +1329,7 @@ function FormRecordsTable({
                   </ContextMenu.Content>
                 </ContextMenu.Portal>
               </ContextMenu.Root>
-              )
-            }) : (
+            )) : (
               <tr>
                 <td colSpan={Math.max(1, columns.length)} className="h-28 text-center text-sm text-muted-foreground">
                   {locale === "zh" ? "暂无记录，点击新增行开始录入。" : "No records yet. Add a row to start."}
