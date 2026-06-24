@@ -133,6 +133,8 @@ def _kb_schema(kb: KnowledgeBaseTable) -> KnowledgeBaseSchema:
         description=kb.description,
         files=_schema_files(kb.files),
         isSystem=kb.owner_user_id is None,
+        importStatus=kb.import_status or "ready",
+        importError=kb.import_error,
         createdAt=kb.created_at,
         updatedAt=kb.updated_at,
     )

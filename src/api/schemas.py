@@ -206,6 +206,8 @@ class KnowledgeBaseSchema(BaseModel):
     description: str | None = None
     files: list[KBFileSchema] = []
     isSystem: bool = False
+    importStatus: str = "ready"
+    importError: str | None = None
     createdAt: str
     updatedAt: str
 

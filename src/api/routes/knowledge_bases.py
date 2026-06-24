@@ -69,6 +69,7 @@ async def create_knowledge_base(
         name=kb_data.name,
         description=kb_data.description,
         files=db_files,
+        import_status="ready",
         created_at=kb_data.createdAt,
         updated_at=kb_data.updatedAt,
     )
@@ -141,6 +142,9 @@ async def delete_knowledge_base(
     except Exception as e:
         logger.error(f"Failed to drop LanceDB table for KB {id}: {e}")
 
+    from src.config_bundle.storage import delete_knowledge_base_documents
+
+    delete_knowledge_base_documents(id)
     _remove_agent_profile_links(db, current_user.id, "knowledge_base_ids", [id])
     db.delete(kb)
     db.commit()
@@ -230,6 +234,9 @@ async def upload_kb_document(
             chunks,
             [_filename or "upload"] * len(chunks),
         )
+        from src.config_bundle.storage import save_document
+
+        save_document(kb_id, _filename or "upload", raw)
 
         # Update file list in PostgreSQL
         files_list = list(kb.files or [])
@@ -249,6 +256,8 @@ async def upload_kb_document(
             })
         
         kb.files = files_list
+        kb.import_status = "ready"
+        kb.import_error = None
         kb.updated_at = datetime.utcnow().isoformat() + "Z"
         db.commit()
         db.refresh(kb)
@@ -300,10 +309,12 @@ async def delete_kb_file(
     try:
         from datetime import datetime
 
+        from src.config_bundle.storage import delete_document
         from src.tools.rag_tool import delete_documents_async
 
         # 1. Delete from LanceDB (async native)
         await delete_documents_async(agent_id=kb_id, source=filename)
+        delete_document(kb_id, filename)
 
         # 2. Update PostgreSQL files JSON
         files_list = list(kb.files or [])

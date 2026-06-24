@@ -259,6 +259,8 @@ class KnowledgeBaseTable(Base):
     # files is a JSON list storing files uploaded to this KB,
     # e.g., [{"name": "file.pdf", "size": 12345, "uploadedAt": "2026-05-25..."}]
     files = Column(JSON, nullable=False, default=list)
+    import_status = Column(String(20), nullable=False, default="ready")
+    import_error = Column(Text, nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 
@@ -347,6 +349,8 @@ def ensure_database_schema() -> None:
         ("agent_profiles", "owner_user_id", "owner_user_id VARCHAR(255)"),
         ("skills", "owner_user_id", "owner_user_id VARCHAR(255)"),
         ("knowledge_bases", "owner_user_id", "owner_user_id VARCHAR(255)"),
+        ("knowledge_bases", "import_status", "import_status VARCHAR(20) DEFAULT 'ready'"),
+        ("knowledge_bases", "import_error", "import_error TEXT"),
         ("mcp_servers", "owner_user_id", "owner_user_id VARCHAR(255)"),
         ("agent_profiles", "user_voiceprint_id", "user_voiceprint_id VARCHAR(50)"),
         ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),

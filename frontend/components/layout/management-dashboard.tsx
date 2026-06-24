@@ -29,6 +29,7 @@ import {
   Search,
   TableProperties,
   Download,
+  LoaderCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -95,6 +96,7 @@ import {
   type McpServer,
   type McpTransport,
 } from "@/components/layout/management-dashboard/types"
+import { ConfigBundleDialog } from "@/components/layout/management-dashboard/config-bundle-dialog"
 
 // ---------------------------------------------------------------------------
 // Properties Interface
@@ -146,6 +148,7 @@ export function ManagementDashboard({
   const { locale } = useI18n()
   const { user } = useAuth()
   const [hasRobotEnvironment, setHasRobotEnvironment] = useState(false)
+  const [configBundleMode, setConfigBundleMode] = useState<"import" | "export" | null>(null)
 
   useEffect(() => {
     const updateRobotEnvironment = () => {
@@ -337,6 +340,23 @@ export function ManagementDashboard({
 
     loadData()
   }, [authHeaders])
+
+  useEffect(() => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !knowledgeBases.some(kb => kb.importStatus === "importing")) {
+      return
+    }
+    const timer = window.setInterval(async () => {
+      try {
+        const response = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, {
+          headers: authHeaders,
+        })
+        if (response.ok) setKnowledgeBases(await response.json())
+      } catch (err) {
+        console.error("Failed to refresh knowledge base import status", err)
+      }
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [authHeaders, knowledgeBases])
 
   useEffect(() => {
     let cancelled = false
@@ -1712,6 +1732,22 @@ export function ManagementDashboard({
 
         <div className="flex flex-wrap items-center justify-end gap-2">
           {renderHeaderConfigActions()}
+          <Button
+            variant="outline"
+            onClick={() => setConfigBundleMode("import")}
+            className="gap-1.5 rounded-lg"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {locale === "zh" ? "导入配置" : "Import config"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setConfigBundleMode("export")}
+            className="gap-1.5 rounded-lg"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {locale === "zh" ? "导出配置" : "Export config"}
+          </Button>
           <NavActionButton
             variant="outline"
             onClick={onBackToChat}
@@ -1721,6 +1757,21 @@ export function ManagementDashboard({
           </NavActionButton>
         </div>
       </header>
+      <ConfigBundleDialog
+        mode={configBundleMode}
+        onOpenChange={open => {
+          if (!open) setConfigBundleMode(null)
+        }}
+        locale={locale}
+        authHeaders={authHeaders}
+        resourceIds={{
+          agents: agentProfiles.map(item => item.id),
+          skills: skills.map(item => item.id),
+          knowledgeBases: knowledgeBases.filter(item => !item.isSystem).map(item => item.id),
+          mcpServers: mcpServers.map(item => item.id),
+          forms: forms.map(item => item.id),
+        }}
+      />
 
       {/* 2. Main Content Area */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
@@ -3618,6 +3669,27 @@ export function ManagementDashboard({
                         </p>
                       </div>
                     </div>
+                    {selectedKB.importStatus && selectedKB.importStatus !== "ready" && (
+                      <div className={`rounded-xl border p-3 text-sm ${
+                        selectedKB.importStatus === "failed"
+                          ? "border-destructive/30 bg-destructive/10 text-destructive"
+                          : "border-primary/20 bg-primary/5 text-foreground"
+                      }`}>
+                        <div className="flex items-center gap-2 font-medium">
+                          {selectedKB.importStatus === "importing" && (
+                            <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                          )}
+                          {selectedKB.importStatus === "importing"
+                            ? locale === "zh" ? "正在重新建立知识库索引" : "Reindexing knowledge base"
+                            : selectedKB.importStatus === "needs_upload"
+                              ? locale === "zh" ? "需要重新上传原始文档" : "Source documents must be uploaded again"
+                              : locale === "zh" ? "知识库索引失败" : "Knowledge base indexing failed"}
+                        </div>
+                        {selectedKB.importError && (
+                          <p className="mt-1 text-xs opacity-80">{selectedKB.importError}</p>
+                        )}
+                      </div>
+                    )}
 
                     {/* KB File Management */}
                     <div className="space-y-4 border border-border/40 rounded-xl bg-background/50 p-4">

@@ -9,6 +9,8 @@ export interface KnowledgeBase {
   name: string
   description: string
   files: KBFile[]
+  importStatus?: "ready" | "importing" | "failed" | "needs_upload"
+  importError?: string | null
   isSystem?: boolean
   createdAt: string
   updatedAt: string

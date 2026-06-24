@@ -23,6 +23,7 @@ from src.api.routes import models as model_routes
 from src.api.routes.agent_profiles import router as agent_profiles_router
 from src.api.routes.auth import router as auth_router
 from src.api.routes.client_profiles import router as client_profiles_router
+from src.api.routes.config_bundles import router as config_bundles_router
 from src.api.routes.forms import router as forms_router
 from src.api.routes.knowledge_bases import router as knowledge_bases_router
 from src.api.routes.mcp_servers import router as mcp_servers_router
@@ -178,6 +179,7 @@ app = FastAPI(
         {"name": "voice", "description": "ASR, TTS, voice telemetry, voiceprint enrollment, and speaker verification."},
         {"name": "robot", "description": "Robot point management, SSE command stream, and command result callback."},
         {"name": "client-profiles", "description": "Lightweight client profile metadata used by the web UI."},
+        {"name": "config-bundles", "description": "Unified configuration archive inspection, import, and export."},
         {"name": "langsmith", "description": "LangSmith run lookup and share helpers."},
     ],
 )
@@ -197,6 +199,7 @@ app.include_router(auth_router)
 app.include_router(models_router)
 app.include_router(robot_router)
 app.include_router(client_profiles_router)
+app.include_router(config_bundles_router)
 app.include_router(agent_profiles_router)
 app.include_router(forms_router)
 app.include_router(skills_router)
