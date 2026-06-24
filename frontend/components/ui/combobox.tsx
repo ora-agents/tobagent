@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Check, ChevronsUpDown, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export interface ComboboxOption {
   value: string
@@ -111,7 +112,8 @@ export function Combobox({
               autoFocus={autoFocusSearch}
             />
           </div>
-          <div className="max-h-[220px] overflow-y-auto p-1 custom-scrollbar">
+          <ScrollArea className="h-[220px]">
+          <div className="p-1">
             {filteredOptions.length === 0 ? (
               <div className="py-3 text-center text-xs text-muted-foreground/75">
                 {emptyText}
@@ -143,6 +145,7 @@ export function Combobox({
               </div>
             )}
           </div>
+          </ScrollArea>
         </div>
       )}
     </div>

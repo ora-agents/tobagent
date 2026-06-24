@@ -39,6 +39,7 @@ import { FormField } from "@/components/ui/form-field"
 import { Label } from "@/components/ui/label"
 import { ListItem } from "@/components/ui/list-item"
 import { ListPanel } from "@/components/ui/list-panel"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
@@ -1805,7 +1806,7 @@ export function ManagementDashboard({
                 ))}
               </ListPanel>
 
-              <div className="min-h-0 flex-1 overflow-y-auto bg-background">
+              <ScrollArea className="min-h-0 flex-1 bg-background">
                 {isCreatingForm || isEditingForm ? (
                   <div className="mx-auto max-w-7xl space-y-5 p-6">
                     <div>
@@ -1873,7 +1874,7 @@ export function ManagementDashboard({
                     {locale === "zh" ? "选择或新建一个表单。" : "Select or create a form."}
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             </div>
           )}
 
@@ -1957,7 +1958,10 @@ export function ManagementDashboard({
               </ListPanel>
 
               {/* Right MCP Details / Form */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <ScrollArea
+                className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
+                viewportClassName="p-4 sm:p-6"
+              >
                 {isCreatingMcp || isEditingMcp ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
@@ -2046,7 +2050,7 @@ export function ManagementDashboard({
                     {t.selectOrCreateMcpToStart}
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             </div>
           )}
 
@@ -2071,7 +2075,10 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
+                <ScrollArea
+                  className="min-h-0 flex-1"
+                  viewportClassName="space-y-2 p-3"
+                >
                   {skills.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
                       <Wrench className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
@@ -2141,11 +2148,14 @@ export function ManagementDashboard({
                       </div>
                     ))
                   )}
-                </div>
+                </ScrollArea>
               </div>
 
               {/* Right Skill Edit Form / Details */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent flex flex-col">
+              <ScrollArea
+                className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
+                viewportClassName="flex flex-col p-4 sm:p-6"
+              >
                 {isCreatingSkill || isEditingSkill ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
@@ -2220,7 +2230,7 @@ export function ManagementDashboard({
                     </div>
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             </div>
           )}
 
@@ -2245,7 +2255,10 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
+                <ScrollArea
+                  className="min-h-0 flex-1"
+                  viewportClassName="space-y-2 p-3"
+                >
                   {configurableAgentProfiles.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                       {t.createAgentPrompt}
@@ -2361,11 +2374,14 @@ export function ManagementDashboard({
                       </div>
                     </div>
                   ))}
-                </div>
+                </ScrollArea>
               </div>
 
               {/* Right Role Form / Details */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <ScrollArea
+                className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
+                viewportClassName="p-4 sm:p-6"
+              >
                 {isCreatingAgent || isEditingAgent ? (
                   <div className="max-w-none space-y-4">
                     <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
@@ -2807,7 +2823,10 @@ export function ManagementDashboard({
                             className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                        <ScrollArea
+                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                        >
                           {filteredAgentKnowledgeBases.length > 0 ? filteredAgentKnowledgeBases.map((kb) => {
                             const linked = agentForm.knowledgeBaseIds.includes(kb.id)
                             return (
@@ -2840,7 +2859,7 @@ export function ManagementDashboard({
                               {locale === "zh" ? "未找到匹配的知识库" : "No matching knowledge bases found."}
                             </div>
                           )}
-                        </div>
+                        </ScrollArea>
                       </div>
                     )}
 
@@ -2861,7 +2880,10 @@ export function ManagementDashboard({
                             className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                        <ScrollArea
+                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                        >
                           {filteredAgentSkills.length > 0 ? filteredAgentSkills.map((sk) => {
                             const linked = agentForm.skillIds.includes(sk.id)
                             return (
@@ -2891,7 +2913,7 @@ export function ManagementDashboard({
                               {locale === "zh" ? "未找到匹配的技能" : "No matching skills found."}
                             </div>
                           )}
-                        </div>
+                        </ScrollArea>
                       </div>
                     )}
 
@@ -2912,7 +2934,10 @@ export function ManagementDashboard({
                             className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                        <ScrollArea
+                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                        >
                           {filteredAgentMcpServers.length > 0 ? filteredAgentMcpServers.map((mcp) => {
                             const linked = agentForm.mcpIds.includes(mcp.id)
                             return (
@@ -2942,7 +2967,7 @@ export function ManagementDashboard({
                               {locale === "zh" ? "未找到匹配的 MCP" : "No matching MCP servers found."}
                             </div>
                           )}
-                        </div>
+                        </ScrollArea>
                       </div>
                     )}
 
@@ -2956,7 +2981,10 @@ export function ManagementDashboard({
                             {agentForm.formIds.length}/{forms.length}
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                        <ScrollArea
+                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                        >
                           {filteredAgentForms.map((form) => {
                             const linked = agentForm.formIds.includes(form.id)
                             return (
@@ -2985,7 +3013,7 @@ export function ManagementDashboard({
                               </div>
                             )
                           })}
-                        </div>
+                        </ScrollArea>
                       </div>
                     )}
 
@@ -3008,7 +3036,10 @@ export function ManagementDashboard({
                             className="h-8 rounded-lg pl-8 text-xs"
                           />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto p-1 border border-border/40 rounded-xl bg-background/50">
+                        <ScrollArea
+                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                        >
                           {filteredLinkableAgentProfiles.length > 0 ? filteredLinkableAgentProfiles.map((agent) => {
                               const linked = agentForm.agentIds?.includes(agent.id)
                               return (
@@ -3038,7 +3069,7 @@ export function ManagementDashboard({
                               {locale === "zh" ? "未找到匹配的角色" : "No matching roles found."}
                             </div>
                           )}
-                        </div>
+                        </ScrollArea>
                       </div>
                     )}
                       </div>
@@ -3497,7 +3528,7 @@ export function ManagementDashboard({
                     </div>
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             </div>
           )}
 
@@ -3522,7 +3553,10 @@ export function ManagementDashboard({
                   </Button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
+                <ScrollArea
+                  className="min-h-0 flex-1"
+                  viewportClassName="space-y-2 p-3"
+                >
                   {knowledgeBases.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
                       <Database className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40 opacity-70" />
@@ -3602,11 +3636,14 @@ export function ManagementDashboard({
                       </div>
                     ))
                   )}
-                </div>
+                </ScrollArea>
               </div>
 
               {/* Right KB Edit Form / Details */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 bg-gradient-to-tr from-sidebar-accent/5 to-transparent">
+              <ScrollArea
+                className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
+                viewportClassName="p-4 sm:p-6"
+              >
                 {isCreatingKB || isEditingKB ? (
                   <div className="max-w-2xl space-y-4">
                     <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
@@ -3766,7 +3803,7 @@ export function ManagementDashboard({
                     </div>
                   </div>
                 )}
-              </div>
+              </ScrollArea>
             </div>
           )}
         </main>

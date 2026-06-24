@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { SettingsSwitch } from "@/components/ui/settings-switch"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 type ResourceKey = "agents" | "skills" | "knowledgeBases" | "mcpServers" | "forms"
@@ -231,7 +232,9 @@ export function ConfigBundleDialog({
 
   return (
     <Dialog open={mode !== null} onOpenChange={close}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
+        <ScrollArea className="min-h-0 flex-1">
+        <div className="pr-3">
         <DialogHeader>
           <DialogTitle>
             {mode === "export"
@@ -281,7 +284,8 @@ export function ConfigBundleDialog({
                       </button>
                     </div>
                     {isExpanded && (
-                      <div className="max-h-44 space-y-1 overflow-y-auto p-2">
+                      <ScrollArea className="h-44">
+                      <div className="space-y-1 p-2">
                         {resources[key].length === 0 ? (
                           <p className="px-2 py-1 text-xs text-muted-foreground">{zh ? "暂无配置" : "No resources"}</p>
                         ) : resources[key].map(item => {
@@ -302,6 +306,7 @@ export function ConfigBundleDialog({
                           )
                         })}
                       </div>
+                      </ScrollArea>
                     )}
                   </div>
                 )
@@ -395,6 +400,8 @@ export function ConfigBundleDialog({
         />
         {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
+        </div>
+        </ScrollArea>
         <DialogFooter>
           {mode === "import" && inspections.length > 0 && (
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={busy}>

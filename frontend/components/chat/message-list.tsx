@@ -1,6 +1,7 @@
 import { memo, useMemo, useEffect, useRef, useState, useCallback } from "react"
 import type { Message } from "@/lib/types"
 import { MessageItem } from "./message-item"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { ArrowDown } from "lucide-react"
 import { useT } from "@/lib/i18n"
 
@@ -364,15 +365,11 @@ export const MessageList = memo(function MessageList({
           animation: slideInButton 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
       `}</style>
-      <div
-        className="flex-1 overflow-y-auto custom-scrollbar relative"
-        ref={scrollRef}
-        onScroll={handleScroll}
-        style={{
-          willChange: 'scroll-position',
-          contain: 'layout style paint',
-          WebkitOverflowScrolling: 'touch',
-        }}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportRef={scrollRef}
+        onViewportScroll={handleScroll}
+        viewportClassName="relative scroll-smooth [contain:layout_style_paint] [will-change:scroll-position]"
       >
         <div className="mx-auto w-full max-w-4xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-8">
           {messages.map((message, idx) => {
@@ -397,7 +394,7 @@ export const MessageList = memo(function MessageList({
             )
           })}
         </div>
-      </div>
+      </ScrollArea>
 
       {showScrollButton && (
         <button

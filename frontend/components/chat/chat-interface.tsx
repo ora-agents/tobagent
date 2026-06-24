@@ -25,31 +25,6 @@ import {
 import { isAndroidWebView } from "@/lib/voice/utils/browser"
 import { useT } from "@/lib/i18n"
 
-// Enhanced scrollbar styles with smooth transitions
-const scrollbarStyles = `
-  .custom-scrollbar {
-    scroll-behavior: smooth;
-    will-change: scroll-position;
-  }
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(22, 65, 153, 0.4);
-    border-radius: 3px;
-    transition: background 0.2s ease;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(22, 65, 153, 0.6);
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:active {
-    background: rgba(22, 65, 153, 0.8);
-  }
-`
-
 interface ChatInterfaceProps {
   threadId: string | null
   onCreateThread?: () => string
@@ -1081,7 +1056,6 @@ export function ChatInterface({
 
   return (
     <>
-      <style>{scrollbarStyles}</style>
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <MessageList
           messages={messages}

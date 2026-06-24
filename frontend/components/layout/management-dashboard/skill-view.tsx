@@ -1,3 +1,5 @@
+import { ScrollArea } from "@/components/ui/scroll-area"
+
 export interface Skill {
   id: string
   name: string
@@ -350,7 +352,7 @@ export function SkillStructuredView({
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-background/60">
+    <ScrollArea className="min-h-0 flex-1 bg-background/60" scrollbars="both">
       <div className="space-y-4 p-4">
         <div className="rounded-xl bg-muted/30 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -446,7 +448,7 @@ export function SkillStructuredView({
           <div className="rounded-xl bg-muted/25 p-4 text-sm text-muted-foreground">{labels.empty}</div>
         )}
       </div>
-    </div>
+    </ScrollArea>
   )
 }
 
@@ -469,7 +471,7 @@ function SkillBlockView({ block }: { block: SkillSectionBlock }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg bg-background/70">
+    <ScrollArea className="w-full rounded-lg bg-background/70" scrollbars="horizontal">
       <table className="w-full min-w-[420px] text-left text-sm">
         <thead className="bg-muted/60 text-xs text-muted-foreground">
           <tr>
@@ -492,6 +494,6 @@ function SkillBlockView({ block }: { block: SkillSectionBlock }) {
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollArea>
   )
 }

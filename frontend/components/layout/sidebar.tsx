@@ -11,32 +11,7 @@ import { useT, useI18n } from "@/lib/i18n"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AuthPanel } from "./auth-panel"
-
-const scrollbarStyles = `
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
-  }
-  .custom-scrollbar:hover {
-    scrollbar-color: rgba(22, 65, 153, 0.4) transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: transparent;
-    border-radius: 3px;
-  }
-  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
-    background: rgba(22, 65, 153, 0.4);
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(22, 65, 153, 0.6);
-  }
-`
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 const DEFAULT_ADMIN_URL = "http://114.55.10.54:8000/static/admin.html"
 
@@ -416,7 +391,6 @@ export const Sidebar = memo(function Sidebar({
 
   return (
     <>
-      <style>{scrollbarStyles}</style>
       <aside
         className={
           isMobileDrawer
@@ -472,7 +446,8 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 custom-scrollbar">
+      <ScrollArea className="min-h-0 flex-1">
+      <nav className="py-2">
         {isLoading ? (
           <div className="mt-3 px-3">
             <div className="px-3 mb-1.5">
@@ -511,6 +486,7 @@ export const Sidebar = memo(function Sidebar({
           </>
         )}
       </nav>
+      </ScrollArea>
 
       {/* Bottom Management Navigation */}
       <div className="flex flex-shrink-0 flex-col gap-1 px-3 py-2">

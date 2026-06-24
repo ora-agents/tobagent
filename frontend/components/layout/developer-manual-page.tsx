@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { useI18n } from "@/lib/i18n"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
@@ -70,7 +71,7 @@ export function DeveloperManualPage({ onBackToChat, onOpenSidebar }: DeveloperMa
   const { locale } = useI18n()
   const zh = locale === "zh"
   const [activeSection, setActiveSection] = useState("section-overview")
-  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
   const apiBase = LANGGRAPH_API_URL
   const swaggerDocsUrl = `${apiBase.replace(/\/$/, "")}/docs`
@@ -237,7 +238,8 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <aside className="w-full flex-shrink-0 overflow-x-auto border-b border-border/60 bg-secondary md:w-[208px] md:overflow-y-auto md:border-b-0 md:border-r">
+        <aside className="w-full flex-shrink-0 overflow-hidden border-b border-border/60 bg-secondary md:w-[208px] md:border-b-0 md:border-r">
+          <ScrollArea className="h-14 w-full md:h-full" scrollbars="both">
           <nav className="flex gap-1 p-2 md:sticky md:top-0 md:block md:space-y-1 md:p-4">
             <div className="hidden md:mb-3 md:block md:px-3 md:text-xs md:font-semibold md:text-muted-foreground">
               {zh ? "手册目录" : "Manual"}
@@ -257,13 +259,15 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
               </button>
             ))}
           </nav>
+          </ScrollArea>
         </aside>
 
-        <main
-          ref={scrollContainerRef}
-          onScroll={updateActiveSectionFromScroll}
-          className="min-w-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8"
+        <ScrollArea
+          className="min-h-0 min-w-0 flex-1 bg-background"
+          viewportRef={scrollContainerRef}
+          onViewportScroll={updateActiveSectionFromScroll}
         >
+          <main className="p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-4xl space-y-5 sm:space-y-6">
 
             <div
@@ -485,7 +489,8 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
               </div>
             </div>
           </div>
-        </main>
+          </main>
+        </ScrollArea>
       </div>
     </div>
   )

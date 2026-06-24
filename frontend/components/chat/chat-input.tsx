@@ -191,7 +191,7 @@ export function ChatInput({
                           ? t.typeNextMessage
                           : t.askAnything
                     }
-                    className="custom-scrollbar relative z-10 min-h-[40px] max-h-[32dvh] w-full resize-none break-words bg-transparent px-2 py-2.5 text-base leading-relaxed text-foreground transition-all duration-200 placeholder:text-muted-foreground focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[36px] sm:max-h-[240px] sm:px-3 sm:py-2 sm:text-sm"
+                    className="relative z-10 min-h-[40px] max-h-[32dvh] w-full resize-none break-words bg-transparent px-2 py-2.5 text-base leading-relaxed text-foreground transition-all duration-200 placeholder:text-muted-foreground focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[36px] sm:max-h-[240px] sm:px-3 sm:py-2 sm:text-sm"
                     disabled={!userId}
                     rows={1}
                   />

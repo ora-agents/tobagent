@@ -8,6 +8,7 @@ import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 const AGENT_SWITCHER_ORDER_KEY = "agent-switcher-order"
 const COLLAPSED_AGENT_LIMIT = 3
@@ -130,10 +131,12 @@ export function Header({
           )}
           {agentProfilesLoaded ? (
             canSwitchAgents ? (
-              <div
-                className="flex min-w-0 max-w-[calc(100vw-12rem)] items-center gap-1.5 overflow-x-auto pr-1 md:max-w-[48rem] md:pr-2"
+              <ScrollArea
+                className="h-10 min-w-0 max-w-[calc(100vw-12rem)] md:max-w-[48rem]"
+                scrollbars="horizontal"
                 aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
               >
+                <div className="flex items-center gap-1.5 pr-1 md:pr-2">
                 {displayedAgentProfiles.map((profile) => {
                   const isActive = selectedAgentProfileId === profile.id
                   const isDragging = draggedAgentId === profile.id
@@ -212,7 +215,8 @@ export function Header({
                     {isAgentListExpanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </Button>
                 )}
-              </div>
+                </div>
+              </ScrollArea>
             ) : (
               <span
                 className="truncate text-base font-sans font-semibold text-foreground select-none"

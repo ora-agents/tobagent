@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface ListPanelProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "title"> {
   title: React.ReactNode
@@ -23,7 +24,9 @@ function ListPanel({ title, action, children, className, ...props }: ListPanelPr
         </span>
         {action}
       </div>
-      <div className="flex-1 space-y-2 overflow-y-auto p-3">{children}</div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-2 p-3">{children}</div>
+      </ScrollArea>
     </aside>
   )
 }

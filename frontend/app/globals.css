@@ -209,7 +209,6 @@
   background: var(--muted);
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
 }
 
 .prompt-mdx-editor .mdxeditor-root-contenteditable {

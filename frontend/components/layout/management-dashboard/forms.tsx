@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export interface CustomFormField {
   id: string
@@ -767,7 +768,10 @@ export function FormRecordsTable({
           </Button>
         </div>
       </div>
-      <div className={`overflow-auto bg-background ${isFullscreen ? "min-h-0 flex-1" : "max-h-[560px] rounded-b-xl"}`}>
+      <ScrollArea
+        className={`bg-background ${isFullscreen ? "min-h-0 flex-1" : "h-[560px] rounded-b-xl"}`}
+        scrollbars="both"
+      >
         <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
             {table.getHeaderGroups().map(headerGroup => (
@@ -821,7 +825,7 @@ export function FormRecordsTable({
             )}
           </tbody>
         </table>
-      </div>
+      </ScrollArea>
       <div className="flex items-center justify-between p-3">
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))} className="h-8 rounded-lg">
           {locale === "zh" ? "上一页" : "Previous"}

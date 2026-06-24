@@ -36,6 +36,7 @@ import { EmptyState } from "@/components/ui/empty-state"
 import { InputField } from "@/components/ui/input-field"
 import { ListItem } from "@/components/ui/list-item"
 import { SettingsSwitch } from "@/components/ui/settings-switch"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -165,7 +166,7 @@ export function UserSettingsPage({
 
   // ---- Active section tracking ----
   const [activeSection, setActiveSection] = useState("section-display")
-  const scrollContainerRef = useRef<HTMLElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
 
   // ---- Sync form state when user changes ----
@@ -568,7 +569,8 @@ export function UserSettingsPage({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Left nav (hidden in elder mode for simplicity) */}
         {!elderOptimized && (
-          <aside className="w-full flex-shrink-0 overflow-x-auto border-b border-border/60 bg-secondary md:w-[208px] md:overflow-y-auto md:border-b-0 md:border-r">
+          <aside className="w-full flex-shrink-0 overflow-hidden border-b border-border/60 bg-secondary md:w-[208px] md:border-b-0 md:border-r">
+            <ScrollArea className="h-14 w-full md:h-full" scrollbars="both">
             <nav className="flex gap-1 p-2 md:sticky md:top-0 md:block md:space-y-1 md:p-4">
               <div className="hidden text-xs font-semibold text-muted-foreground md:mb-3 md:block md:px-3">
                 {zh ? "配置目录" : "Sections"}
@@ -584,15 +586,17 @@ export function UserSettingsPage({
                 />
               ))}
             </nav>
+            </ScrollArea>
           </aside>
         )}
 
         {/* Scrollable content */}
-        <main
-          ref={scrollContainerRef}
-          onScroll={updateActiveSectionFromScroll}
-          className={`min-w-0 flex-1 overflow-y-auto bg-background ${elderOptimized ? "p-4 sm:p-8" : "p-4 sm:p-6 lg:p-8"}`}
+        <ScrollArea
+          className="min-h-0 min-w-0 flex-1 bg-background"
+          viewportRef={scrollContainerRef}
+          onViewportScroll={updateActiveSectionFromScroll}
         >
+          <main className={elderOptimized ? "p-4 sm:p-8" : "p-4 sm:p-6 lg:p-8"}>
           <div className={`${elderOptimized ? "max-w-3xl space-y-7" : "max-w-2xl space-y-6"} mx-auto`}>
             {/* Error */}
             {error && (
@@ -977,7 +981,8 @@ export function UserSettingsPage({
             {/* Bottom spacing */}
             <div className="h-8" />
           </div>
-        </main>
+          </main>
+        </ScrollArea>
       </div>
     </AppShell>
 
