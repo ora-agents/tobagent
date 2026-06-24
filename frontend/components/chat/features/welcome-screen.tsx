@@ -120,7 +120,7 @@ export function WelcomeScreen({
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-background px-3 sm:px-4">
-      <div className="w-full max-w-3xl -mt-16 sm:-mt-28">
+      <div className="w-full max-w-3xl -mt-24 sm:-mt-36">
         {/* Header */}
         <div className="mb-4 text-center sm:mb-5">
           <h2
