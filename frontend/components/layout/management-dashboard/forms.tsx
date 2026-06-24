@@ -710,6 +710,7 @@ export function FormRecordsTable({
 
   const dirtyCount = dirtyRecordIds.size
   const hasValidationErrors = Object.values(validationErrors).some(fields => Object.keys(fields).length > 0)
+  const tableMinWidth = rowColumnWidth + orderedRecordFields.length * recordColumnWidth
 
   return (
     <div className={`min-h-0 ${isFullscreen ? "fixed inset-0 z-[100] flex flex-col rounded-none bg-background" : "rounded-xl bg-muted/35"}`}>
@@ -770,9 +771,19 @@ export function FormRecordsTable({
       </div>
       <ScrollArea
         className={`bg-background ${isFullscreen ? "min-h-0 flex-1" : "h-[560px] rounded-b-xl"}`}
+        contentClassName="!w-full min-w-0"
         scrollbars="both"
       >
-        <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0">
+        <table
+          className="w-full table-fixed border-separate border-spacing-0"
+          style={{ minWidth: tableMinWidth }}
+        >
+          <colgroup>
+            <col style={{ width: rowColumnWidth }} />
+            {orderedRecordFields.map(field => (
+              <col key={field.id} style={{ width: recordColumnWidth }} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 z-30">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id} className="bg-muted">
