@@ -2270,65 +2270,67 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="border border-border/50 rounded-xl p-4 bg-background/50 space-y-4">
-                      <div className="space-y-1">
-                        <div className="text-xs text-muted-foreground font-semibold">{t.sseServerUrl}</div>
-                        <div className="text-sm font-mono bg-muted/30 p-2.5 rounded-lg border border-border/40 break-all select-all">
-                          {selectedMcp.url}
+                    <div className="grid items-start gap-4 lg:grid-cols-[minmax(18rem,2fr)_minmax(0,3fr)]">
+                      <div className="space-y-4 rounded-xl border border-border/50 bg-background/50 p-4">
+                        <div className="space-y-1">
+                          <div className="text-xs font-semibold text-muted-foreground">{t.sseServerUrl}</div>
+                          <div className="break-all rounded-lg border border-border/40 bg-muted/30 p-2.5 font-mono text-sm select-all">
+                            {selectedMcp.url}
+                          </div>
                         </div>
+
+                        {Object.keys(selectedMcp.headers || {}).length > 0 ? (
+                          <div className="space-y-1">
+                            <div className="text-xs font-semibold text-muted-foreground">{t.customHeaders}</div>
+                            <pre className="overflow-x-auto rounded-lg border border-border/40 bg-muted/30 p-2.5 font-mono text-xs">
+                              {JSON.stringify(selectedMcp.headers, null, 2)}
+                            </pre>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="text-xs font-semibold text-muted-foreground">{t.customHeaders}</div>
+                            <div className="rounded-lg border border-border/40 bg-muted/20 p-2.5 text-xs italic text-muted-foreground">
+                              {t.noCustomHeaders}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      {Object.keys(selectedMcp.headers || {}).length > 0 ? (
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground font-semibold">{t.customHeaders}</div>
-                          <pre className="text-xs font-mono bg-muted/30 p-2.5 rounded-lg border border-border/40 overflow-x-auto">
-                            {JSON.stringify(selectedMcp.headers, null, 2)}
-                          </pre>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground font-semibold">{t.customHeaders}</div>
-                          <div className="text-xs italic text-muted-foreground bg-muted/20 p-2.5 rounded-lg border border-border/40">
-                            {t.noCustomHeaders}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid items-start gap-3 sm:grid-cols-3">
-                      {([
-                        ["tools", t.mcpTools, selectedMcp.tools || []],
-                        ["resources", t.mcpResources, selectedMcp.resources || []],
-                        ["prompts", t.mcpPrompts, selectedMcp.prompts || []],
-                      ] as const).map(([key, label, items]) => (
-                        <div key={key} className="h-fit self-start rounded-xl bg-muted/50 p-3">
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-xs font-semibold text-foreground">{label}</span>
-                            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                              {items.length}
-                            </span>
-                          </div>
-                          <div className="space-y-1.5">
-                            {items.length > 0 ? items.map((item, index) => (
-                              <div key={`${key}-${item.name || item.uri || item.uriTemplate || index}`} className="rounded-lg bg-background px-2.5 py-2">
-                                <div className="truncate text-xs font-medium">
-                                  {item.title || item.name || item.uri || item.uriTemplate}
-                                </div>
-                                {item.description && (
-                                  <div className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
-                                    {item.description}
+                      <div className="grid items-start gap-3 sm:grid-cols-3">
+                        {([
+                          ["tools", t.mcpTools, selectedMcp.tools || []],
+                          ["resources", t.mcpResources, selectedMcp.resources || []],
+                          ["prompts", t.mcpPrompts, selectedMcp.prompts || []],
+                        ] as const).map(([key, label, items]) => (
+                          <div key={key} className="h-fit self-start rounded-xl bg-muted/50 p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-foreground">{label}</span>
+                              <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                                {items.length}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              {items.length > 0 ? items.map((item, index) => (
+                                <div key={`${key}-${item.name || item.uri || item.uriTemplate || index}`} className="rounded-lg bg-background px-2.5 py-2">
+                                  <div className="truncate text-xs font-medium">
+                                    {item.title || item.name || item.uri || item.uriTemplate}
                                   </div>
-                                )}
-                                {item.kind === "template" && (
-                                  <div className="mt-1 text-[10px] text-primary">{t.mcpResourceTemplate}</div>
-                                )}
-                              </div>
-                            )) : (
-                              <div className="text-[10px] italic text-muted-foreground">{t.mcpNoneAdvertised}</div>
-                            )}
+                                  {item.description && (
+                                    <div className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                                      {item.description}
+                                    </div>
+                                  )}
+                                  {item.kind === "template" && (
+                                    <div className="mt-1 text-[10px] text-primary">{t.mcpResourceTemplate}</div>
+                                  )}
+                                </div>
+                              )) : (
+                                <div className="text-[10px] italic text-muted-foreground">{t.mcpNoneAdvertised}</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : (
