@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import * as ContextMenu from "@radix-ui/react-context-menu"
 import {
   flexRender,
   getCoreRowModel,
@@ -42,6 +43,10 @@ import {
   ToggleLeft,
   ListChecks,
   Lock,
+  Pin,
+  PinOff,
+  Save,
+  AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -661,6 +666,7 @@ const SYSTEM_FORM_FIELDS: CustomFormField[] = [
 ]
 
 const SYSTEM_FORM_FIELD_IDS = new Set(SYSTEM_FORM_FIELDS.map(field => field.id))
+const DRAFT_FORM_RECORD_ID_PREFIX = "draft_"
 
 const FORM_FIELD_TYPES: Array<{
   type: CustomFormFieldType
@@ -701,6 +707,28 @@ function normalizeFieldValue(field: CustomFormField, value: string | number | bo
     return Boolean(value)
   }
   return value ?? ""
+}
+
+function isMissingRequiredValue(field: CustomFormField, value: string | number | boolean | null | undefined) {
+  if (!field.required) return false
+  if (field.type === "boolean") return false
+  if (value === null || value === undefined) return true
+  if (typeof value === "string") return value.trim().length === 0
+  return false
+}
+
+function validateFormRecordData(
+  fields: CustomFormField[],
+  data: CustomFormRecord["data"],
+  locale: string,
+) {
+  const errors: Record<string, string> = {}
+  fields.forEach(field => {
+    if (isMissingRequiredValue(field, data?.[field.id])) {
+      errors[field.id] = locale === "zh" ? "必填字段不能为空" : "Required field cannot be empty"
+    }
+  })
+  return errors
 }
 
 function getSystemFieldLabel(field: CustomFormField, locale: string) {
@@ -992,10 +1020,11 @@ function FormFieldDesigner({
 interface EditableRecordCellProps {
   field: CustomFormField
   value: string | number | boolean | null | undefined
+  error?: string
   onCommit: (value: string | number | boolean | null) => void
 }
 
-function EditableRecordCell({ field, value, onCommit }: EditableRecordCellProps) {
+function EditableRecordCell({ field, value, error, onCommit }: EditableRecordCellProps) {
   const [draft, setDraft] = useState(value ?? "")
 
   useEffect(() => {
@@ -1009,6 +1038,7 @@ function EditableRecordCell({ field, value, onCommit }: EditableRecordCellProps)
         checked={Boolean(value)}
         onChange={(event) => onCommit(event.target.checked)}
         className="h-4 w-4 accent-primary"
+        title={error}
       />
     )
   }
@@ -1018,7 +1048,8 @@ function EditableRecordCell({ field, value, onCommit }: EditableRecordCellProps)
       <select
         value={String(value ?? "")}
         onChange={(event) => onCommit(event.target.value)}
-        className="h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 focus:ring-ring/20"
+        title={error}
+        className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 ${error ? "bg-destructive/10 text-destructive focus:ring-destructive/20" : "focus:ring-ring/20"}`}
       >
         <option value=""></option>
         {field.options.map(option => (
@@ -1039,7 +1070,8 @@ function EditableRecordCell({ field, value, onCommit }: EditableRecordCellProps)
           event.currentTarget.blur()
         }
       }}
-      className="h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 focus:ring-ring/20"
+      title={error}
+      className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 ${error ? "bg-destructive/10 text-destructive focus:ring-destructive/20" : "focus:ring-ring/20"}`}
     />
   )
 }
@@ -1051,11 +1083,15 @@ interface FormRecordsTableProps {
   total: number
   page: number
   query: string
+  dirtyRecordIds: Set<string>
+  validationErrors: Record<string, Record<string, string>>
   onQueryChange: (query: string) => void
   onPageChange: (page: number) => void
   onAddRecord: () => void
   onDeleteRecord: (recordId: string) => void
   onUpdateCell: (record: CustomFormRecord, field: CustomFormField, value: string | number | boolean | null) => void
+  onSaveRecord: (recordId: string) => Promise<boolean>
+  onSaveDirtyRecords: () => Promise<void>
 }
 
 function FormRecordsTable({
@@ -1065,12 +1101,66 @@ function FormRecordsTable({
   total,
   page,
   query,
+  dirtyRecordIds,
+  validationErrors,
   onQueryChange,
   onPageChange,
   onAddRecord,
   onDeleteRecord,
   onUpdateCell,
+  onSaveRecord,
+  onSaveDirtyRecords,
 }: FormRecordsTableProps) {
+  const [pinnedFieldIds, setPinnedFieldIds] = useState<Set<string>>(new Set())
+  const [pinnedRecordIds, setPinnedRecordIds] = useState<Set<string>>(new Set())
+  const orderedFields = useMemo(() => {
+    const pinned = form.fields.filter(field => pinnedFieldIds.has(field.id))
+    const unpinned = form.fields.filter(field => !pinnedFieldIds.has(field.id))
+    return [...pinned, ...unpinned]
+  }, [form.fields, pinnedFieldIds])
+  const orderedRecords = useMemo(() => {
+    const pinned = records.filter(record => pinnedRecordIds.has(record.id))
+    const unpinned = records.filter(record => !pinnedRecordIds.has(record.id))
+    return [...pinned, ...unpinned]
+  }, [records, pinnedRecordIds])
+  const pinnedFields = orderedFields.filter(field => pinnedFieldIds.has(field.id))
+
+  const togglePinnedField = useCallback((fieldId: string) => {
+    setPinnedFieldIds(prev => {
+      const next = new Set(prev)
+      if (next.has(fieldId)) next.delete(fieldId)
+      else next.add(fieldId)
+      return next
+    })
+  }, [])
+
+  const togglePinnedRecord = useCallback((recordId: string) => {
+    setPinnedRecordIds(prev => {
+      const next = new Set(prev)
+      if (next.has(recordId)) next.delete(recordId)
+      else next.add(recordId)
+      return next
+    })
+  }, [])
+
+  const getStickyColumnStyle = (columnId: string): React.CSSProperties | undefined => {
+    if (columnId === "_row") return { left: 0 }
+    const pinnedIndex = pinnedFields.findIndex(field => field.id === columnId)
+    if (pinnedIndex >= 0) return { left: 56 + pinnedIndex * 192 }
+    return undefined
+  }
+
+  const getStickyColumnClass = (columnId: string, isHeader = false) => {
+    if (columnId === "_row" || pinnedFieldIds.has(columnId)) {
+      return `sticky ${isHeader ? "z-30 bg-muted" : "z-20 bg-background group-hover/record:bg-primary/5"} shadow-[1px_0_0_var(--border)]`
+    }
+    return ""
+  }
+
+  const copyText = (value: string) => {
+    void navigator.clipboard?.writeText(value)
+  }
+
   const columns = useMemo<ColumnDef<CustomFormRecord>[]>(() => {
     const systemColumns: ColumnDef<CustomFormRecord>[] = SYSTEM_FORM_FIELDS.map(field => ({
       id: field.id,
@@ -1089,18 +1179,46 @@ function FormRecordsTable({
         </span>
       ),
     }))
-    const fieldColumns: ColumnDef<CustomFormRecord>[] = form.fields.map(field => ({
+    const fieldColumns: ColumnDef<CustomFormRecord>[] = orderedFields.map(field => ({
       id: field.id,
       header: () => (
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">{field.label}{field.required ? <span className="text-destructive"> *</span> : null}</div>
-          <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">{field.type}</div>
-        </div>
+        <ContextMenu.Root>
+          <ContextMenu.Trigger asChild>
+            <div className="min-w-0 cursor-context-menu">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {pinnedFieldIds.has(field.id) && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                <div className="truncate text-sm font-semibold">{field.label}{field.required ? <span className="text-destructive"> *</span> : null}</div>
+              </div>
+              <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">{field.type}</div>
+            </div>
+          </ContextMenu.Trigger>
+          <ContextMenu.Portal>
+            <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
+              <ContextMenu.Item
+                onSelect={() => togglePinnedField(field.id)}
+                className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
+              >
+                {pinnedFieldIds.has(field.id) ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                {pinnedFieldIds.has(field.id)
+                  ? (locale === "zh" ? "取消固定字段" : "Unpin field")
+                  : (locale === "zh" ? "固定字段" : "Pin field")}
+              </ContextMenu.Item>
+              <ContextMenu.Item
+                onSelect={() => copyText(field.id)}
+                className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
+              >
+                <Copy className="h-4 w-4" />
+                {locale === "zh" ? "复制字段 ID" : "Copy field ID"}
+              </ContextMenu.Item>
+            </ContextMenu.Content>
+          </ContextMenu.Portal>
+        </ContextMenu.Root>
       ),
       cell: ({ row }) => (
         <EditableRecordCell
           field={field}
           value={row.original.data?.[field.id]}
+          error={validationErrors[row.original.id]?.[field.id]}
           onCommit={(value) => onUpdateCell(row.original, field, value)}
         />
       ),
@@ -1117,24 +1235,39 @@ function FormRecordsTable({
         id: "_actions",
         header: "",
         cell: ({ row }) => (
-          <button
-            type="button"
-            onClick={() => onDeleteRecord(row.original.id)}
-            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            title={locale === "zh" ? "删除记录" : "Delete record"}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {dirtyRecordIds.has(row.original.id) && (
+              <button
+                type="button"
+                onClick={() => void onSaveRecord(row.original.id)}
+                className="rounded p-1.5 text-primary hover:bg-primary/10"
+                title={locale === "zh" ? "保存记录" : "Save record"}
+              >
+                <Save className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onDeleteRecord(row.original.id)}
+              className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              title={locale === "zh" ? "删除记录" : "Delete record"}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         ),
       },
     ]
-  }, [form.fields, locale, onDeleteRecord, onUpdateCell, page])
+  }, [dirtyRecordIds, locale, onDeleteRecord, onSaveRecord, onUpdateCell, orderedFields, page, pinnedFieldIds, togglePinnedField, validationErrors])
 
   const table = useReactTable({
-    data: records,
+    data: orderedRecords,
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
+
+  const dirtyCount = dirtyRecordIds.size
+  const hasValidationErrors = Object.values(validationErrors).some(fields => Object.keys(fields).length > 0)
 
   return (
     <div className="min-h-0 rounded-xl bg-muted/35">
@@ -1142,8 +1275,14 @@ function FormRecordsTable({
         <div>
           <h3 className="text-sm font-semibold">{locale === "zh" ? "记录表格" : "Records table"}</h3>
           <p className="text-xs text-muted-foreground">
-            {total} {locale === "zh" ? "条记录，单元格可直接编辑。" : "records. Cells are directly editable."}
+            {total} {locale === "zh" ? "条记录，编辑后点击保存并校验必填项。" : "records. Save edits to validate required fields."}
           </p>
+          {hasValidationErrors && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {locale === "zh" ? "请补全标红的必填字段后再保存。" : "Complete highlighted required fields before saving."}
+            </p>
+          )}
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <div className="relative w-64 max-w-full">
@@ -1162,17 +1301,27 @@ function FormRecordsTable({
             <Plus className="h-3.5 w-3.5" />
             {locale === "zh" ? "新增行" : "New row"}
           </Button>
+          <Button
+            size="sm"
+            onClick={() => void onSaveDirtyRecords()}
+            disabled={dirtyCount === 0}
+            className="h-8 rounded-lg"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {locale === "zh" ? `保存 ${dirtyCount || ""}` : `Save ${dirtyCount || ""}`}
+          </Button>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-b-xl bg-background">
+      <div className="max-h-[560px] overflow-auto rounded-b-xl bg-background">
         <table className="w-full min-w-[820px] table-fixed border-collapse">
-          <thead>
+          <thead className="sticky top-0 z-30">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id} className="bg-muted">
                 {headerGroup.headers.map(header => (
                   <th
                     key={header.id}
-                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : header.id === "_actions" ? "w-14" : "w-48"}`}
+                    style={getStickyColumnStyle(header.id)}
+                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : header.id === "_actions" ? "w-24" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
                   >
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
@@ -1181,15 +1330,68 @@ function FormRecordsTable({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => (
-              <tr key={row.id} className="hover:bg-primary/5">
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className="h-11 border-r border-t border-border/40 px-2 py-1 align-middle">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            )) : (
+            {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => {
+              const pinnedRecordIndex = orderedRecords
+                .filter(record => pinnedRecordIds.has(record.id))
+                .findIndex(record => record.id === row.original.id)
+              const isPinnedRecord = pinnedRecordIndex >= 0
+              return (
+              <ContextMenu.Root key={row.id}>
+                <ContextMenu.Trigger asChild>
+                  <tr
+                    style={isPinnedRecord ? { top: 57 + pinnedRecordIndex * 44 } : undefined}
+                    className={`group/record cursor-context-menu hover:bg-primary/5 ${isPinnedRecord ? "sticky z-10 bg-background shadow-[0_1px_0_var(--border)]" : ""}`}
+                  >
+                    {row.getVisibleCells().map(cell => (
+                      <td
+                        key={cell.id}
+                        style={getStickyColumnStyle(cell.column.id)}
+                        className={`h-11 border-r border-t border-border/40 px-2 py-1 align-middle ${getStickyColumnClass(cell.column.id)}`}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                </ContextMenu.Trigger>
+                <ContextMenu.Portal>
+                  <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
+                    <ContextMenu.Item
+                      onSelect={() => void onSaveRecord(row.original.id)}
+                      disabled={!dirtyRecordIds.has(row.original.id)}
+                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      {locale === "zh" ? "保存记录" : "Save record"}
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      onSelect={() => togglePinnedRecord(row.original.id)}
+                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
+                    >
+                      {pinnedRecordIds.has(row.original.id) ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                      {pinnedRecordIds.has(row.original.id)
+                        ? (locale === "zh" ? "取消固定记录" : "Unpin record")
+                        : (locale === "zh" ? "固定记录" : "Pin record")}
+                    </ContextMenu.Item>
+                    <ContextMenu.Item
+                      onSelect={() => copyText(row.original.id)}
+                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
+                    >
+                      <Copy className="h-4 w-4" />
+                      {locale === "zh" ? "复制记录 ID" : "Copy record ID"}
+                    </ContextMenu.Item>
+                    <ContextMenu.Separator className="-mx-1 my-1 h-px bg-muted" />
+                    <ContextMenu.Item
+                      onSelect={() => onDeleteRecord(row.original.id)}
+                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-none focus:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {locale === "zh" ? "删除记录" : "Delete record"}
+                    </ContextMenu.Item>
+                  </ContextMenu.Content>
+                </ContextMenu.Portal>
+              </ContextMenu.Root>
+              )
+            }) : (
               <tr>
                 <td colSpan={Math.max(1, columns.length)} className="h-28 text-center text-sm text-muted-foreground">
                   {locale === "zh" ? "暂无记录，点击新增行开始录入。" : "No records yet. Add a row to start."}
@@ -1280,6 +1482,8 @@ export function ManagementDashboard({
   const [selectedFormFieldId, setSelectedFormFieldId] = useState<string | null>(null)
   const [recordQuery, setRecordQuery] = useState("")
   const [recordPage, setRecordPage] = useState(1)
+  const [dirtyFormRecordIds, setDirtyFormRecordIds] = useState<Set<string>>(new Set())
+  const [formRecordValidationErrors, setFormRecordValidationErrors] = useState<Record<string, Record<string, string>>>({})
 
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [selectedMcpId, setSelectedMcpId] = useState<string | null>(null)
@@ -1498,6 +1702,8 @@ export function ManagementDashboard({
     if (!LANGGRAPH_API_URL || !authHeaders || activeTab !== "forms" || !selectedFormId) {
       setFormRecords([])
       setFormRecordTotal(0)
+      setDirtyFormRecordIds(new Set())
+      setFormRecordValidationErrors({})
       return
     }
 
@@ -1513,10 +1719,14 @@ export function ManagementDashboard({
       .then(data => {
         setFormRecords(data.records || [])
         setFormRecordTotal(data.total || 0)
+        setDirtyFormRecordIds(new Set())
+        setFormRecordValidationErrors({})
       })
       .catch(() => {
         setFormRecords([])
         setFormRecordTotal(0)
+        setDirtyFormRecordIds(new Set())
+        setFormRecordValidationErrors({})
       })
   }, [activeTab, authHeaders, selectedFormId, recordPage, recordQuery])
 
@@ -2295,30 +2505,21 @@ export function ManagementDashboard({
   }
 
   const handleAddFormRecord = async () => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
+    if (!selectedFormId) return
     const selectedForm = forms.find(form => form.id === selectedFormId)
     const data = Object.fromEntries(
       (selectedForm?.fields || []).map(field => [field.id, field.type === "boolean" ? false : null])
     ) as Record<string, string | number | boolean | null>
     const now = new Date().toISOString()
-    const payload = {
-      id: generateUUID(),
+    const draftRecord: CustomFormRecord = {
+      id: `${DRAFT_FORM_RECORD_ID_PREFIX}${generateUUID()}`,
       formId: selectedFormId,
       data,
       createdAt: now,
       updatedAt: now,
     }
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      body: JSON.stringify(payload),
-    })
-    if (resp.ok) {
-      const saved = await resp.json()
-      setFormRecords(prev => [saved, ...prev])
-      setFormRecordTotal(prev => prev + 1)
-      setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: form.recordCount + 1 } : form))
-    }
+    setFormRecords(prev => [draftRecord, ...prev])
+    setDirtyFormRecordIds(prev => new Set(prev).add(draftRecord.id))
   }
 
   const handleUpdateFormRecordCell = async (
@@ -2326,7 +2527,6 @@ export function ManagementDashboard({
     field: CustomFormField,
     value: string | number | boolean | null,
   ) => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
     const normalizedValue = normalizeFieldValue(field, value)
     if (record.data?.[field.id] === normalizedValue) return
     const now = new Date().toISOString()
@@ -2336,20 +2536,87 @@ export function ManagementDashboard({
       updatedAt: now,
     }
     setFormRecords(prev => prev.map(item => item.id === record.id ? updatedRecord : item))
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${record.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", ...authHeaders },
-      body: JSON.stringify(updatedRecord),
+    setDirtyFormRecordIds(prev => new Set(prev).add(record.id))
+    setFormRecordValidationErrors(prev => {
+      if (!prev[record.id]?.[field.id]) return prev
+      const nextRecordErrors = { ...prev[record.id] }
+      delete nextRecordErrors[field.id]
+      const next = { ...prev }
+      if (Object.keys(nextRecordErrors).length > 0) next[record.id] = nextRecordErrors
+      else delete next[record.id]
+      return next
     })
-    if (!resp.ok) {
-      setFormRecords(prev => prev.map(item => item.id === record.id ? record : item))
-    } else {
+  }
+
+  const handleSaveFormRecord = async (recordId: string) => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return false
+    const selectedForm = forms.find(form => form.id === selectedFormId)
+    const record = formRecords.find(item => item.id === recordId)
+    if (!selectedForm || !record) return false
+
+    const errors = validateFormRecordData(selectedForm.fields, record.data || {}, locale)
+    setFormRecordValidationErrors(prev => {
+      const next = { ...prev }
+      if (Object.keys(errors).length > 0) next[recordId] = errors
+      else delete next[recordId]
+      return next
+    })
+    if (Object.keys(errors).length > 0) return false
+
+    const isDraftRecord = record.id.startsWith(DRAFT_FORM_RECORD_ID_PREFIX)
+    const updatedRecord = {
+      ...record,
+      id: isDraftRecord ? generateUUID() : record.id,
+      updatedAt: new Date().toISOString(),
+    }
+    const resp = await fetch(
+      isDraftRecord
+        ? `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records`
+        : `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${record.id}`,
+      {
+        method: isDraftRecord ? "POST" : "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify(updatedRecord),
+      },
+    )
+    if (resp.ok) {
       const saved = await resp.json()
       setFormRecords(prev => prev.map(item => item.id === record.id ? saved : item))
+      setDirtyFormRecordIds(prev => {
+        const next = new Set(prev)
+        next.delete(record.id)
+        return next
+      })
+      if (isDraftRecord) {
+        setFormRecordTotal(prev => prev + 1)
+        setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: form.recordCount + 1 } : form))
+      }
+      return true
+    }
+    return false
+  }
+
+  const handleSaveDirtyFormRecords = async () => {
+    for (const recordId of Array.from(dirtyFormRecordIds)) {
+      await handleSaveFormRecord(recordId)
     }
   }
 
   const handleDeleteFormRecord = async (recordId: string) => {
+    if (recordId.startsWith(DRAFT_FORM_RECORD_ID_PREFIX)) {
+      setFormRecords(prev => prev.filter(record => record.id !== recordId))
+      setDirtyFormRecordIds(prev => {
+        const next = new Set(prev)
+        next.delete(recordId)
+        return next
+      })
+      setFormRecordValidationErrors(prev => {
+        const next = { ...prev }
+        delete next[recordId]
+        return next
+      })
+      return
+    }
     if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
     const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${recordId}`, {
       method: "DELETE",
@@ -2357,6 +2624,16 @@ export function ManagementDashboard({
     })
     if (resp.ok) {
       setFormRecords(prev => prev.filter(record => record.id !== recordId))
+      setDirtyFormRecordIds(prev => {
+        const next = new Set(prev)
+        next.delete(recordId)
+        return next
+      })
+      setFormRecordValidationErrors(prev => {
+        const next = { ...prev }
+        delete next[recordId]
+        return next
+      })
       setFormRecordTotal(prev => Math.max(0, prev - 1))
       setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: Math.max(0, form.recordCount - 1) } : form))
     }
@@ -2847,11 +3124,15 @@ export function ManagementDashboard({
                       total={formRecordTotal}
                       page={recordPage}
                       query={recordQuery}
+                      dirtyRecordIds={dirtyFormRecordIds}
+                      validationErrors={formRecordValidationErrors}
                       onQueryChange={setRecordQuery}
                       onPageChange={setRecordPage}
                       onAddRecord={handleAddFormRecord}
                       onDeleteRecord={handleDeleteFormRecord}
                       onUpdateCell={handleUpdateFormRecordCell}
+                      onSaveRecord={handleSaveFormRecord}
+                      onSaveDirtyRecords={handleSaveDirtyFormRecords}
                     />
                   </div>
                 ) : (
