@@ -31,6 +31,8 @@ import {
   Download,
   LoaderCircle,
   ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -125,6 +127,49 @@ interface ManagementDashboardProps {
   onNavigateToUserSettings: () => void
 }
 
+type SkillCategoryGroup = {
+  key: string
+  label: string
+  skills: Skill[]
+}
+
+const UNCATEGORIZED_SKILL_CATEGORY = "__uncategorized__"
+
+function getSkillCategory(skill: Skill, uncategorizedLabel: string) {
+  const parsed = parseSkillForView(skill.content)
+  const rawCategory = parsed.metadata.category || parsed.frontmatter.category || ""
+  const category = rawCategory.trim()
+
+  return {
+    key: category ? category.toLowerCase() : UNCATEGORIZED_SKILL_CATEGORY,
+    label: category || uncategorizedLabel,
+  }
+}
+
+function groupSkillsByCategory(skills: Skill[], uncategorizedLabel: string): SkillCategoryGroup[] {
+  const groups = new Map<string, SkillCategoryGroup>()
+
+  for (const skill of skills) {
+    const category = getSkillCategory(skill, uncategorizedLabel)
+    const existing = groups.get(category.key)
+    if (existing) {
+      existing.skills.push(skill)
+    } else {
+      groups.set(category.key, {
+        key: category.key,
+        label: category.label,
+        skills: [skill],
+      })
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.key === UNCATEGORIZED_SKILL_CATEGORY) return 1
+    if (b.key === UNCATEGORIZED_SKILL_CATEGORY) return -1
+    return a.label.localeCompare(b.label)
+  })
+}
+
 export function ManagementDashboard({
   initialTab,
   onBackToChat,
@@ -181,6 +226,8 @@ export function ManagementDashboard({
   const [isEditingSkill, setIsEditingSkill] = useState(false)
   const [isCreatingSkill, setIsCreatingSkill] = useState(false)
   const [skillForm, setSkillForm] = useState({ name: "", description: "", content: "" })
+  const [collapsedSkillCategories, setCollapsedSkillCategories] = useState<Set<string>>(new Set())
+  const [collapsedAgentSkillCategories, setCollapsedAgentSkillCategories] = useState<Set<string>>(new Set())
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [selectedKBId, setSelectedKBId] = useState<string | null>(null)
@@ -1718,8 +1765,39 @@ export function ManagementDashboard({
   const filteredAgentSkills = skills.filter(skill => {
     const query = agentSkillSearch.trim().toLowerCase()
     if (!query) return true
-    return [skill.name, skill.description, skill.id].some(value => value.toLowerCase().includes(query))
+    const category = getSkillCategory(skill, locale === "zh" ? "未分类" : "Uncategorized").label
+    return [skill.name, skill.description, skill.id, category].some(value => value.toLowerCase().includes(query))
   })
+  const skillCategoryGroups = useMemo(
+    () => groupSkillsByCategory(skills, locale === "zh" ? "未分类" : "Uncategorized"),
+    [locale, skills],
+  )
+  const filteredAgentSkillCategoryGroups = useMemo(
+    () => groupSkillsByCategory(filteredAgentSkills, locale === "zh" ? "未分类" : "Uncategorized"),
+    [filteredAgentSkills, locale],
+  )
+  const toggleCollapsedSkillCategory = (key: string) => {
+    setCollapsedSkillCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+  const toggleCollapsedAgentSkillCategory = (key: string) => {
+    setCollapsedAgentSkillCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
   const filteredAgentMcpServers = mcpServers.filter(mcp => {
     const query = agentMcpSearch.trim().toLowerCase()
     if (!query) return true
@@ -2140,68 +2218,89 @@ export function ManagementDashboard({
                       {t.noSkills}
                     </div>
                   ) : (
-                    skills.map(skill => (
-                      <div
-                        key={skill.id}
-                        onClick={() => handleSelectSkill(skill.id)}
-                        className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
-                          selectedSkillId === skill.id
-                            ? "border-primary/60 bg-primary/5 shadow-depth-xs"
-                            : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
-                        }`}
-                      >
-                        <div className="font-semibold text-sm truncate">{skill.name}</div>
-                        <div className="text-xs text-muted-foreground mt-1 truncate">
-                          {skill.description || t.noDescriptionProvided}
-                        </div>
+                    skillCategoryGroups.map(group => {
+                      const collapsed = collapsedSkillCategories.has(group.key)
+                      return (
+                        <div key={group.key} className="space-y-1.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapsedSkillCategory(group.key)}
+                            className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            aria-expanded={!collapsed}
+                          >
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
+                              <span className="truncate">{group.label}</span>
+                            </span>
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {group.skills.length}
+                            </span>
+                          </button>
+                          {!collapsed && group.skills.map(skill => (
+                            <div
+                              key={skill.id}
+                              onClick={() => handleSelectSkill(skill.id)}
+                              className={`group relative p-3 pr-20 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                selectedSkillId === skill.id
+                                  ? "border-primary/60 bg-primary/5 shadow-depth-xs"
+                                  : "border-border/60 hover:border-primary/30 hover:bg-muted/20"
+                              }`}
+                            >
+                              <div className="font-semibold text-sm truncate">{skill.name}</div>
+                              <div className="text-xs text-muted-foreground mt-1 truncate">
+                                {skill.description || t.noDescriptionProvided}
+                              </div>
 
-                        {/* List Actions */}
-                        <div
-                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
-                            deleteConfirmId === skill.id
-                              ? "opacity-100 pointer-events-auto"
-                              : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
-                          }`}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {deleteConfirmId === skill.id ? (
-                            <>
-                              <button
-                                onClick={() => handleDeleteSkill(skill.id)}
-                                className="p-1 rounded text-destructive hover:bg-destructive/10"
-                                title={t.confirmDeleteTitle}
+                              {/* List Actions */}
+                              <div
+                                className={`absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-1 transition-all duration-200 ${
+                                  deleteConfirmId === skill.id
+                                    ? "opacity-100 pointer-events-auto"
+                                    : "opacity-100 pointer-events-auto md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"
+                                }`}
+                                onClick={e => e.stopPropagation()}
                               >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                className="p-1 rounded text-muted-foreground hover:bg-muted"
-                                title={t.cancelTitle}
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleStartEditSkill(skill)}
-                                className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                                title={t.editTitle}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(skill.id)}
-                                className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                title={t.deleteTitle}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
+                                {deleteConfirmId === skill.id ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleDeleteSkill(skill.id)}
+                                      className="p-1 rounded text-destructive hover:bg-destructive/10"
+                                      title={t.confirmDeleteTitle}
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteConfirmId(null)}
+                                      className="p-1 rounded text-muted-foreground hover:bg-muted"
+                                      title={t.cancelTitle}
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => handleStartEditSkill(skill)}
+                                      className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                                      title={t.editTitle}
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => setDeleteConfirmId(skill.id)}
+                                      className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                      title={t.deleteTitle}
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </ScrollArea>
               </div>
@@ -2951,44 +3050,70 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="max-h-64 rounded-xl border border-border/40 bg-background/50"
-                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="space-y-2 p-1"
                           viewportClassName="!h-auto max-h-64"
                         >
-                          {filteredAgentSkills.length > 0 ? filteredAgentSkills.map((sk) => {
-                            const linked = agentForm.skillIds.includes(sk.id)
+                          {filteredAgentSkillCategoryGroups.length > 0 ? filteredAgentSkillCategoryGroups.map(group => {
+                            const collapsed = collapsedAgentSkillCategories.has(group.key)
+                            const linkedCount = group.skills.filter(sk => agentForm.skillIds.includes(sk.id)).length
                             return (
-                              <div
-                                key={sk.id}
-                                className={linkedResourceItemClassName(linked)}
-                                onClick={() => {
-                                  const nextIds = linked
-                                    ? agentForm.skillIds.filter(id => id !== sk.id)
-                                    : [...agentForm.skillIds, sk.id]
-                                  setAgentForm({ ...agentForm, skillIds: nextIds })
-                                }}
-                              >
-                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                                  linked ? "bg-primary border-primary" : "border-muted-foreground/35"
-                                }`}>
-                                  {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="text-xs font-medium truncate">{sk.name}</div>
-                                  <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
-                                </div>
+                              <div key={group.key} className="space-y-1.5">
                                 <button
                                   type="button"
-                                  onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "skill", item: sk })}
-                                  className={linkedResourceJumpButtonClassName}
-                                  title={locale === "zh" ? "编辑技能配置" : "Edit skill configuration"}
-                                  aria-label={locale === "zh" ? `编辑技能配置：${sk.name}` : `Edit skill configuration: ${sk.name}`}
+                                  onClick={() => toggleCollapsedAgentSkillCategory(group.key)}
+                                  className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                                  aria-expanded={!collapsed}
                                 >
-                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                  <span className="flex min-w-0 items-center gap-1.5">
+                                    {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
+                                    <span className="truncate">{group.label}</span>
+                                  </span>
+                                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    {linkedCount}/{group.skills.length}
+                                  </span>
                                 </button>
+                                {!collapsed && (
+                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {group.skills.map((sk) => {
+                                      const linked = agentForm.skillIds.includes(sk.id)
+                                      return (
+                                        <div
+                                          key={sk.id}
+                                          className={linkedResourceItemClassName(linked)}
+                                          onClick={() => {
+                                            const nextIds = linked
+                                              ? agentForm.skillIds.filter(id => id !== sk.id)
+                                              : [...agentForm.skillIds, sk.id]
+                                            setAgentForm({ ...agentForm, skillIds: nextIds })
+                                          }}
+                                        >
+                                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                            linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                          }`}>
+                                            {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                          </span>
+                                          <div className="min-w-0">
+                                            <div className="text-xs font-medium truncate">{sk.name}</div>
+                                            <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "skill", item: sk })}
+                                            className={linkedResourceJumpButtonClassName}
+                                            title={locale === "zh" ? "编辑技能配置" : "Edit skill configuration"}
+                                            aria-label={locale === "zh" ? `编辑技能配置：${sk.name}` : `Edit skill configuration: ${sk.name}`}
+                                          >
+                                            <ArrowUpRight className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             )
                           }) : (
-                            <div className="col-span-full py-6 text-center text-xs text-muted-foreground">
+                            <div className="py-6 text-center text-xs text-muted-foreground">
                               {locale === "zh" ? "未找到匹配的技能" : "No matching skills found."}
                             </div>
                           )}
