@@ -141,8 +141,8 @@ export const AGENTS = {
   },
   agentBuilder: {
     id: "agent_builder",
-    name: "Agent Builder",
-    shortName: "Agent Builder",
+    name: "平台智能体",
+    shortName: "平台智能体",
     description: "System configuration-building assistant",
   },
 } as const satisfies Record<string, AgentConfig>

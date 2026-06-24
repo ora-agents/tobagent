@@ -518,7 +518,7 @@ const en = {
   registerAccessDesc: "Create an account to configure custom agents, knowledge bases, and tool workflows",
   loginBrandName: "WSIRI Agent Platform",
   loginBrandSub: "Custom agent product workspace",
-  loginBadge: "Enterprise agent builder",
+  loginBadge: "Platform agent",
   loginHeadline: "Build your own dedicated Agent.",
   loginDescription: "Sign in to the WSIRI product workspace to create, orchestrate, and manage custom agents for your business scenarios.",
   loginMetricScene: "Scenario",

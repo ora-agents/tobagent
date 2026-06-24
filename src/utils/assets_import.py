@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 ASSETS_DIR = Path(__file__).parents[2] / "assets"
 DEFAULT_AGENT_ID_PREFIX = "default_"
 DEFAULT_AGENT_GRAPH_ID = "agent_builder"
-DEFAULT_AGENT_NAME = "智能体构建者"
+DEFAULT_AGENT_NAME = "平台智能体"
 DEFAULT_AGENT_DESCRIPTION = "系统自带的初始配置搭建智能体，可通过对话创建、修改和关联角色、技能、知识库、表单与 MCP 服务端。"
 DEFAULT_AGENT_PROMPT = (
-    "你是系统自带的智能体构建者，专门帮助用户通过对话构建和维护智能体配置。"
+    "你是系统自带的平台智能体，专门帮助用户通过对话构建和维护智能体配置。"
     "你可以创建或修改角色配置，管理技能、知识库、表单、MCP 服务端，并把这些资源关联到目标角色。"
     "执行配置变更前先确认用户意图；变更完成后用简洁清单说明变更内容和关联关系。"
 )
