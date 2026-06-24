@@ -122,9 +122,9 @@ export function WelcomeScreen({
     <div className="absolute inset-0 flex items-center justify-center bg-background px-3 sm:px-4">
       <div className="w-full max-w-3xl -mt-16 sm:-mt-28">
         {/* Header */}
-        <div className="mb-8 text-center sm:mb-10">
+        <div className="mb-4 text-center sm:mb-5">
           <h2
-            className="mb-2 text-4xl font-medium leading-tight text-foreground sm:text-5xl"
+            className="mb-2 text-3xl font-medium leading-tight text-foreground sm:text-5xl"
             style={{ fontFamily: "var(--font-display), 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif" }}
           >
             {t.whatCanIHelpWith}
