@@ -1960,7 +1960,7 @@ export function ManagementDashboard({
               {/* Right MCP Details / Form */}
               <ScrollArea
                 className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
-                viewportClassName="p-4 sm:p-6"
+                contentClassName="p-4 sm:p-6"
               >
                 {isCreatingMcp || isEditingMcp ? (
                   <div className="max-w-2xl space-y-4">
@@ -2077,7 +2077,7 @@ export function ManagementDashboard({
 
                 <ScrollArea
                   className="min-h-0 flex-1"
-                  viewportClassName="space-y-2 p-3"
+                  contentClassName="space-y-2 p-3"
                 >
                   {skills.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
@@ -2154,7 +2154,7 @@ export function ManagementDashboard({
               {/* Right Skill Edit Form / Details */}
               <ScrollArea
                 className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
-                viewportClassName="flex flex-col p-4 sm:p-6"
+                contentClassName="flex min-h-full flex-col p-4 sm:p-6"
               >
                 {isCreatingSkill || isEditingSkill ? (
                   <div className="max-w-2xl space-y-4">
@@ -2257,7 +2257,7 @@ export function ManagementDashboard({
 
                 <ScrollArea
                   className="min-h-0 flex-1"
-                  viewportClassName="space-y-2 p-3"
+                  contentClassName="space-y-2 p-3"
                 >
                   {configurableAgentProfiles.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
@@ -2380,7 +2380,7 @@ export function ManagementDashboard({
               {/* Right Role Form / Details */}
               <ScrollArea
                 className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
-                viewportClassName="p-4 sm:p-6"
+                contentClassName="p-4 sm:p-6"
               >
                 {isCreatingAgent || isEditingAgent ? (
                   <div className="max-w-none space-y-4">
@@ -2825,7 +2825,7 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="h-64 rounded-xl border border-border/40 bg-background/50"
-                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
                         >
                           {filteredAgentKnowledgeBases.length > 0 ? filteredAgentKnowledgeBases.map((kb) => {
                             const linked = agentForm.knowledgeBaseIds.includes(kb.id)
@@ -2882,7 +2882,7 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="h-64 rounded-xl border border-border/40 bg-background/50"
-                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
                         >
                           {filteredAgentSkills.length > 0 ? filteredAgentSkills.map((sk) => {
                             const linked = agentForm.skillIds.includes(sk.id)
@@ -2936,7 +2936,7 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="h-64 rounded-xl border border-border/40 bg-background/50"
-                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
                         >
                           {filteredAgentMcpServers.length > 0 ? filteredAgentMcpServers.map((mcp) => {
                             const linked = agentForm.mcpIds.includes(mcp.id)
@@ -2983,7 +2983,7 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="h-64 rounded-xl border border-border/40 bg-background/50"
-                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
                         >
                           {filteredAgentForms.map((form) => {
                             const linked = agentForm.formIds.includes(form.id)
@@ -3038,7 +3038,7 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="h-64 rounded-xl border border-border/40 bg-background/50"
-                          viewportClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
                         >
                           {filteredLinkableAgentProfiles.length > 0 ? filteredLinkableAgentProfiles.map((agent) => {
                               const linked = agentForm.agentIds?.includes(agent.id)
@@ -3555,7 +3555,7 @@ export function ManagementDashboard({
 
                 <ScrollArea
                   className="min-h-0 flex-1"
-                  viewportClassName="space-y-2 p-3"
+                  contentClassName="space-y-2 p-3"
                 >
                   {knowledgeBases.length === 0 ? (
                     <div className="py-8 text-center text-xs text-muted-foreground/80">
@@ -3642,7 +3642,7 @@ export function ManagementDashboard({
               {/* Right KB Edit Form / Details */}
               <ScrollArea
                 className="min-h-0 flex-1 bg-gradient-to-tr from-sidebar-accent/5 to-transparent"
-                viewportClassName="p-4 sm:p-6"
+                contentClassName="p-4 sm:p-6"
               >
                 {isCreatingKB || isEditingKB ? (
                   <div className="max-w-2xl space-y-4">

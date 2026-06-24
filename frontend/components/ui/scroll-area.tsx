@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 interface ScrollAreaProps
   extends React.ComponentProps<typeof ScrollAreaPrimitive.Root> {
+  contentClassName?: string
   viewportRef?: React.Ref<HTMLDivElement>
   viewportClassName?: string
   onViewportScroll?: React.UIEventHandler<HTMLDivElement>
@@ -16,6 +17,7 @@ interface ScrollAreaProps
 function ScrollArea({
   className,
   children,
+  contentClassName,
   viewportRef,
   viewportClassName,
   onViewportScroll,
@@ -25,7 +27,7 @@ function ScrollArea({
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
-      className={cn("relative", className)}
+      className={cn("relative min-w-0 overflow-hidden", className)}
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
@@ -33,11 +35,21 @@ function ScrollArea({
         data-slot="scroll-area-viewport"
         className={cn(
           "focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1",
+          scrollbars === "vertical" &&
+            "[&>div]:!block [&>div]:w-full [&>div]:min-w-0",
           viewportClassName
         )}
         onScroll={onViewportScroll}
       >
-        {children}
+        <div
+          data-slot="scroll-area-content"
+          className={cn(
+            scrollbars === "vertical" ? "w-full min-w-0" : "w-max min-w-full",
+            contentClassName
+          )}
+        >
+          {children}
+        </div>
       </ScrollAreaPrimitive.Viewport>
       {(scrollbars === "vertical" || scrollbars === "both") && <ScrollBar />}
       {(scrollbars === "horizontal" || scrollbars === "both") && (
