@@ -84,10 +84,26 @@ export function Header({
     return [...orderedProfiles, ...newProfiles]
   }, [orderedAgentIds, visibleAgentProfiles])
 
-  const hasMoreAgents = orderedAgentProfiles.length > COLLAPSED_AGENT_LIMIT
+  const collapsedAgentProfiles = useMemo(() => {
+    const platformProfiles = orderedAgentProfiles.filter((profile) => profile.graphId === "agent_builder")
+    const regularProfiles = orderedAgentProfiles.filter((profile) => profile.graphId !== "agent_builder")
+    const visibleRegularProfiles = regularProfiles.slice(0, COLLAPSED_AGENT_LIMIT)
+    const selectedRegularProfile = regularProfiles.find((profile) => profile.id === selectedAgentProfileId)
+
+    if (
+      selectedRegularProfile
+      && !visibleRegularProfiles.some((profile) => profile.id === selectedRegularProfile.id)
+    ) {
+      visibleRegularProfiles[visibleRegularProfiles.length - 1] = selectedRegularProfile
+    }
+
+    return [...visibleRegularProfiles, ...platformProfiles]
+  }, [orderedAgentProfiles, selectedAgentProfileId])
+
+  const hasMoreAgents = orderedAgentProfiles.length > collapsedAgentProfiles.length
   const displayedAgentProfiles = isAgentListExpanded
     ? orderedAgentProfiles
-    : orderedAgentProfiles.slice(0, COLLAPSED_AGENT_LIMIT)
+    : collapsedAgentProfiles
 
   const persistAgentOrder = (nextIds: string[]) => {
     setOrderedAgentIds(nextIds)
