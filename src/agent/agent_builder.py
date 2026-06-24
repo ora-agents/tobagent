@@ -31,7 +31,7 @@ class AgentBuilderContext(BaseModel):
     safety_enabled: bool = Field(default=False, description="Confirm sensitive actions when true.")
 
 
-agent_builder_prompt = """你是系统自带的 Agent 搭建 Agent。
+agent_builder_prompt = """你是系统自带的智能体构建者。
 
 职责：
 - 通过对话帮助用户创建、修改、检查和关联所有 Agent 配置。

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_
 
 from src.api.services import _create_agent_profile_version, _invalidate_runtime_caches
+from src.utils.assets_import import DEFAULT_AGENT_GRAPH_ID, is_default_agent_profile_id
 from src.utils.db import (
     AgentProfileTable,
     FormTable,
@@ -41,6 +42,10 @@ def _owner_user_id() -> str:
 
 def _json(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+def _is_system_agent_profile(profile: AgentProfileTable) -> bool:
+    return profile.graph_id == DEFAULT_AGENT_GRAPH_ID or is_default_agent_profile_id(profile.id)
 
 
 class ListConfigResourcesInput(BaseModel):
@@ -155,6 +160,8 @@ class UpsertAgentProfileTool(BaseTool):
                 ).first()
                 if profile is None:
                     return f"Agent '{agent_id}' was not found for this user."
+                if _is_system_agent_profile(profile):
+                    return "System agent profiles cannot be modified."
             if profile is None:
                 profile = AgentProfileTable(
                     id=_new_id("agent"),
@@ -402,6 +409,8 @@ class LinkAgentResourcesTool(BaseTool):
             ).first()
             if not profile:
                 return f"Agent '{agent_id}' was not found for this user."
+            if _is_system_agent_profile(profile):
+                return "System agent profiles cannot be modified."
 
             checks = [
                 ("knowledge_base_ids", KnowledgeBaseTable, "knowledge_base_ids", kwargs.get("knowledge_base_ids") or []),

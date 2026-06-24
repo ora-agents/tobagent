@@ -52,7 +52,7 @@ import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
 import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
-import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
+import { BUILTIN_TOOLS, isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
   getDefaultModel,
@@ -417,15 +417,16 @@ export function ManagementDashboard({
     }
     if (isEditingAgent || isCreatingAgent) return
 
-    setSelectedAgentId(selectedAgentProfileId)
+    const selectedProfile = agentProfiles.find(profile => profile.id === selectedAgentProfileId)
+    setSelectedAgentId(selectedProfile && !isSystemAgentProfile(selectedProfile) ? selectedProfile.id : null)
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
-  }, [selectedAgentProfileId, activeTab])
+  }, [selectedAgentProfileId, activeTab, agentProfiles])
 
   useEffect(() => {
     if (activeTab !== "agents" || !editAgentIdOnOpen) return
 
-    const profile = agentProfiles.find(p => p.id === editAgentIdOnOpen)
+    const profile = agentProfiles.find(p => p.id === editAgentIdOnOpen && !isSystemAgentProfile(p))
     if (profile) {
       handleStartEditAgent(profile)
     }
@@ -1445,7 +1446,7 @@ export function ManagementDashboard({
     [selectedSkill]
   )
   const selectedAgent = selectedAgentId
-    ? agentProfiles.find(p => p.id === selectedAgentId) || null
+    ? agentProfiles.find(p => p.id === selectedAgentId && !isSystemAgentProfile(p)) || null
     : null
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
@@ -1673,21 +1674,22 @@ export function ManagementDashboard({
     if (!query) return true
     return [form.name, form.description, form.id].some(value => value.toLowerCase().includes(query))
   })
-  const linkableAgentProfiles = agentProfiles.filter(p => p.id !== activeEditingAgentId)
+  const configurableAgentProfiles = agentProfiles.filter(profile => !isSystemAgentProfile(profile))
+  const linkableAgentProfiles = configurableAgentProfiles.filter(p => p.id !== activeEditingAgentId)
   const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
     const query = agentRoleSearch.trim().toLowerCase()
     if (!query) return true
     return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
   })
   const configBundleResources = useMemo(() => ({
-    agents: agentProfiles.map(item => ({ id: item.id, name: item.name })),
+    agents: configurableAgentProfiles.map(item => ({ id: item.id, name: item.name })),
     skills: skills.map(item => ({ id: item.id, name: item.name })),
     knowledgeBases: knowledgeBases
       .filter(item => !item.isSystem)
       .map(item => ({ id: item.id, name: item.name })),
     mcpServers: mcpServers.map(item => ({ id: item.id, name: item.name })),
     forms: forms.map(item => ({ id: item.id, name: item.name })),
-  }), [agentProfiles, forms, knowledgeBases, mcpServers, skills])
+  }), [configurableAgentProfiles, forms, knowledgeBases, mcpServers, skills])
   return (
     <div className="flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
@@ -2244,13 +2246,13 @@ export function ManagementDashboard({
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto p-3 space-y-2">
-                  {agentProfiles.length === 0 && (
+                  {configurableAgentProfiles.length === 0 && (
                     <div className="rounded-lg border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
                       {t.createAgentPrompt}
                     </div>
                   )}
 
-                  {agentProfiles.map(profile => (
+                  {configurableAgentProfiles.map(profile => (
                     <div
                       key={profile.id}
                       onClick={() => handleSelectAgent(profile.id)}
@@ -3461,7 +3463,7 @@ export function ManagementDashboard({
                               {locale === "zh" ? "已关联的协同角色" : "Linked Collaborative Roles"}
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              {agentProfiles
+                              {configurableAgentProfiles
                                 .filter(p => selectedAgent.agentIds?.includes(p.id))
                                 .map(p => (
                                   <div key={p.id} className="p-2.5 border border-rose-500/20 bg-rose-500/5 rounded-xl flex items-center gap-2.5">

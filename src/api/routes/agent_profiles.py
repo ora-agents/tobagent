@@ -50,6 +50,20 @@ from src.utils.default_skills import ensure_default_skills
 router = APIRouter(tags=["agent-profiles"])
 
 
+def _is_system_agent_profile(profile: AgentProfileTable) -> bool:
+    from src.utils.assets_import import (
+        DEFAULT_AGENT_GRAPH_ID,
+        is_default_agent_profile_id,
+    )
+
+    return profile.graph_id == DEFAULT_AGENT_GRAPH_ID or is_default_agent_profile_id(profile.id)
+
+
+def _reject_system_agent_profile(profile: AgentProfileTable) -> None:
+    if _is_system_agent_profile(profile):
+        raise HTTPException(status_code=403, detail="System agent profiles cannot be modified")
+
+
 # ---------------------------------------------------------------------------
 # Agent Profile CRUD
 # ---------------------------------------------------------------------------
@@ -90,6 +104,14 @@ async def create_agent_profile(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    from src.utils.assets_import import (
+        DEFAULT_AGENT_GRAPH_ID,
+        is_default_agent_profile_id,
+    )
+
+    if (profile_data.graphId or "").strip() == DEFAULT_AGENT_GRAPH_ID or is_default_agent_profile_id(profile_data.id):
+        raise HTTPException(status_code=403, detail="System agent profiles cannot be created by users")
+
     # Check duplicate
     existing = db.query(AgentProfileTable).filter(AgentProfileTable.id == profile_data.id).first()
     if existing:
@@ -148,6 +170,7 @@ async def update_agent_profile(
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
+    _reject_system_agent_profile(profile)
     _validate_agent_profile_links(db, profile_data, current_user.id, id)
 
     profile.name = profile_data.name
@@ -222,6 +245,7 @@ async def restore_agent_profile_version(
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
+    _reject_system_agent_profile(profile)
 
     version = db.query(AgentProfileVersionTable).filter(
         AgentProfileVersionTable.id == version_id,
@@ -285,6 +309,7 @@ async def create_agent_share_link(
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
+    _reject_system_agent_profile(profile)
 
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     existing = db.query(AgentShareLinkTable).filter(
@@ -616,6 +641,7 @@ async def delete_agent_profile(
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
+    _reject_system_agent_profile(profile)
     _remove_agent_profile_links(db, current_user.id, "agent_ids", [id])
     db.query(AgentShareLinkTable).filter(
         AgentShareLinkTable.agent_profile_id == id,

@@ -90,3 +90,7 @@ export const SELECTED_AGENT_PROFILE_KEY = "selected-agent-profile-id"
 export function isDefaultAgentProfile(profile: Pick<AgentProfile, "id">): boolean {
   return profile.id === "default" || profile.id.startsWith("default_")
 }
+
+export function isSystemAgentProfile(profile: Pick<AgentProfile, "id" | "graphId">): boolean {
+  return profile.graphId === "agent_builder" || isDefaultAgentProfile(profile)
+}
