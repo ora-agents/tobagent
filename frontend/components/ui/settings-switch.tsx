@@ -33,10 +33,10 @@ function SettingsSwitch({
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        "flex w-full items-start gap-3 rounded-xl border bg-background/60 text-left outline-none transition-colors",
-        "border-border/60 hover:border-primary/35 hover:bg-background focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15",
+        "flex w-full items-start gap-3 rounded-xl bg-secondary text-left outline-none transition-colors",
+        "hover:bg-sidebar-accent focus-visible:ring-[3px] focus-visible:ring-primary/15",
         "disabled:pointer-events-none disabled:opacity-50",
-        checked && "border-primary/35 bg-primary/5",
+        checked && "bg-primary-soft dark:bg-primary dark:text-primary-foreground",
         isLarge ? "p-5" : "p-3.5",
         className
       )}

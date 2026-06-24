@@ -530,11 +530,11 @@ export function UserSettingsPage({
             </Button>
           ) : null}
           <div className="min-w-0">
-            <h1 className={`${elderOptimized ? "text-xl gap-2 sm:text-2xl" : "text-base gap-1.5"} flex min-w-0 items-center font-display font-semibold tracking-wide`}>
+            <h1 className={`${elderOptimized ? "text-xl gap-2 sm:text-2xl" : "text-lg gap-2 sm:text-[22px]"} flex min-w-0 items-center font-semibold`}>
               <Settings2 className={`${elderOptimized ? "h-6 w-6" : "h-5 w-5"} flex-shrink-0 text-primary`} />
               <span className="truncate">{zh ? "用户设置" : "User Settings"}</span>
             </h1>
-            <p className={`${elderOptimized ? "text-sm mt-1 leading-snug" : "text-[11px] mt-1 leading-4"} hidden text-muted-foreground/80 sm:block`}>
+            <p className={`${elderOptimized ? "text-sm mt-1 leading-snug" : "text-sm mt-1 leading-5"} hidden text-muted-foreground sm:block`}>
               {zh ? "管理您的个人信息、偏好设置和安全选项" : "Manage your profile, preferences, and safety options"}
             </p>
           </div>
@@ -554,7 +554,7 @@ export function UserSettingsPage({
             </span>
           )}
           <NavActionButton
-            variant="outline"
+            variant="secondary"
             onClick={onBackToChat}
             className={elderOptimized ? "h-11 min-w-0 px-3 text-base sm:min-w-[8.5rem] sm:px-4" : ""}
           >
@@ -569,9 +569,9 @@ export function UserSettingsPage({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Left nav (hidden in elder mode for simplicity) */}
         {!elderOptimized && (
-          <aside className="w-full flex-shrink-0 overflow-x-auto border-b border-border/40 bg-background/30 md:w-[180px] md:overflow-y-auto md:border-b-0 md:border-r">
+          <aside className="w-full flex-shrink-0 overflow-x-auto border-b border-border/60 bg-secondary md:w-[208px] md:overflow-y-auto md:border-b-0 md:border-r">
             <nav className="flex gap-1 p-2 md:sticky md:top-0 md:block md:space-y-1 md:p-4">
-              <div className="hidden text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 md:mb-3 md:block md:px-3">
+              <div className="hidden text-xs font-semibold text-muted-foreground md:mb-3 md:block md:px-3">
                 {zh ? "配置目录" : "Sections"}
               </div>
               {NAV_SECTIONS.map(({ id, icon: Icon, labelZh, labelEn }) => (
@@ -581,7 +581,7 @@ export function UserSettingsPage({
                   icon={Icon}
                   active={activeSection === id}
                   label={zh ? labelZh : labelEn}
-                  className="w-auto flex-shrink-0 whitespace-nowrap md:w-full"
+                  className="w-auto flex-shrink-0 whitespace-nowrap border-0 md:w-full"
                 />
               ))}
             </nav>
@@ -592,12 +592,9 @@ export function UserSettingsPage({
         <main
           ref={scrollContainerRef}
           onScroll={updateActiveSectionFromScroll}
-          className={`min-w-0 flex-1 overflow-y-auto ${elderOptimized ? "p-4 sm:p-8" : "p-4 sm:p-6 lg:p-8"} bg-gradient-to-tr from-sidebar-accent/5 to-transparent`}
+          className={`min-w-0 flex-1 overflow-y-auto bg-background ${elderOptimized ? "p-4 sm:p-8" : "p-4 sm:p-6 lg:p-8"}`}
         >
           <div className={`${elderOptimized ? "max-w-3xl space-y-7" : "max-w-2xl space-y-6"} mx-auto`}>
-            {/* Gradient decoration */}
-            <div className="h-1.5 w-full bg-gradient-to-r from-primary via-primary/80 to-primary/40 rounded-full" />
-
             {/* Error */}
             {error && (
               <StatusNotice tone="error" className={elderOptimized ? "p-4 text-base" : undefined}>
@@ -619,7 +616,7 @@ export function UserSettingsPage({
                 checked={elderOptimized}
                 onCheckedChange={onElderOptimizedChange}
                 size={elderOptimized ? "lg" : "default"}
-                className="border-primary/25 bg-background/70 hover:border-primary/45"
+                className="bg-background/80 hover:bg-background"
                 label={zh ? "放大全部界面" : "Enlarge The Whole App"}
                 description={
                   zh
@@ -652,7 +649,7 @@ export function UserSettingsPage({
                 leadingIcon={<User className={elderOptimized ? "w-5 h-5" : "w-4 h-4"} />}
                 fieldClassName={elderOptimized ? "space-y-2" : undefined}
                 labelClassName={elderOptimized ? "text-base" : undefined}
-                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-background/50 border-border/40 focus:bg-background/90`}
+                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary focus-visible:bg-background`}
               />
 
               {/* Email */}
@@ -666,7 +663,7 @@ export function UserSettingsPage({
                 leadingIcon={<Mail className={elderOptimized ? "w-5 h-5" : "w-4 h-4"} />}
                 fieldClassName={elderOptimized ? "space-y-2" : undefined}
                 labelClassName={elderOptimized ? "text-base" : undefined}
-                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-background/50 border-border/40 focus:bg-background/90`}
+                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary focus-visible:bg-background`}
               />
             </PageSection>
 
@@ -694,7 +691,7 @@ export function UserSettingsPage({
                       ? "例如：我是一名前端开发者，偏好使用 TypeScript 和 React。回答时请简洁明了，使用中文。我喜欢先看方案概览再看具体实现..."
                       : "e.g., I'm a frontend developer who prefers TypeScript and React. Please keep answers concise. I like to see the overview before diving into implementation details..."
                   }
-                  className={`${elderOptimized ? "min-h-48 p-4 text-lg leading-8" : "text-sm leading-relaxed"} resize-none bg-background/50 border-border/40 focus:border-primary/60 focus:bg-background/90 rounded-lg`}
+                  className={`${elderOptimized ? "min-h-48 p-4 text-lg leading-8" : "text-sm leading-relaxed"} resize-none bg-secondary focus-visible:bg-background`}
                 />
                 <p className={`${elderOptimized ? "text-sm leading-6" : "text-[11px]"} text-muted-foreground/80`}>
                   {zh
@@ -754,7 +751,7 @@ export function UserSettingsPage({
                       key={vp.id}
                       title={vp.name}
                       description={vp.enrolledAt ? new Date(vp.enrolledAt).toLocaleString() : new Date(vp.createdAt).toLocaleString()}
-                      className={`${elderOptimized ? "px-4 py-3 pr-16" : "px-3 py-2.5 pr-14"} cursor-default`}
+                      className={`${elderOptimized ? "px-4 py-3 pr-16" : "px-3 py-2.5 pr-14"} cursor-default border-0 bg-secondary`}
                       actions={
                         <Button
                           type="button"
@@ -774,13 +771,13 @@ export function UserSettingsPage({
               )}
 
               {/* New voiceprint registration */}
-              <div className={`space-y-3 pt-3 border-t border-border/40`}>
+              <div className="space-y-3 rounded-lg bg-secondary p-4">
                 <Label className={`${elderOptimized ? "text-base" : "text-xs"} font-semibold text-muted-foreground`}>
                   {zh ? "注册新声纹" : "Register New Voiceprint"}
                 </Label>
 
                 {/* Sample text */}
-                <div className={`rounded-lg border border-border/60 bg-muted/20 ${elderOptimized ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"} leading-relaxed`}>
+                <div className={`rounded-lg bg-background ${elderOptimized ? "px-4 py-3 text-base" : "px-3 py-2 text-sm"} leading-relaxed`}>
                   {sampleText}
                 </div>
 
@@ -790,7 +787,7 @@ export function UserSettingsPage({
                   value={newVoiceprintName}
                   onChange={(e) => setNewVoiceprintName(e.target.value)}
                   placeholder={zh ? "声纹名称（如：我的声纹）" : "Voiceprint name (e.g., My Voiceprint)"}
-                  className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background/50 border-border/40 focus:border-primary/60 rounded-lg`}
+                  className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
                 />
 
                 {/* Hidden file input */}
@@ -806,7 +803,7 @@ export function UserSettingsPage({
                 <div className="flex flex-wrap items-center gap-2">
                   <ActionButton
                     type="button"
-                    variant={isRecording ? "destructive" : "outline"}
+                    variant={isRecording ? "destructive" : "default"}
                     size={elderOptimized ? "lg" : "sm"}
                     onClick={handleVoiceprintRecordClick}
                     disabled={isVoiceprintProcessing}
@@ -856,12 +853,12 @@ export function UserSettingsPage({
               </p>
 
               {newApiKey && (
-                <div className={`${elderOptimized ? "p-4 space-y-3" : "p-3 space-y-2"} rounded-lg border border-primary/25 bg-primary/5`}>
+                <div className={`${elderOptimized ? "p-4 space-y-3" : "p-3 space-y-2"} rounded-lg bg-primary-soft dark:bg-secondary`}>
                   <div className={`${elderOptimized ? "text-base" : "text-xs"} font-semibold text-foreground`}>
                     {zh ? "新 API key 只显示一次" : "New API key, shown once"}
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <Input value={newApiKey} readOnly className={`${elderOptimized ? "h-12 text-base" : "h-9 text-xs"} font-mono bg-background/70`} />
+                    <Input value={newApiKey} readOnly className={`${elderOptimized ? "h-12 text-base" : "h-9 text-xs"} bg-background font-mono`} />
                     <ActionButton type="button" variant="outline" size="sm" onClick={handleCopyNewApiKey} className={`${elderOptimized ? "h-12 px-4 text-base" : "h-9"} gap-1.5`}>
                       {copied ? <Check className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} /> : <Copy className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />}
                       {copied ? (zh ? "已复制" : "Copied") : (zh ? "复制" : "Copy")}
@@ -875,11 +872,11 @@ export function UserSettingsPage({
                   value={apiKeyName}
                   onChange={(e) => setApiKeyName(e.target.value)}
                   placeholder={zh ? "API key 名称" : "API key name"}
-                  className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background/50 border-border/40 focus:border-primary/60 rounded-lg`}
+                  className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-secondary focus-visible:bg-background`}
                 />
                 <ActionButton
                   type="button"
-                  variant="outline"
+                  variant="default"
                   disabled={apiKeysLoading || !apiKeyName.trim()}
                   onClick={handleCreateApiKey}
                   className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} rounded-lg gap-1.5`}
@@ -895,7 +892,7 @@ export function UserSettingsPage({
                     key={key.id}
                     title={key.name}
                     description={<span className="font-mono">{key.keyPrefix}</span>}
-                    className={`${elderOptimized ? "px-4 py-3 pr-16" : "px-3 py-2 pr-14"} cursor-default`}
+                    className={`${elderOptimized ? "px-4 py-3 pr-16" : "px-3 py-2 pr-14"} cursor-default border-0 bg-secondary`}
                     actions={
                       <Button
                         type="button"
@@ -938,13 +935,13 @@ export function UserSettingsPage({
             <PageSection
               id="section-danger"
               ref={registerSectionRef("section-danger")}
-              className="border-destructive/25 bg-destructive/5"
+              className="bg-destructive/10 shadow-none"
             >
               <PageSectionTitle icon={Trash2} compact={sectionTitleCompact} className="text-destructive">
                 {zh ? "危险操作" : "Danger Zone"}
               </PageSectionTitle>
 
-              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-xl border border-destructive/20 bg-background/70 sm:flex-row sm:items-center sm:justify-between`}>
+              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-xl bg-background sm:flex-row sm:items-center sm:justify-between`}>
                 <div className="min-w-0">
                   <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
                     {zh ? "清空所有对话记录" : "Clear all conversations"}
