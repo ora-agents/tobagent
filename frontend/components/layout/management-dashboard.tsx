@@ -1713,7 +1713,7 @@ export function ManagementDashboard({
             }}
             className="gap-1.5 rounded-lg"
           >
-            <Upload className="h-3.5 w-3.5" />
+            <Download className="h-3.5 w-3.5" />
             {locale === "zh" ? "导入配置" : "Import config"}
           </Button>
           <Button
@@ -1724,7 +1724,7 @@ export function ManagementDashboard({
             }}
             className="gap-1.5 rounded-lg"
           >
-            <Download className="h-3.5 w-3.5" />
+            <Upload className="h-3.5 w-3.5" />
             {locale === "zh" ? "导出配置" : "Export config"}
           </Button>
           <NavActionButton

@@ -376,7 +376,7 @@ export function ConfigBundleDialog({
             onClick={() => fileInputRef.current?.click()}
             className="flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-secondary/50 text-sm hover:bg-secondary"
           >
-            {busy ? <LoaderCircle className="h-6 w-6 animate-spin text-primary" /> : <Upload className="h-6 w-6 text-primary" />}
+            {busy ? <LoaderCircle className="h-6 w-6 animate-spin text-primary" /> : <Download className="h-6 w-6 text-primary" />}
             {zh ? "选择一个或多个配置包" : "Choose one or more configuration bundles"}
           </button>
         )}
@@ -406,13 +406,13 @@ export function ConfigBundleDialog({
           </Button>
           {mode === "export" && (
             <Button onClick={exportBundle} disabled={busy || selectedCount === 0}>
-              {busy ? <LoaderCircle className="animate-spin" /> : <Download />}
+              {busy ? <LoaderCircle className="animate-spin" /> : <Upload />}
               {zh ? `导出 ${selectedCount} 项` : `Export ${selectedCount}`}
             </Button>
           )}
           {mode === "import" && inspections.length > 0 && (
             <Button onClick={importBundles} disabled={busy}>
-              {busy ? <LoaderCircle className="animate-spin" /> : <Upload />}
+              {busy ? <LoaderCircle className="animate-spin" /> : <Download />}
               {zh ? `导入 ${inspections.length} 个文件` : `Import ${inspections.length} files`}
             </Button>
           )}
