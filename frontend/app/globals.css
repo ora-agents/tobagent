@@ -292,9 +292,13 @@
 }
 
 .prompt-mdx-editor .mdxeditor-toolbar [role="combobox"] > span:first-child {
+  display: inline-flex;
+  min-height: 1.35em;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  align-items: center;
+  overflow: visible;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .prompt-mdx-editor .mdxeditor-select-content {
