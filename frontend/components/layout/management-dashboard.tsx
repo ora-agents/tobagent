@@ -1111,8 +1111,16 @@ function FormRecordsTable({
   onSaveRecord,
   onSaveDirtyRecords,
 }: FormRecordsTableProps) {
+  const rowColumnWidth = 56
+  const recordColumnWidth = 192
+  const stickyColumnOverlap = 1
   const [pinnedFieldIds, setPinnedFieldIds] = useState<Set<string>>(new Set())
   const allRecordFields = useMemo(() => [...form.fields, ...SYSTEM_FORM_FIELDS], [form.fields])
+  const orderedRecordFields = useMemo(() => {
+    const pinnedFields = allRecordFields.filter(field => pinnedFieldIds.has(field.id))
+    const unpinnedFields = allRecordFields.filter(field => !pinnedFieldIds.has(field.id))
+    return [...pinnedFields, ...unpinnedFields]
+  }, [allRecordFields, pinnedFieldIds])
 
   const togglePinnedField = useCallback((fieldId: string) => {
     setPinnedFieldIds(prev => {
@@ -1129,7 +1137,7 @@ function FormRecordsTable({
     const pinnedIndex = allRecordFields
       .filter(field => pinnedFieldIds.has(field.id))
       .findIndex(field => field.id === columnId)
-    if (pinnedIndex >= 0) return { left: 56 + pinnedIndex * 192 }
+    if (pinnedIndex >= 0) return { left: rowColumnWidth + pinnedIndex * recordColumnWidth - stickyColumnOverlap }
     return undefined
   }
 
@@ -1174,35 +1182,32 @@ function FormRecordsTable({
   ), [locale, pinnedFieldIds, togglePinnedField])
 
   const columns = useMemo<ColumnDef<CustomFormRecord>[]>(() => {
-    const systemColumns: ColumnDef<CustomFormRecord>[] = SYSTEM_FORM_FIELDS.map(field => ({
-      id: field.id,
-      header: () => renderFieldHeader(field, true),
-      cell: ({ row }) => (
-        <span className="block truncate px-2 text-sm text-muted-foreground">
-          {formatRecordTimestamp(field.id === "createdAt" ? row.original.createdAt : row.original.updatedAt, locale)}
-        </span>
-      ),
-    }))
-    const fieldColumns: ColumnDef<CustomFormRecord>[] = form.fields.map(field => ({
-      id: field.id,
-      header: () => renderFieldHeader(field),
-      cell: ({ row }) => (
-        <EditableRecordCell
-          field={field}
-          value={row.original.data?.[field.id]}
-          error={validationErrors[row.original.id]?.[field.id]}
-          onCommit={(value) => onUpdateCell(row.original, field, value)}
-        />
-      ),
-    }))
+    const recordColumns: ColumnDef<CustomFormRecord>[] = orderedRecordFields.map(field => {
+      const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
+      return {
+        id: field.id,
+        header: () => renderFieldHeader(field, isSystemField),
+        cell: ({ row }) => isSystemField ? (
+          <span className="block truncate px-2 text-sm text-muted-foreground">
+            {formatRecordTimestamp(field.id === "createdAt" ? row.original.createdAt : row.original.updatedAt, locale)}
+          </span>
+        ) : (
+          <EditableRecordCell
+            field={field}
+            value={row.original.data?.[field.id]}
+            error={validationErrors[row.original.id]?.[field.id]}
+            onCommit={(value) => onUpdateCell(row.original, field, value)}
+          />
+        ),
+      }
+    })
     return [
       {
         id: "_row",
         header: "#",
         cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{(page - 1) * 25 + row.index + 1}</span>,
       },
-      ...fieldColumns,
-      ...systemColumns,
+      ...recordColumns,
       {
         id: "_actions",
         header: "",
@@ -1230,7 +1235,7 @@ function FormRecordsTable({
         ),
       },
     ]
-  }, [dirtyRecordIds, form.fields, onDeleteRecord, onSaveRecord, onUpdateCell, page, renderFieldHeader, validationErrors])
+  }, [dirtyRecordIds, locale, onDeleteRecord, onSaveRecord, onUpdateCell, orderedRecordFields, page, renderFieldHeader, validationErrors])
 
   const table = useReactTable({
     data: records,
@@ -1285,7 +1290,7 @@ function FormRecordsTable({
         </div>
       </div>
       <div className="max-h-[560px] overflow-auto rounded-b-xl bg-background">
-        <table className="w-full min-w-[820px] table-fixed border-collapse">
+        <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
             {table.getHeaderGroups().map(headerGroup => (
               <tr key={headerGroup.id} className="bg-muted">
