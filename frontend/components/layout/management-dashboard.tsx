@@ -30,6 +30,7 @@ import {
   TableProperties,
   Download,
   LoaderCircle,
+  ArrowUpRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -68,7 +69,7 @@ import {
   type BoundaryMode,
   type PersonaStyle,
 } from "@/lib/types/role-templates"
-import { generateUUID } from "@/lib/utils"
+import { cn, generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
 import { isRobotEnvironment } from "@/lib/voice/utils/browser"
 import {
@@ -1452,6 +1453,60 @@ export function ManagementDashboard({
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
   const selectedForm = forms.find(form => form.id === selectedFormId) || null
+
+  const handleOpenLinkedResourceEditor = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    resource:
+      | { type: "knowledge"; item: KnowledgeBase }
+      | { type: "skill"; item: Skill }
+      | { type: "mcp"; item: McpServer }
+      | { type: "form"; item: CustomForm }
+      | { type: "agent"; item: AgentProfile },
+  ) => {
+    event.stopPropagation()
+    setDeleteConfirmId(null)
+
+    if (resource.type === "knowledge") {
+      setActiveTab("knowledge")
+      if (resource.item.isSystem) {
+        handleSelectKB(resource.item.id)
+      } else {
+        handleStartEditKB(resource.item)
+      }
+      return
+    }
+
+    if (resource.type === "skill") {
+      setActiveTab("skills")
+      handleStartEditSkill(resource.item)
+      return
+    }
+
+    if (resource.type === "mcp") {
+      setActiveTab("mcp")
+      handleStartEditMcp(resource.item)
+      return
+    }
+
+    if (resource.type === "form") {
+      setActiveTab("forms")
+      handleStartEditForm(resource.item)
+      return
+    }
+
+    setActiveTab("agents")
+    handleStartEditAgent(resource.item)
+  }
+
+  const linkedResourceItemClassName = (linked: boolean) => cn(
+    "group/item flex min-w-0 items-center gap-2 rounded-lg p-2 transition-colors cursor-pointer",
+    "bg-muted/55 hover:bg-muted focus-within:bg-muted",
+    linked && "bg-primary/10 hover:bg-primary/15 focus-within:bg-primary/15"
+  )
+
+  const linkedResourceJumpButtonClassName =
+    "ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-100 transition-colors hover:bg-primary/10 hover:text-primary focus-visible:bg-primary/10 focus-visible:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/35 sm:opacity-0 sm:group-hover/item:opacity-100 sm:group-focus-within/item:opacity-100"
+
   const renderHeaderConfigActions = () => {
     if (activeTab === "mcp") {
       if (isCreatingMcp || isEditingMcp) {
@@ -2833,7 +2888,7 @@ export function ManagementDashboard({
                             return (
                               <div
                                 key={kb.id}
-                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                className={linkedResourceItemClassName(linked)}
                                 onClick={() => {
                                   const nextIds = linked
                                     ? agentForm.knowledgeBaseIds.filter(id => id !== kb.id)
@@ -2853,6 +2908,19 @@ export function ManagementDashboard({
                                   <div className="text-xs font-medium truncate">{kb.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} {kb.files?.length === 1 ? t.file.toLowerCase() : t.filesLabel}</div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "knowledge", item: kb })}
+                                  className={linkedResourceJumpButtonClassName}
+                                  title={kb.isSystem
+                                    ? (locale === "zh" ? "查看知识库配置" : "Open knowledge base configuration")
+                                    : (locale === "zh" ? "编辑知识库配置" : "Edit knowledge base configuration")}
+                                  aria-label={kb.isSystem
+                                    ? (locale === "zh" ? `查看知识库配置：${kb.name}` : `Open knowledge base configuration: ${kb.name}`)
+                                    : (locale === "zh" ? `编辑知识库配置：${kb.name}` : `Edit knowledge base configuration: ${kb.name}`)}
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )
                           }) : (
@@ -2891,7 +2959,7 @@ export function ManagementDashboard({
                             return (
                               <div
                                 key={sk.id}
-                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                className={linkedResourceItemClassName(linked)}
                                 onClick={() => {
                                   const nextIds = linked
                                     ? agentForm.skillIds.filter(id => id !== sk.id)
@@ -2908,6 +2976,15 @@ export function ManagementDashboard({
                                   <div className="text-xs font-medium truncate">{sk.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "skill", item: sk })}
+                                  className={linkedResourceJumpButtonClassName}
+                                  title={locale === "zh" ? "编辑技能配置" : "Edit skill configuration"}
+                                  aria-label={locale === "zh" ? `编辑技能配置：${sk.name}` : `Edit skill configuration: ${sk.name}`}
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )
                           }) : (
@@ -2946,7 +3023,7 @@ export function ManagementDashboard({
                             return (
                               <div
                                 key={mcp.id}
-                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                className={linkedResourceItemClassName(linked)}
                                 onClick={() => {
                                   const nextIds = linked
                                     ? agentForm.mcpIds.filter(id => id !== mcp.id)
@@ -2963,6 +3040,15 @@ export function ManagementDashboard({
                                   <div className="text-xs font-medium truncate">{mcp.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">Streamable HTTP | {mcp.url}</div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "mcp", item: mcp })}
+                                  className={linkedResourceJumpButtonClassName}
+                                  title={locale === "zh" ? "编辑 MCP 配置" : "Edit MCP configuration"}
+                                  aria-label={locale === "zh" ? `编辑 MCP 配置：${mcp.name}` : `Edit MCP configuration: ${mcp.name}`}
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )
                           }) : (
@@ -2994,7 +3080,7 @@ export function ManagementDashboard({
                             return (
                               <div
                                 key={form.id}
-                                className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                className={linkedResourceItemClassName(linked)}
                                 onClick={() => {
                                   const nextIds = linked
                                     ? agentForm.formIds.filter(id => id !== form.id)
@@ -3014,6 +3100,15 @@ export function ManagementDashboard({
                                   <div className="text-xs font-medium truncate">{form.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">{form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "form", item: form })}
+                                  className={linkedResourceJumpButtonClassName}
+                                  title={locale === "zh" ? "编辑表单配置" : "Edit form configuration"}
+                                  aria-label={locale === "zh" ? `编辑表单配置：${form.name}` : `Edit form configuration: ${form.name}`}
+                                >
+                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             )
                           })}
@@ -3050,7 +3145,7 @@ export function ManagementDashboard({
                               return (
                                 <div
                                   key={agent.id}
-                                  className="flex items-center gap-2 p-2 rounded-lg border border-border hover:bg-accent/40 cursor-pointer transition-colors"
+                                  className={linkedResourceItemClassName(Boolean(linked))}
                                   onClick={() => {
                                     const nextIds = linked
                                       ? (agentForm.agentIds || []).filter(id => id !== agent.id)
@@ -3067,6 +3162,15 @@ export function ManagementDashboard({
                                     <div className="text-xs font-medium truncate">{agent.name}</div>
                                     <div className="text-[10px] text-muted-foreground truncate">{agent.description || (locale === "zh" ? "无描述" : "No description")}</div>
                                   </div>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "agent", item: agent })}
+                                    className={linkedResourceJumpButtonClassName}
+                                    title={locale === "zh" ? "编辑角色配置" : "Edit role configuration"}
+                                    aria-label={locale === "zh" ? `编辑角色配置：${agent.name}` : `Edit role configuration: ${agent.name}`}
+                                  >
+                                    <ArrowUpRight className="h-3.5 w-3.5" />
+                                  </button>
                                 </div>
                               )
                             }) : (
