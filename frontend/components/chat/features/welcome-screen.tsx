@@ -119,21 +119,21 @@ export function WelcomeScreen({
   const hasActiveAgent = !!agentProfile
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center px-3 sm:px-4">
-      <div className="w-full max-w-3xl -mt-20 sm:-mt-36">
+    <div className="absolute inset-0 flex items-center justify-center bg-background px-3 sm:px-4">
+      <div className="w-full max-w-3xl -mt-16 sm:-mt-28">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="mb-7 text-center sm:mb-8">
           <h2
-            className="text-3xl sm:text-5xl font-normal text-foreground mb-2"
-            style={{ fontFamily: "var(--font-display), 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif", letterSpacing: "-0.02em" }}
+            className="mb-2 text-2xl font-semibold leading-tight text-foreground sm:text-4xl"
+            style={{ fontFamily: "var(--font-display), 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif" }}
           >
             {t.whatCanIHelpWith}
           </h2>
         </div>
 
         {!isAgentLoading && !hasActiveAgent && (
-          <div className="mb-4 rounded-lg bg-muted/70 px-4 py-3 text-sm text-muted-foreground flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>{t.createAgentPrompt}</span>
+          <div className="mb-4 flex flex-col gap-3 rounded-lg bg-primary-soft px-4 py-3 text-sm text-primary sm:flex-row sm:items-center sm:justify-between">
+            <span className="font-medium">{t.createAgentPrompt}</span>
             {onCreateAgent && (
               <Button
                 type="button"
@@ -166,14 +166,12 @@ export function WelcomeScreen({
         )}
 
         {/* Centered Input Container */}
-        <div className="relative group">
+        <div className="relative">
           <div className="relative">
-            <div className="absolute -inset-0.5 bg-primary/5 rounded-lg opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
-
             <div
-              className={`relative bg-muted/70 backdrop-blur-sm rounded-lg transition-all duration-300 group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
+              className={`relative rounded-xl bg-muted transition-[background-color,box-shadow] duration-200 focus-within:bg-background focus-within:ring-[3px] focus-within:ring-primary/15 ${
                 isDragging
-                  ? 'bg-primary/10 ring-2 ring-primary/25'
+                  ? 'bg-primary-soft ring-[3px] ring-primary/25'
                   : ''
               }`}
               onDragOver={onDragOver}
@@ -181,7 +179,7 @@ export function WelcomeScreen({
               onDrop={onDrop}
             >
             {isDragging && (
-              <div className="absolute inset-0 bg-primary/10 rounded-lg flex items-center justify-center z-20 pointer-events-none">
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-primary-soft/90 pointer-events-none">
                 <div className="text-primary font-medium">{t.dropFilesHere}</div>
               </div>
             )}
@@ -201,7 +199,7 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
-                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="mb-0.5 h-9 w-9 flex-shrink-0 rounded-lg bg-background/80 p-0 text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
                   type="button"
                   title={t.attachFiles}
                 >
@@ -229,7 +227,7 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={!userId || isAgentLoading || !hasActiveAgent}
-                  className="group h-9 w-9 p-0 mb-0.5 rounded-full bg-primary text-primary-foreground hover:bg-primary-active hover:text-primary-foreground flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="mb-0.5 h-9 w-9 flex-shrink-0 rounded-lg bg-primary p-0 text-primary-foreground transition-colors hover:bg-primary-active hover:text-primary-foreground"
                   type="button"
                   title={t.sendMessage}
                   aria-label={t.sendMessage}
@@ -253,9 +251,9 @@ export function WelcomeScreen({
                   size="sm"
                   disabled={isStopping}
                   className={`
-                    h-9 px-4 mb-0.5 rounded-full flex-shrink-0
-                    transition-all duration-200 hover:scale-105 active:scale-95
-                    bg-primary/10 text-primary hover:text-primary hover:bg-primary/15
+                    h-9 px-4 mb-0.5 rounded-lg flex-shrink-0
+                    transition-colors duration-200
+                    bg-primary-soft text-primary hover:text-primary hover:bg-primary-soft
                     ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                   `}
                   type="button"

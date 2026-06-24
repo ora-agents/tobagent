@@ -121,7 +121,7 @@ export function Header({
               variant="ghost"
               size="icon"
               onClick={onOpenSidebar}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary md:hidden"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary md:hidden"
               title={locale === "zh" ? "打开菜单" : "Open menu"}
               aria-label={locale === "zh" ? "打开菜单" : "Open menu"}
             >
@@ -180,7 +180,7 @@ export function Header({
                         "truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                         isActive
                           ? "bg-primary text-primary-foreground shadow-depth-xs"
-                          : "bg-muted/70 text-foreground/80 hover:bg-primary/10 hover:text-foreground",
+                          : "bg-muted text-foreground hover:bg-primary-soft hover:text-primary",
                         isDragging && "opacity-50",
                         isDragTarget && "ring-2 ring-primary/30"
                       )}
@@ -196,7 +196,7 @@ export function Header({
                     variant="ghost"
                     size="icon"
                     onClick={() => setIsAgentListExpanded((current) => !current)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
                     title={
                       isAgentListExpanded
                         ? locale === "zh" ? "收起角色" : "Collapse agents"
@@ -233,7 +233,7 @@ export function Header({
               variant="ghost"
               size="icon"
               onClick={onCreateAgent}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
               title={t.addAgent}
               aria-label={t.addAgent}
             >
@@ -249,7 +249,7 @@ export function Header({
               type="button"
               variant="ghost"
               onClick={onOpenAgentSettings}
-              className="group bg-muted text-foreground/80 hover:bg-muted/80 hover:text-foreground"
+              className="group bg-muted text-foreground hover:bg-sidebar-accent hover:text-foreground"
               title={locale === "zh" ? "角色设置" : "Agent Settings"}
               aria-label={locale === "zh" ? "角色设置" : "Agent Settings"}
             >
@@ -263,10 +263,10 @@ export function Header({
             type="button"
             variant="ghost"
             onClick={onNewChat}
-            className="group bg-primary/10 text-foreground/80 hover:bg-primary/20 hover:text-foreground"
+            className="group bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground"
             aria-label={t.newChat}
           >
-            <Sparkles className="h-4 w-4 text-primary transition-transform duration-200 group-hover:rotate-12" />
+            <Sparkles className="h-4 w-4 text-primary transition-transform duration-200 group-hover:rotate-12 group-hover:text-primary-foreground" />
             <span className="hidden sm:inline">{t.newChat}</span>
           </NavActionButton>
         </div>

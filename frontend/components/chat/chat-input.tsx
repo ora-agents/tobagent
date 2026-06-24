@@ -88,12 +88,9 @@ export function ChatInput({
   const hasText = input.trim().length > 0
 
   return (
-    <div className="relative">
-      {/* Enhanced visibility layer */}
-      <div className="absolute inset-0 bg-card/20 pointer-events-none" />
-
-      <div className="relative bg-background backdrop-blur-sm">
-        <div className="mx-auto w-full max-w-4xl px-2.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] pt-1.5 sm:px-4 sm:pb-1.5">
+    <div className="relative bg-background">
+      <div className="relative">
+        <div className="mx-auto w-full max-w-4xl px-2.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 sm:px-4 sm:pb-2">
           {/* File Previews */}
           <FilePreviewGrid files={attachedFiles} onRemove={onRemoveFile} />
 
@@ -136,16 +133,12 @@ export function ChatInput({
             </div>
           )}
 
-          <div className="relative group">
-            {/* Multi-layered input container */}
+          <div className="relative">
             <div className="relative">
-              <div className="absolute -inset-0.5 bg-primary/5 rounded-lg opacity-60 group-hover:opacity-80 group-focus-within:opacity-100 transition-opacity duration-300" />
-
-              {/* Main input container with enhanced contrast */}
               <div
-                className={`relative bg-muted/70 backdrop-blur-sm rounded-lg transition-all duration-300 group-focus-within:ring-2 group-focus-within:ring-primary/15 ${
+                className={`relative rounded-xl bg-muted transition-[background-color,box-shadow] duration-200 focus-within:bg-background focus-within:ring-[3px] focus-within:ring-primary/15 ${
                   isDragging
-                    ? 'bg-primary/10 ring-2 ring-primary/25'
+                    ? 'bg-primary-soft ring-[3px] ring-primary/25'
                     : ''
                 }`}
                 onDragOver={onDragOver}
@@ -153,7 +146,7 @@ export function ChatInput({
                 onDrop={onDrop}
               >
                 {isDragging && (
-                  <div className="absolute inset-0 bg-primary/10 rounded-lg flex items-center justify-center z-20 pointer-events-none">
+                  <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-primary-soft/90 pointer-events-none">
                     <div className="text-primary font-medium">{t.dropFilesHere}</div>
                   </div>
                 )}
@@ -175,7 +168,7 @@ export function ChatInput({
                       variant="ghost"
                       size="sm"
                       disabled={isLoading || !userId}
-                      className="group mb-0.5 h-10 w-10 flex-shrink-0 rounded-full bg-muted/50 p-0 text-muted-foreground transition-all duration-200 hover:scale-105 hover:bg-primary/10 hover:text-primary active:scale-95 sm:h-9 sm:w-9"
+                      className="mb-0.5 h-10 w-10 flex-shrink-0 rounded-lg bg-background/80 p-0 text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary sm:h-9 sm:w-9"
                       type="button"
                       title={t.attachFiles}
                     >
@@ -209,7 +202,7 @@ export function ChatInput({
                       variant="ghost"
                       size="sm"
                       disabled={!userId}
-                      className="group mb-0.5 h-10 w-10 flex-shrink-0 rounded-full bg-primary p-0 text-primary-foreground transition-all duration-200 hover:scale-105 hover:bg-primary-active hover:text-primary-foreground active:scale-95 sm:h-9 sm:w-9"
+                      className="mb-0.5 h-10 w-10 flex-shrink-0 rounded-lg bg-primary p-0 text-primary-foreground transition-colors hover:bg-primary-active hover:text-primary-foreground sm:h-9 sm:w-9"
                       type="button"
                       title={t.sendMessage}
                       aria-label={t.sendMessage}
@@ -233,9 +226,9 @@ export function ChatInput({
                       size="sm"
                       disabled={isStopping}
                       className={`
-                        h-10 px-3 sm:h-9 sm:px-4 mb-0.5 rounded-full flex-shrink-0
-                        transition-all duration-200 hover:scale-105 active:scale-95
-                        bg-primary/10 text-primary hover:text-primary hover:bg-primary/15
+                        h-10 px-3 sm:h-9 sm:px-4 mb-0.5 rounded-lg flex-shrink-0
+                        transition-colors duration-200
+                        bg-primary-soft text-primary hover:text-primary hover:bg-primary-soft
                         ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                       `}
                       type="button"
@@ -265,10 +258,10 @@ export function ChatInput({
 
           {/* Simple help text - hidden on mobile */}
           <div className="hidden sm:flex items-center justify-between mt-1 px-2">
-            <p className="text-[11px] text-muted-foreground/60">
-              <kbd className="px-1 py-0.5 bg-muted/50 rounded text-[10px] font-medium text-foreground/70">Enter</kbd> {t.enterToSend}
+            <p className="text-[11px] text-muted-foreground">
+              <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] font-medium text-foreground">Enter</kbd> {t.enterToSend}
               <span className="mx-1">•</span>
-              <kbd className="px-1 py-0.5 bg-muted/50 rounded text-[10px] font-medium text-foreground/70">Shift+Enter</kbd> {t.shiftEnterNewLine}
+              <kbd className="px-1 py-0.5 bg-muted rounded text-[10px] font-medium text-foreground">Shift+Enter</kbd> {t.shiftEnterNewLine}
             </p>
           </div>
         </div>
