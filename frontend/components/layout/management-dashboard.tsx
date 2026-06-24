@@ -2824,8 +2824,9 @@ export function ManagementDashboard({
                           />
                         </div>
                         <ScrollArea
-                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          className="max-h-64 rounded-xl border border-border/40 bg-background/50"
                           contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          viewportClassName="!h-auto max-h-64"
                         >
                           {filteredAgentKnowledgeBases.length > 0 ? filteredAgentKnowledgeBases.map((kb) => {
                             const linked = agentForm.knowledgeBaseIds.includes(kb.id)
@@ -2881,8 +2882,9 @@ export function ManagementDashboard({
                           />
                         </div>
                         <ScrollArea
-                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          className="max-h-64 rounded-xl border border-border/40 bg-background/50"
                           contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          viewportClassName="!h-auto max-h-64"
                         >
                           {filteredAgentSkills.length > 0 ? filteredAgentSkills.map((sk) => {
                             const linked = agentForm.skillIds.includes(sk.id)
@@ -2935,8 +2937,9 @@ export function ManagementDashboard({
                           />
                         </div>
                         <ScrollArea
-                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          className="max-h-64 rounded-xl border border-border/40 bg-background/50"
                           contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          viewportClassName="!h-auto max-h-64"
                         >
                           {filteredAgentMcpServers.length > 0 ? filteredAgentMcpServers.map((mcp) => {
                             const linked = agentForm.mcpIds.includes(mcp.id)
@@ -2982,8 +2985,9 @@ export function ManagementDashboard({
                           </span>
                         </div>
                         <ScrollArea
-                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          className="max-h-64 rounded-xl border border-border/40 bg-background/50"
                           contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          viewportClassName="!h-auto max-h-64"
                         >
                           {filteredAgentForms.map((form) => {
                             const linked = agentForm.formIds.includes(form.id)
@@ -3037,8 +3041,9 @@ export function ManagementDashboard({
                           />
                         </div>
                         <ScrollArea
-                          className="h-64 rounded-xl border border-border/40 bg-background/50"
+                          className="max-h-64 rounded-xl border border-border/40 bg-background/50"
                           contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          viewportClassName="!h-auto max-h-64"
                         >
                           {filteredLinkableAgentProfiles.length > 0 ? filteredLinkableAgentProfiles.map((agent) => {
                               const linked = agentForm.agentIds?.includes(agent.id)

@@ -352,7 +352,7 @@ export function SkillStructuredView({
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1 bg-background/60" scrollbars="both">
+    <ScrollArea className="min-h-0 flex-1 bg-background/60">
       <div className="space-y-4 p-4">
         <div className="rounded-xl bg-muted/30 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -471,12 +471,12 @@ function SkillBlockView({ block }: { block: SkillSectionBlock }) {
   }
 
   return (
-    <ScrollArea className="w-full rounded-lg bg-background/70" scrollbars="horizontal">
-      <table className="w-full min-w-[420px] text-left text-sm">
+    <div className="w-full overflow-hidden rounded-lg bg-background/70">
+      <table className="w-full table-fixed text-left text-sm">
         <thead className="bg-muted/60 text-xs text-muted-foreground">
           <tr>
             {block.headers.map((header, index) => (
-              <th key={`${header}-${index}`} className="px-3 py-2 font-semibold">
+              <th key={`${header}-${index}`} className="break-words px-3 py-2 font-semibold">
                 {header}
               </th>
             ))}
@@ -486,7 +486,7 @@ function SkillBlockView({ block }: { block: SkillSectionBlock }) {
           {block.rows.map((row, rowIndex) => (
             <tr key={rowIndex} className="border-t border-border/30">
               {block.headers.map((_, cellIndex) => (
-                <td key={cellIndex} className="px-3 py-2 align-top text-foreground/85">
+                <td key={cellIndex} className="break-words px-3 py-2 align-top text-foreground/85">
                   {row[cellIndex] || ""}
                 </td>
               ))}
@@ -494,6 +494,6 @@ function SkillBlockView({ block }: { block: SkillSectionBlock }) {
           ))}
         </tbody>
       </table>
-    </ScrollArea>
+    </div>
   )
 }
