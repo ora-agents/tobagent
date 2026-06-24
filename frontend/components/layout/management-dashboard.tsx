@@ -1092,7 +1092,6 @@ interface FormRecordsTableProps {
   onAddRecord: () => void
   onDeleteRecord: (recordId: string) => void
   onUpdateCell: (record: CustomFormRecord, field: CustomFormField, value: string | number | boolean | null) => void
-  onSaveRecord: (recordId: string) => Promise<boolean>
   onSaveDirtyRecords: () => Promise<void>
 }
 
@@ -1110,7 +1109,6 @@ function FormRecordsTable({
   onAddRecord,
   onDeleteRecord,
   onUpdateCell,
-  onSaveRecord,
   onSaveDirtyRecords,
 }: FormRecordsTableProps) {
   const rowColumnWidth = 56
@@ -1222,26 +1220,8 @@ function FormRecordsTable({
         cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{(page - 1) * 25 + row.index + 1}</span>,
       },
       ...recordColumns,
-      {
-        id: "_actions",
-        header: "",
-        cell: ({ row }) => (
-          <div className="flex items-center">
-            {dirtyRecordIds.has(row.original.id) && (
-              <button
-                type="button"
-                onClick={() => void onSaveRecord(row.original.id)}
-                className="rounded p-1.5 text-primary hover:bg-primary/10"
-                title={locale === "zh" ? "保存记录" : "Save record"}
-              >
-                <Save className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        ),
-      },
     ]
-  }, [dirtyRecordIds, locale, onSaveRecord, onUpdateCell, orderedRecordFields, page, renderFieldHeader, validationErrors])
+  }, [locale, onUpdateCell, orderedRecordFields, page, renderFieldHeader, validationErrors])
 
   const table = useReactTable({
     data: records,
@@ -1318,7 +1298,7 @@ function FormRecordsTable({
                   <th
                     key={header.id}
                     style={getStickyColumnStyle(header.id)}
-                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : header.id === "_actions" ? "w-12" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
+                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
                   >
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
@@ -3044,7 +3024,6 @@ export function ManagementDashboard({
                       onAddRecord={handleAddFormRecord}
                       onDeleteRecord={handleDeleteFormRecord}
                       onUpdateCell={handleUpdateFormRecordCell}
-                      onSaveRecord={handleSaveFormRecord}
                       onSaveDirtyRecords={handleSaveDirtyFormRecords}
                     />
                   </div>
