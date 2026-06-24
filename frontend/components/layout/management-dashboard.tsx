@@ -1113,17 +1113,6 @@ function FormRecordsTable({
 }: FormRecordsTableProps) {
   const [pinnedFieldIds, setPinnedFieldIds] = useState<Set<string>>(new Set())
   const [pinnedRecordIds, setPinnedRecordIds] = useState<Set<string>>(new Set())
-  const orderedFields = useMemo(() => {
-    const pinned = form.fields.filter(field => pinnedFieldIds.has(field.id))
-    const unpinned = form.fields.filter(field => !pinnedFieldIds.has(field.id))
-    return [...pinned, ...unpinned]
-  }, [form.fields, pinnedFieldIds])
-  const orderedRecords = useMemo(() => {
-    const pinned = records.filter(record => pinnedRecordIds.has(record.id))
-    const unpinned = records.filter(record => !pinnedRecordIds.has(record.id))
-    return [...pinned, ...unpinned]
-  }, [records, pinnedRecordIds])
-  const pinnedFields = orderedFields.filter(field => pinnedFieldIds.has(field.id))
 
   const togglePinnedField = useCallback((fieldId: string) => {
     setPinnedFieldIds(prev => {
@@ -1145,8 +1134,8 @@ function FormRecordsTable({
 
   const getStickyColumnStyle = (columnId: string): React.CSSProperties | undefined => {
     if (columnId === "_row") return { left: 0 }
-    const pinnedIndex = pinnedFields.findIndex(field => field.id === columnId)
-    if (pinnedIndex >= 0) return { left: 56 + pinnedIndex * 192 }
+    const fieldIndex = form.fields.findIndex(field => field.id === columnId)
+    if (fieldIndex >= 0 && pinnedFieldIds.has(columnId)) return { left: 56 + fieldIndex * 192 }
     return undefined
   }
 
@@ -1155,10 +1144,6 @@ function FormRecordsTable({
       return `sticky ${isHeader ? "z-30 bg-muted" : "z-20 bg-background group-hover/record:bg-primary/5"} shadow-[1px_0_0_var(--border)]`
     }
     return ""
-  }
-
-  const copyText = (value: string) => {
-    void navigator.clipboard?.writeText(value)
   }
 
   const columns = useMemo<ColumnDef<CustomFormRecord>[]>(() => {
@@ -1179,7 +1164,7 @@ function FormRecordsTable({
         </span>
       ),
     }))
-    const fieldColumns: ColumnDef<CustomFormRecord>[] = orderedFields.map(field => ({
+    const fieldColumns: ColumnDef<CustomFormRecord>[] = form.fields.map(field => ({
       id: field.id,
       header: () => (
         <ContextMenu.Root>
@@ -1202,13 +1187,6 @@ function FormRecordsTable({
                 {pinnedFieldIds.has(field.id)
                   ? (locale === "zh" ? "取消固定字段" : "Unpin field")
                   : (locale === "zh" ? "固定字段" : "Pin field")}
-              </ContextMenu.Item>
-              <ContextMenu.Item
-                onSelect={() => copyText(field.id)}
-                className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
-              >
-                <Copy className="h-4 w-4" />
-                {locale === "zh" ? "复制字段 ID" : "Copy field ID"}
               </ContextMenu.Item>
             </ContextMenu.Content>
           </ContextMenu.Portal>
@@ -1258,10 +1236,10 @@ function FormRecordsTable({
         ),
       },
     ]
-  }, [dirtyRecordIds, locale, onDeleteRecord, onSaveRecord, onUpdateCell, orderedFields, page, pinnedFieldIds, togglePinnedField, validationErrors])
+  }, [dirtyRecordIds, form.fields, locale, onDeleteRecord, onSaveRecord, onUpdateCell, page, pinnedFieldIds, togglePinnedField, validationErrors])
 
   const table = useReactTable({
-    data: orderedRecords,
+    data: records,
     columns,
     getCoreRowModel: getCoreRowModel(),
   })
@@ -1331,7 +1309,7 @@ function FormRecordsTable({
           </thead>
           <tbody>
             {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => {
-              const pinnedRecordIndex = orderedRecords
+              const pinnedRecordIndex = records
                 .filter(record => pinnedRecordIds.has(record.id))
                 .findIndex(record => record.id === row.original.id)
               const isPinnedRecord = pinnedRecordIndex >= 0
@@ -1356,14 +1334,6 @@ function FormRecordsTable({
                 <ContextMenu.Portal>
                   <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
                     <ContextMenu.Item
-                      onSelect={() => void onSaveRecord(row.original.id)}
-                      disabled={!dirtyRecordIds.has(row.original.id)}
-                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-                    >
-                      <Save className="h-4 w-4" />
-                      {locale === "zh" ? "保存记录" : "Save record"}
-                    </ContextMenu.Item>
-                    <ContextMenu.Item
                       onSelect={() => togglePinnedRecord(row.original.id)}
                       className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
                     >
@@ -1371,13 +1341,6 @@ function FormRecordsTable({
                       {pinnedRecordIds.has(row.original.id)
                         ? (locale === "zh" ? "取消固定记录" : "Unpin record")
                         : (locale === "zh" ? "固定记录" : "Pin record")}
-                    </ContextMenu.Item>
-                    <ContextMenu.Item
-                      onSelect={() => copyText(row.original.id)}
-                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent"
-                    >
-                      <Copy className="h-4 w-4" />
-                      {locale === "zh" ? "复制记录 ID" : "Copy record ID"}
                     </ContextMenu.Item>
                     <ContextMenu.Separator className="-mx-1 my-1 h-px bg-muted" />
                     <ContextMenu.Item
