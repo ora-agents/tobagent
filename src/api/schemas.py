@@ -148,7 +148,10 @@ class McpServerSchema(BaseModel):
     name: str
     type: str  # Always "streamable_http"; kept for API compatibility.
     url: str | None = None
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = Field(default_factory=dict)
+    tools: list[dict] = Field(default_factory=list)
+    resources: list[dict] = Field(default_factory=list)
+    prompts: list[dict] = Field(default_factory=list)
     createdAt: str
     updatedAt: str
 

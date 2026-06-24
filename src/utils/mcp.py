@@ -3,7 +3,9 @@
 import asyncio
 import importlib
 import logging
+from collections.abc import Awaitable, Callable
 from time import monotonic
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from langchain_core.tools import BaseTool
@@ -28,6 +30,80 @@ for module_name in (
         pass
 
 logger = logging.getLogger(__name__)
+
+
+async def _collect_paginated(
+    fetch_page: Callable[..., Awaitable[Any]],
+    result_field: str,
+) -> list[Any]:
+    """Collect every page returned by one MCP list operation."""
+    items: list[Any] = []
+    cursor = None
+    while True:
+        result = await fetch_page(cursor=cursor)
+        items.extend(getattr(result, result_field, []) or [])
+        cursor = getattr(result, "nextCursor", None)
+        if not cursor:
+            return items
+
+
+def _serialize_capability_item(item: Any, *, kind: str | None = None) -> dict:
+    """Convert an MCP protocol model into JSON-safe persisted metadata."""
+    if hasattr(item, "model_dump"):
+        payload = item.model_dump(mode="json", by_alias=True, exclude_none=True)
+    else:
+        payload = dict(item)
+    if kind:
+        payload["kind"] = kind
+    return payload
+
+
+async def discover_mcp_capabilities(
+    name: str,
+    url: str,
+    headers: dict[str, str] | None = None,
+) -> dict[str, list[dict]]:
+    """Connect to an MCP server and return its advertised capability metadata."""
+    config = {
+        "transport": "streamable_http",
+        "url": url,
+        "headers": headers or {},
+    }
+    client = MultiServerMCPClient({name: config})
+    async with asyncio.timeout(20):
+        async with client.session(name) as session:
+            capabilities = session.get_server_capabilities()
+            tools: list[Any] = []
+            resources: list[dict] = []
+            prompts: list[Any] = []
+
+            if capabilities and capabilities.tools is not None:
+                tools = await _collect_paginated(session.list_tools, "tools")
+            if capabilities and capabilities.resources is not None:
+                listed_resources = await _collect_paginated(
+                    session.list_resources,
+                    "resources",
+                )
+                templates = await _collect_paginated(
+                    session.list_resource_templates,
+                    "resourceTemplates",
+                )
+                resources = [
+                    _serialize_capability_item(item, kind="resource")
+                    for item in listed_resources
+                ]
+                resources.extend(
+                    _serialize_capability_item(item, kind="template")
+                    for item in templates
+                )
+            if capabilities and capabilities.prompts is not None:
+                prompts = await _collect_paginated(session.list_prompts, "prompts")
+
+    return {
+        "tools": [_serialize_capability_item(item) for item in tools],
+        "resources": resources,
+        "prompts": [_serialize_capability_item(item) for item in prompts],
+    }
 
 
 class McpPoolManager:

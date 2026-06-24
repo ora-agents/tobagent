@@ -288,6 +288,8 @@ export function ManagementDashboard({
   const [selectedMcpId, setSelectedMcpId] = useState<string | null>(null)
   const [isEditingMcp, setIsEditingMcp] = useState(false)
   const [isCreatingMcp, setIsCreatingMcp] = useState(false)
+  const [isSavingMcp, setIsSavingMcp] = useState(false)
+  const [mcpSaveError, setMcpSaveError] = useState("")
   const [mcpForm, setMcpForm] = useState({
     name: "",
     type: "streamable_http" as McpTransport,
@@ -926,6 +928,7 @@ export function ManagementDashboard({
     setSelectedMcpId(null)
     setIsCreatingMcp(true)
     setIsEditingMcp(false)
+    setMcpSaveError("")
     setMcpForm({
       name: "",
       type: "streamable_http",
@@ -940,6 +943,7 @@ export function ManagementDashboard({
     setSelectedMcpId(mcp.id)
     setIsEditingMcp(true)
     setIsCreatingMcp(false)
+    setMcpSaveError("")
     setMcpForm({
       name: mcp.name,
       type: normalizeMcpTransport(mcp.type),
@@ -964,17 +968,19 @@ export function ManagementDashboard({
     }
 
     const now = new Date().toISOString()
+    setIsSavingMcp(true)
+    setMcpSaveError("")
 
-    if (isCreatingMcp) {
-      const newMcp: Omit<McpServer, "createdAt" | "updatedAt"> = {
-        id: generateUUID(),
-        name: mcpForm.name.trim(),
-        type: mcpForm.type,
-        url: mcpForm.url.trim() || undefined,
-        headers: parsedHeaders
-      }
+    try {
+      if (isCreatingMcp) {
+        const newMcp: Omit<McpServer, "createdAt" | "updatedAt" | "tools" | "resources" | "prompts"> = {
+          id: generateUUID(),
+          name: mcpForm.name.trim(),
+          type: mcpForm.type,
+          url: mcpForm.url.trim() || undefined,
+          headers: parsedHeaders
+        }
 
-      try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders },
@@ -984,43 +990,40 @@ export function ManagementDashboard({
             updatedAt: now
           })
         })
-        if (resp.ok) {
-          const saved = await resp.json()
-          setMcpServers(prev => [...prev, saved])
-          setSelectedMcpId(saved.id)
-          setIsCreatingMcp(false)
-          onCreateChange?.(false)
+        if (!resp.ok) throw new Error((await resp.json()).detail || t.mcpDiscoveryFailed)
+        const saved = await resp.json()
+        setMcpServers(prev => [...prev, saved])
+        setSelectedMcpId(saved.id)
+        setIsCreatingMcp(false)
+        onCreateChange?.(false)
+      } else if (isEditingMcp && selectedMcpId) {
+        const target = mcpServers.find(m => m.id === selectedMcpId)
+        if (!target) return
+
+        const updatedMcp = {
+          ...target,
+          name: mcpForm.name.trim(),
+          type: mcpForm.type,
+          url: mcpForm.url.trim() || undefined,
+          headers: parsedHeaders,
+          updatedAt: now
         }
-      } catch (err) {
-        console.error("Failed to create MCP server in database", err)
-      }
-    } else if (isEditingMcp && selectedMcpId) {
-      const target = mcpServers.find(m => m.id === selectedMcpId)
-      if (!target) return
 
-      const updatedMcp = {
-        ...target,
-        name: mcpForm.name.trim(),
-        type: mcpForm.type,
-        url: mcpForm.url.trim() || undefined,
-        headers: parsedHeaders,
-        updatedAt: now
-      }
-
-      try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${selectedMcpId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedMcp)
         })
-        if (resp.ok) {
-          const saved = await resp.json()
-          setMcpServers(prev => prev.map(m => m.id === selectedMcpId ? saved : m))
-          setIsEditingMcp(false)
-        }
-      } catch (err) {
-        console.error("Failed to update MCP server in database", err)
+        if (!resp.ok) throw new Error((await resp.json()).detail || t.mcpDiscoveryFailed)
+        const saved = await resp.json()
+        setMcpServers(prev => prev.map(m => m.id === selectedMcpId ? saved : m))
+        setIsEditingMcp(false)
       }
+    } catch (err) {
+      console.error("Failed to save MCP server in database", err)
+      setMcpSaveError(err instanceof Error ? err.message : t.mcpDiscoveryFailed)
+    } finally {
+      setIsSavingMcp(false)
     }
   }
 
@@ -1605,10 +1608,10 @@ export function ManagementDashboard({
           <>
             <Button
               onClick={handleSaveMcp}
-              disabled={!mcpForm.name.trim()}
+              disabled={!mcpForm.name.trim() || isSavingMcp}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {t.save}
+              {isSavingMcp ? t.mcpDiscovering : t.save}
             </Button>
             <Button
               variant="ghost"
@@ -2246,6 +2249,11 @@ export function ManagementDashboard({
                           className="resize-none rounded-lg text-xs font-mono"
                         />
                       </FormField>
+                      {mcpSaveError && (
+                        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                          {mcpSaveError}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : selectedMcpId !== null && selectedMcp ? (
@@ -2285,6 +2293,42 @@ export function ManagementDashboard({
                           </div>
                         </div>
                       )}
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {([
+                        ["tools", t.mcpTools, selectedMcp.tools || []],
+                        ["resources", t.mcpResources, selectedMcp.resources || []],
+                        ["prompts", t.mcpPrompts, selectedMcp.prompts || []],
+                      ] as const).map(([key, label, items]) => (
+                        <div key={key} className="rounded-xl bg-muted/50 p-3">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-foreground">{label}</span>
+                            <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                              {items.length}
+                            </span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {items.length > 0 ? items.map((item, index) => (
+                              <div key={`${key}-${item.name || item.uri || item.uriTemplate || index}`} className="rounded-lg bg-background px-2.5 py-2">
+                                <div className="truncate text-xs font-medium">
+                                  {item.title || item.name || item.uri || item.uriTemplate}
+                                </div>
+                                {item.description && (
+                                  <div className="mt-0.5 line-clamp-2 text-[10px] text-muted-foreground">
+                                    {item.description}
+                                  </div>
+                                )}
+                                {item.kind === "template" && (
+                                  <div className="mt-1 text-[10px] text-primary">{t.mcpResourceTemplate}</div>
+                                )}
+                              </div>
+                            )) : (
+                              <div className="text-[10px] italic text-muted-foreground">{t.mcpNoneAdvertised}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ) : (

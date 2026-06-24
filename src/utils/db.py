@@ -217,6 +217,9 @@ class McpServerTable(Base):
     type = Column(String(50), nullable=False)  # Always "streamable_http"; kept for compatibility.
     url = Column(String(2048), nullable=True)
     headers = Column(JSON, nullable=True, default=dict)
+    tools = Column(JSON, nullable=False, default=list)
+    resources = Column(JSON, nullable=False, default=list)
+    prompts = Column(JSON, nullable=False, default=list)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 
@@ -329,6 +332,9 @@ def ensure_database_schema() -> None:
         ("agent_profiles", "agent_ids", "agent_ids JSON"),
         ("agent_profiles", "form_ids", "form_ids JSON"),
         ("mcp_servers", "headers", "headers JSON"),
+        ("mcp_servers", "tools", "tools JSON"),
+        ("mcp_servers", "resources", "resources JSON"),
+        ("mcp_servers", "prompts", "prompts JSON"),
         ("users", "preferences", "preferences TEXT"),
         ("users", "safety_enabled", "safety_enabled VARCHAR(10) DEFAULT 'false'"),
         ("agent_profiles", "wake_words", "wake_words JSON"),

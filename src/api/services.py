@@ -148,6 +148,9 @@ def _mcp_schema(server: McpServerTable) -> McpServerSchema:
         type="streamable_http",
         url=server.url,
         headers=server.headers or {},
+        tools=server.tools or [],
+        resources=server.resources or [],
+        prompts=server.prompts or [],
         createdAt=server.created_at,
         updatedAt=server.updated_at,
     )
@@ -454,6 +457,9 @@ def _copy_shared_agent_resources(
                 type="streamable_http",
                 url=server.url,
                 headers=copy.deepcopy(server.headers or {}),
+                tools=copy.deepcopy(server.tools or []),
+                resources=copy.deepcopy(server.resources or []),
+                prompts=copy.deepcopy(server.prompts or []),
                 created_at=now,
                 updated_at=now,
             ))

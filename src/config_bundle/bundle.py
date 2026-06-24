@@ -215,6 +215,9 @@ def build_export_bundle(
                     "type": "streamable_http",
                     "url": row.url,
                     "headers": headers,
+                    "tools": row.tools or [],
+                    "resources": row.resources or [],
+                    "prompts": row.prompts or [],
                     "redactedHeaders": redacted,
                 }),
             )
@@ -599,6 +602,9 @@ def execute_import(
                     row.type = "streamable_http"
                     row.url = item.get("url")
                     row.headers = copy.deepcopy(item.get("headers") or {})
+                    row.tools = copy.deepcopy(item.get("tools") or [])
+                    row.resources = copy.deepcopy(item.get("resources") or [])
+                    row.prompts = copy.deepcopy(item.get("prompts") or [])
                     if item.get("redactedHeaders"):
                         warnings.append(f"MCP server {source_id} requires credentials.")
                 elif key == "forms":

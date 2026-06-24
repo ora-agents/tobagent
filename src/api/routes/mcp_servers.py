@@ -51,7 +51,9 @@ async def create_mcp_server(
     existing = db.query(McpServerTable).filter(McpServerTable.id == server_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="MCP Server already exists")
-    
+
+    capabilities = await _discover_capabilities(server_data)
+
     new_server = McpServerTable(
         id=server_data.id,
         owner_user_id=current_user.id,
@@ -59,6 +61,9 @@ async def create_mcp_server(
         type="streamable_http",
         url=server_data.url,
         headers=server_data.headers,
+        tools=capabilities["tools"],
+        resources=capabilities["resources"],
+        prompts=capabilities["prompts"],
         created_at=server_data.createdAt,
         updated_at=server_data.updatedAt,
     )
@@ -95,11 +100,16 @@ async def update_mcp_server(
     ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
-    
+
+    capabilities = await _discover_capabilities(server_data)
+
     server.name = server_data.name
     server.type = "streamable_http"
     server.url = server_data.url
     server.headers = server_data.headers
+    server.tools = capabilities["tools"]
+    server.resources = capabilities["resources"]
+    server.prompts = capabilities["prompts"]
     server.updated_at = server_data.updatedAt
     
     db.commit()
@@ -114,6 +124,29 @@ async def update_mcp_server(
     _invalidate_runtime_caches(owner_user_id=current_user.id)
 
     return _mcp_schema(server)
+
+
+async def _discover_capabilities(server_data: McpServerSchema) -> dict[str, list[dict]]:
+    """Validate an MCP connection and collect its current advertised metadata."""
+    if not server_data.url:
+        raise HTTPException(status_code=422, detail="MCP Server URL is required")
+
+    try:
+        from src.utils.mcp import discover_mcp_capabilities
+
+        return await discover_mcp_capabilities(
+            server_data.name,
+            server_data.url,
+            server_data.headers,
+        )
+    except Exception as exc:
+        from src.utils.mcp import McpPoolManager
+
+        detail = McpPoolManager._format_exception(exc)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Failed to discover MCP capabilities: {detail}",
+        ) from exc
 
 
 @router.delete(
@@ -146,4 +179,3 @@ async def delete_mcp_server(
     _invalidate_runtime_caches(owner_user_id=current_user.id)
 
     return {"status": "success", "message": f"MCP Server {id} deleted"}
-

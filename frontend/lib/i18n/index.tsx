@@ -181,6 +181,13 @@ const zh = {
   noCustomHeaders: "未配置自定义 Header。",
   mcpServerDescription: "指定鉴权或请求验证所需的 Header。必须是合法的 JSON 对象。",
   editServer: "编辑服务端",
+  mcpTools: "工具",
+  mcpResources: "资源",
+  mcpPrompts: "提示词",
+  mcpResourceTemplate: "资源模板",
+  mcpNoneAdvertised: "服务端未声明此类能力",
+  mcpDiscovering: "正在连接并发现...",
+  mcpDiscoveryFailed: "无法连接 MCP 服务端或读取其能力。",
 
   // New Management keys
   mcpConfigureDesc: "配置与管理您的自定义资产",
@@ -463,6 +470,13 @@ const en = {
   noCustomHeaders: "No custom headers configured.",
   mcpServerDescription: "Specify any headers needed for authentication or request validation. Must be a valid JSON object.",
   editServer: "Edit Server",
+  mcpTools: "Tools",
+  mcpResources: "Resources",
+  mcpPrompts: "Prompts",
+  mcpResourceTemplate: "Resource template",
+  mcpNoneAdvertised: "None advertised by the server",
+  mcpDiscovering: "Connecting and discovering...",
+  mcpDiscoveryFailed: "Could not connect to the MCP server or read its capabilities.",
 
   // New Management keys
   mcpConfigureDesc: "Configure and orchestrate your custom assets",

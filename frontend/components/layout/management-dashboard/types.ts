@@ -24,8 +24,21 @@ export interface McpServer {
   type: McpTransport
   url?: string
   headers: Record<string, string>
+  tools: McpCapability[]
+  resources: McpCapability[]
+  prompts: McpCapability[]
   createdAt: string
   updatedAt: string
+}
+
+export interface McpCapability {
+  name?: string
+  title?: string
+  description?: string
+  uri?: string
+  uriTemplate?: string
+  kind?: "resource" | "template"
+  [key: string]: unknown
 }
 
 export const normalizeMcpTransport = (_type?: string): McpTransport => "streamable_http"

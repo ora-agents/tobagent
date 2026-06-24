@@ -1,7 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
-from src.utils.mcp import McpPoolManager
+from src.utils.mcp import McpPoolManager, discover_mcp_capabilities
 
 
 def test_build_client_config_normalizes_streamable_http_aliases():
@@ -102,3 +102,117 @@ def test_get_tools_for_agent_reuses_partial_cache_during_failed_server_cooldown(
         ("good", "http://good.test/mcp"),
         ("bad", "http://bad.test/mcp"),
     ]
+
+
+def test_discover_mcp_capabilities_records_tools_resources_templates_and_prompts(
+    monkeypatch,
+):
+    class Result:
+        def __init__(self, field, values, next_cursor=None):
+            setattr(self, field, values)
+            self.nextCursor = next_cursor
+
+    class Item:
+        def __init__(self, **payload):
+            self.payload = payload
+
+        def model_dump(self, **_kwargs):
+            return self.payload
+
+    class Session:
+        async def initialize(self):
+            return None
+
+        def get_server_capabilities(self):
+            return SimpleNamespace(
+                tools=SimpleNamespace(),
+                resources=SimpleNamespace(),
+                prompts=SimpleNamespace(),
+            )
+
+        async def list_tools(self, cursor=None):
+            if cursor is None:
+                return Result("tools", [Item(name="search")], "tools-2")
+            return Result("tools", [Item(name="fetch")])
+
+        async def list_resources(self, cursor=None):
+            return Result(
+                "resources",
+                [Item(name="Guide", uri="file:///guide.md")],
+            )
+
+        async def list_resource_templates(self, cursor=None):
+            return Result(
+                "resourceTemplates",
+                [Item(name="Issue", uriTemplate="issues://{id}")],
+            )
+
+        async def list_prompts(self, cursor=None):
+            return Result("prompts", [Item(name="review")])
+
+    class SessionContext:
+        async def __aenter__(self):
+            return Session()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Client:
+        def __init__(self, connections):
+            assert connections["Docs"]["transport"] == "streamable_http"
+            assert connections["Docs"]["headers"] == {"Authorization": "token"}
+
+        def session(self, server_name):
+            assert server_name == "Docs"
+            return SessionContext()
+
+    monkeypatch.setattr("src.utils.mcp.MultiServerMCPClient", Client)
+
+    result = asyncio.run(
+        discover_mcp_capabilities(
+            "Docs",
+            "https://example.test/mcp",
+            {"Authorization": "token"},
+        )
+    )
+
+    assert result == {
+        "tools": [{"name": "search"}, {"name": "fetch"}],
+        "resources": [
+            {"name": "Guide", "uri": "file:///guide.md", "kind": "resource"},
+            {
+                "name": "Issue",
+                "uriTemplate": "issues://{id}",
+                "kind": "template",
+            },
+        ],
+        "prompts": [{"name": "review"}],
+    }
+
+
+def test_discover_mcp_capabilities_skips_unadvertised_categories(monkeypatch):
+    class Session:
+        def get_server_capabilities(self):
+            return SimpleNamespace(tools=None, resources=None, prompts=None)
+
+    class SessionContext:
+        async def __aenter__(self):
+            return Session()
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class Client:
+        def __init__(self, _connections):
+            pass
+
+        def session(self, _server_name):
+            return SessionContext()
+
+    monkeypatch.setattr("src.utils.mcp.MultiServerMCPClient", Client)
+
+    result = asyncio.run(
+        discover_mcp_capabilities("Empty", "https://example.test/mcp")
+    )
+
+    assert result == {"tools": [], "resources": [], "prompts": []}

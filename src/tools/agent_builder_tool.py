@@ -22,6 +22,7 @@ from src.utils.db import (
     SessionLocal,
     SkillTable,
 )
+from src.utils.mcp import discover_mcp_capabilities
 from src.utils.runtime_context import get_runtime_context_value
 
 
@@ -329,13 +330,25 @@ class UpsertMcpServerTool(BaseTool):
             server = db.query(McpServerTable).filter(McpServerTable.id == mcp_id, McpServerTable.owner_user_id == owner).first() if mcp_id else None
             if mcp_id and server is None:
                 return f"MCP server '{mcp_id}' was not found for this user."
+            name = str(kwargs.get("name") or "").strip()
+            url = str(kwargs.get("url") or "").strip()
+            headers = dict(kwargs.get("headers") or {})
+            try:
+                capabilities = asyncio.run(
+                    discover_mcp_capabilities(name, url, headers)
+                )
+            except Exception as exc:
+                return f"Failed to discover MCP capabilities: {type(exc).__name__}: {exc}"
             if server is None:
                 server = McpServerTable(id=_new_id("mcp"), owner_user_id=owner, created_at=now)
                 db.add(server)
-            server.name = str(kwargs.get("name") or "").strip()
+            server.name = name
             server.type = "streamable_http"
-            server.url = str(kwargs.get("url") or "").strip()
-            server.headers = dict(kwargs.get("headers") or {})
+            server.url = url
+            server.headers = headers
+            server.tools = capabilities["tools"]
+            server.resources = capabilities["resources"]
+            server.prompts = capabilities["prompts"]
             server.updated_at = now
             db.commit()
             _invalidate_runtime_caches(owner_user_id=owner)
