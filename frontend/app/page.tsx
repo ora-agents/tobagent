@@ -26,6 +26,7 @@ import {
 } from "@/lib/config/deployment-config"
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
+import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
@@ -548,6 +549,8 @@ function DashboardContent() {
   }
 
   const handleOpenActiveAgentSettings = () => {
+    if (!selectedAgentProfile || isSystemAgentProfile(selectedAgentProfile)) return
+
     setEditAgentIdParam(selectedAgentProfileId)
     setCurrentView("agents")
   }

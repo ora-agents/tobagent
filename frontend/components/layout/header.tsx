@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
 import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile } from "@/lib/types/agent-profiles"
+import { isSystemAgentProfile, type AgentProfile } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -52,6 +52,7 @@ export function Header({
   const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
   const visibleAgentProfiles = agentProfiles.filter((profile) => !profile.isHidden)
   const canSwitchAgents = !!onAgentProfileChange && visibleAgentProfiles.length > 0
+  const canOpenAgentSettings = !!onOpenAgentSettings && !!selectedAgentProfile && !isSystemAgentProfile(selectedAgentProfile)
   const [isAgentListExpanded, setIsAgentListExpanded] = useState(false)
   const [orderedAgentIds, setOrderedAgentIds] = useState<string[]>([])
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null)
@@ -248,7 +249,7 @@ export function Header({
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           {/* Agent configuration button */}
-          {onOpenAgentSettings && (
+          {canOpenAgentSettings && (
             <NavActionButton
               type="button"
               variant="ghost"
