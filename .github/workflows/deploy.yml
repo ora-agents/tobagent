@@ -530,6 +530,10 @@ jobs:
           }
 
           dump_deploy_diagnostics() {
+            echo "::group::Disk usage"
+            df -h /
+            docker system df || true
+            echo "::endgroup::"
             echo "::group::Docker compose status"
             docker compose ps || true
             echo "::endgroup::"
@@ -577,8 +581,18 @@ jobs:
           export TOBAGENT_SPEAKER_IMAGE="$speaker_image"
 
           mkdir -p models/speechbrain
+
+          min_free_kb=$((8 * 1024 * 1024))
+          available_kb="$(df -Pk / | awk 'NR == 2 {print $4}')"
+          if [ "$available_kb" -lt "$min_free_kb" ]; then
+            echo "Less than 8 GiB is available; pruning unused Docker images before pulling."
+            docker image prune -af
+          fi
+
+          df -h /
           docker compose pull tobagent frontend speaker
           docker compose up -d --remove-orphans
-          docker image prune -f
+          docker image prune -af
+          df -h /
           EOF
           } | ssh "${SSH_OPTS[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s
