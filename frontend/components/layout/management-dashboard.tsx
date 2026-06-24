@@ -2257,7 +2257,7 @@ export function ManagementDashboard({
                     </div>
                   </div>
                 ) : selectedMcpId !== null && selectedMcp ? (
-                  <div className="max-w-2xl space-y-4">
+                  <div className="w-full space-y-4">
                     <div className="flex flex-col gap-3 pb-2 border-b sm:flex-row sm:items-center sm:justify-between border-border/40">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
@@ -2295,13 +2295,13 @@ export function ManagementDashboard({
                       )}
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid items-start gap-3 sm:grid-cols-3">
                       {([
                         ["tools", t.mcpTools, selectedMcp.tools || []],
                         ["resources", t.mcpResources, selectedMcp.resources || []],
                         ["prompts", t.mcpPrompts, selectedMcp.prompts || []],
                       ] as const).map(([key, label, items]) => (
-                        <div key={key} className="rounded-xl bg-muted/50 p-3">
+                        <div key={key} className="h-fit self-start rounded-xl bg-muted/50 p-3">
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <span className="text-xs font-semibold text-foreground">{label}</span>
                             <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
