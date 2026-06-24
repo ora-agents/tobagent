@@ -699,6 +699,7 @@ function DashboardContent() {
         {currentView === "settings" ? (
           <UserSettingsPage
             onBackToChat={() => setCurrentView("chat")}
+            onOpenSidebar={() => setIsMobileSidebarOpen(true)}
             elderOptimized={elderOptimized}
             onElderOptimizedChange={setElderOptimized}
             voiceprints={userVoiceprints}

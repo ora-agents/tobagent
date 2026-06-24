@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   User,
   Mail,
+  Menu,
   Shield,
   Loader2,
   AlertCircle,
@@ -65,6 +66,7 @@ export interface UserVoiceprint {
 
 interface UserSettingsPageProps {
   onBackToChat: () => void
+  onOpenSidebar?: () => void
   elderOptimized: boolean
   onElderOptimizedChange: (enabled: boolean) => void
   voiceprints: UserVoiceprint[]
@@ -117,6 +119,7 @@ const NAV_SECTIONS: NavSection[] = [
 
 export function UserSettingsPage({
   onBackToChat,
+  onOpenSidebar,
   elderOptimized,
   onElderOptimizedChange,
   voiceprints,
@@ -513,14 +516,25 @@ export function UserSettingsPage({
     <>
     <AppShell className={`flex-col ${elderOptimized ? "text-[17px]" : ""}`}>
       {/* Header */}
-      <AppHeader className={`${elderOptimized ? "min-h-20 px-5 py-3 sm:px-8" : "px-6"} justify-between gap-3`}>
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className={`${elderOptimized ? "text-2xl gap-2" : "text-base gap-1.5"} font-semibold tracking-wide flex items-center font-display`}>
-              <Settings2 className={`${elderOptimized ? "w-6 h-6" : "w-5 h-5"} text-primary`} />
-              {zh ? "用户设置" : "User Settings"}
+      <AppHeader className={`${elderOptimized ? "min-h-20 py-3 sm:px-8" : "py-3"} h-auto justify-between gap-3 px-3`}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {onOpenSidebar ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onOpenSidebar}
+              className={`${elderOptimized ? "h-11 w-11" : "h-9 w-9"} flex-shrink-0 rounded-lg md:hidden`}
+              aria-label={zh ? "打开菜单" : "Open menu"}
+            >
+              <Menu className={elderOptimized ? "h-6 w-6" : "h-5 w-5"} />
+            </Button>
+          ) : null}
+          <div className="min-w-0">
+            <h1 className={`${elderOptimized ? "text-xl gap-2 sm:text-2xl" : "text-base gap-1.5"} flex min-w-0 items-center font-display font-semibold tracking-wide`}>
+              <Settings2 className={`${elderOptimized ? "h-6 w-6" : "h-5 w-5"} flex-shrink-0 text-primary`} />
+              <span className="truncate">{zh ? "用户设置" : "User Settings"}</span>
             </h1>
-            <p className={`${elderOptimized ? "text-sm mt-1 leading-snug" : "text-[11px] leading-none"} text-muted-foreground/80`}>
+            <p className={`${elderOptimized ? "text-sm mt-1 leading-snug" : "text-[11px] mt-1 leading-4"} hidden text-muted-foreground/80 sm:block`}>
               {zh ? "管理您的个人信息、偏好设置和安全选项" : "Manage your profile, preferences, and safety options"}
             </p>
           </div>
@@ -528,35 +542,36 @@ export function UserSettingsPage({
 
         <div className="flex items-center gap-2">
           {saving && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              {zh ? "保存中..." : "Saving..."}
+              <span className="hidden sm:inline">{zh ? "保存中..." : "Saving..."}</span>
             </span>
           )}
           {saved && (
-            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+            <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
               <Check className="w-3.5 h-3.5" />
-              {zh ? "已保存" : "Saved"}
+              <span className="hidden sm:inline">{zh ? "已保存" : "Saved"}</span>
             </span>
           )}
           <NavActionButton
             variant="outline"
             onClick={onBackToChat}
-            className={elderOptimized ? "h-11 min-w-[8.5rem] px-4 text-base" : ""}
+            className={elderOptimized ? "h-11 min-w-0 px-3 text-base sm:min-w-[8.5rem] sm:px-4" : ""}
           >
             <ArrowLeft className={`${elderOptimized ? "w-5 h-5" : "w-4 h-4"}`} />
-            {zh ? "返回对话" : "Back to Chat"}
+            <span className="hidden sm:inline">{zh ? "返回对话" : "Back to Chat"}</span>
+            <span className="sm:hidden">{zh ? "返回" : "Back"}</span>
           </NavActionButton>
         </div>
       </AppHeader>
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Left nav (hidden in elder mode for simplicity) */}
         {!elderOptimized && (
-          <aside className="w-[180px] border-r border-border/40 flex-shrink-0 overflow-y-auto bg-background/30">
-            <nav className="p-4 space-y-1 sticky top-0">
-              <div className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wider mb-3 px-3">
+          <aside className="w-full flex-shrink-0 overflow-x-auto border-b border-border/40 bg-background/30 md:w-[180px] md:overflow-y-auto md:border-b-0 md:border-r">
+            <nav className="flex gap-1 p-2 md:sticky md:top-0 md:block md:space-y-1 md:p-4">
+              <div className="hidden text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 md:mb-3 md:block md:px-3">
                 {zh ? "配置目录" : "Sections"}
               </div>
               {NAV_SECTIONS.map(({ id, icon: Icon, labelZh, labelEn }) => (
@@ -566,6 +581,7 @@ export function UserSettingsPage({
                   icon={Icon}
                   active={activeSection === id}
                   label={zh ? labelZh : labelEn}
+                  className="w-auto flex-shrink-0 whitespace-nowrap md:w-full"
                 />
               ))}
             </nav>
@@ -576,7 +592,7 @@ export function UserSettingsPage({
         <main
           ref={scrollContainerRef}
           onScroll={updateActiveSectionFromScroll}
-          className={`flex-1 overflow-y-auto ${elderOptimized ? "p-4 sm:p-8" : "p-6 sm:p-8"} bg-gradient-to-tr from-sidebar-accent/5 to-transparent`}
+          className={`min-w-0 flex-1 overflow-y-auto ${elderOptimized ? "p-4 sm:p-8" : "p-4 sm:p-6 lg:p-8"} bg-gradient-to-tr from-sidebar-accent/5 to-transparent`}
         >
           <div className={`${elderOptimized ? "max-w-3xl space-y-7" : "max-w-2xl space-y-6"} mx-auto`}>
             {/* Gradient decoration */}
