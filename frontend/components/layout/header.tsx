@@ -132,68 +132,72 @@ export function Header({
           )}
           {agentProfilesLoaded ? (
             canSwitchAgents ? (
-              <ScrollArea
-                className="h-10 min-w-0 max-w-[calc(100vw-12rem)] md:max-w-[48rem]"
-                scrollbars="horizontal"
-                aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
-              >
-                <div className="flex items-center gap-1.5 pr-1 md:pr-2">
-                {displayedAgentProfiles.map((profile) => {
-                  const isActive = selectedAgentProfileId === profile.id
-                  const isDragging = draggedAgentId === profile.id
-                  const isDragTarget = dragOverAgentId === profile.id && draggedAgentId !== profile.id
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <ScrollArea
+                  className="h-11 min-w-0 flex-1"
+                  viewportClassName="px-1"
+                  scrollbars="horizontal"
+                  aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
+                >
+                  <div className="flex h-11 items-center gap-1.5">
+                    {displayedAgentProfiles.map((profile) => {
+                      const isActive = selectedAgentProfileId === profile.id
+                      const isDragging = draggedAgentId === profile.id
+                      const isDragTarget = dragOverAgentId === profile.id && draggedAgentId !== profile.id
 
-                  return (
-                    <Button
-                      key={profile.id}
-                      type="button"
-                      variant="ghost"
-                      draggable
-                      onDragStart={(event) => {
-                        setDraggedAgentId(profile.id)
-                        event.dataTransfer.effectAllowed = "move"
-                        event.dataTransfer.setData("text/plain", profile.id)
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault()
-                        event.dataTransfer.dropEffect = "move"
-                        setDragOverAgentId(profile.id)
-                      }}
-                      onDragLeave={() => setDragOverAgentId(null)}
-                      onDrop={(event) => {
-                        event.preventDefault()
-                        handleAgentDrop(profile.id)
-                        setDraggedAgentId(null)
-                        setDragOverAgentId(null)
-                      }}
-                      onDragEnd={() => {
-                        setDraggedAgentId(null)
-                        setDragOverAgentId(null)
-                        window.setTimeout(() => {
-                          suppressNextClickRef.current = false
-                        }, 0)
-                      }}
-                      onClick={() => {
-                        if (suppressNextClickRef.current) return
-                        onAgentProfileChange(profile.id)
-                      }}
-                      aria-pressed={isActive}
-                      title={profile.name}
-                      className={cn(
-                        "h-9 max-w-28 cursor-grab shrink-0 rounded-lg px-2 text-sm font-medium transition-colors active:cursor-grabbing sm:max-w-36 sm:px-2.5",
-                        "truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
-                        isActive
-                          ? "bg-primary text-primary-foreground shadow-depth-xs"
-                          : "bg-muted text-foreground hover:bg-primary-soft hover:text-primary",
-                        isDragging && "opacity-50",
-                        isDragTarget && "ring-2 ring-primary/30"
-                      )}
-                    >
-                      <GripVertical className="h-3.5 w-3.5 shrink-0 opacity-45" />
-                      <span className="truncate">{profile.name}</span>
-                    </Button>
-                  )
-                })}
+                      return (
+                        <Button
+                          key={profile.id}
+                          type="button"
+                          variant="ghost"
+                          draggable
+                          onDragStart={(event) => {
+                            setDraggedAgentId(profile.id)
+                            event.dataTransfer.effectAllowed = "move"
+                            event.dataTransfer.setData("text/plain", profile.id)
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault()
+                            event.dataTransfer.dropEffect = "move"
+                            setDragOverAgentId(profile.id)
+                          }}
+                          onDragLeave={() => setDragOverAgentId(null)}
+                          onDrop={(event) => {
+                            event.preventDefault()
+                            handleAgentDrop(profile.id)
+                            setDraggedAgentId(null)
+                            setDragOverAgentId(null)
+                          }}
+                          onDragEnd={() => {
+                            setDraggedAgentId(null)
+                            setDragOverAgentId(null)
+                            window.setTimeout(() => {
+                              suppressNextClickRef.current = false
+                            }, 0)
+                          }}
+                          onClick={() => {
+                            if (suppressNextClickRef.current) return
+                            onAgentProfileChange(profile.id)
+                          }}
+                          aria-pressed={isActive}
+                          title={profile.name}
+                          className={cn(
+                            "h-9 max-w-28 cursor-grab shrink-0 rounded-lg px-2 text-sm font-medium transition-colors active:cursor-grabbing sm:max-w-36 sm:px-2.5",
+                            "truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
+                            isActive
+                              ? "bg-primary text-primary-foreground shadow-depth-xs"
+                              : "bg-muted text-foreground hover:bg-primary-soft hover:text-primary",
+                            isDragging && "opacity-50",
+                            isDragTarget && "ring-2 ring-primary/30"
+                          )}
+                        >
+                          <GripVertical className="h-3.5 w-3.5 shrink-0 opacity-45" />
+                          <span className="truncate">{profile.name}</span>
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </ScrollArea>
                 {hasMoreAgents && (
                   <Button
                     type="button"
@@ -216,8 +220,7 @@ export function Header({
                     {isAgentListExpanded ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </Button>
                 )}
-                </div>
-              </ScrollArea>
+              </div>
             ) : (
               <span
                 className="truncate text-base font-sans font-semibold text-foreground select-none"
