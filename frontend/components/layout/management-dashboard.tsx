@@ -3101,10 +3101,7 @@ export function ManagementDashboard({
                         <p className="mt-1 text-sm text-muted-foreground">{selectedForm.description || (locale === "zh" ? "无描述" : "No description")}</p>
                         <p className="mt-2 font-mono text-xs text-muted-foreground">{selectedForm.id}</p>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => handleStartEditForm(selectedForm)} className="gap-1.5 rounded-lg">
-                        <Pencil className="h-3.5 w-3.5" />
-                        {locale === "zh" ? "编辑表单" : "Edit Form"}
-                      </Button>
+
                     </div>
 
                     <FormRecordsTable
