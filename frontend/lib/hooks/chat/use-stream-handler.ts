@@ -388,7 +388,7 @@ export function useStreamHandler({
       let finalAssistantCheckpointId: string | undefined
 
       const isCustomProfile = !!agentProfile
-      const agentType = "generic_agent"
+      const agentType = agentProfile?.graphId?.trim() || "generic_agent"
       const repos = agentConfig?.repos ?? []
 
       // Trace metadata for LangSmith observability

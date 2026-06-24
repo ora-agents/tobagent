@@ -64,22 +64,10 @@ async def get_agent_profiles(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from src.utils.assets_import import is_default_agent_profile_id
+    from src.utils.assets_import import ensure_default_agent_profile
 
     ensure_default_skills(db, current_user.id)
-    default_profiles = db.query(AgentProfileTable).filter(
-        AgentProfileTable.owner_user_id == current_user.id,
-    ).all()
-    default_profile_ids = [
-        profile.id
-        for profile in default_profiles
-        if is_default_agent_profile_id(profile.id)
-    ]
-    if default_profile_ids:
-        _remove_agent_profile_links(db, current_user.id, "agent_ids", default_profile_ids)
-        for profile in default_profiles:
-            if profile.id in default_profile_ids:
-                db.delete(profile)
+    ensure_default_agent_profile(db, current_user.id)
     db.commit()
 
     profiles = db.query(AgentProfileTable).filter(
@@ -115,6 +103,7 @@ async def create_agent_profile(
         description=profile_data.description,
         system_prompt=profile_data.systemPrompt,
         model=(profile_data.model or "").strip() or None,
+        graph_id=(profile_data.graphId or "").strip() or None,
         enabled_tools=profile_data.enabledTools,
         knowledge_base_ids=profile_data.knowledgeBaseIds,
         skill_ids=profile_data.skillIds,
@@ -165,6 +154,7 @@ async def update_agent_profile(
     profile.description = profile_data.description
     profile.system_prompt = profile_data.systemPrompt
     profile.model = (profile_data.model or "").strip() or None
+    profile.graph_id = (profile_data.graphId or "").strip() or None
     profile.enabled_tools = profile_data.enabledTools
     profile.knowledge_base_ids = profile_data.knowledgeBaseIds
     profile.skill_ids = profile_data.skillIds
@@ -249,6 +239,7 @@ async def restore_agent_profile_version(
     profile.description = restored.description
     profile.system_prompt = restored.systemPrompt
     profile.model = (restored.model or "").strip() or None
+    profile.graph_id = (restored.graphId or "").strip() or None
     profile.enabled_tools = restored.enabledTools
     profile.knowledge_base_ids = restored.knowledgeBaseIds
     profile.skill_ids = restored.skillIds
@@ -409,6 +400,7 @@ async def import_agent_share(
         description=source_profile.description,
         system_prompt=source_profile.system_prompt,
         model=source_profile.model,
+        graph_id=source_profile.graph_id,
         enabled_tools=copy.deepcopy(source_profile.enabled_tools or []),
         knowledge_base_ids=copied_ids["knowledgeBaseIds"],
         skill_ids=copied_ids["skillIds"],
@@ -571,6 +563,7 @@ async def import_agent_profiles_toml(
             description=str(raw_agent.get("description") or ""),
             system_prompt=str(raw_agent.get("systemPrompt") or ""),
             model=(str(raw_agent.get("model") or "").strip() or None),
+            graph_id=(str(raw_agent.get("graphId") or "").strip() or None),
             enabled_tools=list(raw_agent.get("enabledTools") or []),
             knowledge_base_ids=[],
             skill_ids=[],

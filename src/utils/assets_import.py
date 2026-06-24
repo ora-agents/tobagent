@@ -31,10 +31,23 @@ logger = logging.getLogger(__name__)
 
 ASSETS_DIR = Path(__file__).parents[2] / "assets"
 DEFAULT_AGENT_ID_PREFIX = "default_"
-DEFAULT_AGENT_NAME = "默认系统智能体"
-DEFAULT_AGENT_DESCRIPTION = "预配置的文档助手智能体。"
-DEFAULT_AGENT_PROMPT = "You are a helpful assistant."
-DEFAULT_AGENT_TOOLS = ["rag_search", "fetch"]
+DEFAULT_AGENT_GRAPH_ID = "agent_builder"
+DEFAULT_AGENT_NAME = "Agent 搭建 Agent"
+DEFAULT_AGENT_DESCRIPTION = "系统自带的初始配置搭建智能体，可通过对话创建、修改和关联角色、技能、知识库、表单与 MCP 服务端。"
+DEFAULT_AGENT_PROMPT = (
+    "你是系统自带的 Agent 搭建 Agent，专门帮助用户通过对话构建和维护智能体配置。"
+    "你可以创建或修改角色配置，管理技能、知识库、表单、MCP 服务端，并把这些资源关联到目标角色。"
+    "执行配置变更前先确认用户意图；变更完成后用简洁清单说明变更内容和关联关系。"
+)
+DEFAULT_AGENT_TOOLS = [
+    "list_config_resources",
+    "upsert_agent_profile",
+    "upsert_skill",
+    "upsert_form",
+    "upsert_mcp_server",
+    "upsert_knowledge_base",
+    "link_agent_resources",
+]
 
 
 def _now_iso() -> str:
@@ -304,16 +317,33 @@ def ensure_default_agent_profile(
             name=DEFAULT_AGENT_NAME,
             description=DEFAULT_AGENT_DESCRIPTION,
             system_prompt=DEFAULT_AGENT_PROMPT,
+            graph_id=DEFAULT_AGENT_GRAPH_ID,
             enabled_tools=DEFAULT_AGENT_TOOLS,
             knowledge_base_ids=[],
             skill_ids=[],
             mcp_ids=[],
             agent_ids=[],
             wake_words=[],
+            form_ids=[],
             created_at=now,
             updated_at=now,
         )
         db.add(profile)
+    else:
+        changed = False
+        desired_values = {
+            "name": DEFAULT_AGENT_NAME,
+            "description": DEFAULT_AGENT_DESCRIPTION,
+            "system_prompt": DEFAULT_AGENT_PROMPT,
+            "graph_id": DEFAULT_AGENT_GRAPH_ID,
+            "enabled_tools": DEFAULT_AGENT_TOOLS,
+        }
+        for field_name, desired_value in desired_values.items():
+            if getattr(profile, field_name, None) != desired_value:
+                setattr(profile, field_name, desired_value)
+                changed = True
+        if changed:
+            profile.updated_at = now
 
     if knowledge_base_ids:
         existing = list(profile.knowledge_base_ids or [])

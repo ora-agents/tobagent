@@ -139,6 +139,12 @@ export const AGENTS = {
     shortName: "Generic Agent",
     description: "General purpose AI assistant",
   },
+  agentBuilder: {
+    id: "agent_builder",
+    name: "Agent Builder",
+    shortName: "Agent Builder",
+    description: "System configuration-building assistant",
+  },
 } as const satisfies Record<string, AgentConfig>
 
 export type AgentKey = keyof typeof AGENTS

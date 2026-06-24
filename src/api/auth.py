@@ -18,8 +18,8 @@ ALLOWED_CONFIGURABLE_OVERRIDES = {
     "agent_ids",
     "model",
 }
-ALLOWED_BUILTIN_TOOLS = {"rag_search", "fetch", "read_skill", "navigate_robot_to_point"}
-GRAPH_ASSISTANT_IDS = {"generic_agent"}
+ALLOWED_BUILTIN_TOOLS = {"rag_search", "fetch", "read_skill", "query_form_data", "navigate_robot_to_point"}
+GRAPH_ASSISTANT_IDS = {"generic_agent", "agent_builder"}
 AGENT_ID_KEYS = ("agent_id", "agent_profile_id", "agentProfileId")
 
 

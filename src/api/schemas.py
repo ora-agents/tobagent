@@ -112,6 +112,7 @@ class AgentProfileSchema(BaseModel):
     description: str | None = None
     systemPrompt: str | None = None
     model: str | None = None
+    graphId: str | None = None
     enabledTools: list[str] = []
     knowledgeBaseIds: list[str] = []
     skillIds: list[str] = []

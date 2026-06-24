@@ -125,6 +125,7 @@ class AgentProfileTable(Base):
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
     model = Column(String(255), nullable=True)
+    graph_id = Column(String(100), nullable=True)
     # enabled_tools is a JSON list of builtin tool IDs, e.g., ["rag_search", "fetch"]
     enabled_tools = Column(JSON, nullable=False, default=list)
     # knowledge_base_ids is a JSON list of linked knowledge bases, e.g., ["kb_1", "kb_2"]
@@ -322,6 +323,7 @@ def ensure_database_schema() -> None:
     migrations = [
         ("agent_profiles", "skill_ids", "skill_ids JSON"),
         ("agent_profiles", "model", "model VARCHAR(255)"),
+        ("agent_profiles", "graph_id", "graph_id VARCHAR(100)"),
         ("agent_profiles", "mcp_ids", "mcp_ids JSON"),
         ("agent_profiles", "agent_ids", "agent_ids JSON"),
         ("agent_profiles", "form_ids", "form_ids JSON"),
