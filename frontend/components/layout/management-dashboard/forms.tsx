@@ -770,9 +770,10 @@ export function FormRecordsTable({
         </div>
       </div>
       <ScrollArea
-        className={`bg-background ${isFullscreen ? "min-h-0 flex-1" : "h-[560px] rounded-b-xl"}`}
+        className={`bg-background ${isFullscreen ? "min-h-0 flex-1" : "max-h-[560px] rounded-b-xl"}`}
         contentClassName="!w-full min-w-0"
         scrollbars="both"
+        viewportClassName={isFullscreen ? undefined : "!h-auto max-h-[560px]"}
       >
         <table
           className="w-full table-fixed border-separate border-spacing-0"
