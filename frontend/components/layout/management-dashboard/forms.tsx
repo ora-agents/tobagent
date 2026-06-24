@@ -51,6 +51,7 @@ export interface CustomForm {
   id: string
   name: string
   description: string
+  category: string
   fields: CustomFormField[]
   recordCount: number
   createdAt: string
@@ -70,6 +71,7 @@ type CustomFormFieldType = CustomFormField["type"]
 export type FormDefinitionState = {
   name: string
   description: string
+  category: string
   fields: CustomFormField[]
 }
 

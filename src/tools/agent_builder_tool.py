@@ -106,7 +106,13 @@ class ListConfigResourcesTool(BaseTool):
                 ]
             if resource_type in ("all", "forms"):
                 payload["forms"] = [
-                    {"id": row.id, "name": row.name, "description": row.description, "fields": row.fields or []}
+                    {
+                        "id": row.id,
+                        "name": row.name,
+                        "description": row.description,
+                        "category": row.category or "",
+                        "fields": row.fields or [],
+                    }
                     for row in db.query(FormTable).filter(FormTable.owner_user_id == owner).all()
                 ]
             if resource_type in ("all", "mcp_servers"):
@@ -257,6 +263,7 @@ class UpsertFormInput(BaseModel):
     form_id: str = ""
     name: str
     description: str = ""
+    category: str = ""
     fields: list[FormFieldInput] = Field(default_factory=list)
 
 
@@ -281,6 +288,7 @@ class UpsertFormTool(BaseTool):
                 db.add(form)
             form.name = str(kwargs.get("name") or "").strip()
             form.description = str(kwargs.get("description") or "")
+            form.category = str(kwargs.get("category") or "").strip()
             form.fields = [
                 field.model_dump(mode="json") if isinstance(field, FormFieldInput) else dict(field)
                 for field in kwargs.get("fields", [])

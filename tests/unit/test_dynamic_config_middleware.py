@@ -153,6 +153,7 @@ async def test_dynamic_config_middleware_injects_linked_form_names_and_schema():
                 "id": "form_orders",
                 "name": "订单表",
                 "description": "客户订单数据",
+                "category": "订单",
                 "fields": [
                     {
                         "id": "customer_name",
@@ -187,6 +188,7 @@ async def test_dynamic_config_middleware_injects_linked_form_names_and_schema():
 
     assert "Linked Forms:" in content
     assert "- **订单表** (ID: `form_orders`): 客户订单数据" in content
+    assert "[Type: 订单]" in content
     assert "`customer_name`; label: 客户名称; type: text; required" in content
     assert "`status`; label: 订单状态; type: select; optional; options: 新建, 已完成" in content
     assert kwargs["tools"] == [query_form_tool]

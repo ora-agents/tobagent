@@ -537,6 +537,7 @@ async def import_agent_profiles_toml(
             owner_user_id=current_user.id,
             name=str(raw_form.get("name") or source_id),
             description=str(raw_form.get("description") or ""),
+            category=str(raw_form.get("category") or "").strip(),
             fields=fields,
             created_at=now,
             updated_at=now,

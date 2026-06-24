@@ -72,6 +72,7 @@ def _seed_resources(db_session):
         owner_user_id="owner",
         name="Contacts",
         description="Contact records",
+        category="CRM",
         fields=[{"id": "name", "label": "Name", "type": "text", "required": True, "options": []}],
         created_at=now,
         updated_at=now,
@@ -134,9 +135,11 @@ def test_bundle_round_trip_rewrites_ids_and_removes_secrets(db_session):
         assert manifest["resources"]["skills"] == ["skill-source"]
         agent = json.loads(archive.read("agents/agent-source.json"))
         mcp = json.loads(archive.read("mcp-servers/mcp-source.json"))
+        form = json.loads(archive.read("forms/form-source.json"))
         assert "userVoiceprintId" not in agent
         assert mcp["headers"] == {"X-Tenant": "safe"}
         assert set(mcp["redactedHeaders"]) == {"Authorization", "X-Api-Key"}
+        assert form["category"] == "CRM"
 
     inspection, entry = inspect_bundle(
         db_session, raw, "receiver", "inspection-test"
@@ -176,6 +179,10 @@ def test_bundle_round_trip_rewrites_ids_and_removes_secrets(db_session):
     )
     assert imported_kb.import_status == "needs_upload"
     assert imported_kb.files[0]["name"] == "manual.md"
+    imported_form = db_session.get(
+        FormTable, response.resourceIdMap["formIds"]["form-source"]
+    )
+    assert imported_form.category == "CRM"
 
 
 def test_export_agent_dependencies_preserve_system_knowledge_base_reference(db_session):

@@ -116,6 +116,7 @@ async def create_form(
         owner_user_id=current_user.id,
         name=form_data.name,
         description=form_data.description,
+        category=form_data.category.strip(),
         fields=[field.model_dump(mode="json") for field in form_data.fields],
         created_at=form_data.createdAt,
         updated_at=form_data.updatedAt,
@@ -141,6 +142,7 @@ async def update_form(
         raise HTTPException(status_code=404, detail="Form not found")
     form.name = form_data.name
     form.description = form_data.description
+    form.category = form_data.category.strip()
     form.fields = [field.model_dump(mode="json") for field in form_data.fields]
     form.updated_at = form_data.updatedAt
     db.commit()

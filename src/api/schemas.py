@@ -165,6 +165,7 @@ class FormSchema(BaseModel):
     id: str
     name: str
     description: str | None = None
+    category: str = ""
     fields: list[FormFieldSchema] = []
     recordCount: int = 0
     createdAt: str

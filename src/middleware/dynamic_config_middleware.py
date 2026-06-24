@@ -142,9 +142,11 @@ def _format_linked_forms_for_prompt(forms: list[dict[str, Any]]) -> str:
     )
     for form in forms:
         fields = form.get("fields", [])
+        category = str(form.get("category") or "").strip()
+        category_suffix = f" [Type: {category}]" if category else ""
         form_instructions += (
             f"- **{form['name']}** (ID: `{form['id']}`): "
-            f"{form['description']}\n"
+            f"{form['description']}{category_suffix}\n"
             "  Schema:\n"
         )
         if isinstance(fields, list) and fields:
@@ -439,6 +441,7 @@ def _load_agent_runtime_resources(
                 "id": form.id,
                 "name": form.name,
                 "description": form.description or "No description.",
+                "category": form.category or "",
                 "fields": form.fields or [],
             }
             for form in form_rows

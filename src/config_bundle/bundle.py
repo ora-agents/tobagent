@@ -225,6 +225,7 @@ def build_export_bundle(
                     "id": row.id,
                     "name": row.name,
                     "description": row.description,
+                    "category": row.category or "",
                     "fields": copy.deepcopy(row.fields or []),
                 }),
             )
@@ -606,6 +607,7 @@ def execute_import(
                     )
                     row.name = str(item.get("name") or source_id)
                     row.description = item.get("description")
+                    row.category = str(item.get("category") or "").strip()
                     row.fields = copy.deepcopy(item.get("fields") or [])
                     if existing:
                         db.query(FormRecordTable).filter(

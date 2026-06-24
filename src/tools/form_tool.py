@@ -132,7 +132,8 @@ class QueryFormDataTool(BaseTool):
                 return "\n".join(
                     ["Linked forms:"]
                     + [
-                        f"- ID: {form.id} | Name: {form.name} | Fields: "
+                        f"- ID: {form.id} | Name: {form.name}"
+                        f"{' | Type: ' + form.category if form.category else ''} | Fields: "
                         f"{', '.join(field.get('id', '') for field in (form.fields or []))}"
                         for form in forms
                     ]
@@ -166,7 +167,12 @@ class QueryFormDataTool(BaseTool):
 
             return json.dumps(
                 {
-                    "form": {"id": form.id, "name": form.name, "fields": form.fields or []},
+                    "form": {
+                        "id": form.id,
+                        "name": form.name,
+                        "category": form.category or "",
+                        "fields": form.fields or [],
+                    },
                     "page": page,
                     "pageSize": page_size,
                     "total": len(filtered),

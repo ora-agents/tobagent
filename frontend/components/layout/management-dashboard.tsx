@@ -133,7 +133,14 @@ type SkillCategoryGroup = {
   skills: Skill[]
 }
 
+type FormCategoryGroup = {
+  key: string
+  label: string
+  forms: CustomForm[]
+}
+
 const UNCATEGORIZED_SKILL_CATEGORY = "__uncategorized__"
+const UNCATEGORIZED_FORM_CATEGORY = "__uncategorized_form__"
 
 function getSkillCategory(skill: Skill, uncategorizedLabel: string) {
   const parsed = parseSkillForView(skill.content)
@@ -166,6 +173,31 @@ function groupSkillsByCategory(skills: Skill[], uncategorizedLabel: string): Ski
   return Array.from(groups.values()).sort((a, b) => {
     if (a.key === UNCATEGORIZED_SKILL_CATEGORY) return 1
     if (b.key === UNCATEGORIZED_SKILL_CATEGORY) return -1
+    return a.label.localeCompare(b.label)
+  })
+}
+
+function groupFormsByCategory(forms: CustomForm[], uncategorizedLabel: string): FormCategoryGroup[] {
+  const groups = new Map<string, FormCategoryGroup>()
+
+  for (const form of forms) {
+    const category = (form.category || "").trim()
+    const key = category ? category.toLowerCase() : UNCATEGORIZED_FORM_CATEGORY
+    const existing = groups.get(key)
+    if (existing) {
+      existing.forms.push(form)
+    } else {
+      groups.set(key, {
+        key,
+        label: category || uncategorizedLabel,
+        forms: [form],
+      })
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.key === UNCATEGORIZED_FORM_CATEGORY) return 1
+    if (b.key === UNCATEGORIZED_FORM_CATEGORY) return -1
     return a.label.localeCompare(b.label)
   })
 }
@@ -228,6 +260,8 @@ export function ManagementDashboard({
   const [skillForm, setSkillForm] = useState({ name: "", description: "", content: "" })
   const [collapsedSkillCategories, setCollapsedSkillCategories] = useState<Set<string>>(new Set())
   const [collapsedAgentSkillCategories, setCollapsedAgentSkillCategories] = useState<Set<string>>(new Set())
+  const [collapsedFormCategories, setCollapsedFormCategories] = useState<Set<string>>(new Set())
+  const [collapsedAgentFormCategories, setCollapsedAgentFormCategories] = useState<Set<string>>(new Set())
 
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [selectedKBId, setSelectedKBId] = useState<string | null>(null)
@@ -243,7 +277,7 @@ export function ManagementDashboard({
   const [formRecordTotal, setFormRecordTotal] = useState(0)
   const [isEditingForm, setIsEditingForm] = useState(false)
   const [isCreatingForm, setIsCreatingForm] = useState(false)
-  const [formDefinition, setFormDefinition] = useState<FormDefinitionState>({ name: "", description: "", fields: [] })
+  const [formDefinition, setFormDefinition] = useState<FormDefinitionState>({ name: "", description: "", category: "", fields: [] })
   const [selectedFormFieldId, setSelectedFormFieldId] = useState<string | null>(null)
   const [recordQuery, setRecordQuery] = useState("")
   const [recordPage, setRecordPage] = useState(1)
@@ -1205,6 +1239,7 @@ export function ManagementDashboard({
     setFormDefinition({
       name: "",
       description: "",
+      category: "",
       fields: [{ id: "name", label: locale === "zh" ? "名称" : "Name", type: "text", required: false, options: [] }],
     })
     setSelectedFormFieldId("name")
@@ -1219,6 +1254,7 @@ export function ManagementDashboard({
     setFormDefinition({
       name: form.name,
       description: form.description,
+      category: form.category || "",
       fields: form.fields || [],
     })
     setSelectedFormFieldId(form.fields[0]?.id || null)
@@ -1285,6 +1321,7 @@ export function ManagementDashboard({
         id: generateUUID(),
         name: formDefinition.name.trim(),
         description: formDefinition.description.trim(),
+        category: formDefinition.category.trim(),
         fields,
         recordCount: 0,
         createdAt: now,
@@ -1308,7 +1345,14 @@ export function ManagementDashboard({
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ ...target, name: formDefinition.name.trim(), description: formDefinition.description.trim(), fields, updatedAt: now }),
+        body: JSON.stringify({
+          ...target,
+          name: formDefinition.name.trim(),
+          description: formDefinition.description.trim(),
+          category: formDefinition.category.trim(),
+          fields,
+          updatedAt: now,
+        }),
       })
       if (resp.ok) {
         const saved = await resp.json()
@@ -1798,6 +1842,28 @@ export function ManagementDashboard({
       return next
     })
   }
+  const toggleCollapsedFormCategory = (key: string) => {
+    setCollapsedFormCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+  const toggleCollapsedAgentFormCategory = (key: string) => {
+    setCollapsedAgentFormCategories(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
   const filteredAgentMcpServers = mcpServers.filter(mcp => {
     const query = agentMcpSearch.trim().toLowerCase()
     if (!query) return true
@@ -1806,8 +1872,16 @@ export function ManagementDashboard({
   const filteredAgentForms = forms.filter(form => {
     const query = agentRoleSearch.trim().toLowerCase()
     if (!query) return true
-    return [form.name, form.description, form.id].some(value => value.toLowerCase().includes(query))
+    return [form.name, form.description, form.category, form.id].some(value => value.toLowerCase().includes(query))
   })
+  const formCategoryGroups = useMemo(
+    () => groupFormsByCategory(forms, locale === "zh" ? "未分类" : "Uncategorized"),
+    [forms, locale],
+  )
+  const filteredAgentFormCategoryGroups = useMemo(
+    () => groupFormsByCategory(filteredAgentForms, locale === "zh" ? "未分类" : "Uncategorized"),
+    [filteredAgentForms, locale],
+  )
   const configurableAgentProfiles = agentProfiles.filter(profile => !isSystemAgentProfile(profile))
   const linkableAgentProfiles = configurableAgentProfiles.filter(p => p.id !== activeEditingAgentId)
   const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
@@ -1906,37 +1980,60 @@ export function ManagementDashboard({
                   </Button>
                 }
               >
-                {forms.map(form => (
-                  <ListItem
-                    key={form.id}
-                    selected={selectedFormId === form.id}
-                    title={form.name}
-                    description={`${form.fields.length + SYSTEM_FORM_FIELDS.length} ${locale === "zh" ? "字段" : "fields"} · ${form.recordCount} ${locale === "zh" ? "记录" : "records"}`}
-                    onSelect={() => handleSelectForm(form.id)}
-                    actionsClassName={deleteConfirmId === form.id ? "md:opacity-100" : "md:pointer-events-none md:group-hover:pointer-events-auto md:group-focus-within:pointer-events-auto"}
-                    actions={
-                      deleteConfirmId === form.id ? (
-                        <>
-                          <button onClick={() => handleDeleteForm(form.id)} className="p-1 rounded text-destructive hover:bg-destructive/10" title={t.confirmDelete}>
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => setDeleteConfirmId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" title={t.cancel}>
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => handleStartEditForm(form)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80" title={locale === "zh" ? "编辑" : "Edit"}>
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button onClick={() => setDeleteConfirmId(form.id)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10" title={t.delete}>
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      )
-                    }
-                  />
-                ))}
+                <div className="space-y-2">
+                  {formCategoryGroups.map(group => {
+                    const collapsed = collapsedFormCategories.has(group.key)
+                    return (
+                      <div key={group.key} className="space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleCollapsedFormCategory(group.key)}
+                          className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          aria-expanded={!collapsed}
+                        >
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+                            <span className="truncate">{group.label}</span>
+                          </span>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {group.forms.length}
+                          </span>
+                        </button>
+                        {!collapsed && group.forms.map(form => (
+                          <ListItem
+                            key={form.id}
+                            selected={selectedFormId === form.id}
+                            title={form.name}
+                            description={`${form.fields.length + SYSTEM_FORM_FIELDS.length} ${locale === "zh" ? "字段" : "fields"} · ${form.recordCount} ${locale === "zh" ? "记录" : "records"}`}
+                            onSelect={() => handleSelectForm(form.id)}
+                            actionsClassName={deleteConfirmId === form.id ? "md:opacity-100" : "md:pointer-events-none md:group-hover:pointer-events-auto md:group-focus-within:pointer-events-auto"}
+                            actions={
+                              deleteConfirmId === form.id ? (
+                                <>
+                                  <button onClick={() => handleDeleteForm(form.id)} className="p-1 rounded text-destructive hover:bg-destructive/10" title={t.confirmDelete}>
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => setDeleteConfirmId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" title={t.cancel}>
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => handleStartEditForm(form)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80" title={locale === "zh" ? "编辑" : "Edit"}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => setDeleteConfirmId(form.id)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10" title={t.delete}>
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
               </ListPanel>
 
               <ScrollArea className="min-h-0 flex-1 bg-background">
@@ -1948,14 +2045,21 @@ export function ManagementDashboard({
                         {locale === "zh" ? "通过可视化列设计字段，保存后记录表格会按字段生成可编辑列。" : "Design fields visually as columns. The records table follows this structure after saving."}
                       </p>
                     </div>
-                    <div className="grid gap-4 rounded-xl bg-muted/35 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                    <div className="grid gap-4 rounded-xl bg-muted/35 p-4 md:grid-cols-2">
                       <InputField
                         id="form-name"
                         label={locale === "zh" ? "表单名称" : "Form Name"}
                         value={formDefinition.name}
                         onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
                       />
-                      <FormField label={locale === "zh" ? "描述" : "Description"}>
+                      <InputField
+                        id="form-category"
+                        label={locale === "zh" ? "表单类型" : "Form Type"}
+                        value={formDefinition.category}
+                        placeholder={locale === "zh" ? "例如：客户、订单、巡检" : "e.g. Customer, Order, Inspection"}
+                        onChange={(e) => setFormDefinition(prev => ({ ...prev, category: e.target.value }))}
+                      />
+                      <FormField label={locale === "zh" ? "描述" : "Description"} className="md:col-span-2">
                         <Textarea
                           value={formDefinition.description}
                           onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
@@ -1978,6 +2082,11 @@ export function ManagementDashboard({
                         <div className="flex items-center gap-2">
                           <TableProperties className="h-5 w-5 text-primary" />
                           <h2 className="text-lg font-semibold">{selectedForm.name}</h2>
+                          {selectedForm.category && (
+                            <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                              {selectedForm.category}
+                            </span>
+                          )}
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">{selectedForm.description || (locale === "zh" ? "无描述" : "No description")}</p>
                         <p className="mt-2 font-mono text-xs text-muted-foreground">{selectedForm.id}</p>
@@ -3197,43 +3306,69 @@ export function ManagementDashboard({
                         </div>
                         <ScrollArea
                           className="max-h-64 rounded-xl border border-border/40 bg-background/50"
-                          contentClassName="grid grid-cols-1 gap-2 p-1 sm:grid-cols-2"
+                          contentClassName="space-y-2 p-1"
                           viewportClassName="!h-auto max-h-64"
                         >
-                          {filteredAgentForms.map((form) => {
-                            const linked = agentForm.formIds.includes(form.id)
+                          {filteredAgentFormCategoryGroups.map(group => {
+                            const collapsed = collapsedAgentFormCategories.has(group.key)
+                            const linkedCount = group.forms.filter(form => agentForm.formIds.includes(form.id)).length
                             return (
-                              <div
-                                key={form.id}
-                                className={linkedResourceItemClassName(linked)}
-                                onClick={() => {
-                                  const nextIds = linked
-                                    ? agentForm.formIds.filter(id => id !== form.id)
-                                    : [...agentForm.formIds, form.id]
-                                  const enabledTools = nextIds.length > 0
-                                    ? [...new Set([...agentForm.enabledTools, "query_form_data" as BuiltinToolId])]
-                                    : agentForm.enabledTools.filter(tool => tool !== "query_form_data")
-                                  setAgentForm({ ...agentForm, formIds: nextIds, enabledTools })
-                                }}
-                              >
-                                <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                                  linked ? "bg-primary border-primary" : "border-muted-foreground/35"
-                                }`}>
-                                  {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="text-xs font-medium truncate">{form.name}</div>
-                                  <div className="text-[10px] text-muted-foreground truncate">{form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
-                                </div>
+                              <div key={group.key} className="space-y-1.5">
                                 <button
                                   type="button"
-                                  onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "form", item: form })}
-                                  className={linkedResourceJumpButtonClassName}
-                                  title={locale === "zh" ? "编辑表单配置" : "Edit form configuration"}
-                                  aria-label={locale === "zh" ? `编辑表单配置：${form.name}` : `Edit form configuration: ${form.name}`}
+                                  onClick={() => toggleCollapsedAgentFormCategory(group.key)}
+                                  className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                                  aria-expanded={!collapsed}
                                 >
-                                  <ArrowUpRight className="h-3.5 w-3.5" />
+                                  <span className="flex min-w-0 items-center gap-1.5">
+                                    {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+                                    <span className="truncate">{group.label}</span>
+                                  </span>
+                                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                    {linkedCount}/{group.forms.length}
+                                  </span>
                                 </button>
+                                {!collapsed && (
+                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {group.forms.map((form) => {
+                                      const linked = agentForm.formIds.includes(form.id)
+                                      return (
+                                        <div
+                                          key={form.id}
+                                          className={linkedResourceItemClassName(linked)}
+                                          onClick={() => {
+                                            const nextIds = linked
+                                              ? agentForm.formIds.filter(id => id !== form.id)
+                                              : [...agentForm.formIds, form.id]
+                                            const enabledTools = nextIds.length > 0
+                                              ? [...new Set([...agentForm.enabledTools, "query_form_data" as BuiltinToolId])]
+                                              : agentForm.enabledTools.filter(tool => tool !== "query_form_data")
+                                            setAgentForm({ ...agentForm, formIds: nextIds, enabledTools })
+                                          }}
+                                        >
+                                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                            linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                          }`}>
+                                            {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                          </span>
+                                          <div className="min-w-0">
+                                            <div className="text-xs font-medium truncate">{form.name}</div>
+                                            <div className="text-[10px] text-muted-foreground truncate">{form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "form", item: form })}
+                                            className={linkedResourceJumpButtonClassName}
+                                            title={locale === "zh" ? "编辑表单配置" : "Edit form configuration"}
+                                            aria-label={locale === "zh" ? `编辑表单配置：${form.name}` : `Edit form configuration: ${form.name}`}
+                                          >
+                                            <ArrowUpRight className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             )
                           })}
