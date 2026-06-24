@@ -3,19 +3,9 @@ export type BuiltinToolId = "rag_search" | "fetch" | "query_form_data" | "naviga
 
 export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: string }[] = [
   {
-    id: "rag_search",
-    label: "Knowledge Base (RAG)",
-    description: "Search documents you have uploaded to this agent.",
-  },
-  {
     id: "fetch",
     label: "Fetch URL",
     description: "Retrieve the content of any web page or API endpoint.",
-  },
-  {
-    id: "query_form_data",
-    label: "Form Data",
-    description: "Query linked custom forms with field filters, selected fields, and pagination.",
   },
   {
     id: "navigate_robot_to_point",

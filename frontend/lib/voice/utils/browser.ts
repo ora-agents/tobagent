@@ -59,3 +59,11 @@ export function isAndroidWebView(): boolean {
 
   return webViewUserAgent || nativeBridge
 }
+
+export function isRobotEnvironment(): boolean {
+  if (typeof window === "undefined") {
+    return false
+  }
+
+  return Boolean((window as any).__TOB_ROBOT_ENV__?.enabled)
+}

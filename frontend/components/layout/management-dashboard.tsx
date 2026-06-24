@@ -79,6 +79,7 @@ import {
 } from "@/lib/types/role-templates"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
+import { isRobotEnvironment } from "@/lib/voice/utils/browser"
 
 // ---------------------------------------------------------------------------
 // Skills Data Types & Storage
@@ -1157,6 +1158,18 @@ export function ManagementDashboard({
   const t = useT()
   const { locale } = useI18n()
   const { user } = useAuth()
+  const [hasRobotEnvironment, setHasRobotEnvironment] = useState(false)
+
+  useEffect(() => {
+    const updateRobotEnvironment = () => {
+      setHasRobotEnvironment(isRobotEnvironment())
+    }
+
+    updateRobotEnvironment()
+    window.addEventListener("nativeVoiceEvent", updateRobotEnvironment)
+    return () => window.removeEventListener("nativeVoiceEvent", updateRobotEnvironment)
+  }, [])
+
   const authHeaders = useMemo(
     () => user ? { Authorization: `Bearer ${user.id}` } : undefined,
     [user],
@@ -1570,7 +1583,7 @@ export function ManagementDashboard({
       description: "",
       systemPrompt: "You are a helpful assistant.",
       model: getDefaultModel(),
-      enabledTools: ["rag_search", "fetch"],
+      enabledTools: ["fetch"],
       knowledgeBaseIds: [],
       skillIds: [],
       mcpIds: [],
@@ -1662,12 +1675,20 @@ export function ManagementDashboard({
   const handleSaveAgent = () => {
     if (!agentForm.name.trim()) return
 
+    const enabledTools = [
+      ...agentForm.enabledTools.filter(
+        tool => tool !== "rag_search" && tool !== "query_form_data"
+      ),
+      ...(agentForm.knowledgeBaseIds.length > 0 ? ["rag_search" as const] : []),
+      ...(agentForm.formIds.length > 0 ? ["query_form_data" as const] : []),
+    ]
+
     const profileData = {
       name: agentForm.name.trim(),
       description: agentForm.description.trim(),
       systemPrompt: agentForm.systemPrompt,
       model: agentForm.model || null,
-      enabledTools: agentForm.enabledTools,
+      enabledTools,
       knowledgeBaseIds: agentForm.knowledgeBaseIds,
       skillIds: agentForm.skillIds,
       mcpIds: agentForm.mcpIds,
@@ -1750,6 +1771,10 @@ export function ManagementDashboard({
       return { ...prev, enabledTools: nextTools }
     })
   }
+
+  const visibleBuiltinTools = BUILTIN_TOOLS.filter(
+    tool => tool.id !== "navigate_robot_to_point" || hasRobotEnvironment
+  )
 
   const handleApplyRoleTemplate = (templateId: string) => {
     const template = ROLE_TEMPLATES.find(item => item.id === templateId)
@@ -3149,10 +3174,10 @@ export function ManagementDashboard({
                             {locale === "zh" ? "已隐藏" : "Hidden"}
                           </span>
                         )}
-                        {profile.enabledTools && profile.enabledTools.length > 0 && (
+                        {profile.enabledTools && visibleBuiltinTools.some(tool => profile.enabledTools.includes(tool.id)) && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/15 flex items-center gap-0.5" title={profile.enabledTools.join(", ")}>
                             <Wrench className="w-2.5 h-2.5" />
-                            {profile.enabledTools.length} {locale === "zh" ? "工具" : "Tools"}
+                            {visibleBuiltinTools.filter(tool => profile.enabledTools.includes(tool.id)).length} {locale === "zh" ? "工具" : "Tools"}
                           </span>
                         )}
                         {profile.knowledgeBaseIds && profile.knowledgeBaseIds.length > 0 && (
@@ -3562,25 +3587,28 @@ export function ManagementDashboard({
                     <div className="space-y-2">
                       <Label>{t.tools}</Label>
                       <div className="space-y-2 border border-border/50 rounded-xl p-3 bg-background/50">
-                        {BUILTIN_TOOLS.map(tool => {
+                        {visibleBuiltinTools.map(tool => {
                           const enabled = agentForm.enabledTools.includes(tool.id)
                           return (
-                            <div
-                              key={tool.id}
-                              onClick={() => handleToggleTool(tool.id)}
-                              className="flex items-start gap-3 cursor-pointer group p-2 rounded-lg hover:bg-muted/20"
-                            >
-                              <span
-                                className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${
-                                  enabled ? "bg-primary border-primary" : "border-muted-foreground/40 group-hover:border-primary/50"
-                                }`}
+                            <div key={tool.id} className="space-y-2 rounded-xl border border-border/50 bg-background/50 p-4">
+                              <div
+                                onClick={() => handleToggleTool(tool.id)}
+                                className="flex cursor-pointer items-start gap-3 group"
                               >
-                                {enabled && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                              </span>
-                              <div>
+                                <span
+                                  className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors ${
+                                    enabled ? "border-primary bg-primary" : "border-muted-foreground/40 group-hover:border-primary/50"
+                                  }`}
+                                >
+                                  {enabled && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                                </span>
                                 <div className="text-sm font-medium">{tool.label}</div>
-                                <div className="text-xs text-muted-foreground">{tool.description}</div>
                               </div>
+                              {enabled && (
+                                <div className="border-t border-border/40 pt-2 text-xs text-muted-foreground">
+                                  {tool.description}
+                                </div>
+                              )}
                             </div>
                           )
                         })}
@@ -3654,7 +3682,7 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    {agentForm.enabledTools.includes("rag_search") && knowledgeBases.length > 0 && (
+                    {knowledgeBases.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
                         <div className="flex items-center justify-between gap-3">
                           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkedSharedKnowledgeBases}</Label>
@@ -3682,7 +3710,10 @@ export function ManagementDashboard({
                                   const nextIds = linked
                                     ? agentForm.knowledgeBaseIds.filter(id => id !== kb.id)
                                     : [...agentForm.knowledgeBaseIds, kb.id]
-                                  setAgentForm({ ...agentForm, knowledgeBaseIds: nextIds })
+                                  const enabledTools = nextIds.length > 0
+                                    ? [...new Set([...agentForm.enabledTools, "rag_search" as BuiltinToolId])]
+                                    : agentForm.enabledTools.filter(tool => tool !== "rag_search")
+                                  setAgentForm({ ...agentForm, knowledgeBaseIds: nextIds, enabledTools })
                                 }}
                               >
                                 <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -3828,10 +3859,10 @@ export function ManagementDashboard({
                                   const nextIds = linked
                                     ? agentForm.formIds.filter(id => id !== form.id)
                                     : [...agentForm.formIds, form.id]
-                                  const nextTools = agentForm.enabledTools.includes("query_form_data")
-                                    ? agentForm.enabledTools
-                                    : [...agentForm.enabledTools, "query_form_data" as BuiltinToolId]
-                                  setAgentForm({ ...agentForm, formIds: nextIds, enabledTools: nextIds.length > 0 ? nextTools : agentForm.enabledTools })
+                                  const enabledTools = nextIds.length > 0
+                                    ? [...new Set([...agentForm.enabledTools, "query_form_data" as BuiltinToolId])]
+                                    : agentForm.enabledTools.filter(tool => tool !== "query_form_data")
+                                  setAgentForm({ ...agentForm, formIds: nextIds, enabledTools })
                                 }}
                               >
                                 <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -4224,7 +4255,7 @@ export function ManagementDashboard({
                           {t.enabledToolsTitle}
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          {BUILTIN_TOOLS.map(tool => {
+                          {visibleBuiltinTools.map(tool => {
                             const isEnabled = selectedAgent.enabledTools.includes(tool.id)
                             return (
                               <div
