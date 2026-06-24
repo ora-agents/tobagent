@@ -297,6 +297,32 @@
   text-overflow: ellipsis;
 }
 
+.prompt-mdx-editor .mdxeditor-select-content {
+  z-index: 50;
+  width: max-content;
+  min-width: 9.5rem;
+  overflow: visible;
+  border-radius: 0 0 0.5rem 0.5rem;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
+.prompt-mdx-editor .mdxeditor-select-content [data-editor-dropdown] {
+  height: auto;
+  max-height: min(var(--radix-select-content-available-height), 18rem);
+  overflow-y: auto;
+}
+
+.prompt-mdx-editor .mdxeditor-select-content [role="option"] {
+  min-height: 2.25rem;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
 .prompt-mdx-editor .mdxeditor-toolbar svg {
   width: 1rem;
   height: 1rem;
