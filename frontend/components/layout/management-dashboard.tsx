@@ -448,6 +448,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateSkill = () => {
+    setSelectedSkillId(null)
     setIsCreatingSkill(true)
     setIsEditingSkill(false)
     setSkillForm({
@@ -564,6 +565,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateAgent = useCallback(() => {
+    setSelectedAgentId(null)
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
     onEditAgentChange?.(null)
@@ -806,6 +808,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateMcp = () => {
+    setSelectedMcpId(null)
     setIsCreatingMcp(true)
     setIsEditingMcp(false)
     setMcpForm({
@@ -939,6 +942,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateKB = () => {
+    setSelectedKBId(null)
     setIsCreatingKB(true)
     setIsEditingKB(false)
     setKbForm({ name: "", description: "" })
@@ -1106,6 +1110,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateForm = () => {
+    setSelectedFormId(null)
     setIsCreatingForm(true)
     setIsEditingForm(false)
     setFormDefinition({
