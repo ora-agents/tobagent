@@ -115,7 +115,8 @@ interface ManagementDashboardProps {
   importAgentTomlConfig: (toml: string) => Promise<AgentConfigTomlImportResponse | null>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
-  createAgentOnOpenSignal?: number
+  createOnOpen?: boolean
+  onCreateChange?: (creating: boolean) => void
   // User voiceprints
   userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
   onNavigateToUserSettings: () => void
@@ -136,7 +137,8 @@ export function ManagementDashboard({
   importAgentTomlConfig,
   editAgentIdOnOpen,
   onEditAgentChange,
-  createAgentOnOpenSignal = 0,
+  createOnOpen = false,
+  onCreateChange,
   userVoiceprints,
   onNavigateToUserSettings,
 }: ManagementDashboardProps) {
@@ -441,6 +443,7 @@ export function ManagementDashboard({
   // Skills Actions
   // ---------------------------------------------------------------------------
   const handleSelectSkill = (id: string) => {
+    onCreateChange?.(false)
     setSelectedSkillId(id)
     setIsEditingSkill(false)
     setIsCreatingSkill(false)
@@ -448,6 +451,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateSkill = () => {
+    onCreateChange?.(true)
     setSelectedSkillId(null)
     setIsCreatingSkill(true)
     setIsEditingSkill(false)
@@ -460,6 +464,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditSkill = (skill: Skill) => {
+    onCreateChange?.(false)
     setSelectedSkillId(skill.id)
     setIsEditingSkill(true)
     setIsCreatingSkill(false)
@@ -496,6 +501,7 @@ export function ManagementDashboard({
           setSkills(prev => [...prev, saved])
           setSelectedSkillId(saved.id)
           setIsCreatingSkill(false)
+          onCreateChange?.(false)
         }
       } catch (err) {
         console.error("Failed to persist skill to database", err)
@@ -556,6 +562,7 @@ export function ManagementDashboard({
   // Agents Actions
   // ---------------------------------------------------------------------------
   const handleSelectAgent = (id: string | null) => {
+    onCreateChange?.(false)
     setSelectedAgentId(id)
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
@@ -565,6 +572,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateAgent = useCallback(() => {
+    onCreateChange?.(true)
     setSelectedAgentId(null)
     setIsCreatingAgent(true)
     setIsEditingAgent(false)
@@ -595,14 +603,10 @@ export function ManagementDashboard({
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }, [onEditAgentChange])
-
-  useEffect(() => {
-    if (activeTab !== "agents" || createAgentOnOpenSignal <= 0) return
-    handleStartCreateAgent()
-  }, [activeTab, createAgentOnOpenSignal, handleStartCreateAgent])
+  }, [onCreateChange, onEditAgentChange])
 
   const handleStartEditAgent = (profile: AgentProfile) => {
+    onCreateChange?.(false)
     setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
     setIsCreatingAgent(false)
@@ -735,6 +739,7 @@ export function ManagementDashboard({
   }
 
   const handleCancelAgentForm = () => {
+    onCreateChange?.(false)
     setIsEditingAgent(false)
     setIsCreatingAgent(false)
     onEditAgentChange?.(null)
@@ -801,6 +806,7 @@ export function ManagementDashboard({
   // MCP Actions
   // ---------------------------------------------------------------------------
   const handleSelectMcp = (id: string) => {
+    onCreateChange?.(false)
     setSelectedMcpId(id)
     setIsEditingMcp(false)
     setIsCreatingMcp(false)
@@ -808,6 +814,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateMcp = () => {
+    onCreateChange?.(true)
     setSelectedMcpId(null)
     setIsCreatingMcp(true)
     setIsEditingMcp(false)
@@ -821,6 +828,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditMcp = (mcp: McpServer) => {
+    onCreateChange?.(false)
     setSelectedMcpId(mcp.id)
     setIsEditingMcp(true)
     setIsCreatingMcp(false)
@@ -873,6 +881,7 @@ export function ManagementDashboard({
           setMcpServers(prev => [...prev, saved])
           setSelectedMcpId(saved.id)
           setIsCreatingMcp(false)
+          onCreateChange?.(false)
         }
       } catch (err) {
         console.error("Failed to create MCP server in database", err)
@@ -935,6 +944,7 @@ export function ManagementDashboard({
   // Knowledge Base Actions
   // ---------------------------------------------------------------------------
   const handleSelectKB = (id: string) => {
+    onCreateChange?.(false)
     setSelectedKBId(id)
     setIsEditingKB(false)
     setIsCreatingKB(false)
@@ -942,6 +952,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateKB = () => {
+    onCreateChange?.(true)
     setSelectedKBId(null)
     setIsCreatingKB(true)
     setIsEditingKB(false)
@@ -951,6 +962,7 @@ export function ManagementDashboard({
 
   const handleStartEditKB = (kb: KnowledgeBase) => {
     if (kb.isSystem) return
+    onCreateChange?.(false)
     setSelectedKBId(kb.id)
     setIsEditingKB(true)
     setIsCreatingKB(false)
@@ -982,6 +994,7 @@ export function ManagementDashboard({
           setKnowledgeBases(prev => [...prev, saved])
           setSelectedKBId(saved.id)
           setIsCreatingKB(false)
+          onCreateChange?.(false)
         }
       } catch (err) {
         console.error("Failed to create knowledge base in database", err)
@@ -1101,6 +1114,7 @@ export function ManagementDashboard({
   // Form Actions
   // ---------------------------------------------------------------------------
   const handleSelectForm = (id: string) => {
+    onCreateChange?.(false)
     setSelectedFormId(id)
     setIsEditingForm(false)
     setIsCreatingForm(false)
@@ -1110,6 +1124,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateForm = () => {
+    onCreateChange?.(true)
     setSelectedFormId(null)
     setIsCreatingForm(true)
     setIsEditingForm(false)
@@ -1123,6 +1138,7 @@ export function ManagementDashboard({
   }
 
   const handleStartEditForm = (form: CustomForm) => {
+    onCreateChange?.(false)
     setSelectedFormId(form.id)
     setIsEditingForm(true)
     setIsCreatingForm(false)
@@ -1134,6 +1150,30 @@ export function ManagementDashboard({
     setSelectedFormFieldId(form.fields[0]?.id || null)
     setDeleteConfirmId(null)
   }
+
+  const createRouteHandledRef = useRef(false)
+
+  useEffect(() => {
+    if (!createOnOpen) {
+      if (createRouteHandledRef.current) {
+        setIsCreatingSkill(false)
+        setIsCreatingAgent(false)
+        setIsCreatingMcp(false)
+        setIsCreatingKB(false)
+        setIsCreatingForm(false)
+      }
+      createRouteHandledRef.current = false
+      return
+    }
+    if (createRouteHandledRef.current) return
+
+    createRouteHandledRef.current = true
+    if (activeTab === "skills") handleStartCreateSkill()
+    else if (activeTab === "agents") handleStartCreateAgent()
+    else if (activeTab === "mcp") handleStartCreateMcp()
+    else if (activeTab === "forms") handleStartCreateForm()
+    else handleStartCreateKB()
+  }, [activeTab, createOnOpen])
 
   const parseFormFields = (): CustomFormField[] | null => {
     const seen = new Set<string>()
@@ -1186,6 +1226,7 @@ export function ManagementDashboard({
         setForms(prev => [...prev, saved])
         setSelectedFormId(saved.id)
         setIsCreatingForm(false)
+        onCreateChange?.(false)
       }
     } else if (isEditingForm && selectedFormId) {
       const target = forms.find(form => form.id === selectedFormId)
@@ -1424,6 +1465,7 @@ export function ManagementDashboard({
             <Button
               variant="ghost"
               onClick={() => {
+                onCreateChange?.(false)
                 setIsEditingMcp(false)
                 setIsCreatingMcp(false)
               }}
@@ -1463,6 +1505,7 @@ export function ManagementDashboard({
             <Button
               variant="ghost"
               onClick={() => {
+                onCreateChange?.(false)
                 setIsEditingSkill(false)
                 setIsCreatingSkill(false)
               }}
@@ -1556,6 +1599,7 @@ export function ManagementDashboard({
             <Button
               variant="ghost"
               onClick={() => {
+                onCreateChange?.(false)
                 setIsEditingKB(false)
                 setIsCreatingKB(false)
               }}
@@ -1595,6 +1639,7 @@ export function ManagementDashboard({
             <Button
               variant="ghost"
               onClick={() => {
+                onCreateChange?.(false)
                 setIsEditingForm(false)
                 setIsCreatingForm(false)
               }}

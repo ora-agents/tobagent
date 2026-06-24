@@ -111,7 +111,6 @@ function DashboardContent() {
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
-  const [createAgentOnOpenSignal, setCreateAgentOnOpenSignal] = useState(0)
   const [chatSessionKey, setChatSessionKey] = useState(0)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [elderOptimized, setElderOptimized] = useState(false)
@@ -145,13 +144,15 @@ function DashboardContent() {
   const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
   const [viewParam, setViewParam] = useQueryState("view")
   const [editAgentIdParam, setEditAgentIdParam] = useQueryState("editAgent")
+  const [createParam, setCreateParam] = useQueryState("create")
   const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
   const setCurrentView = useCallback((view: DashboardView) => {
     if (view !== "agents") {
       setEditAgentIdParam(null)
     }
+    setCreateParam(null)
     setViewParam(view === "chat" ? null : view)
-  }, [setEditAgentIdParam, setViewParam])
+  }, [setCreateParam, setEditAgentIdParam, setViewParam])
   const hasInitialPrompt = !!initialPrompt?.trim()
   const activeThreadId = hasInitialPrompt ? null : threadId
 
@@ -554,8 +555,8 @@ function DashboardContent() {
 
   const handleOpenCreateAgent = () => {
     setEditAgentIdParam(null)
-    setCreateAgentOnOpenSignal(prev => prev + 1)
     setCurrentView("agents")
+    setCreateParam("1")
   }
 
   // Keyboard shortcuts
@@ -731,7 +732,8 @@ function DashboardContent() {
               deleteAgentProfile={deleteAgentProfile}
               editAgentIdOnOpen={editAgentIdParam}
               onEditAgentChange={setEditAgentIdParam}
-              createAgentOnOpenSignal={createAgentOnOpenSignal}
+              createOnOpen={createParam === "1"}
+              onCreateChange={(creating) => setCreateParam(creating ? "1" : null)}
             />
           </div>
         ) : null}
