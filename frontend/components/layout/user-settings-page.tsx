@@ -516,8 +516,8 @@ export function UserSettingsPage({
     <>
     <AppShell className={`flex-col ${elderOptimized ? "text-[17px]" : ""}`}>
       {/* Header */}
-      <AppHeader className={`${elderOptimized ? "min-h-20 py-3 sm:px-8" : "py-3"} h-auto justify-between gap-3 px-3`}>
-        <div className="flex min-w-0 items-center gap-2.5">
+      <AppHeader className={`${elderOptimized ? "min-h-20 sm:px-8" : "min-h-16"} h-auto justify-between gap-3 bg-background/95 px-4 py-3 backdrop-blur sm:px-6`}>
+        <div className="flex min-w-0 items-center gap-3">
           {onOpenSidebar ? (
             <Button
               variant="ghost"
@@ -530,11 +530,10 @@ export function UserSettingsPage({
             </Button>
           ) : null}
           <div className="min-w-0">
-            <h1 className={`${elderOptimized ? "text-xl gap-2 sm:text-2xl" : "text-lg gap-2 sm:text-[22px]"} flex min-w-0 items-center font-semibold`}>
-              <Settings2 className={`${elderOptimized ? "h-6 w-6" : "h-5 w-5"} flex-shrink-0 text-primary`} />
+            <h1 className={`${elderOptimized ? "text-xl gap-2 sm:text-2xl" : "text-base gap-1.5 tracking-wide"} flex min-w-0 items-center font-display font-semibold`}>
               <span className="truncate">{zh ? "用户设置" : "User Settings"}</span>
             </h1>
-            <p className={`${elderOptimized ? "text-sm mt-1 leading-snug" : "text-sm mt-1 leading-5"} hidden text-muted-foreground sm:block`}>
+            <p className={`${elderOptimized ? "mt-1 text-sm leading-snug" : "text-[11px] leading-none"} hidden text-muted-foreground/80 sm:block`}>
               {zh ? "管理您的个人信息、偏好设置和安全选项" : "Manage your profile, preferences, and safety options"}
             </p>
           </div>
@@ -554,7 +553,7 @@ export function UserSettingsPage({
             </span>
           )}
           <NavActionButton
-            variant="secondary"
+            variant="outline"
             onClick={onBackToChat}
             className={elderOptimized ? "h-11 min-w-0 px-3 text-base sm:min-w-[8.5rem] sm:px-4" : ""}
           >

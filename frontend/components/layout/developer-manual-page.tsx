@@ -202,8 +202,8 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
-      <header className="flex min-h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background px-3 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <header className="flex min-h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
           {onOpenSidebar ? (
             <Button
               variant="ghost"
@@ -216,11 +216,10 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
             </Button>
           ) : null}
           <div className="min-w-0">
-            <h1 className="flex min-w-0 items-center gap-2 text-lg font-semibold sm:text-[22px]">
-              <BookOpenText className="h-5 w-5 text-primary" />
+            <h1 className="font-display flex min-w-0 items-center gap-1.5 text-base font-semibold tracking-wide">
               <span className="truncate">{zh ? "开发手册" : "Developer Manual"}</span>
             </h1>
-            <p className="mt-1 hidden text-sm leading-5 text-muted-foreground sm:block">
+            <p className="hidden text-[11px] leading-none text-muted-foreground/80 sm:block">
               {zh
                 ? "通过 LangGraph SDK 或 LangGraph Server API 调用自定义 Agent，并了解后端能力。"
                 : "Call custom agents through the LangGraph SDK or Server API, and review backend capabilities."}
@@ -228,7 +227,7 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
           </div>
         </div>
         <NavActionButton
-          variant="secondary"
+          variant="outline"
           onClick={onBackToChat}
         >
           <ArrowLeft className="h-4 w-4" />
