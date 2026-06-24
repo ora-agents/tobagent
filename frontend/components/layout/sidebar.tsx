@@ -274,7 +274,7 @@ export const Sidebar = memo(function Sidebar({
                 key={thread.thread_id}
                 className={`group flex items-center gap-2 px-3 py-1.5 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                   thread.thread_id === currentThreadId
-                    ? "bg-primary-soft text-primary"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent"
                 }`}
                 onClick={() => handleSelectThread(thread.thread_id)}
@@ -312,7 +312,7 @@ export const Sidebar = memo(function Sidebar({
             onClick={() => setIsConfigOpen((open) => !open)}
             className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               isConfigView
-                ? "bg-primary-soft text-primary"
+                ? "bg-primary-soft text-primary dark:bg-sidebar-accent dark:text-sidebar-foreground"
                 : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             }`}
             title={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
@@ -327,7 +327,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={() => handleViewChange("skills")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "skills"
-                    ? "bg-primary-soft text-primary"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 }`}
                 title={t.skills}
@@ -338,7 +338,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={() => handleViewChange("agents")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "agents"
-                    ? "bg-primary-soft text-primary"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 }`}
                 title={t.agents}
@@ -349,7 +349,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={() => handleViewChange("knowledge")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "knowledge"
-                    ? "bg-primary-soft text-primary"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 }`}
                 title={t.knowledgeBase}
@@ -360,7 +360,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={() => handleViewChange("forms")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "forms"
-                    ? "bg-primary-soft text-primary"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 }`}
                 title={locale === "zh" ? "表单" : "Forms"}
@@ -371,7 +371,7 @@ export const Sidebar = memo(function Sidebar({
                 onClick={() => handleViewChange("mcp")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "mcp"
-                    ? "bg-primary-soft text-primary"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 }`}
                 title={t.mcpServers}
@@ -391,7 +391,7 @@ export const Sidebar = memo(function Sidebar({
             onClick={() => handleViewChange("developer-manual")}
             className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               currentView === "developer-manual"
-                ? "bg-primary-soft text-primary"
+                ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                 : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             }`}
             title={t.developerManual}
@@ -518,14 +518,14 @@ export const Sidebar = memo(function Sidebar({
           onClick={() => setIsConfigOpen((open) => !open)}
           className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             isConfigView
-              ? "bg-primary-soft text-primary font-medium"
+              ? "bg-primary-soft text-primary font-medium dark:bg-sidebar-accent dark:text-sidebar-foreground"
               : "text-sidebar-foreground hover:bg-sidebar-accent"
           }`}
           aria-expanded={isConfigOpen}
         >
-          <Settings className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          <Settings className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate flex-1 text-left">{t.configuration}</span>
-          <ChevronDown className={`w-4 h-4 flex-shrink-0 text-muted-foreground/80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
         </button>
         {isConfigOpen && (
           <div className="flex flex-col gap-1 pl-3">
@@ -533,55 +533,55 @@ export const Sidebar = memo(function Sidebar({
               onClick={() => handleViewChange("skills")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "skills"
-                  ? "bg-primary-soft text-primary font-medium"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              <Wrench className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <Wrench className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.skills}</span>
             </button>
             <button
               onClick={() => handleViewChange("agents")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "agents"
-                  ? "bg-primary-soft text-primary font-medium"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              <Bot className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <Bot className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.agents}</span>
             </button>
             <button
               onClick={() => handleViewChange("knowledge")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "knowledge"
-                  ? "bg-primary-soft text-primary font-medium"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              <Database className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <Database className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.knowledgeBase}</span>
             </button>
             <button
               onClick={() => handleViewChange("forms")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "forms"
-                  ? "bg-primary-soft text-primary font-medium"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              <TableProperties className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <TableProperties className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{locale === "zh" ? "表单" : "Forms"}</span>
             </button>
             <button
               onClick={() => handleViewChange("mcp")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "mcp"
-                  ? "bg-primary-soft text-primary font-medium"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent"
               }`}
             >
-              <Cpu className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+              <Cpu className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.mcpServers}</span>
             </button>
           </div>
@@ -600,11 +600,11 @@ export const Sidebar = memo(function Sidebar({
           onClick={() => handleViewChange("developer-manual")}
           className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             currentView === "developer-manual"
-              ? "bg-primary-soft text-primary font-medium"
+              ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
               : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
           }`}
         >
-          <BookOpenText className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+          <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate">{t.developerManual}</span>
         </button>
         <button
