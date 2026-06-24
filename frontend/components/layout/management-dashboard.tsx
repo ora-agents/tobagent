@@ -51,7 +51,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentConfigTomlImportResponse, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -114,7 +114,6 @@ interface ManagementDashboardProps {
   fetchAgentProfileVersions: (id: string) => Promise<AgentProfileVersion[]>
   restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
   createAgentShareLink: (id: string, include: AgentShareOptions) => Promise<AgentShareLink | null>
-  importAgentTomlConfig: (toml: string) => Promise<AgentConfigTomlImportResponse | null>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
   createOnOpen?: boolean
@@ -136,7 +135,6 @@ export function ManagementDashboard({
   fetchAgentProfileVersions,
   restoreAgentProfileVersion,
   createAgentShareLink,
-  importAgentTomlConfig,
   editAgentIdOnOpen,
   onEditAgentChange,
   createOnOpen = false,
@@ -149,6 +147,13 @@ export function ManagementDashboard({
   const { user } = useAuth()
   const [hasRobotEnvironment, setHasRobotEnvironment] = useState(false)
   const [configBundleMode, setConfigBundleMode] = useState<"import" | "export" | null>(null)
+  const [configBundleInitialSelection, setConfigBundleInitialSelection] = useState<{
+    agents?: string[]
+    skills?: string[]
+    knowledgeBases?: string[]
+    mcpServers?: string[]
+    forms?: string[]
+  }>()
 
   useEffect(() => {
     const updateRobotEnvironment = () => {
@@ -181,7 +186,6 @@ export function ManagementDashboard({
   const [isCreatingKB, setIsCreatingKB] = useState(false)
   const [kbForm, setKbForm] = useState({ name: "", description: "" })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const tomlInputRef = useRef<HTMLInputElement>(null)
   const [uploadingFile, setUploadingFile] = useState(false)
 
   const [forms, setForms] = useState<CustomForm[]>([])
@@ -1412,30 +1416,6 @@ export function ManagementDashboard({
     }
   }
 
-  const handleExportAgentToml = async (id: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/export.toml`, { headers: authHeaders })
-    if (!resp.ok) return
-    const blob = await resp.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = `${id}.toml`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleTomlFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    try {
-      const text = await file.text()
-      await importAgentTomlConfig(text)
-    } finally {
-      event.target.value = ""
-    }
-  }
-
   // Format Helper
   const formatBytes = (bytes: number, decimals = 2) => {
     if (!+bytes) return "0 Bytes"
@@ -1584,22 +1564,6 @@ export function ManagementDashboard({
               <Pencil className="w-3.5 h-3.5" />
               {t.editAgent}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => tomlInputRef.current?.click()}
-              className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              {locale === "zh" ? "批量导入" : "Import"}
-            </Button>
-            <input
-              ref={tomlInputRef}
-              type="file"
-              accept=".toml,application/toml,text/plain"
-              className="hidden"
-              onChange={handleTomlFileImport}
-            />
           </>
         )
       }
@@ -1715,6 +1679,15 @@ export function ManagementDashboard({
     if (!query) return true
     return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
   })
+  const configBundleResources = useMemo(() => ({
+    agents: agentProfiles.map(item => ({ id: item.id, name: item.name })),
+    skills: skills.map(item => ({ id: item.id, name: item.name })),
+    knowledgeBases: knowledgeBases
+      .filter(item => !item.isSystem)
+      .map(item => ({ id: item.id, name: item.name })),
+    mcpServers: mcpServers.map(item => ({ id: item.id, name: item.name })),
+    forms: forms.map(item => ({ id: item.id, name: item.name })),
+  }), [agentProfiles, forms, knowledgeBases, mcpServers, skills])
   return (
     <div className="flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
@@ -1734,7 +1707,10 @@ export function ManagementDashboard({
           {renderHeaderConfigActions()}
           <Button
             variant="outline"
-            onClick={() => setConfigBundleMode("import")}
+            onClick={() => {
+              setConfigBundleInitialSelection(undefined)
+              setConfigBundleMode("import")
+            }}
             className="gap-1.5 rounded-lg"
           >
             <Upload className="h-3.5 w-3.5" />
@@ -1742,7 +1718,10 @@ export function ManagementDashboard({
           </Button>
           <Button
             variant="outline"
-            onClick={() => setConfigBundleMode("export")}
+            onClick={() => {
+              setConfigBundleInitialSelection(undefined)
+              setConfigBundleMode("export")
+            }}
             className="gap-1.5 rounded-lg"
           >
             <Download className="h-3.5 w-3.5" />
@@ -1764,13 +1743,8 @@ export function ManagementDashboard({
         }}
         locale={locale}
         authHeaders={authHeaders}
-        resourceIds={{
-          agents: agentProfiles.map(item => item.id),
-          skills: skills.map(item => item.id),
-          knowledgeBases: knowledgeBases.filter(item => !item.isSystem).map(item => item.id),
-          mcpServers: mcpServers.map(item => item.id),
-          forms: forms.map(item => item.id),
-        }}
+        resources={configBundleResources}
+        initialSelection={configBundleInitialSelection}
       />
 
       {/* 2. Main Content Area */}
@@ -3150,7 +3124,16 @@ export function ManagementDashboard({
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => handleExportAgentToml(selectedAgent.id)}
+                              onClick={() => {
+                                setConfigBundleInitialSelection({
+                                  agents: [selectedAgent.id],
+                                  skills: [],
+                                  knowledgeBases: [],
+                                  mcpServers: [],
+                                  forms: [],
+                                })
+                                setConfigBundleMode("export")
+                              }}
                               className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
                             >
                               <Download className="h-3.5 w-3.5" />

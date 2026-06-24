@@ -130,7 +130,6 @@ function DashboardContent() {
     restoreProfileVersion: restoreAgentProfileVersion,
     createShareLink: createAgentShareLink,
     importShareLink: importAgentShareLink,
-    importTomlConfig: importAgentTomlConfig,
   } = useAgentProfiles()
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
@@ -726,7 +725,6 @@ function DashboardContent() {
               fetchAgentProfileVersions={fetchAgentProfileVersions}
               restoreAgentProfileVersion={restoreAgentProfileVersion}
               createAgentShareLink={createAgentShareLink}
-              importAgentTomlConfig={importAgentTomlConfig}
               userVoiceprints={userVoiceprints}
               onNavigateToUserSettings={() => setCurrentView("settings")}
               deleteAgentProfile={deleteAgentProfile}

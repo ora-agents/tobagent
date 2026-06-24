@@ -1,7 +1,7 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { Download, LoaderCircle, Upload } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Check, ChevronDown, ChevronRight, Download, LoaderCircle, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +17,7 @@ import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 type ResourceKey = "agents" | "skills" | "knowledgeBases" | "mcpServers" | "forms"
 type ConflictPolicy = "copy" | "overwrite" | "skip"
+type ResourceOption = { id: string; name: string }
 
 interface Inspection {
   inspectionId: string
@@ -30,14 +31,21 @@ interface Inspection {
   knowledgeDocumentBytes: number
 }
 
+interface InspectedFile {
+  filename: string
+  inspection: Inspection
+}
+
 interface ConfigBundleDialogProps {
   mode: "import" | "export" | null
   onOpenChange: (open: boolean) => void
   locale: "zh" | "en"
   authHeaders?: Record<string, string>
-  resourceIds: Record<ResourceKey, string[]>
+  resources: Record<ResourceKey, ResourceOption[]>
+  initialSelection?: Partial<Record<ResourceKey, string[]>>
 }
 
+const resourceKeys: ResourceKey[] = ["agents", "skills", "knowledgeBases", "mcpServers", "forms"]
 const resourceLabels: Record<ResourceKey, { zh: string; en: string }> = {
   agents: { zh: "智能体", en: "Agents" },
   skills: { zh: "技能", en: "Skills" },
@@ -46,30 +54,70 @@ const resourceLabels: Record<ResourceKey, { zh: string; en: string }> = {
   forms: { zh: "表单", en: "Forms" },
 }
 
+const emptySelection = (): Record<ResourceKey, string[]> => ({
+  agents: [],
+  skills: [],
+  knowledgeBases: [],
+  mcpServers: [],
+  forms: [],
+})
+
 export function ConfigBundleDialog({
   mode,
   onOpenChange,
   locale,
   authHeaders,
-  resourceIds,
+  resources,
+  initialSelection,
 }: ConfigBundleDialogProps) {
   const zh = locale === "zh"
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selection, setSelection] = useState<Record<ResourceKey, string[]>>(emptySelection)
+  const [expanded, setExpanded] = useState<Set<ResourceKey>>(new Set(["agents"]))
   const [includeDependencies, setIncludeDependencies] = useState(true)
   const [includeKnowledgeDocuments, setIncludeKnowledgeDocuments] = useState(false)
   const [includeFormRecords, setIncludeFormRecords] = useState(true)
-  const [inspection, setInspection] = useState<Inspection | null>(null)
+  const [inspections, setInspections] = useState<InspectedFile[]>([])
   const [policy, setPolicy] = useState<ConflictPolicy>("copy")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
 
+  useEffect(() => {
+    if (mode !== "export") return
+    const next = emptySelection()
+    for (const key of resourceKeys) {
+      next[key] = initialSelection?.[key]
+        ? [...(initialSelection[key] || [])]
+        : resources[key].map(item => item.id)
+    }
+    setSelection(next)
+  }, [initialSelection, mode, resources])
+
   const close = (open: boolean) => {
     if (!open) {
-      setInspection(null)
+      setInspections([])
       setError("")
       setBusy(false)
     }
     onOpenChange(open)
+  }
+
+  const toggleResource = (key: ResourceKey, id: string) => {
+    setSelection(current => ({
+      ...current,
+      [key]: current[key].includes(id)
+        ? current[key].filter(value => value !== id)
+        : [...current[key], id],
+    }))
+  }
+
+  const toggleCategory = (key: ResourceKey) => {
+    setSelection(current => ({
+      ...current,
+      [key]: current[key].length === resources[key].length
+        ? []
+        : resources[key].map(item => item.id),
+    }))
   }
 
   const exportBundle = async () => {
@@ -81,7 +129,7 @@ export function ConfigBundleDialog({
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
         body: JSON.stringify({
-          selection: resourceIds,
+          selection,
           options: {
             includeDependencies,
             includeKnowledgeDocuments,
@@ -105,21 +153,27 @@ export function ConfigBundleDialog({
     }
   }
 
-  const inspectFile = async (file: File) => {
-    if (!authHeaders) return
+  const inspectFiles = async (files: File[]) => {
+    if (!authHeaders || files.length === 0) return
     setBusy(true)
     setError("")
-    setInspection(null)
+    setInspections([])
     try {
-      const form = new FormData()
-      form.append("file", file)
-      const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/inspect`, {
-        method: "POST",
-        headers: authHeaders,
-        body: form,
-      })
-      if (!response.ok) throw new Error(await response.text())
-      setInspection(await response.json())
+      const results: InspectedFile[] = []
+      for (const file of files) {
+        const form = new FormData()
+        form.append("file", file)
+        const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/inspect`, {
+          method: "POST",
+          headers: authHeaders,
+          body: form,
+        })
+        if (!response.ok) {
+          throw new Error(`${file.name}: ${await response.text()}`)
+        }
+        results.push({ filename: file.name, inspection: await response.json() })
+      }
+      setInspections(results)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -127,20 +181,24 @@ export function ConfigBundleDialog({
     }
   }
 
-  const importBundle = async () => {
-    if (!authHeaders || !inspection) return
+  const importBundles = async () => {
+    if (!authHeaders || inspections.length === 0) return
     setBusy(true)
     setError("")
     try {
-      const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/import`, {
-        method: "POST",
-        headers: { ...authHeaders, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          inspectionId: inspection.inspectionId,
-          conflictPolicy: policy,
-        }),
-      })
-      if (!response.ok) throw new Error(await response.text())
+      for (const item of inspections) {
+        const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/import`, {
+          method: "POST",
+          headers: { ...authHeaders, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inspectionId: item.inspection.inspectionId,
+            conflictPolicy: policy,
+          }),
+        })
+        if (!response.ok) {
+          throw new Error(`${item.filename}: ${await response.text()}`)
+        }
+      }
       window.location.reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -148,9 +206,32 @@ export function ConfigBundleDialog({
     }
   }
 
+  const selectedCount = resourceKeys.reduce((total, key) => total + selection[key].length, 0)
+  const totals = inspections.reduce(
+    (result, item) => {
+      for (const key of resourceKeys) result.resources[key] += item.inspection.resources[key] || 0
+      result.conflicts += item.inspection.conflicts.length
+      result.missing += item.inspection.missingDependencies.length
+      result.documents += item.inspection.knowledgeDocuments
+      return result
+    },
+    {
+      resources: {
+        agents: 0,
+        skills: 0,
+        knowledgeBases: 0,
+        mcpServers: 0,
+        forms: 0,
+      } as Record<ResourceKey, number>,
+      conflicts: 0,
+      missing: 0,
+      documents: 0,
+    },
+  )
+
   return (
     <Dialog open={mode !== null} onOpenChange={close}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {mode === "export"
@@ -159,20 +240,72 @@ export function ConfigBundleDialog({
           </DialogTitle>
           <DialogDescription>
             {mode === "export"
-              ? zh ? "生成统一的 .tobconfig 配置包。" : "Create a unified .tobconfig bundle."
-              : zh ? "先预检配置包，确认冲突和安全提示后再写入。" : "Inspect the bundle before applying any changes."}
+              ? zh ? "逐项选择需要写入 .tobconfig 的配置。" : "Select the individual resources to include."
+              : zh ? "可同时选择多个 .tobconfig 或 .config 文件，预检后依次导入。" : "Select multiple .tobconfig or .config files, inspect them, then import them in order."}
           </DialogDescription>
         </DialogHeader>
 
         {mode === "export" ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-secondary p-3 text-sm">
-              {(Object.keys(resourceIds) as ResourceKey[]).map(key => (
-                <div key={key} className="flex justify-between gap-3">
-                  <span>{resourceLabels[key][locale]}</span>
-                  <span className="text-muted-foreground">{resourceIds[key].length}</span>
-                </div>
-              ))}
+            <div className="space-y-2">
+              {resourceKeys.map(key => {
+                const allSelected = resources[key].length > 0 && selection[key].length === resources[key].length
+                const isExpanded = expanded.has(key)
+                return (
+                  <div key={key} className="overflow-hidden rounded-xl border border-border/60">
+                    <div className="flex items-center gap-2 bg-secondary/60 p-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpanded(current => {
+                          const next = new Set(current)
+                          if (next.has(key)) next.delete(key)
+                          else next.add(key)
+                          return next
+                        })}
+                        className="rounded p-1 hover:bg-muted"
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(key)}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left text-sm"
+                      >
+                        <span className="font-medium">{resourceLabels[key][locale]}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {selection[key].length}/{resources[key].length}
+                        </span>
+                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${allSelected ? "border-primary bg-primary" : "border-muted-foreground/40"}`}>
+                          {allSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                        </span>
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <div className="max-h-44 space-y-1 overflow-y-auto p-2">
+                        {resources[key].length === 0 ? (
+                          <p className="px-2 py-1 text-xs text-muted-foreground">{zh ? "暂无配置" : "No resources"}</p>
+                        ) : resources[key].map(item => {
+                          const checked = selection[key].includes(item.id)
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => toggleResource(key, item.id)}
+                              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
+                            >
+                              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-primary bg-primary" : "border-muted-foreground/40"}`}>
+                                {checked && <Check className="h-3 w-3 text-primary-foreground" />}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                              <span className="max-w-48 truncate font-mono text-[10px] text-muted-foreground">{item.id}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
             <SettingsSwitch
               checked={includeDependencies}
@@ -191,22 +324,32 @@ export function ConfigBundleDialog({
               label={zh ? "包含表单记录" : "Include form records"}
             />
           </div>
-        ) : inspection ? (
+        ) : inspections.length > 0 ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-secondary p-3 text-sm">
-              {(Object.keys(inspection.resources) as ResourceKey[]).map(key => (
-                <div key={key} className="flex justify-between gap-3">
-                  <span>{resourceLabels[key][locale]}</span>
-                  <span className="text-muted-foreground">{inspection.resources[key]}</span>
+            <div className="space-y-2">
+              {inspections.map(item => (
+                <div key={item.inspection.inspectionId} className="rounded-xl border border-border/60 p-3">
+                  <p className="truncate text-sm font-medium">{item.filename}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {resourceKeys.map(key => `${resourceLabels[key][locale]} ${item.inspection.resources[key] || 0}`).join(" · ")}
+                  </p>
                 </div>
               ))}
-              <div className="col-span-2 flex justify-between border-t border-border/60 pt-2">
+            </div>
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-secondary p-3 text-sm">
+              {resourceKeys.map(key => (
+                <div key={key} className="flex justify-between gap-3">
+                  <span>{resourceLabels[key][locale]}</span>
+                  <span className="text-muted-foreground">{totals.resources[key]}</span>
+                </div>
+              ))}
+              <div className="flex justify-between gap-3">
                 <span>{zh ? "知识库文档" : "Knowledge documents"}</span>
-                <span className="text-muted-foreground">{inspection.knowledgeDocuments}</span>
+                <span className="text-muted-foreground">{totals.documents}</span>
               </div>
             </div>
             <label className="grid gap-1.5 text-sm">
-              <span className="font-medium">{zh ? "冲突策略" : "Conflict policy"}</span>
+              <span className="font-medium">{zh ? "全部文件的冲突策略" : "Conflict policy for all files"}</span>
               <select
                 value={policy}
                 onChange={event => setPolicy(event.target.value as ConflictPolicy)}
@@ -217,11 +360,13 @@ export function ConfigBundleDialog({
                 <option value="skip">{zh ? "跳过冲突" : "Skip conflicts"}</option>
               </select>
             </label>
-            {(inspection.conflicts.length > 0 || inspection.missingDependencies.length > 0 || inspection.warnings.length > 0) && (
+            {(totals.conflicts > 0 || totals.missing > 0 || inspections.some(item => item.inspection.warnings.length > 0)) && (
               <div className="space-y-1 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
-                <p>{zh ? `冲突：${inspection.conflicts.length}` : `Conflicts: ${inspection.conflicts.length}`}</p>
-                <p>{zh ? `缺失依赖：${inspection.missingDependencies.length}` : `Missing dependencies: ${inspection.missingDependencies.length}`}</p>
-                {inspection.warnings.map(warning => <p key={warning} className="text-muted-foreground">{warning}</p>)}
+                <p>{zh ? `冲突：${totals.conflicts}` : `Conflicts: ${totals.conflicts}`}</p>
+                <p>{zh ? `缺失依赖：${totals.missing}` : `Missing dependencies: ${totals.missing}`}</p>
+                {inspections.flatMap(item => item.inspection.warnings.map(warning => `${item.filename}: ${warning}`)).map(warning => (
+                  <p key={warning} className="text-muted-foreground">{warning}</p>
+                ))}
               </div>
             )}
           </div>
@@ -231,38 +376,44 @@ export function ConfigBundleDialog({
             onClick={() => fileInputRef.current?.click()}
             className="flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-secondary/50 text-sm hover:bg-secondary"
           >
-            <Upload className="h-6 w-6 text-primary" />
-            {zh ? "选择 .tobconfig 文件" : "Choose a .tobconfig file"}
+            {busy ? <LoaderCircle className="h-6 w-6 animate-spin text-primary" /> : <Upload className="h-6 w-6 text-primary" />}
+            {zh ? "选择一个或多个配置包" : "Choose one or more configuration bundles"}
           </button>
         )}
 
         <input
           ref={fileInputRef}
           type="file"
-          accept=".tobconfig,application/zip,application/vnd.tob.config+zip"
+          multiple
+          accept=".tobconfig,.config,application/zip,application/vnd.tob.config+zip"
           className="hidden"
           onChange={event => {
-            const file = event.target.files?.[0]
-            if (file) void inspectFile(file)
+            const files = Array.from(event.target.files || [])
+            if (files.length) void inspectFiles(files)
             event.currentTarget.value = ""
           }}
         />
         {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
 
         <DialogFooter>
+          {mode === "import" && inspections.length > 0 && (
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+              {zh ? "重新选择文件" : "Choose again"}
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => close(false)} disabled={busy}>
             {zh ? "取消" : "Cancel"}
           </Button>
           {mode === "export" && (
-            <Button onClick={exportBundle} disabled={busy}>
+            <Button onClick={exportBundle} disabled={busy || selectedCount === 0}>
               {busy ? <LoaderCircle className="animate-spin" /> : <Download />}
-              {zh ? "导出" : "Export"}
+              {zh ? `导出 ${selectedCount} 项` : `Export ${selectedCount}`}
             </Button>
           )}
-          {mode === "import" && inspection && (
-            <Button onClick={importBundle} disabled={busy}>
+          {mode === "import" && inspections.length > 0 && (
+            <Button onClick={importBundles} disabled={busy}>
               {busy ? <LoaderCircle className="animate-spin" /> : <Upload />}
-              {zh ? "确认导入" : "Import"}
+              {zh ? `导入 ${inspections.length} 个文件` : `Import ${inspections.length} files`}
             </Button>
           )}
         </DialogFooter>
