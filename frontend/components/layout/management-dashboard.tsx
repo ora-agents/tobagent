@@ -1,6 +1,12 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+} from "@tanstack/react-table"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   Wrench,
@@ -29,6 +35,12 @@ import {
   Search,
   TableProperties,
   Download,
+  ArrowDown,
+  ArrowUp,
+  Hash,
+  CalendarDays,
+  ToggleLeft,
+  ListChecks,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -632,6 +644,55 @@ export interface CustomFormRecord {
   updatedAt: string
 }
 
+type CustomFormFieldType = CustomFormField["type"]
+
+type FormDefinitionState = {
+  name: string
+  description: string
+  fields: CustomFormField[]
+}
+
+const FORM_FIELD_TYPES: Array<{
+  type: CustomFormFieldType
+  icon: React.ComponentType<{ className?: string }>
+  zh: string
+  en: string
+}> = [
+  { type: "text", icon: FileText, zh: "文本", en: "Text" },
+  { type: "number", icon: Hash, zh: "数字", en: "Number" },
+  { type: "date", icon: CalendarDays, zh: "日期", en: "Date" },
+  { type: "boolean", icon: ToggleLeft, zh: "开关", en: "Boolean" },
+  { type: "select", icon: ListChecks, zh: "单选", en: "Select" },
+]
+
+function getFieldTypeLabel(type: CustomFormFieldType, locale: string) {
+  const item = FORM_FIELD_TYPES.find(fieldType => fieldType.type === type)
+  return item ? (locale === "zh" ? item.zh : item.en) : type
+}
+
+function createDefaultField(type: CustomFormFieldType, locale: string, index: number): CustomFormField {
+  const label = getFieldTypeLabel(type, locale)
+  return {
+    id: `field_${Date.now()}_${index}`,
+    label: locale === "zh" ? `${label}字段` : `${label} field`,
+    type,
+    required: false,
+    options: type === "select" ? (locale === "zh" ? ["选项 A", "选项 B"] : ["Option A", "Option B"]) : [],
+  }
+}
+
+function normalizeFieldValue(field: CustomFormField, value: string | number | boolean | null | undefined) {
+  if (field.type === "number") {
+    if (value === "" || value === null || value === undefined) return null
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? numeric : null
+  }
+  if (field.type === "boolean") {
+    return Boolean(value)
+  }
+  return value ?? ""
+}
+
 // ---------------------------------------------------------------------------
 // Properties Interface
 // ---------------------------------------------------------------------------
@@ -655,6 +716,423 @@ interface ManagementDashboardProps {
   // User voiceprints
   userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
   onNavigateToUserSettings: () => void
+}
+
+interface FormFieldDesignerProps {
+  locale: string
+  definition: FormDefinitionState
+  selectedFieldId: string | null
+  onDefinitionChange: (definition: FormDefinitionState) => void
+  onSelectedFieldChange: (fieldId: string | null) => void
+}
+
+function FormFieldDesigner({
+  locale,
+  definition,
+  selectedFieldId,
+  onDefinitionChange,
+  onSelectedFieldChange,
+}: FormFieldDesignerProps) {
+  const selectedField = definition.fields.find(field => field.id === selectedFieldId) || definition.fields[0] || null
+
+  const updateFields = (fields: CustomFormField[]) => {
+    onDefinitionChange({ ...definition, fields })
+  }
+
+  const updateField = (fieldId: string, changes: Partial<CustomFormField>) => {
+    updateFields(definition.fields.map(field => field.id === fieldId ? { ...field, ...changes } : field))
+  }
+
+  const addField = (type: CustomFormFieldType) => {
+    const field = createDefaultField(type, locale, definition.fields.length + 1)
+    updateFields([...definition.fields, field])
+    onSelectedFieldChange(field.id)
+  }
+
+  const removeField = (fieldId: string) => {
+    const nextFields = definition.fields.filter(field => field.id !== fieldId)
+    updateFields(nextFields)
+    onSelectedFieldChange(nextFields[0]?.id || null)
+  }
+
+  const moveField = (fieldId: string, direction: -1 | 1) => {
+    const index = definition.fields.findIndex(field => field.id === fieldId)
+    const nextIndex = index + direction
+    if (index < 0 || nextIndex < 0 || nextIndex >= definition.fields.length) return
+    const nextFields = [...definition.fields]
+    const [field] = nextFields.splice(index, 1)
+    nextFields.splice(nextIndex, 0, field)
+    updateFields(nextFields)
+  }
+
+  return (
+    <div className="grid min-h-[560px] gap-4 xl:grid-cols-[200px_minmax(0,1fr)_320px]">
+      <div className="rounded-xl bg-muted/45 p-3">
+        <div className="mb-3 text-xs font-semibold text-muted-foreground">
+          {locale === "zh" ? "字段库" : "Field library"}
+        </div>
+        <div className="space-y-2">
+          {FORM_FIELD_TYPES.map(item => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => addField(item.type)}
+                className="flex w-full items-center gap-2 rounded-lg bg-background px-3 py-2 text-left text-sm shadow-depth-xs transition hover:bg-primary/10 hover:text-primary"
+              >
+                <Icon className="h-4 w-4" />
+                <span>{locale === "zh" ? item.zh : item.en}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="min-w-0 rounded-xl bg-muted/35 p-3">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">{locale === "zh" ? "表格字段" : "Table fields"}</h3>
+            <p className="text-xs text-muted-foreground">
+              {locale === "zh" ? "每一列都是一个字段，点击列头后在右侧配置。" : "Each column is a field. Select a header to configure it."}
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => addField("text")} className="h-8 rounded-lg">
+            <Plus className="h-3.5 w-3.5" />
+            {locale === "zh" ? "添加列" : "Add column"}
+          </Button>
+        </div>
+        <div className="overflow-x-auto rounded-lg bg-background shadow-depth-xs">
+          <div className="min-w-[720px]">
+            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(definition.fields.length, 1)}, minmax(156px, 1fr))` }}>
+              <div className="sticky left-0 z-10 bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">#</div>
+              {definition.fields.length > 0 ? definition.fields.map(field => (
+                <button
+                  key={field.id}
+                  type="button"
+                  onClick={() => onSelectedFieldChange(field.id)}
+                  className={`min-w-0 border-l border-border/50 px-3 py-2 text-left transition ${selectedField?.id === field.id ? "bg-primary-soft text-primary" : "bg-muted hover:bg-primary/10"}`}
+                >
+                  <div className="truncate text-sm font-semibold">{field.label}</div>
+                  <div className="truncate font-mono text-[11px] opacity-75">{field.id}</div>
+                </button>
+              )) : (
+                <div className="border-l border-border/50 bg-muted px-3 py-2 text-sm text-muted-foreground">
+                  {locale === "zh" ? "从左侧添加字段" : "Add fields from the left"}
+                </div>
+              )}
+              {[1, 2, 3].map(row => (
+                <React.Fragment key={row}>
+                  <div className="sticky left-0 z-10 border-t border-border/40 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">{row}</div>
+                  {definition.fields.map(field => (
+                    <div key={`${row}-${field.id}`} className="min-h-10 border-l border-t border-border/40 px-3 py-2 text-sm text-muted-foreground">
+                      {row === 1 ? (field.type === "select" ? field.options[0] || "" : field.type === "boolean" ? "false" : "") : ""}
+                    </div>
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl bg-muted/45 p-4">
+        {selectedField ? (
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">{locale === "zh" ? "字段属性" : "Field properties"}</h3>
+                <p className="font-mono text-[11px] text-muted-foreground">{selectedField.id}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeField(selectedField.id)}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                title={locale === "zh" ? "删除字段" : "Delete field"}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <FormField label={locale === "zh" ? "字段名称" : "Label"}>
+              <Input
+                value={selectedField.label}
+                onChange={(event) => updateField(selectedField.id, { label: event.target.value })}
+              />
+            </FormField>
+            <FormField label={locale === "zh" ? "字段 ID" : "Field ID"}>
+              <Input
+                value={selectedField.id}
+                onChange={(event) => updateField(selectedField.id, { id: event.target.value.trim() })}
+                className="font-mono text-xs"
+              />
+            </FormField>
+            <FormField label={locale === "zh" ? "字段类型" : "Type"}>
+              <Select
+                value={selectedField.type}
+                onValueChange={(value) => updateField(selectedField.id, {
+                  type: value as CustomFormFieldType,
+                  options: value === "select" ? selectedField.options : [],
+                })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FORM_FIELD_TYPES.map(item => (
+                    <SelectItem key={item.type} value={item.type}>
+                      {locale === "zh" ? item.zh : item.en}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <label className="flex cursor-pointer items-center justify-between rounded-lg bg-background px-3 py-2 text-sm">
+              <span>{locale === "zh" ? "必填" : "Required"}</span>
+              <input
+                type="checkbox"
+                checked={selectedField.required}
+                onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
+                className="h-4 w-4 accent-primary"
+              />
+            </label>
+            {selectedField.type === "select" && (
+              <FormField
+                label={locale === "zh" ? "选项" : "Options"}
+                description={locale === "zh" ? "每行一个选项。" : "One option per line."}
+              >
+                <Textarea
+                  value={selectedField.options.join("\n")}
+                  onChange={(event) => updateField(selectedField.id, {
+                    options: event.target.value.split("\n").map(item => item.trim()).filter(Boolean),
+                  })}
+                  className="min-h-32"
+                />
+              </FormField>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" size="sm" onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
+                <ArrowUp className="h-3.5 w-3.5" />
+                {locale === "zh" ? "前移" : "Move left"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
+                <ArrowDown className="h-3.5 w-3.5" />
+                {locale === "zh" ? "后移" : "Move right"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+            {locale === "zh" ? "选择一个字段进行配置。" : "Select a field to configure it."}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface EditableRecordCellProps {
+  field: CustomFormField
+  value: string | number | boolean | null | undefined
+  onCommit: (value: string | number | boolean | null) => void
+}
+
+function EditableRecordCell({ field, value, onCommit }: EditableRecordCellProps) {
+  const [draft, setDraft] = useState(value ?? "")
+
+  useEffect(() => {
+    setDraft(value ?? "")
+  }, [value])
+
+  if (field.type === "boolean") {
+    return (
+      <input
+        type="checkbox"
+        checked={Boolean(value)}
+        onChange={(event) => onCommit(event.target.checked)}
+        className="h-4 w-4 accent-primary"
+      />
+    )
+  }
+
+  if (field.type === "select") {
+    return (
+      <select
+        value={String(value ?? "")}
+        onChange={(event) => onCommit(event.target.value)}
+        className="h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 focus:ring-ring/20"
+      >
+        <option value=""></option>
+        {field.options.map(option => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+    )
+  }
+
+  return (
+    <input
+      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+      value={String(draft)}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => onCommit(normalizeFieldValue(field, draft))}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.currentTarget.blur()
+        }
+      }}
+      className="h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 focus:ring-ring/20"
+    />
+  )
+}
+
+interface FormRecordsTableProps {
+  locale: string
+  form: CustomForm
+  records: CustomFormRecord[]
+  total: number
+  page: number
+  query: string
+  onQueryChange: (query: string) => void
+  onPageChange: (page: number) => void
+  onAddRecord: () => void
+  onDeleteRecord: (recordId: string) => void
+  onUpdateCell: (record: CustomFormRecord, field: CustomFormField, value: string | number | boolean | null) => void
+}
+
+function FormRecordsTable({
+  locale,
+  form,
+  records,
+  total,
+  page,
+  query,
+  onQueryChange,
+  onPageChange,
+  onAddRecord,
+  onDeleteRecord,
+  onUpdateCell,
+}: FormRecordsTableProps) {
+  const columns = useMemo<ColumnDef<CustomFormRecord>[]>(() => {
+    const fieldColumns: ColumnDef<CustomFormRecord>[] = form.fields.map(field => ({
+      id: field.id,
+      header: () => (
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">{field.label}{field.required ? <span className="text-destructive"> *</span> : null}</div>
+          <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">{field.type}</div>
+        </div>
+      ),
+      cell: ({ row }) => (
+        <EditableRecordCell
+          field={field}
+          value={row.original.data?.[field.id]}
+          onCommit={(value) => onUpdateCell(row.original, field, value)}
+        />
+      ),
+    }))
+    return [
+      {
+        id: "_row",
+        header: "#",
+        cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{(page - 1) * 25 + row.index + 1}</span>,
+      },
+      ...fieldColumns,
+      {
+        id: "_actions",
+        header: "",
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={() => onDeleteRecord(row.original.id)}
+            className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            title={locale === "zh" ? "删除记录" : "Delete record"}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        ),
+      },
+    ]
+  }, [form.fields, locale, onDeleteRecord, onUpdateCell, page])
+
+  const table = useReactTable({
+    data: records,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  return (
+    <div className="min-h-0 rounded-xl bg-muted/35">
+      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">{locale === "zh" ? "记录表格" : "Records table"}</h3>
+          <p className="text-xs text-muted-foreground">
+            {total} {locale === "zh" ? "条记录，单元格可直接编辑。" : "records. Cells are directly editable."}
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="relative w-64 max-w-full">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => {
+                onQueryChange(event.target.value)
+                onPageChange(1)
+              }}
+              placeholder={locale === "zh" ? "搜索记录" : "Search records"}
+              className="h-8 rounded-lg pl-8 text-xs"
+            />
+          </div>
+          <Button size="sm" onClick={onAddRecord} className="h-8 rounded-lg">
+            <Plus className="h-3.5 w-3.5" />
+            {locale === "zh" ? "新增行" : "New row"}
+          </Button>
+        </div>
+      </div>
+      <div className="overflow-x-auto rounded-b-xl bg-background">
+        <table className="w-full min-w-[820px] table-fixed border-collapse">
+          <thead>
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id} className="bg-muted">
+                {headerGroup.headers.map(header => (
+                  <th
+                    key={header.id}
+                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : header.id === "_actions" ? "w-14" : "w-48"}`}
+                  >
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => (
+              <tr key={row.id} className="hover:bg-primary/5">
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id} className="h-11 border-r border-t border-border/40 px-2 py-1 align-middle">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={Math.max(1, columns.length)} className="h-28 text-center text-sm text-muted-foreground">
+                  {locale === "zh" ? "暂无记录，点击新增行开始录入。" : "No records yet. Add a row to start."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between p-3">
+        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))} className="h-8 rounded-lg">
+          {locale === "zh" ? "上一页" : "Previous"}
+        </Button>
+        <span className="text-xs text-muted-foreground">Page {page}</span>
+        <Button variant="outline" size="sm" disabled={page * 25 >= total} onClick={() => onPageChange(page + 1)} className="h-8 rounded-lg">
+          {locale === "zh" ? "下一页" : "Next"}
+        </Button>
+      </div>
+    </div>
+  )
 }
 
 export function ManagementDashboard({
@@ -709,9 +1187,8 @@ export function ManagementDashboard({
   const [formRecordTotal, setFormRecordTotal] = useState(0)
   const [isEditingForm, setIsEditingForm] = useState(false)
   const [isCreatingForm, setIsCreatingForm] = useState(false)
-  const [formDefinition, setFormDefinition] = useState({ name: "", description: "", fieldsJson: "[]" })
-  const [recordJson, setRecordJson] = useState("{}")
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
+  const [formDefinition, setFormDefinition] = useState<FormDefinitionState>({ name: "", description: "", fields: [] })
+  const [selectedFormFieldId, setSelectedFormFieldId] = useState<string | null>(null)
   const [recordQuery, setRecordQuery] = useState("")
   const [recordPage, setRecordPage] = useState(1)
 
@@ -1605,8 +2082,7 @@ export function ManagementDashboard({
     setSelectedFormId(id)
     setIsEditingForm(false)
     setIsCreatingForm(false)
-    setEditingRecordId(null)
-    setRecordJson("{}")
+    setSelectedFormFieldId(null)
     setDeleteConfirmId(null)
     setRecordPage(1)
   }
@@ -1617,8 +2093,9 @@ export function ManagementDashboard({
     setFormDefinition({
       name: "",
       description: "",
-      fieldsJson: JSON.stringify([{ id: "name", label: locale === "zh" ? "名称" : "Name", type: "text", required: false, options: [] }], null, 2),
+      fields: [{ id: "name", label: locale === "zh" ? "名称" : "Name", type: "text", required: false, options: [] }],
     })
+    setSelectedFormFieldId("name")
     setDeleteConfirmId(null)
   }
 
@@ -1629,26 +2106,31 @@ export function ManagementDashboard({
     setFormDefinition({
       name: form.name,
       description: form.description,
-      fieldsJson: JSON.stringify(form.fields || [], null, 2),
+      fields: form.fields || [],
     })
+    setSelectedFormFieldId(form.fields[0]?.id || null)
     setDeleteConfirmId(null)
   }
 
   const parseFormFields = (): CustomFormField[] | null => {
-    try {
-      const parsed = JSON.parse(formDefinition.fieldsJson || "[]")
-      if (!Array.isArray(parsed)) throw new Error("Fields must be an array")
-      return parsed.map((field) => ({
-        id: String(field.id || "").trim(),
-        label: String(field.label || field.id || "").trim(),
-        type: (field.type || "text") as CustomFormField["type"],
-        required: Boolean(field.required),
-        options: Array.isArray(field.options) ? field.options.map(String) : [],
-      })).filter(field => field.id && field.label)
-    } catch (err) {
-      alert(locale === "zh" ? "字段 JSON 无效" : "Invalid fields JSON")
+    const seen = new Set<string>()
+    const fields = formDefinition.fields.map((field) => ({
+      id: String(field.id || "").trim(),
+      label: String(field.label || field.id || "").trim(),
+      type: (["text", "number", "date", "boolean", "select"].includes(field.type) ? field.type : "text") as CustomFormField["type"],
+      required: Boolean(field.required),
+      options: Array.isArray(field.options) ? field.options.map(String).filter(Boolean) : [],
+    })).filter(field => field.id && field.label)
+    const hasDuplicate = fields.some(field => {
+      if (seen.has(field.id)) return true
+      seen.add(field.id)
+      return false
+    })
+    if (hasDuplicate) {
+      alert(locale === "zh" ? "字段 ID 不能重复" : "Field IDs must be unique")
       return null
     }
+    return fields
   }
 
   const handleSaveForm = async () => {
@@ -1706,39 +2188,58 @@ export function ManagementDashboard({
     }
   }
 
-  const handleSaveFormRecord = async () => {
+  const handleAddFormRecord = async () => {
     if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
-    let data: Record<string, string | number | boolean | null>
-    try {
-      data = JSON.parse(recordJson || "{}")
-      if (!data || Array.isArray(data) || typeof data !== "object") throw new Error("Record must be an object")
-    } catch {
-      alert(locale === "zh" ? "记录 JSON 无效" : "Invalid record JSON")
-      return
-    }
+    const selectedForm = forms.find(form => form.id === selectedFormId)
+    const data = Object.fromEntries(
+      (selectedForm?.fields || []).map(field => [field.id, field.type === "boolean" ? false : null])
+    ) as Record<string, string | number | boolean | null>
     const now = new Date().toISOString()
-    const method = editingRecordId ? "PUT" : "POST"
-    const url = editingRecordId
-      ? `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${editingRecordId}`
-      : `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records`
     const payload = {
-      id: editingRecordId || generateUUID(),
+      id: generateUUID(),
       formId: selectedFormId,
       data,
       createdAt: now,
       updatedAt: now,
     }
-    const resp = await fetch(url, {
-      method,
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records`, {
+      method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify(payload),
     })
     if (resp.ok) {
       const saved = await resp.json()
-      setFormRecords(prev => editingRecordId ? prev.map(record => record.id === editingRecordId ? saved : record) : [saved, ...prev])
-      setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: editingRecordId ? form.recordCount : form.recordCount + 1 } : form))
-      setEditingRecordId(null)
-      setRecordJson("{}")
+      setFormRecords(prev => [saved, ...prev])
+      setFormRecordTotal(prev => prev + 1)
+      setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: form.recordCount + 1 } : form))
+    }
+  }
+
+  const handleUpdateFormRecordCell = async (
+    record: CustomFormRecord,
+    field: CustomFormField,
+    value: string | number | boolean | null,
+  ) => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
+    const normalizedValue = normalizeFieldValue(field, value)
+    if (record.data?.[field.id] === normalizedValue) return
+    const now = new Date().toISOString()
+    const updatedRecord: CustomFormRecord = {
+      ...record,
+      data: { ...(record.data || {}), [field.id]: normalizedValue },
+      updatedAt: now,
+    }
+    setFormRecords(prev => prev.map(item => item.id === record.id ? updatedRecord : item))
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${record.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify(updatedRecord),
+    })
+    if (!resp.ok) {
+      setFormRecords(prev => prev.map(item => item.id === record.id ? record : item))
+    } else {
+      const saved = await resp.json()
+      setFormRecords(prev => prev.map(item => item.id === record.id ? saved : item))
     }
   }
 
@@ -1750,6 +2251,7 @@ export function ManagementDashboard({
     })
     if (resp.ok) {
       setFormRecords(prev => prev.filter(record => record.id !== recordId))
+      setFormRecordTotal(prev => Math.max(0, prev - 1))
       setForms(prev => prev.map(form => form.id === selectedFormId ? { ...form, recordCount: Math.max(0, form.recordCount - 1) } : form))
     }
   }
@@ -2137,36 +2639,56 @@ export function ManagementDashboard({
 
               <div className="min-h-0 flex-1 overflow-y-auto bg-background">
                 {isCreatingForm || isEditingForm ? (
-                  <div className="mx-auto max-w-4xl space-y-5 p-6">
+                  <div className="mx-auto max-w-7xl space-y-5 p-6">
                     <div>
                       <h2 className="text-lg font-semibold">{isCreatingForm ? (locale === "zh" ? "新建表单" : "Create Form") : (locale === "zh" ? "编辑表单" : "Edit Form")}</h2>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {locale === "zh" ? "字段使用标准 JSON 数组定义，可包含 id、label、type、required、options。" : "Fields use a JSON array with id, label, type, required, and options."}
+                        {locale === "zh" ? "通过可视化列设计字段，保存后记录表格会按字段生成可编辑列。" : "Design fields visually as columns. The records table follows this structure after saving."}
                       </p>
                     </div>
-                    <InputField
-                      id="form-name"
-                      label={locale === "zh" ? "表单名称" : "Form Name"}
-                      value={formDefinition.name}
-                      onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
+                    <div className="grid gap-4 lg:grid-cols-[minmax(260px,380px)_minmax(0,1fr)]">
+                      <div className="space-y-4 rounded-xl bg-muted/35 p-4">
+                        <InputField
+                          id="form-name"
+                          label={locale === "zh" ? "表单名称" : "Form Name"}
+                          value={formDefinition.name}
+                          onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                        <FormField label={locale === "zh" ? "描述" : "Description"}>
+                          <Textarea
+                            value={formDefinition.description}
+                            onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
+                            className="min-h-28 rounded-lg"
+                          />
+                        </FormField>
+                      </div>
+                      <div className="rounded-xl bg-primary/5 p-4">
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div>
+                            <div className="text-xl font-semibold">{formDefinition.fields.length}</div>
+                            <div className="text-xs text-muted-foreground">{locale === "zh" ? "字段" : "Fields"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xl font-semibold">{formDefinition.fields.filter(field => field.required).length}</div>
+                            <div className="text-xs text-muted-foreground">{locale === "zh" ? "必填" : "Required"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xl font-semibold">{formDefinition.fields.filter(field => field.type === "select").length}</div>
+                            <div className="text-xs text-muted-foreground">{locale === "zh" ? "选项字段" : "Select fields"}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <FormFieldDesigner
+                      locale={locale}
+                      definition={formDefinition}
+                      selectedFieldId={selectedFormFieldId}
+                      onDefinitionChange={setFormDefinition}
+                      onSelectedFieldChange={setSelectedFormFieldId}
                     />
-                    <FormField label={locale === "zh" ? "描述" : "Description"}>
-                      <Textarea
-                        value={formDefinition.description}
-                        onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
-                        className="min-h-20 rounded-lg"
-                      />
-                    </FormField>
-                    <FormField label={locale === "zh" ? "字段 JSON" : "Fields JSON"}>
-                      <Textarea
-                        value={formDefinition.fieldsJson}
-                        onChange={(e) => setFormDefinition(prev => ({ ...prev, fieldsJson: e.target.value }))}
-                        className="min-h-64 rounded-lg font-mono text-xs"
-                      />
-                    </FormField>
                   </div>
                 ) : selectedForm ? (
-                  <div className="mx-auto max-w-6xl space-y-5 p-6">
+                  <div className="mx-auto max-w-7xl space-y-5 p-6">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2">
@@ -2182,96 +2704,36 @@ export function ManagementDashboard({
                       </Button>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 md:grid-cols-4">
                       {selectedForm.fields.map(field => (
-                        <div key={field.id} className="rounded-xl border border-border/50 bg-background/50 p-3">
+                        <button
+                          key={field.id}
+                          type="button"
+                          onClick={() => handleStartEditForm(selectedForm)}
+                          className="rounded-xl bg-muted/45 p-3 text-left transition hover:bg-primary/10 hover:text-primary"
+                        >
                           <div className="font-mono text-[11px] text-muted-foreground">{field.id}</div>
                           <div className="mt-1 text-sm font-semibold">{field.label}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">{field.type}{field.required ? " · required" : ""}</div>
-                        </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {getFieldTypeLabel(field.type, locale)}{field.required ? (locale === "zh" ? " · 必填" : " · required") : ""}
+                          </div>
+                        </button>
                       ))}
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
-                      <div className="rounded-xl border border-border/50 bg-background/50">
-                        <div className="flex items-center justify-between gap-3 border-b border-border/40 p-3">
-                          <div className="font-semibold text-sm">{locale === "zh" ? "记录" : "Records"} ({formRecordTotal})</div>
-                          <div className="relative w-64 max-w-full">
-                            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                              value={recordQuery}
-                              onChange={(e) => {
-                                setRecordQuery(e.target.value)
-                                setRecordPage(1)
-                              }}
-                              placeholder={locale === "zh" ? "搜索记录" : "Search records"}
-                              className="h-8 rounded-lg pl-8 text-xs"
-                            />
-                          </div>
-                        </div>
-                        <div className="divide-y divide-border/30">
-                          {formRecords.length > 0 ? formRecords.map(record => (
-                            <div key={record.id} className="p-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0 font-mono text-[11px] text-muted-foreground truncate">{record.id}</div>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => {
-                                      setEditingRecordId(record.id)
-                                      setRecordJson(JSON.stringify(record.data || {}, null, 2))
-                                    }}
-                                    className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    title={locale === "zh" ? "编辑记录" : "Edit record"}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteFormRecord(record.id)}
-                                    className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                    title={t.delete}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                              <pre className="mt-2 max-h-36 overflow-auto rounded-lg bg-muted/25 p-2 text-xs text-foreground">{JSON.stringify(record.data, null, 2)}</pre>
-                            </div>
-                          )) : (
-                            <div className="p-8 text-center text-sm text-muted-foreground">
-                              {locale === "zh" ? "暂无记录" : "No records yet."}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center justify-between border-t border-border/40 p-3">
-                          <Button variant="outline" size="sm" disabled={recordPage <= 1} onClick={() => setRecordPage(page => Math.max(1, page - 1))} className="h-8 rounded-lg">
-                            {locale === "zh" ? "上一页" : "Previous"}
-                          </Button>
-                          <span className="text-xs text-muted-foreground">Page {recordPage}</span>
-                          <Button variant="outline" size="sm" disabled={recordPage * 25 >= formRecordTotal} onClick={() => setRecordPage(page => page + 1)} className="h-8 rounded-lg">
-                            {locale === "zh" ? "下一页" : "Next"}
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-border/50 bg-background/50 p-4">
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <h3 className="text-sm font-semibold">{editingRecordId ? (locale === "zh" ? "编辑记录" : "Edit Record") : (locale === "zh" ? "新增记录" : "Add Record")}</h3>
-                          {editingRecordId && (
-                            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => { setEditingRecordId(null); setRecordJson("{}") }}>
-                              {t.cancel}
-                            </button>
-                          )}
-                        </div>
-                        <Textarea
-                          value={recordJson}
-                          onChange={(e) => setRecordJson(e.target.value)}
-                          className="min-h-72 rounded-lg font-mono text-xs"
-                        />
-                        <Button onClick={handleSaveFormRecord} className="mt-3 w-full rounded-lg">
-                          {editingRecordId ? (locale === "zh" ? "保存记录" : "Save Record") : (locale === "zh" ? "添加记录" : "Add Record")}
-                        </Button>
-                      </div>
-                    </div>
+                    <FormRecordsTable
+                      locale={locale}
+                      form={selectedForm}
+                      records={formRecords}
+                      total={formRecordTotal}
+                      page={recordPage}
+                      query={recordQuery}
+                      onQueryChange={setRecordQuery}
+                      onPageChange={setRecordPage}
+                      onAddRecord={handleAddFormRecord}
+                      onDeleteRecord={handleDeleteFormRecord}
+                      onUpdateCell={handleUpdateFormRecordCell}
+                    />
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
