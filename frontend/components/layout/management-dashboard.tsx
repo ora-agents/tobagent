@@ -1253,8 +1253,8 @@ function FormRecordsTable({
   const hasValidationErrors = Object.values(validationErrors).some(fields => Object.keys(fields).length > 0)
 
   return (
-    <div className={`min-h-0 bg-muted/35 ${isFullscreen ? "fixed inset-0 z-50 flex flex-col rounded-none" : "rounded-xl"}`}>
-      <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className={`min-h-0 ${isFullscreen ? "fixed inset-0 z-[100] flex flex-col rounded-none bg-background" : "rounded-xl bg-muted/35"}`}>
+      <div className={`flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between ${isFullscreen ? "bg-muted" : ""}`}>
         <div>
           <h3 className="text-sm font-semibold">{locale === "zh" ? "记录表格" : "Records table"}</h3>
           <p className="text-xs text-muted-foreground">
