@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.messages import SystemMessage
@@ -106,6 +106,90 @@ async def test_dynamic_config_middleware_injects_skill_summary():
         assert 'Use `read_skill(skill_name="<name>")`' in content
         assert "Step 1: Do something.\nStep 2: Done." not in content
         assert kwargs["tools"] == [read_skill_tool]
+
+
+@pytest.mark.anyio
+async def test_dynamic_config_middleware_injects_linked_form_names_and_schema():
+    mock_ctx = SimpleNamespace(
+        agent_id="agent_forms",
+        user_id="user_123",
+        system_prompt="Profile prompt",
+        enabled_tools=[],
+        model=None,
+        user_preferences="",
+        safety_enabled=False,
+        model_fields_set={"agent_id"},
+    )
+
+    query_form_tool = SimpleNamespace(name="query_form_data")
+    read_skill_tool = SimpleNamespace(name="read_skill")
+    mock_request = MagicMock()
+    mock_request.runtime.context = mock_ctx
+    mock_request.tools = [query_form_tool, read_skill_tool]
+    mock_request.override.return_value = mock_request
+
+    async def mock_handler(req):
+        return req
+
+    resources = {
+        "found": True,
+        "profile": {
+            "id": "agent_forms",
+            "name": "Forms Agent",
+            "description": "Handles forms",
+            "system_prompt": "Profile prompt",
+            "enabled_tools": [],
+            "agent_ids": [],
+            "model": "",
+            "role_template_id": "",
+            "persona_style": "",
+            "boundary_mode": "",
+            "updated_at": "",
+        },
+        "skills": [],
+        "knowledge_bases": [],
+        "forms": [
+            {
+                "id": "form_orders",
+                "name": "订单表",
+                "description": "客户订单数据",
+                "fields": [
+                    {
+                        "id": "customer_name",
+                        "label": "客户名称",
+                        "type": "text",
+                        "required": True,
+                        "options": [],
+                    },
+                    {
+                        "id": "status",
+                        "label": "订单状态",
+                        "type": "select",
+                        "required": False,
+                        "options": ["新建", "已完成"],
+                    },
+                ],
+            }
+        ],
+        "linked_agents": [],
+        "linked_ids": [],
+    }
+
+    with patch.object(
+        dynamic_config_middleware,
+        "_load_runtime_resources_cached",
+        new=AsyncMock(return_value=resources),
+    ), patch("src.middleware.dynamic_config_middleware.McpPoolManager.get_tools_for_agent", return_value=[]):
+        await dynamic_config_middleware.awrap_model_call(mock_request, mock_handler)
+
+    kwargs = mock_request.override.call_args[1]
+    content = kwargs["system_message"].content
+
+    assert "Linked Forms:" in content
+    assert "- **订单表** (ID: `form_orders`): 客户订单数据" in content
+    assert "`customer_name`; label: 客户名称; type: text; required" in content
+    assert "`status`; label: 订单状态; type: select; optional; options: 新建, 已完成" in content
+    assert kwargs["tools"] == [query_form_tool]
 
 
 @pytest.mark.anyio

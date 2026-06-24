@@ -109,6 +109,53 @@ def _role_behavior_instructions(profile: dict[str, Any]) -> str:
     return "\n\n## Role Behavior\n" + "\n".join(f"- {line}" for line in lines) + "\n"
 
 
+def _format_form_field_for_prompt(field: dict[str, Any]) -> str:
+    """Format a form field definition for model-facing schema context."""
+    field_id = str(field.get("id") or "").strip() or "unnamed"
+    label = str(field.get("label") or "").strip() or field_id
+    field_type = str(field.get("type") or "text").strip() or "text"
+    required = "required" if bool(field.get("required")) else "optional"
+    parts = [f"`{field_id}`", f"label: {label}", f"type: {field_type}", required]
+
+    options = field.get("options")
+    if isinstance(options, list):
+        clean_options = [str(option) for option in options if str(option).strip()]
+        if clean_options:
+            parts.append(f"options: {', '.join(clean_options)}")
+
+    return " - " + "; ".join(parts)
+
+
+def _format_linked_forms_for_prompt(forms: list[dict[str, Any]]) -> str:
+    """Build system prompt instructions for linked form names and schemas."""
+    if not forms:
+        return ""
+
+    form_instructions = (
+        "\n\nYou have access to structured form data through `query_form_data`. "
+        "The linked form names and schemas are included below by default so you can "
+        "choose the right `form_id`, `fields`, and filter fields without first listing forms. "
+        "Use `query_form_data` when the user asks about records, rows, customers, orders, cases, "
+        "or any data stored in the linked forms. You can pass `fields`, `q`, "
+        "`filter_field`, `filter_value`, `filter_op`, `page`, and `page_size`.\n"
+        "Linked Forms:\n"
+    )
+    for form in forms:
+        fields = form.get("fields", [])
+        form_instructions += (
+            f"- **{form['name']}** (ID: `{form['id']}`): "
+            f"{form['description']}\n"
+            "  Schema:\n"
+        )
+        if isinstance(fields, list) and fields:
+            for field in fields:
+                if isinstance(field, dict):
+                    form_instructions += f"  {_format_form_field_for_prompt(field)}\n"
+        else:
+            form_instructions += "  - No custom fields configured.\n"
+    return form_instructions
+
+
 def _get_current_config_metadata() -> dict[str, Any]:
     """Return LangGraph run metadata from the active config."""
     try:
@@ -616,23 +663,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     forms = resources.get("forms", [])
                     if forms:
                         has_linked_forms = True
-                        form_instructions = (
-                            "\n\nYou have access to structured form data through `query_form_data`. "
-                            "Use it when the user asks about records, rows, customers, orders, cases, "
-                            "or any data stored in the linked forms. You can pass `fields`, `q`, "
-                            "`filter_field`, `filter_value`, `filter_op`, `page`, and `page_size`.\n"
-                            "Linked Forms:\n"
-                        )
-                        for form in forms:
-                            field_list = ", ".join(
-                                f"{field.get('id', '')} ({field.get('label', '')})"
-                                for field in form.get("fields", [])
-                            )
-                            form_instructions += (
-                                f"- **{form['name']}** (ID: `{form['id']}`): "
-                                f"{form['description']} Fields: {field_list or 'none'}\n"
-                            )
-                        system_prompt += form_instructions
+                        system_prompt += _format_linked_forms_for_prompt(forms)
 
                     # ---- Linked skills ----
                     skills = resources["skills"]
