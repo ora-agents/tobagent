@@ -41,8 +41,10 @@ import {
   CalendarDays,
   ToggleLeft,
   ListChecks,
+  Lock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { NavActionButton } from "@/components/ui/nav-action-button"
 import { Input } from "@/components/ui/input"
 import { InputField } from "@/components/ui/input-field"
 import { FormField } from "@/components/ui/form-field"
@@ -653,6 +655,13 @@ type FormDefinitionState = {
   fields: CustomFormField[]
 }
 
+const SYSTEM_FORM_FIELDS: CustomFormField[] = [
+  { id: "createdAt", label: "创建时间", type: "date", required: false, options: [] },
+  { id: "updatedAt", label: "更新时间", type: "date", required: false, options: [] },
+]
+
+const SYSTEM_FORM_FIELD_IDS = new Set(SYSTEM_FORM_FIELDS.map(field => field.id))
+
 const FORM_FIELD_TYPES: Array<{
   type: CustomFormFieldType
   icon: React.ComponentType<{ className?: string }>
@@ -692,6 +701,25 @@ function normalizeFieldValue(field: CustomFormField, value: string | number | bo
     return Boolean(value)
   }
   return value ?? ""
+}
+
+function getSystemFieldLabel(field: CustomFormField, locale: string) {
+  if (field.id === "createdAt") return locale === "zh" ? "创建时间" : "Created at"
+  if (field.id === "updatedAt") return locale === "zh" ? "更新时间" : "Updated at"
+  return field.label
+}
+
+function formatRecordTimestamp(value: string, locale: string) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date)
 }
 
 // ---------------------------------------------------------------------------
@@ -734,7 +762,10 @@ function FormFieldDesigner({
   onDefinitionChange,
   onSelectedFieldChange,
 }: FormFieldDesignerProps) {
-  const selectedField = definition.fields.find(field => field.id === selectedFieldId) || definition.fields[0] || null
+  const displayFields = [...definition.fields, ...SYSTEM_FORM_FIELDS]
+  const selectedSystemField = SYSTEM_FORM_FIELDS.find(field => field.id === selectedFieldId) || null
+  const selectedField = selectedSystemField || definition.fields.find(field => field.id === selectedFieldId) || definition.fields[0] || SYSTEM_FORM_FIELDS[0]
+  const isSelectedSystemField = Boolean(selectedSystemField)
 
   const updateFields = (fields: CustomFormField[]) => {
     onDefinitionChange({ ...definition, fields })
@@ -757,6 +788,7 @@ function FormFieldDesigner({
   }
 
   const moveField = (fieldId: string, direction: -1 | 1) => {
+    if (SYSTEM_FORM_FIELD_IDS.has(fieldId)) return
     const index = definition.fields.findIndex(field => field.id === fieldId)
     const nextIndex = index + direction
     if (index < 0 || nextIndex < 0 || nextIndex >= definition.fields.length) return
@@ -805,19 +837,24 @@ function FormFieldDesigner({
         </div>
         <div className="overflow-x-auto rounded-lg bg-background shadow-depth-xs">
           <div className="min-w-[720px]">
-            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(definition.fields.length, 1)}, minmax(156px, 1fr))` }}>
+            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayFields.length, 1)}, minmax(156px, 1fr))` }}>
               <div className="sticky left-0 z-10 bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">#</div>
-              {definition.fields.length > 0 ? definition.fields.map(field => (
+              {displayFields.length > 0 ? displayFields.map(field => {
+                const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
+                return (
                 <button
                   key={field.id}
                   type="button"
                   onClick={() => onSelectedFieldChange(field.id)}
                   className={`min-w-0 border-l border-border/50 px-3 py-2 text-left transition ${selectedField?.id === field.id ? "bg-primary-soft text-primary" : "bg-muted hover:bg-primary/10"}`}
                 >
-                  <div className="truncate text-sm font-semibold">{field.label}</div>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {isSystemField && <Lock className="h-3.5 w-3.5 shrink-0" />}
+                    <div className="truncate text-sm font-semibold">{isSystemField ? getSystemFieldLabel(field, locale) : field.label}</div>
+                  </div>
                   <div className="truncate font-mono text-[11px] opacity-75">{field.id}</div>
                 </button>
-              )) : (
+              )}) : (
                 <div className="border-l border-border/50 bg-muted px-3 py-2 text-sm text-muted-foreground">
                   {locale === "zh" ? "从左侧添加字段" : "Add fields from the left"}
                 </div>
@@ -825,9 +862,15 @@ function FormFieldDesigner({
               {[1, 2, 3].map(row => (
                 <React.Fragment key={row}>
                   <div className="sticky left-0 z-10 border-t border-border/40 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">{row}</div>
-                  {definition.fields.map(field => (
+                  {displayFields.map(field => (
                     <div key={`${row}-${field.id}`} className="min-h-10 border-l border-t border-border/40 px-3 py-2 text-sm text-muted-foreground">
-                      {row === 1 ? (field.type === "select" ? field.options[0] || "" : field.type === "boolean" ? "false" : "") : ""}
+                      {row === 1
+                        ? SYSTEM_FORM_FIELD_IDS.has(field.id)
+                          ? formatRecordTimestamp(new Date().toISOString(), locale)
+                          : field.type === "select"
+                            ? field.options[0] || ""
+                            : field.type === "boolean" ? "false" : ""
+                        : ""}
                     </div>
                   ))}
                 </React.Fragment>
@@ -845,31 +888,40 @@ function FormFieldDesigner({
                 <h3 className="text-sm font-semibold">{locale === "zh" ? "字段属性" : "Field properties"}</h3>
                 <p className="font-mono text-[11px] text-muted-foreground">{selectedField.id}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => removeField(selectedField.id)}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                title={locale === "zh" ? "删除字段" : "Delete field"}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {isSelectedSystemField ? (
+                <div className="rounded-md bg-primary-soft p-1.5 text-primary" title={locale === "zh" ? "系统字段" : "System field"}>
+                  <Lock className="h-4 w-4" />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => removeField(selectedField.id)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  title={locale === "zh" ? "删除字段" : "Delete field"}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
             <FormField label={locale === "zh" ? "字段名称" : "Label"}>
               <Input
-                value={selectedField.label}
+                value={isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
                 onChange={(event) => updateField(selectedField.id, { label: event.target.value })}
+                disabled={isSelectedSystemField}
               />
             </FormField>
             <FormField label={locale === "zh" ? "字段 ID" : "Field ID"}>
               <Input
                 value={selectedField.id}
                 onChange={(event) => updateField(selectedField.id, { id: event.target.value.trim() })}
+                disabled={isSelectedSystemField}
                 className="font-mono text-xs"
               />
             </FormField>
             <FormField label={locale === "zh" ? "字段类型" : "Type"}>
               <Select
                 value={selectedField.type}
+                disabled={isSelectedSystemField}
                 onValueChange={(value) => updateField(selectedField.id, {
                   type: value as CustomFormFieldType,
                   options: value === "select" ? selectedField.options : [],
@@ -893,6 +945,7 @@ function FormFieldDesigner({
                 type="checkbox"
                 checked={selectedField.required}
                 onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
+                disabled={isSelectedSystemField}
                 className="h-4 w-4 accent-primary"
               />
             </label>
@@ -911,15 +964,20 @@ function FormFieldDesigner({
               </FormField>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
+              <Button variant="outline" size="sm" disabled={isSelectedSystemField} onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
                 <ArrowUp className="h-3.5 w-3.5" />
                 {locale === "zh" ? "前移" : "Move left"}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
+              <Button variant="outline" size="sm" disabled={isSelectedSystemField} onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
                 <ArrowDown className="h-3.5 w-3.5" />
                 {locale === "zh" ? "后移" : "Move right"}
               </Button>
             </div>
+            {isSelectedSystemField && (
+              <p className="rounded-lg bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                {locale === "zh" ? "系统字段由平台自动维护，不能修改、删除或调整顺序。" : "System fields are maintained automatically and cannot be changed, deleted, or reordered."}
+              </p>
+            )}
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
@@ -1014,6 +1072,23 @@ function FormRecordsTable({
   onUpdateCell,
 }: FormRecordsTableProps) {
   const columns = useMemo<ColumnDef<CustomFormRecord>[]>(() => {
+    const systemColumns: ColumnDef<CustomFormRecord>[] = SYSTEM_FORM_FIELDS.map(field => ({
+      id: field.id,
+      header: () => (
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Lock className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <div className="truncate text-sm font-semibold">{getSystemFieldLabel(field, locale)}</div>
+          </div>
+          <div className="truncate font-mono text-[11px] font-normal text-muted-foreground">system</div>
+        </div>
+      ),
+      cell: ({ row }) => (
+        <span className="block truncate px-2 text-sm text-muted-foreground">
+          {formatRecordTimestamp(field.id === "createdAt" ? row.original.createdAt : row.original.updatedAt, locale)}
+        </span>
+      ),
+    }))
     const fieldColumns: ColumnDef<CustomFormRecord>[] = form.fields.map(field => ({
       id: field.id,
       header: () => (
@@ -1037,6 +1112,7 @@ function FormRecordsTable({
         cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{(page - 1) * 25 + row.index + 1}</span>,
       },
       ...fieldColumns,
+      ...systemColumns,
       {
         id: "_actions",
         header: "",
@@ -2151,6 +2227,11 @@ export function ManagementDashboard({
       seen.add(field.id)
       return false
     })
+    const hasSystemFieldId = fields.some(field => SYSTEM_FORM_FIELD_IDS.has(field.id))
+    if (hasSystemFieldId) {
+      alert(locale === "zh" ? "createdAt 和 updatedAt 是系统字段，不能作为自定义字段 ID" : "createdAt and updatedAt are system fields and cannot be used as custom field IDs")
+      return null
+    }
     if (hasDuplicate) {
       alert(locale === "zh" ? "字段 ID 不能重复" : "Field IDs must be unique")
       return null
@@ -2594,15 +2675,13 @@ export function ManagementDashboard({
 
         <div className="flex flex-wrap items-center justify-end gap-2">
           {renderHeaderConfigActions()}
-          <Button
+          <NavActionButton
             variant="outline"
-            size="sm"
             onClick={onBackToChat}
-            className="gap-2 hover:bg-primary/10 hover:text-primary transition-all duration-200 border-border/80 shadow-depth-xs rounded-lg"
           >
             <ArrowLeft className="w-4 h-4" />
             {t.backToChat}
-          </Button>
+          </NavActionButton>
         </div>
       </header>
 
@@ -2634,7 +2713,7 @@ export function ManagementDashboard({
                     key={form.id}
                     selected={selectedFormId === form.id}
                     title={form.name}
-                    description={`${form.fields.length} ${locale === "zh" ? "字段" : "fields"} · ${form.recordCount} ${locale === "zh" ? "记录" : "records"}`}
+                    description={`${form.fields.length + SYSTEM_FORM_FIELDS.length} ${locale === "zh" ? "字段" : "fields"} · ${form.recordCount} ${locale === "zh" ? "记录" : "records"}`}
                     onSelect={() => handleSelectForm(form.id)}
                     actionsClassName={deleteConfirmId === form.id ? "md:opacity-100" : "md:pointer-events-none md:group-hover:pointer-events-auto md:group-focus-within:pointer-events-auto"}
                     actions={
@@ -2690,7 +2769,7 @@ export function ManagementDashboard({
                       <div className="rounded-xl bg-primary/5 p-4">
                         <div className="grid grid-cols-3 gap-3 text-sm">
                           <div>
-                            <div className="text-xl font-semibold">{formDefinition.fields.length}</div>
+                            <div className="text-xl font-semibold">{formDefinition.fields.length + SYSTEM_FORM_FIELDS.length}</div>
                             <div className="text-xs text-muted-foreground">{locale === "zh" ? "字段" : "Fields"}</div>
                           </div>
                           <div>
@@ -2730,20 +2809,35 @@ export function ManagementDashboard({
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-4">
-                      {selectedForm.fields.map(field => (
-                        <button
-                          key={field.id}
-                          type="button"
-                          onClick={() => handleStartEditForm(selectedForm)}
-                          className="rounded-xl bg-muted/45 p-3 text-left transition hover:bg-primary/10 hover:text-primary"
-                        >
+                      {[...selectedForm.fields, ...SYSTEM_FORM_FIELDS].map(field => {
+                        const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
+                        const content = (
+                          <>
                           <div className="font-mono text-[11px] text-muted-foreground">{field.id}</div>
-                          <div className="mt-1 text-sm font-semibold">{field.label}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {getFieldTypeLabel(field.type, locale)}{field.required ? (locale === "zh" ? " · 必填" : " · required") : ""}
+                          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+                            {isSystemField && <Lock className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                            <span className="truncate">{isSystemField ? getSystemFieldLabel(field, locale) : field.label}</span>
                           </div>
-                        </button>
-                      ))}
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {isSystemField ? (locale === "zh" ? "系统字段 · 不可修改" : "System field · locked") : `${getFieldTypeLabel(field.type, locale)}${field.required ? (locale === "zh" ? " · 必填" : " · required") : ""}`}
+                          </div>
+                          </>
+                        )
+                        return isSystemField ? (
+                          <div key={field.id} className="rounded-xl bg-primary/5 p-3 text-left">
+                            {content}
+                          </div>
+                        ) : (
+                          <button
+                            key={field.id}
+                            type="button"
+                            onClick={() => handleStartEditForm(selectedForm)}
+                            className="rounded-xl bg-muted/45 p-3 text-left transition hover:bg-primary/10 hover:text-primary"
+                          >
+                            {content}
+                          </button>
+                        )
+                      })}
                     </div>
 
                     <FormRecordsTable
@@ -3872,7 +3966,7 @@ export function ManagementDashboard({
                                 </span>
                                 <div className="min-w-0">
                                   <div className="text-xs font-medium truncate">{form.name}</div>
-                                  <div className="text-[10px] text-muted-foreground truncate">{form.fields.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">{form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
                                 </div>
                               </div>
                             )
