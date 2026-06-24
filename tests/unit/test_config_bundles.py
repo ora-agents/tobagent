@@ -178,6 +178,56 @@ def test_bundle_round_trip_rewrites_ids_and_removes_secrets(db_session):
     assert imported_kb.files[0]["name"] == "manual.md"
 
 
+def test_export_agent_dependencies_preserve_system_knowledge_base_reference(db_session):
+    _seed_resources(db_session)
+    now = datetime.now(UTC).isoformat()
+    db_session.add(KnowledgeBaseTable(
+        id="kb-system",
+        owner_user_id=None,
+        name="System manual",
+        description="Shared manual",
+        files=[],
+        import_status="ready",
+        created_at=now,
+        updated_at=now,
+    ))
+    agent = db_session.get(AgentProfileTable, "agent-source")
+    agent.knowledge_base_ids = ["kb-source", "kb-system"]
+    db_session.commit()
+
+    raw, warnings = build_export_bundle(
+        db_session,
+        BundleExportRequest(
+            selection=BundleSelection(agents=["agent-source"]),
+            options=BundleExportOptions(includeDependencies=True),
+        ),
+        "owner",
+    )
+
+    assert warnings == []
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        assert manifest["resources"]["knowledgeBases"] == ["kb-source"]
+        assert "knowledge-bases/kb-system.json" not in archive.namelist()
+        exported_agent = json.loads(archive.read("agents/agent-source.json"))
+        assert exported_agent["knowledgeBaseIds"] == ["kb-source", "kb-system"]
+
+    inspection, entry = inspect_bundle(db_session, raw, "receiver", "inspection-system-kb")
+    assert inspection.missingDependencies == []
+
+    response, _ = execute_import(
+        db_session,
+        entry,
+        BundleImportRequest(inspectionId="inspection-system-kb"),
+        "receiver",
+    )
+    imported_agent = db_session.get(AgentProfileTable, response.resources["agents"][0])
+    assert imported_agent.knowledge_base_ids == [
+        response.resourceIdMap["knowledgeBaseIds"]["kb-source"],
+        "kb-system",
+    ]
+
+
 def test_inspection_reports_missing_dependencies_and_conflicts(db_session):
     _seed_resources(db_session)
     raw, _ = build_export_bundle(

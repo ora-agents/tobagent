@@ -90,6 +90,17 @@ def _owned_rows(db: Session, table, ids: list[str], owner_user_id: str) -> list:
     return rows
 
 
+def _system_knowledge_base_ids(db: Session, ids: list[str]) -> set[str]:
+    if not ids:
+        return set()
+    unique_ids = list(dict.fromkeys(ids))
+    rows = db.query(KnowledgeBaseTable.id).filter(
+        KnowledgeBaseTable.id.in_(unique_ids),
+        KnowledgeBaseTable.owner_user_id.is_(None),
+    ).all()
+    return {row[0] for row in rows}
+
+
 def _agent_payload(row: AgentProfileTable) -> dict:
     return {
         "id": row.id,
@@ -122,8 +133,11 @@ def _collect_export_rows(
     selected = request.selection.model_dump()
     rows = {
         key: _owned_rows(db, TABLES[key], selected[key], owner_user_id)
-        for key in RESOURCE_KEYS
+        for key in ("agents", "skills", "mcpServers", "forms")
     }
+    rows["knowledgeBases"] = _owned_rows(
+        db, KnowledgeBaseTable, selected["knowledgeBases"], owner_user_id
+    )
     if not request.options.includeDependencies:
         return rows
 
@@ -142,7 +156,12 @@ def _collect_export_rows(
             agent_queue.extend(linked)
             seen_agents.update(linked_ids)
             rows["agents"].extend(linked)
-    for key in RESOURCE_KEYS[1:]:
+    system_kb_ids = _system_knowledge_base_ids(db, list(dependencies["knowledgeBases"]))
+    owned_kb_ids = list(dependencies["knowledgeBases"] - system_kb_ids)
+    rows["knowledgeBases"] = _owned_rows(
+        db, KnowledgeBaseTable, owned_kb_ids, owner_user_id
+    )
+    for key in ("skills", "mcpServers", "forms"):
         rows[key] = _owned_rows(db, TABLES[key], list(dependencies[key]), owner_user_id)
     return rows
 
@@ -396,6 +415,11 @@ def inspect_bundle(
         for field, resource_type in LINK_FIELDS.items():
             for linked_id in agent.get(field) or []:
                 if linked_id not in resources[resource_type]:
+                    if (
+                        resource_type == "knowledgeBases"
+                        and linked_id in _system_knowledge_base_ids(db, [linked_id])
+                    ):
+                        continue
                     missing.append(BundleMissingDependency(
                         agentId=source_id,
                         resourceType=resource_type,
@@ -666,6 +690,11 @@ def execute_import(
                     target = id_map[map_key].get(linked_id)
                     if target:
                         mapped.append(target)
+                    elif (
+                        resource_type == "knowledgeBases"
+                        and linked_id in _system_knowledge_base_ids(db, [linked_id])
+                    ):
+                        mapped.append(linked_id)
                     else:
                         warnings.append(
                             f"Agent {source_id} dependency {resource_type}:{linked_id} was skipped."
