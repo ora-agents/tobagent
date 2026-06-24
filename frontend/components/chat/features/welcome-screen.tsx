@@ -119,8 +119,8 @@ export function WelcomeScreen({
   const hasActiveAgent = !!agentProfile
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-background px-4 sm:px-6">
-      <div className="w-full max-w-5xl -mt-14 sm:-mt-24">
+    <div className="absolute inset-0 flex items-center justify-center bg-background px-3 sm:px-4">
+      <div className="w-full max-w-3xl -mt-16 sm:-mt-28">
         {/* Header */}
         <div className="mb-8 text-center sm:mb-10">
           <h2
@@ -169,7 +169,7 @@ export function WelcomeScreen({
         <div className="relative">
           <div className="relative">
             <div
-              className={`relative rounded-2xl bg-muted transition-[background-color,box-shadow] duration-200 focus-within:bg-background focus-within:ring-[3px] focus-within:ring-primary/15 ${
+              className={`relative rounded-xl bg-muted transition-[background-color,box-shadow] duration-200 focus-within:bg-background focus-within:ring-[3px] focus-within:ring-primary/15 ${
                 isDragging
                   ? 'bg-primary-soft ring-[3px] ring-primary/25'
                   : ''
@@ -179,11 +179,11 @@ export function WelcomeScreen({
               onDrop={onDrop}
             >
             {isDragging && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-primary-soft/90 pointer-events-none">
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl bg-primary-soft/90 pointer-events-none">
                 <div className="text-primary font-medium">{t.dropFilesHere}</div>
               </div>
             )}
-            <div className="flex min-h-[72px] items-center gap-3 px-4 py-2.5">
+            <div className="flex items-end gap-2 px-3 py-1.5">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -199,11 +199,11 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
-                  className="h-12 w-12 flex-shrink-0 rounded-xl bg-background p-0 text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
+                  className="mb-0.5 h-9 w-9 flex-shrink-0 rounded-lg bg-background/80 p-0 text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
                   type="button"
                   title={t.attachFiles}
                 >
-                  <Plus className="h-5 w-5" strokeWidth={2.5} />
+                  <Plus className="w-4.5 h-4.5" strokeWidth={2.5} />
                 </Button>
               )}
 
@@ -216,7 +216,7 @@ export function WelcomeScreen({
                 onPaste={onPaste}
                 maxLength={MAX_INPUT_CHARS}
                 placeholder={!userId || isAgentLoading ? t.initializing : !hasActiveAgent ? t.selectAgentRequired : isLoading ? t.typeNextMessage : t.askAnything}
-                className="custom-scrollbar relative z-10 min-h-[52px] max-h-[260px] w-full resize-none break-words bg-transparent px-3 py-3 text-base leading-relaxed text-foreground transition-all duration-200 placeholder:text-muted-foreground focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="relative z-10 min-h-[36px] max-h-[240px] resize-none bg-transparent w-full px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-200 break-words custom-scrollbar"
                 disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
                 rows={1}
               />
@@ -227,12 +227,12 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={!userId || isAgentLoading || !hasActiveAgent}
-                  className="h-12 w-12 flex-shrink-0 rounded-xl bg-primary p-0 text-primary-foreground transition-colors hover:bg-primary-active hover:text-primary-foreground"
+                  className="mb-0.5 h-9 w-9 flex-shrink-0 rounded-lg bg-primary p-0 text-primary-foreground transition-colors hover:bg-primary-active hover:text-primary-foreground"
                   type="button"
                   title={t.sendMessage}
                   aria-label={t.sendMessage}
                 >
-                  <SendHorizontal className="h-5 w-5" strokeWidth={2.5} />
+                  <SendHorizontal className="w-4 h-4" strokeWidth={2.5} />
                 </Button>
               ) : isVoiceSupported && onVoiceToggle && (
                 <VoiceInputButton
@@ -240,7 +240,7 @@ export function WelcomeScreen({
                   isSupported={isVoiceSupported}
                   disabled={!userId || isAgentLoading || !hasActiveAgent}
                   onClick={onVoiceToggle}
-                  size="lg"
+                  size="sm"
                 />
               )}
 
@@ -251,7 +251,7 @@ export function WelcomeScreen({
                   size="sm"
                   disabled={isStopping}
                   className={`
-                    h-12 px-5 rounded-xl flex-shrink-0
+                    h-9 px-4 mb-0.5 rounded-lg flex-shrink-0
                     transition-colors duration-200
                     bg-primary-soft text-primary hover:text-primary hover:bg-primary-soft
                     ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
@@ -261,11 +261,11 @@ export function WelcomeScreen({
                   aria-label={isStopping ? t.stopping : t.stop}
                 >
                   {isStopping ? (
-                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Square className="h-3.5 w-3.5 fill-current" />
+                    <Square className="w-3 h-3 fill-current" />
                   )}
-                  <span className="text-sm font-medium">
+                  <span className="text-xs font-medium">
                     {isStopping ? t.stopping : t.stop}
                   </span>
                 </Button>
@@ -281,7 +281,7 @@ export function WelcomeScreen({
           )}
 
           {/* Model combobox - positioned underneath chatbox in bottom left */}
-          <div className="mt-3 flex min-h-10 flex-wrap items-center justify-start gap-3 px-3">
+          <div className="flex flex-wrap gap-3 justify-start mt-2 px-2 h-8 items-center">
             {agentConfig && onAgentConfigChange && (
               <div className="flex items-center">
                 {fixedAgentModel ? (
@@ -292,7 +292,6 @@ export function WelcomeScreen({
                     prefix={locale === "zh" ? "Agent 模型：" : "Agent model: "}
                     placeholder={getModelDisplayName(fixedAgentModel as ModelOption)}
                     disabled
-                    triggerClassName="h-10 min-w-[180px] bg-muted px-4 text-base"
                   />
                 ) : availableModels === null ? (
                   <ComboboxSkeleton label={t.loadingModels} />
@@ -306,7 +305,6 @@ export function WelcomeScreen({
                     searchPlaceholder={locale === "zh" ? "搜索模型..." : "Search model..."}
                     emptyText={locale === "zh" ? "未找到该模型" : "No model found."}
                     autoFocusSearch={!suppressAndroidVoiceAutoFocus}
-                    triggerClassName="h-10 min-w-[180px] bg-muted px-4 text-base"
                   />
                 ) : null}
               </div>

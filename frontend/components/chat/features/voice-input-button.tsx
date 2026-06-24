@@ -20,7 +20,7 @@ interface VoiceInputButtonProps {
   isSupported?: boolean
   disabled?: boolean
   onClick: () => void
-  size?: "sm" | "md" | "lg"
+  size?: "sm" | "md"
 }
 
 export function VoiceInputButton({
@@ -31,8 +31,8 @@ export function VoiceInputButton({
   size = "sm",
 }: VoiceInputButtonProps) {
   const t = useT()
-  const dimensions = size === "lg" ? "h-12 w-12" : size === "md" ? "h-10 w-10" : "h-9 w-9"
-  const iconSize = size === "lg" ? "w-5 h-5" : size === "md" ? "w-4.5 h-4.5" : "w-4 h-4"
+  const dimensions = size === "sm" ? "h-9 w-9" : "h-10 w-10"
+  const iconSize = size === "sm" ? "w-4 h-4" : "w-4.5 h-4.5"
 
   const isActive = voiceState !== "idle"
 
