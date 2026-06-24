@@ -47,6 +47,8 @@ import {
   PinOff,
   Save,
   AlertCircle,
+  Maximize2,
+  Minimize2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -1115,6 +1117,7 @@ function FormRecordsTable({
   const recordColumnWidth = 192
   const stickyColumnOverlap = 1
   const [pinnedFieldIds, setPinnedFieldIds] = useState<Set<string>>(new Set())
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const allRecordFields = useMemo(() => [...form.fields, ...SYSTEM_FORM_FIELDS], [form.fields])
   const orderedRecordFields = useMemo(() => {
     const pinnedFields = allRecordFields.filter(field => pinnedFieldIds.has(field.id))
@@ -1130,6 +1133,17 @@ function FormRecordsTable({
       return next
     })
   }, [])
+
+  useEffect(() => {
+    if (!isFullscreen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsFullscreen(false)
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isFullscreen])
 
   const getStickyColumnStyle = (columnId: string): React.CSSProperties | undefined => {
     if (columnId === "_row") return { left: 0 }
@@ -1212,7 +1226,7 @@ function FormRecordsTable({
         id: "_actions",
         header: "",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center">
             {dirtyRecordIds.has(row.original.id) && (
               <button
                 type="button"
@@ -1223,19 +1237,11 @@ function FormRecordsTable({
                 <Save className="h-3.5 w-3.5" />
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => onDeleteRecord(row.original.id)}
-              className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              title={locale === "zh" ? "删除记录" : "Delete record"}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
           </div>
         ),
       },
     ]
-  }, [dirtyRecordIds, locale, onDeleteRecord, onSaveRecord, onUpdateCell, orderedRecordFields, page, renderFieldHeader, validationErrors])
+  }, [dirtyRecordIds, locale, onSaveRecord, onUpdateCell, orderedRecordFields, page, renderFieldHeader, validationErrors])
 
   const table = useReactTable({
     data: records,
@@ -1247,12 +1253,14 @@ function FormRecordsTable({
   const hasValidationErrors = Object.values(validationErrors).some(fields => Object.keys(fields).length > 0)
 
   return (
-    <div className="min-h-0 rounded-xl bg-muted/35">
+    <div className={`min-h-0 bg-muted/35 ${isFullscreen ? "fixed inset-0 z-50 flex flex-col rounded-none" : "rounded-xl"}`}>
       <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold">{locale === "zh" ? "记录表格" : "Records table"}</h3>
           <p className="text-xs text-muted-foreground">
-            {total} {locale === "zh" ? "条记录，编辑后点击保存并校验必填项。" : "records. Save edits to validate required fields."}
+            {total} {locale === "zh"
+              ? "条记录，编辑后点击保存并校验必填项；删除记录请在对应行点击右键。"
+              : "records. Save edits to validate required fields; right-click a row to delete it."}
           </p>
           {hasValidationErrors && (
             <p className="mt-1 flex items-center gap-1 text-xs text-destructive">
@@ -1287,9 +1295,21 @@ function FormRecordsTable({
             <Save className="h-3.5 w-3.5" />
             {locale === "zh" ? `保存 ${dirtyCount || ""}` : `Save ${dirtyCount || ""}`}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsFullscreen(value => !value)}
+            className="h-8 rounded-lg"
+            title={isFullscreen
+              ? (locale === "zh" ? "退出全屏（Esc）" : "Exit fullscreen (Esc)")
+              : (locale === "zh" ? "全屏填写" : "Fill in fullscreen")}
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            {isFullscreen ? (locale === "zh" ? "退出全屏" : "Exit fullscreen") : (locale === "zh" ? "全屏" : "Fullscreen")}
+          </Button>
         </div>
       </div>
-      <div className="max-h-[560px] overflow-auto rounded-b-xl bg-background">
+      <div className={`overflow-auto bg-background ${isFullscreen ? "min-h-0 flex-1" : "max-h-[560px] rounded-b-xl"}`}>
         <table className="w-full min-w-[820px] table-fixed border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
             {table.getHeaderGroups().map(headerGroup => (
@@ -1298,7 +1318,7 @@ function FormRecordsTable({
                   <th
                     key={header.id}
                     style={getStickyColumnStyle(header.id)}
-                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : header.id === "_actions" ? "w-24" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
+                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : header.id === "_actions" ? "w-12" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
                   >
                     {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
@@ -2970,38 +2990,20 @@ export function ManagementDashboard({
                         {locale === "zh" ? "通过可视化列设计字段，保存后记录表格会按字段生成可编辑列。" : "Design fields visually as columns. The records table follows this structure after saving."}
                       </p>
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-[minmax(260px,380px)_minmax(0,1fr)]">
-                      <div className="space-y-4 rounded-xl bg-muted/35 p-4">
-                        <InputField
-                          id="form-name"
-                          label={locale === "zh" ? "表单名称" : "Form Name"}
-                          value={formDefinition.name}
-                          onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
+                    <div className="max-w-md space-y-4 rounded-xl bg-muted/35 p-4">
+                      <InputField
+                        id="form-name"
+                        label={locale === "zh" ? "表单名称" : "Form Name"}
+                        value={formDefinition.name}
+                        onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                      <FormField label={locale === "zh" ? "描述" : "Description"}>
+                        <Textarea
+                          value={formDefinition.description}
+                          onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
+                          className="min-h-28 rounded-lg"
                         />
-                        <FormField label={locale === "zh" ? "描述" : "Description"}>
-                          <Textarea
-                            value={formDefinition.description}
-                            onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
-                            className="min-h-28 rounded-lg"
-                          />
-                        </FormField>
-                      </div>
-                      <div className="rounded-xl bg-primary/5 p-4">
-                        <div className="grid grid-cols-3 gap-3 text-sm">
-                          <div>
-                            <div className="text-xl font-semibold">{formDefinition.fields.length + SYSTEM_FORM_FIELDS.length}</div>
-                            <div className="text-xs text-muted-foreground">{locale === "zh" ? "字段" : "Fields"}</div>
-                          </div>
-                          <div>
-                            <div className="text-xl font-semibold">{formDefinition.fields.filter(field => field.required).length}</div>
-                            <div className="text-xs text-muted-foreground">{locale === "zh" ? "必填" : "Required"}</div>
-                          </div>
-                          <div>
-                            <div className="text-xl font-semibold">{formDefinition.fields.filter(field => field.type === "select").length}</div>
-                            <div className="text-xs text-muted-foreground">{locale === "zh" ? "选项字段" : "Select fields"}</div>
-                          </div>
-                        </div>
-                      </div>
+                      </FormField>
                     </div>
                     <FormFieldDesigner
                       locale={locale}
@@ -3026,38 +3028,6 @@ export function ManagementDashboard({
                         <Pencil className="h-3.5 w-3.5" />
                         {locale === "zh" ? "编辑表单" : "Edit Form"}
                       </Button>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-4">
-                      {[...selectedForm.fields, ...SYSTEM_FORM_FIELDS].map(field => {
-                        const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
-                        const content = (
-                          <>
-                          <div className="font-mono text-[11px] text-muted-foreground">{field.id}</div>
-                          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm font-semibold">
-                            {isSystemField && <Lock className="h-3.5 w-3.5 shrink-0 text-primary" />}
-                            <span className="truncate">{isSystemField ? getSystemFieldLabel(field, locale) : field.label}</span>
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {isSystemField ? (locale === "zh" ? "系统字段 · 不可修改" : "System field · locked") : `${getFieldTypeLabel(field.type, locale)}${field.required ? (locale === "zh" ? " · 必填" : " · required") : ""}`}
-                          </div>
-                          </>
-                        )
-                        return isSystemField ? (
-                          <div key={field.id} className="rounded-xl bg-primary/5 p-3 text-left">
-                            {content}
-                          </div>
-                        ) : (
-                          <button
-                            key={field.id}
-                            type="button"
-                            onClick={() => handleStartEditForm(selectedForm)}
-                            className="rounded-xl bg-muted/45 p-3 text-left transition hover:bg-primary/10 hover:text-primary"
-                          >
-                            {content}
-                          </button>
-                        )
-                      })}
                     </div>
 
                     <FormRecordsTable
