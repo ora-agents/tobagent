@@ -59,9 +59,62 @@ The surface model has four layers:
 
 ### Semantic
 
-- **Success** (`{colors.success}` - #1f9d63): Connected, available, complete.
-- **Warning** (`{colors.warning}` - #d99a24): Needs attention, partial state.
-- **Error** (`{colors.error}` - #c2413d): Validation and destructive state.
+- **Success** (`{colors.success}` - #1f9d63): Connected, available, complete. Use with `{colors.ink}` text for filled components; white text is not WCAG AA for normal text on this green.
+- **Warning** (`{colors.warning}` - #d99a24): Needs attention, partial state. Use with `{colors.ink}` text for filled components.
+- **Error** (`{colors.error}` - #c2413d): Validation and destructive state. Use with `{colors.on-primary}` text for filled destructive components.
+
+## Accessibility & Contrast
+
+All color choices must satisfy WCAG 2.1 AA contrast for the component's actual state, not just the default state. Check normal, hover, pressed, selected, focus-visible, disabled, loading, destructive, and dark-mode variants before shipping a component.
+
+### Minimum Ratios
+
+- Body text, labels, placeholders that users must read, menu items, table text, and button text require at least **4.5:1** contrast against their immediate background.
+- Large text requires at least **3:1** only when it is 24px+ regular or 18.66px+ bold. Do not rely on the large-text exception for compact product UI.
+- Icons, focus indicators, input affordances, chart marks, selected-row indicators, and control boundaries that communicate state require at least **3:1** against adjacent colors.
+- Disabled controls may be lower contrast only when they are not actionable and no critical information is conveyed. Disabled labels should still remain understandable in context.
+- Do not place text over shadows, gradients, translucent overlays, or images unless the rendered contrast is verified in the final component.
+
+### Approved Light-Theme Pairings
+
+| Background | Foreground | Contrast | Use |
+|---|---|---:|---|
+| `{colors.primary}` #164199 | `{colors.on-primary}` #ffffff | 9.33:1 | Primary buttons, active icon buttons, saturated selected states |
+| `{colors.primary-hover}` #10357f | `{colors.on-primary}` #ffffff | 11.43:1 | Primary hover and pressed states |
+| `{colors.primary-soft}` #eaf1ff | `{colors.primary}` #164199 | 8.23:1 | Selected rows, primary badges, active soft tabs |
+| `{colors.primary-mist}` #f5f8ff | `{colors.primary}` #164199 | 8.78:1 | Quiet branded callouts and empty states |
+| `{colors.canvas}` #ffffff | `{colors.ink}` #111827 | 17.74:1 | Main text on page canvas and panels |
+| `{colors.surface-soft}` #f5f7fb | `{colors.ink}` #111827 | 16.54:1 | Inputs, secondary buttons, soft rows |
+| `{colors.surface-raised}` #eef2f7 | `{colors.ink}` #111827 | 15.78:1 | Toolbar clusters, selected neutral blocks |
+| `{colors.canvas}` #ffffff | `{colors.muted}` #64748b | 4.76:1 | Secondary metadata on white only |
+| `{colors.success}` #1f9d63 | `{colors.ink}` #111827 | 5.12:1 | Filled success badges/buttons with readable text |
+| `{colors.warning}` #d99a24 | `{colors.ink}` #111827 | 7.26:1 | Filled warning badges/buttons with readable text |
+| `{colors.error}` #c2413d | `{colors.on-primary}` #ffffff | 5.10:1 | Filled destructive buttons and error badges |
+| `{colors.accent-cyan}` #18a8b8 | `{colors.ink}` #111827 | 6.19:1 | Filled cyan status badges where text is present |
+
+Do not use `{colors.muted}` #64748b on `{colors.primary-soft}` #eaf1ff for normal text; the contrast is 4.20:1. Use `{colors.primary}`, `{colors.body}`, or `{colors.ink}` instead. Do not use white text on `{colors.success}`, `{colors.warning}`, or `{colors.accent-cyan}` for normal-size UI labels.
+
+### Approved Dark-Theme Pairings
+
+| Background | Foreground | Contrast | Use |
+|---|---|---:|---|
+| `{colors.surface-dark}` #181715 | `{colors.on-dark}` #faf9f5 | 17.00:1 | Main dark-mode text |
+| `{colors.surface-dark-elevated}` #252320 | `{colors.on-dark}` #faf9f5 | 14.88:1 | Elevated dark cards and dialogs |
+| `{colors.surface-dark-soft}` #1f1e1b | `{colors.on-dark-soft}` #a09d96 | 6.16:1 | Secondary dark-mode metadata |
+| `{colors.primary}` #164199 | `{colors.on-primary}` #ffffff | 9.33:1 | Dark-mode primary controls and selected filled states |
+| `{colors.primary-soft}` #eaf1ff | `{colors.primary}` #164199 | 8.23:1 | Rare high-contrast selected pills inside dark panels |
+
+Do not use bare `{colors.primary}` text on `{colors.surface-dark}`; the contrast is 1.92:1. In dark mode, links and active text must be either on a filled primary background with white text, a lighter blue specifically verified for dark surfaces, or paired with an underline/icon/state marker that still meets 3:1 for non-text state indication.
+
+### State Rules
+
+- Hover and pressed states must preserve text contrast. Darkening primary blue is safe with white text; lightening primary blue is not unless the foreground changes.
+- Selected states need a readable foreground and a visible state difference. On `{colors.primary-soft}`, use `{colors.primary}` or `{colors.ink}` text, not muted gray.
+- Focus-visible states need a 3:1 visual indicator. A translucent halo can supplement focus, but the component should also keep a clear filled-state or ring edge.
+- Placeholder text may use `{colors.muted}` on white or soft neutral surfaces, but avoid `{colors.muted-soft}` for required instructions or validation guidance.
+- For icon-only buttons, the icon color and hover/selected background must meet 3:1; active icon buttons should use `{colors.primary}` on a light fill or white on primary fill.
+- For badges and chips, text contrast is checked against the chip fill, not the page background.
+- For translucent Tailwind utilities such as `bg-primary/10`, `text-muted-foreground/70`, or `border-primary/20`, verify the rendered composite color in both themes before using them for meaningful text or state.
 
 ## Typography
 
@@ -117,15 +170,15 @@ Depth should come from surface contrast first. Use borders only as structural se
 
 ### Buttons
 
-- **Primary:** `{colors.primary}` background, `{colors.on-primary}` text, 8px radius, clear hover to `{colors.primary-hover}`.
-- **Secondary:** `{colors.surface-soft}` fill, ink text, stronger neutral hover fill. Do not add a border.
-- **Ghost/Icon:** Transparent by default, neutral hover block, primary text only when active.
-- **Destructive:** Error color for text/fill, never reuse primary blue for destructive actions.
+- **Primary:** `{colors.primary}` background, `{colors.on-primary}` text, 8px radius, clear hover to `{colors.primary-hover}`. Default and hover states are both AA for normal text.
+- **Secondary:** `{colors.surface-soft}` fill, `{colors.ink}` text, stronger neutral hover fill. Do not add a border. Avoid muted text inside secondary buttons unless the final contrast is checked.
+- **Ghost/Icon:** Transparent by default, neutral hover block, primary text only when active. Icon-only controls must keep at least 3:1 contrast in default, hover, selected, and disabled states.
+- **Destructive:** `{colors.error}` fill with `{colors.on-primary}` text for filled destructive actions. For low-emphasis destructive actions, use `{colors.error}` text on white or soft neutral surfaces, never primary blue.
 
 ### Panels & Cards
 
 - **App panels:** White or soft background, no border, 12px radius, subtle shadow only when the panel floats above the page.
-- **Sidebar:** White or `{colors.surface-soft}` background with selected rows in `{colors.primary-soft}`. Avoid large saturated blue sidebar fields and outlined nav items.
+- **Sidebar:** White or `{colors.surface-soft}` background with selected rows in `{colors.primary-soft}`. Selected row labels use `{colors.primary}` or `{colors.ink}`; avoid muted gray on selected blue-tinted fills. Avoid large saturated blue sidebar fields and outlined nav items.
 - **Chat input:** Soft filled panel with blue focus ring. Avoid a visible border.
 - **Console preview:** `{colors.surface-dark}` with `{colors.surface-dark-soft}` inner rows, blue/cyan/amber status dots.
 - **Auth panel:** White panel on white or `{colors.canvas-tint}` canvas with primary-blue action buttons.
@@ -135,7 +188,7 @@ Depth should come from surface contrast first. Use borders only as structural se
 - Use `{colors.surface-dark}` as the app floor, not a navy replacement for every surface.
 - Elevated dark panels use `{colors.surface-dark-elevated}` with `{colors.surface-dark-soft}` for nested rows, inputs, code, and terminal blocks.
 - Text uses `{colors.on-dark}` and `{colors.on-dark-soft}`. Avoid blue-gray text on dark mode unless the element is an active or linked state.
-- Primary actions, focus rings, selected navigation, and links still use WSIRI Blue. Keep inactive dark chrome black/charcoal.
+- Primary actions, focus rings, selected navigation, and links still use WSIRI Blue, but not as bare text on black. Use filled primary controls with white text, a verified lighter link color, or another state treatment that meets WCAG contrast.
 - In dark mode, use charcoal fill changes instead of blue-gray outlines. Blue appears on focused or selected controls through halo/fill, not borders.
 
 ### Inputs & Forms
@@ -148,9 +201,10 @@ Depth should come from surface contrast first. Use borders only as structural se
 ### Tags / Badges
 
 - **Primary badge:** `{colors.primary-soft}` fill, `{colors.primary}` text.
-- **Amber badge:** Amber at low opacity for tool/knowledge metadata.
-- **Cyan badge:** Cyan at low opacity for streaming/connection metadata.
-- **Neutral badge:** `{colors.surface-raised}` fill, `{colors.muted}` text.
+- **Amber badge:** Amber at low opacity for tool/knowledge metadata. Use `{colors.ink}` or a verified dark amber text on light amber fills; do not use white text.
+- **Cyan badge:** Cyan at low opacity for streaming/connection metadata. Use `{colors.ink}` or a verified dark cyan text on light cyan fills; do not use white text.
+- **Success badge:** Success fills use `{colors.ink}` text when saturated. If using white text, darken the success background until it reaches 4.5:1.
+- **Neutral badge:** `{colors.surface-raised}` fill with `{colors.body}` or `{colors.ink}` text for normal labels. Use `{colors.muted}` only for secondary metadata where the contrast remains at least 4.5:1.
 
 ## Do's and Don'ts
 
@@ -159,6 +213,7 @@ Depth should come from surface contrast first. Use borders only as structural se
 - Use `frontend/public/logo.png` as the color anchor; primary blue should match the mark.
 - Keep app surfaces neutral and bright; use white first, then light neutral color blocks, then pale blue only for selected or branded states.
 - Use blue for active state, focus state, and primary action consistently.
+- Check foreground/background contrast for every component state, including hover, selected, disabled, loading, and dark mode.
 - Keep dark mode anchored in black/charcoal surfaces, matching the earlier dark design direction from git history.
 - Use amber/cyan only as supporting status colors.
 - Keep dashboard and chat layouts dense, aligned, and easy to scan.
@@ -169,6 +224,8 @@ Depth should come from surface contrast first. Use borders only as structural se
 - Don't reintroduce the old cream/coral Anthropic palette.
 - Don't make the UI a single blue wash; white surfaces, neutral color blocks, and slate text are required for hierarchy.
 - Don't turn dark mode into deep navy. Use blue only for interaction states and brand moments on top of black/charcoal surfaces.
+- Don't use muted gray text on blue-tinted fills unless the rendered contrast is verified at 4.5:1 or higher.
+- Don't use white text on saturated success, warning, or cyan fills unless the background has been darkened enough to pass WCAG AA.
 - Don't use decorative color blobs as the primary background treatment.
 - Don't use negative letter spacing in compact UI.
 - Don't use borders as the default way to draw buttons, inputs, cards, or list items. Use color-block fills, spacing, typography, and focus rings first.
