@@ -2740,7 +2740,6 @@ export function ManagementDashboard({
         return (
           <>
             <Button
-              size="sm"
               onClick={handleSaveMcp}
               disabled={!mcpForm.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
@@ -2748,7 +2747,6 @@ export function ManagementDashboard({
               {t.save}
             </Button>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => {
                 setIsEditingMcp(false)
@@ -2766,7 +2764,6 @@ export function ManagementDashboard({
         return (
           <Button
             variant="outline"
-            size="sm"
             onClick={() => handleStartEditMcp(selectedMcp)}
             className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
           >
@@ -2782,7 +2779,6 @@ export function ManagementDashboard({
         return (
           <>
             <Button
-              size="sm"
               onClick={handleSaveSkill}
               disabled={!skillForm.content.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
@@ -2790,7 +2786,6 @@ export function ManagementDashboard({
               {t.save}
             </Button>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => {
                 setIsEditingSkill(false)
@@ -2808,7 +2803,6 @@ export function ManagementDashboard({
         return (
           <Button
             variant="outline"
-            size="sm"
             onClick={() => handleStartEditSkill(selectedSkill)}
             className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
           >
@@ -2824,7 +2818,6 @@ export function ManagementDashboard({
         return (
           <>
             <Button
-              size="sm"
               onClick={handleSaveAgent}
               disabled={!agentForm.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
@@ -2832,7 +2825,6 @@ export function ManagementDashboard({
               {t.save}
             </Button>
             <Button
-              size="sm"
               variant="ghost"
               onClick={handleCancelAgentForm}
               className="rounded-lg bg-muted/70 text-foreground hover:bg-muted hover:text-foreground cursor-pointer"
@@ -2848,7 +2840,6 @@ export function ManagementDashboard({
           <>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => handleStartEditAgent(selectedAgent)}
               className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
             >
@@ -2858,7 +2849,6 @@ export function ManagementDashboard({
             <Button
               type="button"
               variant="outline"
-              size="sm"
               onClick={() => tomlInputRef.current?.click()}
               className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
             >
@@ -2882,7 +2872,6 @@ export function ManagementDashboard({
         return (
           <>
             <Button
-              size="sm"
               onClick={handleSaveKB}
               disabled={!kbForm.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
@@ -2890,7 +2879,6 @@ export function ManagementDashboard({
               {t.save}
             </Button>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => {
                 setIsEditingKB(false)
@@ -2908,7 +2896,6 @@ export function ManagementDashboard({
         return (
           <Button
             variant="outline"
-            size="sm"
             onClick={() => handleStartEditKB(selectedKB)}
             className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
           >
@@ -2924,7 +2911,6 @@ export function ManagementDashboard({
         return (
           <>
             <Button
-              size="sm"
               onClick={handleSaveForm}
               disabled={!formDefinition.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
@@ -2932,7 +2918,6 @@ export function ManagementDashboard({
               {t.save}
             </Button>
             <Button
-              size="sm"
               variant="ghost"
               onClick={() => {
                 setIsEditingForm(false)
@@ -2950,7 +2935,6 @@ export function ManagementDashboard({
         return (
           <Button
             variant="outline"
-            size="sm"
             onClick={() => handleStartEditForm(selectedForm)}
             className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
           >
