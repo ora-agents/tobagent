@@ -49,6 +49,7 @@ import {
   AlertCircle,
   Maximize2,
   Minimize2,
+  GripVertical,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -828,95 +829,182 @@ function FormFieldDesigner({
     updateFields(nextFields)
   }
 
-  return (
-    <div className="grid min-h-[560px] gap-4 xl:grid-cols-[200px_minmax(0,1fr)_320px]">
-      <div className="rounded-xl bg-muted/45 p-3">
-        <div className="mb-3 text-xs font-semibold text-muted-foreground">
-          {locale === "zh" ? "字段库" : "Field library"}
-        </div>
-        <div className="space-y-2">
-          {FORM_FIELD_TYPES.map(item => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.type}
-                type="button"
-                onClick={() => addField(item.type)}
-                className="flex w-full items-center gap-2 rounded-lg bg-background px-3 py-2 text-left text-sm shadow-depth-xs transition hover:bg-primary/10 hover:text-primary"
-              >
-                <Icon className="h-4 w-4" />
-                <span>{locale === "zh" ? item.zh : item.en}</span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+  const selectedFieldIndex = selectedField
+    ? definition.fields.findIndex(field => field.id === selectedField.id)
+    : -1
+  const canMoveSelectedLeft = !isSelectedSystemField && selectedFieldIndex > 0
+  const canMoveSelectedRight = !isSelectedSystemField && selectedFieldIndex >= 0 && selectedFieldIndex < definition.fields.length - 1
 
-      <div className="min-w-0 rounded-xl bg-muted/35 p-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold">{locale === "zh" ? "表格字段" : "Table fields"}</h3>
-            <p className="text-xs text-muted-foreground">
-              {locale === "zh" ? "每一列都是一个字段，点击列头后在右侧配置。" : "Each column is a field. Select a header to configure it."}
-            </p>
+  return (
+    <div className="grid min-h-[520px] gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="min-w-0 space-y-4">
+        <div className="rounded-xl bg-muted/35 p-3">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">{locale === "zh" ? "表格字段" : "Table fields"}</h3>
+              <p className="text-xs text-muted-foreground">
+                {locale === "zh" ? "点击列头选择字段，使用列头操作调整顺序或删除。" : "Select a header to edit it. Use header actions to reorder or delete fields."}
+              </p>
+            </div>
+            <Button size="sm" onClick={() => addField("text")} className="h-8 rounded-lg">
+              <Plus className="h-3.5 w-3.5" />
+              {locale === "zh" ? "添加文本列" : "Add text column"}
+            </Button>
           </div>
-          <Button size="sm" variant="outline" onClick={() => addField("text")} className="h-8 rounded-lg">
-            <Plus className="h-3.5 w-3.5" />
-            {locale === "zh" ? "添加列" : "Add column"}
-          </Button>
-        </div>
-        <div className="overflow-x-auto rounded-lg bg-background shadow-depth-xs">
-          <div className="min-w-[720px]">
-            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayFields.length, 1)}, minmax(156px, 1fr))` }}>
-              <div className="sticky left-0 z-10 bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground">#</div>
-              {displayFields.length > 0 ? displayFields.map(field => {
-                const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
-                return (
+          <div className="flex flex-wrap gap-2">
+            {FORM_FIELD_TYPES.map(item => {
+              const Icon = item.icon
+              return (
                 <button
-                  key={field.id}
+                  key={item.type}
                   type="button"
-                  onClick={() => onSelectedFieldChange(field.id)}
-                  className={`min-w-0 border-l border-border/50 px-3 py-2 text-left transition ${selectedField?.id === field.id ? "bg-primary-soft text-primary" : "bg-muted hover:bg-primary/10"}`}
+                  onClick={() => addField(item.type)}
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-background px-3 text-sm shadow-depth-xs transition hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
                 >
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    {isSystemField && <Lock className="h-3.5 w-3.5 shrink-0" />}
-                    <div className="truncate text-sm font-semibold">{isSystemField ? getSystemFieldLabel(field, locale) : field.label}</div>
-                  </div>
-                  <div className="truncate font-mono text-[11px] opacity-75">{field.id}</div>
+                  <Icon className="h-4 w-4" />
+                  <span>{locale === "zh" ? item.zh : item.en}</span>
                 </button>
-              )}) : (
-                <div className="border-l border-border/50 bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  {locale === "zh" ? "从左侧添加字段" : "Add fields from the left"}
-                </div>
-              )}
-              {[1, 2, 3].map(row => (
-                <React.Fragment key={row}>
-                  <div className="sticky left-0 z-10 border-t border-border/40 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">{row}</div>
-                  {displayFields.map(field => (
-                    <div key={`${row}-${field.id}`} className="min-h-10 border-l border-t border-border/40 px-3 py-2 text-sm text-muted-foreground">
-                      {row === 1
-                        ? SYSTEM_FORM_FIELD_IDS.has(field.id)
-                          ? formatRecordTimestamp(new Date().toISOString(), locale)
-                          : field.type === "select"
-                            ? field.options[0] || ""
-                            : field.type === "boolean" ? "false" : ""
-                        : ""}
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-muted/35 p-3">
+          <div className="overflow-x-auto rounded-lg bg-background shadow-depth-xs">
+            <div className="min-w-[860px]">
+              <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayFields.length, 1)}, minmax(180px, 1fr))` }}>
+                <div className="sticky left-0 z-20 flex items-center bg-muted px-3 py-3 text-xs font-semibold text-muted-foreground">#</div>
+                {displayFields.length > 0 ? displayFields.map(field => {
+                  const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
+                  const isSelected = selectedField?.id === field.id
+                  const fieldIndex = definition.fields.findIndex(item => item.id === field.id)
+                  return (
+                    <div
+                      key={field.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onSelectedFieldChange(field.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault()
+                          onSelectedFieldChange(field.id)
+                        }
+                      }}
+                      className={`group min-w-0 border-l px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/20 ${
+                        isSelected
+                          ? "border-primary/20 bg-primary-soft text-primary"
+                          : "border-border/50 bg-muted hover:bg-primary/10"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-start gap-2">
+                          <GripVertical className={`mt-0.5 h-4 w-4 shrink-0 ${isSystemField ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              {isSystemField && <Lock className="h-3.5 w-3.5 shrink-0" />}
+                              <div className="truncate text-sm font-semibold">{isSystemField ? getSystemFieldLabel(field, locale) : field.label}</div>
+                            </div>
+                            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                              <span className="rounded bg-background/80 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+                                {getFieldTypeLabel(field.type, locale)}
+                              </span>
+                              {field.required && (
+                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                                  {locale === "zh" ? "必填" : "Required"}
+                                </span>
+                              )}
+                              <span className="max-w-[120px] truncate font-mono text-[11px] opacity-75">{field.id}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {!isSystemField && (
+                          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                moveField(field.id, -1)
+                              }}
+                              disabled={fieldIndex <= 0}
+                              className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                              title={locale === "zh" ? "左移" : "Move left"}
+                            >
+                              <ArrowUp className="h-3.5 w-3.5 -rotate-90" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                moveField(field.id, 1)
+                              }}
+                              disabled={fieldIndex < 0 || fieldIndex >= definition.fields.length - 1}
+                              className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                              title={locale === "zh" ? "右移" : "Move right"}
+                            >
+                              <ArrowDown className="h-3.5 w-3.5 -rotate-90" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                removeField(field.id)
+                              }}
+                              className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                              title={locale === "zh" ? "删除字段" : "Delete field"}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
-                </React.Fragment>
-              ))}
+                  )
+                }) : (
+                  <div className="border-l border-border/50 bg-muted px-3 py-2 text-sm text-muted-foreground">
+                    {locale === "zh" ? "从上方添加字段" : "Add fields above"}
+                  </div>
+                )}
+                {[1, 2, 3].map(row => (
+                  <React.Fragment key={row}>
+                    <div className="sticky left-0 z-10 border-t border-border/40 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">{row}</div>
+                    {displayFields.map(field => (
+                      <div
+                        key={`${row}-${field.id}`}
+                        className={`min-h-10 border-l border-t border-border/40 px-3 py-2 text-sm text-muted-foreground ${
+                          selectedField?.id === field.id ? "bg-primary/5" : ""
+                        }`}
+                      >
+                        {row === 1
+                          ? SYSTEM_FORM_FIELD_IDS.has(field.id)
+                            ? formatRecordTimestamp(new Date().toISOString(), locale)
+                            : field.type === "select"
+                              ? field.options[0] || ""
+                              : field.type === "boolean" ? "false" : ""
+                          : ""}
+                      </div>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
           </div>
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>{locale === "zh" ? `${definition.fields.length} 个自定义字段，${SYSTEM_FORM_FIELDS.length} 个系统字段` : `${definition.fields.length} custom fields, ${SYSTEM_FORM_FIELDS.length} system fields`}</span>
+            <span>{locale === "zh" ? "系统字段固定在记录末尾" : "System fields stay at the end"}</span>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-xl bg-muted/45 p-4">
+      <div className="rounded-xl bg-muted/45 p-4 xl:sticky xl:top-6 xl:self-start">
         {selectedField ? (
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold">{locale === "zh" ? "字段属性" : "Field properties"}</h3>
-                <p className="font-mono text-[11px] text-muted-foreground">{selectedField.id}</p>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-muted-foreground">{locale === "zh" ? "字段属性" : "Field properties"}</div>
+                <h3 className="mt-1 truncate text-base font-semibold">
+                  {isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
+                </h3>
+                <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{selectedField.id}</p>
               </div>
               {isSelectedSystemField ? (
                 <div className="rounded-md bg-primary-soft p-1.5 text-primary" title={locale === "zh" ? "系统字段" : "System field"}>
@@ -933,76 +1021,82 @@ function FormFieldDesigner({
                 </button>
               )}
             </div>
-            <FormField label={locale === "zh" ? "字段名称" : "Label"}>
-              <Input
-                value={isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
-                onChange={(event) => updateField(selectedField.id, { label: event.target.value })}
-                disabled={isSelectedSystemField}
-              />
-            </FormField>
-            <FormField label={locale === "zh" ? "字段 ID" : "Field ID"}>
-              <Input
-                value={selectedField.id}
-                onChange={(event) => updateField(selectedField.id, { id: event.target.value.trim() })}
-                disabled={isSelectedSystemField}
-                className="font-mono text-xs"
-              />
-            </FormField>
-            <FormField label={locale === "zh" ? "字段类型" : "Type"}>
-              <Select
-                value={selectedField.type}
-                disabled={isSelectedSystemField}
-                onValueChange={(value) => updateField(selectedField.id, {
-                  type: value as CustomFormFieldType,
-                  options: value === "select" ? selectedField.options : [],
-                })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORM_FIELD_TYPES.map(item => (
-                    <SelectItem key={item.type} value={item.type}>
-                      {locale === "zh" ? item.zh : item.en}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            <label className="flex cursor-pointer items-center justify-between rounded-lg bg-background px-3 py-2 text-sm">
-              <span>{locale === "zh" ? "必填" : "Required"}</span>
-              <input
-                type="checkbox"
-                checked={selectedField.required}
-                onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
-                disabled={isSelectedSystemField}
-                className="h-4 w-4 accent-primary"
-              />
-            </label>
-            {selectedField.type === "select" && (
-              <FormField
-                label={locale === "zh" ? "选项" : "Options"}
-                description={locale === "zh" ? "每行一个选项。" : "One option per line."}
-              >
-                <Textarea
-                  value={selectedField.options.join("\n")}
-                  onChange={(event) => updateField(selectedField.id, {
-                    options: event.target.value.split("\n").map(item => item.trim()).filter(Boolean),
-                  })}
-                  className="min-h-32"
+            <div className="rounded-lg bg-background p-3">
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" disabled={!canMoveSelectedLeft} onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
+                  <ArrowUp className="h-3.5 w-3.5 -rotate-90" />
+                  {locale === "zh" ? "左移" : "Move left"}
+                </Button>
+                <Button variant="outline" size="sm" disabled={!canMoveSelectedRight} onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
+                  <ArrowDown className="h-3.5 w-3.5 -rotate-90" />
+                  {locale === "zh" ? "右移" : "Move right"}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-4 rounded-lg bg-background p-3">
+              <FormField label={locale === "zh" ? "字段名称" : "Label"}>
+                <Input
+                  value={isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
+                  onChange={(event) => updateField(selectedField.id, { label: event.target.value })}
+                  disabled={isSelectedSystemField}
                 />
               </FormField>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" disabled={isSelectedSystemField} onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
-                <ArrowUp className="h-3.5 w-3.5" />
-                {locale === "zh" ? "前移" : "Move left"}
-              </Button>
-              <Button variant="outline" size="sm" disabled={isSelectedSystemField} onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
-                <ArrowDown className="h-3.5 w-3.5" />
-                {locale === "zh" ? "后移" : "Move right"}
-              </Button>
+              <FormField label={locale === "zh" ? "字段 ID" : "Field ID"}>
+                <Input
+                  value={selectedField.id}
+                  onChange={(event) => updateField(selectedField.id, { id: event.target.value.trim() })}
+                  disabled={isSelectedSystemField}
+                  className="font-mono text-xs"
+                />
+              </FormField>
+              <FormField label={locale === "zh" ? "字段类型" : "Type"}>
+                <Select
+                  value={selectedField.type}
+                  disabled={isSelectedSystemField}
+                  onValueChange={(value) => updateField(selectedField.id, {
+                    type: value as CustomFormFieldType,
+                    options: value === "select" ? selectedField.options : [],
+                  })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORM_FIELD_TYPES.map(item => (
+                      <SelectItem key={item.type} value={item.type}>
+                        {locale === "zh" ? item.zh : item.en}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm">
+                <span>{locale === "zh" ? "必填" : "Required"}</span>
+                <input
+                  type="checkbox"
+                  checked={selectedField.required}
+                  onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
+                  disabled={isSelectedSystemField}
+                  className="h-4 w-4 accent-primary"
+                />
+              </label>
             </div>
+            {selectedField.type === "select" && (
+              <div className="rounded-lg bg-background p-3">
+                <FormField
+                  label={locale === "zh" ? "选项" : "Options"}
+                  description={locale === "zh" ? "每行一个选项。" : "One option per line."}
+                >
+                  <Textarea
+                    value={selectedField.options.join("\n")}
+                    onChange={(event) => updateField(selectedField.id, {
+                      options: event.target.value.split("\n").map(item => item.trim()).filter(Boolean),
+                    })}
+                    className="min-h-32"
+                  />
+                </FormField>
+              </div>
+            )}
             {isSelectedSystemField && (
               <p className="rounded-lg bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                 {locale === "zh" ? "系统字段由平台自动维护，不能修改、删除或调整顺序。" : "System fields are maintained automatically and cannot be changed, deleted, or reordered."}
@@ -2751,15 +2845,34 @@ export function ManagementDashboard({
 
       if (selectedAgent) {
         return (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleStartEditAgent(selectedAgent)}
-            className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            {t.editAgent}
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleStartEditAgent(selectedAgent)}
+              className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              {t.editAgent}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => tomlInputRef.current?.click()}
+              className="gap-1.5 rounded-lg border-border hover:bg-primary/10 hover:text-primary"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {locale === "zh" ? "批量导入" : "Import"}
+            </Button>
+            <input
+              ref={tomlInputRef}
+              type="file"
+              accept=".toml,application/toml,text/plain"
+              className="hidden"
+              onChange={handleTomlFileImport}
+            />
+          </>
         )
       }
     }
@@ -2970,7 +3083,7 @@ export function ManagementDashboard({
                         {locale === "zh" ? "通过可视化列设计字段，保存后记录表格会按字段生成可编辑列。" : "Design fields visually as columns. The records table follows this structure after saving."}
                       </p>
                     </div>
-                    <div className="max-w-md space-y-4 rounded-xl bg-muted/35 p-4">
+                    <div className="grid gap-4 rounded-xl bg-muted/35 p-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
                       <InputField
                         id="form-name"
                         label={locale === "zh" ? "表单名称" : "Form Name"}
@@ -4267,19 +4380,31 @@ export function ManagementDashboard({
                                 : "Create a link with an agentShare parameter so another account can import this agent."}
                             </div>
                           </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCreateAgentShare(selectedAgent.id)}
-                            disabled={sharingAgentId === selectedAgent.id}
-                            className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
-                          >
-                            <Share2 className="h-3.5 w-3.5" />
-                            {sharingAgentId === selectedAgent.id
-                              ? (locale === "zh" ? "生成中" : "Creating")
-                              : (locale === "zh" ? "生成并复制" : "Create & Copy")}
-                          </Button>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCreateAgentShare(selectedAgent.id)}
+                              disabled={sharingAgentId === selectedAgent.id}
+                              className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                            >
+                              <Share2 className="h-3.5 w-3.5" />
+                              {sharingAgentId === selectedAgent.id
+                                ? (locale === "zh" ? "生成中" : "Creating")
+                                : (locale === "zh" ? "分享链接" : "Share Link")}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleExportAgentToml(selectedAgent.id)}
+                              className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              {locale === "zh" ? "导出" : "Export"}
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -4312,35 +4437,6 @@ export function ManagementDashboard({
                           </div>
                         )}
 
-                        <div className="flex flex-wrap gap-2 border-t border-border/40 pt-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleExportAgentToml(selectedAgent.id)}
-                            className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            {locale === "zh" ? "导出 TOML" : "Export TOML"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => tomlInputRef.current?.click()}
-                            className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
-                          >
-                            <Upload className="h-3.5 w-3.5" />
-                            {locale === "zh" ? "批量导入 TOML" : "Import TOML"}
-                          </Button>
-                          <input
-                            ref={tomlInputRef}
-                            type="file"
-                            accept=".toml,application/toml,text/plain"
-                            className="hidden"
-                            onChange={handleTomlFileImport}
-                          />
-                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
