@@ -148,9 +148,9 @@ export function Header({
           )}
           {agentProfilesLoaded ? (
             canSwitchAgents ? (
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5">
                 <ScrollArea
-                  className="h-11 min-w-0 flex-1"
+                  className="h-11 w-fit min-w-0 max-w-full"
                   viewportClassName="px-1"
                   scrollbars="horizontal"
                   aria-label={locale === "zh" ? "切换角色" : "Switch agent"}
