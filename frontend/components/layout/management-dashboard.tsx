@@ -3516,7 +3516,7 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="mt-6 grid w-full gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(24rem,2fr)] xl:items-start">
+                    <div className="mt-6 grid w-full gap-4 xl:grid-cols-2 xl:items-start">
                       <div className="min-w-0 space-y-6">
                       <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/50 px-4 py-3">
                         <div className="min-w-0">
