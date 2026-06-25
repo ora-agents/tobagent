@@ -3838,15 +3838,20 @@ export function ManagementDashboard({
                           </span>
                         </div>
 
-                        {agentVersions.length === 0 && !agentVersionsLoading ? (
-                          <p className="text-xs text-muted-foreground">
-                            {locale === "zh"
-                              ? "暂无历史版本。保存角色配置后会自动记录版本。"
-                              : "No saved versions yet. Versions are recorded when this role is saved."}
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {agentVersions.map((version, index) => {
+                        <ScrollArea
+                          className="h-64"
+                          contentClassName="space-y-2 pr-3"
+                        >
+                          {agentVersions.length === 0 && !agentVersionsLoading ? (
+                            <div className="flex h-64 items-center justify-center px-4 text-center">
+                              <p className="text-xs text-muted-foreground">
+                                {locale === "zh"
+                                  ? "暂无历史版本。保存角色配置后会自动记录版本。"
+                                  : "No saved versions yet. Versions are recorded when this role is saved."}
+                              </p>
+                            </div>
+                          ) : (
+                            agentVersions.map((version, index) => {
                               const isLatest = index === 0
                               const modelName = version.snapshot.model
                                 ? getModelDisplayName(version.snapshot.model)
@@ -3886,9 +3891,9 @@ export function ManagementDashboard({
                                   </Button>
                                 </div>
                               )
-                            })}
-                          </div>
-                        )}
+                            })
+                          )}
+                        </ScrollArea>
                       </div>
 
                       <div className="space-y-2">
