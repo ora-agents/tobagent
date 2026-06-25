@@ -5,8 +5,7 @@
  * Re-exports types from domain-specific modules.
  */
 
-export type { Message } from "./messages"
+export type { Message, ProcessStep } from "./messages"
 export type { ToolCall, SubgraphOutput } from "./tools"
 export type { ImageAttachment } from "./images"
 export type { AgentProfile, BuiltinToolId } from "./agent-profiles"
-
