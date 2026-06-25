@@ -406,27 +406,6 @@ export function FormFieldDesigner({
                     {locale === "zh" ? "从上方添加字段" : "Add fields above"}
                   </div>
                 )}
-                {[1, 2, 3].map(row => (
-                  <React.Fragment key={row}>
-                    <div className="sticky left-0 z-10 border-t border-border/40 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">{row}</div>
-                    {displayFields.map(field => (
-                      <div
-                        key={`${row}-${field.id}`}
-                        className={`min-h-10 border-l border-t border-border/40 px-3 py-2 text-sm text-muted-foreground ${
-                          selectedField?.id === field.id ? "bg-primary/5" : ""
-                        }`}
-                      >
-                        {row === 1
-                          ? SYSTEM_FORM_FIELD_IDS.has(field.id)
-                            ? formatRecordTimestamp(new Date().toISOString(), locale)
-                            : field.type === "select"
-                              ? field.options[0] || ""
-                              : field.type === "boolean" ? "false" : ""
-                          : ""}
-                      </div>
-                    ))}
-                  </React.Fragment>
-                ))}
               </div>
             </div>
           </div>
