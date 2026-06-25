@@ -16,14 +16,18 @@ def _field_value_changed(old_data: dict[str, Any], new_data: dict[str, Any], fie
     return old_data.get(field_id) != new_data.get(field_id)
 
 
-def _hook_matches(hook: dict[str, Any], value: Any) -> bool:
-    match_type = str(hook.get("matchType") or "regex")
+def _condition_matches(hook: dict[str, Any], condition: dict[str, Any], value: Any) -> bool:
+    match_type = str(condition.get("matchType") or "regex")
     value_text = "" if value is None else str(value)
     if match_type == "value":
-        return value_text == str(hook.get("value") or "")
+        return value_text == str(condition.get("value") or "")
+    if match_type == "empty":
+        return value is None or value_text == ""
+    if match_type == "not_empty":
+        return value is not None and value_text != ""
     if match_type != "regex":
         return False
-    pattern = str(hook.get("pattern") or "")
+    pattern = str(condition.get("pattern") or "")
     if not pattern:
         return False
     try:
@@ -33,29 +37,81 @@ def _hook_matches(hook: dict[str, Any], value: Any) -> bool:
         return False
 
 
+def _hook_conditions(hook: dict[str, Any]) -> list[dict[str, Any]]:
+    conditions = hook.get("conditions")
+    if isinstance(conditions, list) and conditions:
+        return [condition for condition in conditions if isinstance(condition, dict)]
+
+    field_id = str(hook.get("fieldId") or "")
+    if not field_id:
+        return []
+    return [{
+        "fieldId": field_id,
+        "matchType": hook.get("matchType") or "regex",
+        "pattern": hook.get("pattern") or "",
+        "value": hook.get("value") or "",
+    }]
+
+
+def _evaluate_hook_conditions(
+    hook: dict[str, Any],
+    old_data: dict[str, Any],
+    new_data: dict[str, Any],
+) -> tuple[bool, list[dict[str, Any]]]:
+    results: list[dict[str, Any]] = []
+    changed = False
+    for condition in _hook_conditions(hook):
+        field_id = str(condition.get("fieldId") or "")
+        if not field_id:
+            continue
+        old_value = old_data.get(field_id)
+        new_value = new_data.get(field_id)
+        field_changed = _field_value_changed(old_data, new_data, field_id)
+        changed = changed or field_changed
+        matched = _condition_matches(hook, condition, new_value)
+        results.append({
+            "fieldId": field_id,
+            "matchType": condition.get("matchType") or "regex",
+            "oldValue": old_value,
+            "newValue": new_value,
+            "changed": field_changed,
+            "matched": matched,
+        })
+
+    if not results or not changed:
+        return False, results
+
+    logic = str(hook.get("conditionLogic") or "all")
+    if logic == "any":
+        return any(result["matched"] for result in results), results
+    return all(result["matched"] for result in results), results
+
+
 async def trigger_form_hooks(
     form: FormTable,
     record: FormRecordTable,
     old_data: dict[str, Any],
     new_data: dict[str, Any],
 ) -> None:
-    """Trigger enabled form hooks whose watched field changed and matches."""
+    """Trigger enabled form hooks whose watched fields changed and match."""
     hooks = [hook for hook in (form.hooks or []) if isinstance(hook, dict) and hook.get("enabled", True)]
     if not hooks:
         return
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         for hook in hooks:
-            field_id = str(hook.get("fieldId") or "")
             url = str(hook.get("url") or "").strip()
             method = str(hook.get("method") or "POST").upper()
             if method not in {"POST", "PUT", "PATCH"} or not url.startswith(("http://", "https://")):
                 continue
-            if not field_id or not _field_value_changed(old_data, new_data, field_id):
+            matched, condition_results = _evaluate_hook_conditions(hook, old_data, new_data)
+            if not matched:
                 continue
-            new_value = new_data.get(field_id)
-            if not _hook_matches(hook, new_value):
-                continue
+            matched_field = next(
+                (result for result in condition_results if result["changed"] and result["matched"]),
+                condition_results[0],
+            )
+            field_id = str(matched_field["fieldId"])
 
             payload = {
                 "hook": {
@@ -63,6 +119,7 @@ async def trigger_form_hooks(
                     "name": hook.get("name") or "",
                     "matchType": hook.get("matchType") or "regex",
                     "fieldId": field_id,
+                    "conditionLogic": hook.get("conditionLogic") or "all",
                 },
                 "form": {
                     "id": form.id,
@@ -78,9 +135,11 @@ async def trigger_form_hooks(
                 },
                 "field": {
                     "id": field_id,
-                    "oldValue": old_data.get(field_id),
-                    "newValue": new_value,
+                    "oldValue": matched_field["oldValue"],
+                    "newValue": matched_field["newValue"],
                 },
+                "conditions": condition_results,
+                "conditionEvent": "form_record_conditions_matched",
                 "event": "form_record_field_changed",
             }
             headers = {

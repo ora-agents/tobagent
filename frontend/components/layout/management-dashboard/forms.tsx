@@ -48,14 +48,23 @@ export interface CustomFormField {
   options: string[]
 }
 
+export interface CustomFormHookCondition {
+  fieldId: string
+  matchType: "regex" | "value" | "empty" | "not_empty"
+  pattern: string
+  value: string
+}
+
 export interface CustomFormHook {
   id: string
   name: string
   enabled: boolean
-  fieldId: string
-  matchType: "regex" | "value"
-  pattern: string
-  value: string
+  conditions?: CustomFormHookCondition[]
+  conditionLogic?: "all" | "any"
+  fieldId?: string
+  matchType?: "regex" | "value"
+  pattern?: string
+  value?: string
   url: string
   method: "POST" | "PUT" | "PATCH"
   headers: Record<string, string>
@@ -128,19 +137,43 @@ function createDefaultField(type: CustomFormFieldType, locale: string, index: nu
   }
 }
 
-function createDefaultHook(fields: CustomFormField[], locale: string, index: number): CustomFormHook {
+function createDefaultHookCondition(fields: CustomFormField[]): CustomFormHookCondition {
   return {
-    id: `hook_${Date.now()}_${index}`,
-    name: locale === "zh" ? `字段 Hook ${index}` : `Field hook ${index}`,
-    enabled: true,
     fieldId: fields[0]?.id || "",
     matchType: "regex",
     pattern: "",
     value: "",
+  }
+}
+
+function createDefaultHook(fields: CustomFormField[], locale: string, index: number): CustomFormHook {
+  const condition = createDefaultHookCondition(fields)
+  return {
+    id: `hook_${Date.now()}_${index}`,
+    name: locale === "zh" ? `字段 Hook ${index}` : `Field hook ${index}`,
+    enabled: true,
+    conditions: [condition],
+    conditionLogic: "all",
+    fieldId: condition.fieldId,
+    matchType: "regex",
+    pattern: condition.pattern,
+    value: condition.value,
     url: "",
     method: "POST",
     headers: {},
   }
+}
+
+function getHookConditions(hook: CustomFormHook, fields: CustomFormField[]): CustomFormHookCondition[] {
+  if (hook.conditions && hook.conditions.length > 0) {
+    return hook.conditions
+  }
+  return [{
+    fieldId: hook.fieldId || fields[0]?.id || "",
+    matchType: hook.matchType || "regex",
+    pattern: hook.pattern || "",
+    value: hook.value || "",
+  }]
 }
 
 export function normalizeFieldValue(field: CustomFormField, value: string | number | boolean | null | undefined) {
@@ -223,7 +256,11 @@ export function FormFieldDesigner({
       fields,
       hooks: (definition.hooks || []).map(hook => ({
         ...hook,
-        fieldId: fieldIds.has(hook.fieldId) ? hook.fieldId : fields[0]?.id || "",
+        fieldId: hook.fieldId && fieldIds.has(hook.fieldId) ? hook.fieldId : fields[0]?.id || "",
+        conditions: getHookConditions(hook, fields).map(condition => ({
+          ...condition,
+          fieldId: fieldIds.has(condition.fieldId) ? condition.fieldId : fields[0]?.id || "",
+        })),
       })),
     })
   }
@@ -263,12 +300,55 @@ export function FormFieldDesigner({
     updateHooks((definition.hooks || []).map(hook => hook.id === hookId ? { ...hook, ...changes } : hook))
   }
 
+  const updateHookCondition = (hookId: string, conditionIndex: number, changes: Partial<CustomFormHookCondition>) => {
+    updateHooks((definition.hooks || []).map(hook => {
+      if (hook.id !== hookId) return hook
+      const conditions = getHookConditions(hook, definition.fields).map((condition, index) => (
+        index === conditionIndex ? { ...condition, ...changes } : condition
+      ))
+      return {
+        ...hook,
+        conditions,
+        fieldId: conditions[0]?.fieldId || "",
+        matchType: conditions[0]?.matchType === "value" ? "value" : "regex",
+        pattern: conditions[0]?.pattern || "",
+        value: conditions[0]?.value || "",
+      }
+    }))
+  }
+
   const addHook = () => {
     updateHooks([...(definition.hooks || []), createDefaultHook(definition.fields, locale, (definition.hooks || []).length + 1)])
   }
 
   const removeHook = (hookId: string) => {
     updateHooks((definition.hooks || []).filter(hook => hook.id !== hookId))
+  }
+
+  const addHookCondition = (hookId: string) => {
+    updateHooks((definition.hooks || []).map(hook => {
+      if (hook.id !== hookId) return hook
+      return {
+        ...hook,
+        conditions: [...getHookConditions(hook, definition.fields), createDefaultHookCondition(definition.fields)],
+      }
+    }))
+  }
+
+  const removeHookCondition = (hookId: string, conditionIndex: number) => {
+    updateHooks((definition.hooks || []).map(hook => {
+      if (hook.id !== hookId) return hook
+      const conditions = getHookConditions(hook, definition.fields).filter((_, index) => index !== conditionIndex)
+      const nextConditions = conditions.length > 0 ? conditions : [createDefaultHookCondition(definition.fields)]
+      return {
+        ...hook,
+        conditions: nextConditions,
+        fieldId: nextConditions[0]?.fieldId || "",
+        matchType: nextConditions[0]?.matchType === "value" ? "value" : "regex",
+        pattern: nextConditions[0]?.pattern || "",
+        value: nextConditions[0]?.value || "",
+      }
+    }))
   }
 
   const selectedFieldIndex = selectedField
@@ -431,10 +511,7 @@ export function FormFieldDesigner({
           {(definition.hooks || []).length > 0 ? (
             <div className="space-y-3">
               {(definition.hooks || []).map((hook, index) => {
-                const targetField = definition.fields.find(field => field.id === hook.fieldId) || definition.fields[0]
-                const valueOptions = targetField?.type === "select"
-                  ? targetField.options
-                  : targetField?.type === "boolean" ? ["true", "false"] : []
+                const conditions = getHookConditions(hook, definition.fields)
                 return (
                   <div key={hook.id} className="rounded-lg bg-background p-3 shadow-depth-xs">
                     <div className="mb-3 flex items-start justify-between gap-3">
@@ -462,59 +539,105 @@ export function FormFieldDesigner({
                       </button>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
-                      <FormField label={locale === "zh" ? "监听字段" : "Field"}>
-                        <Select value={hook.fieldId} onValueChange={(value) => updateHook(hook.id, { fieldId: value })}>
+                      <FormField label={locale === "zh" ? "条件关系" : "Condition logic"}>
+                        <Select value={hook.conditionLogic || "all"} onValueChange={(value) => updateHook(hook.id, { conditionLogic: value as CustomFormHook["conditionLogic"] })}>
                           <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {definition.fields.map(field => (
-                              <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
-                            ))}
+                            <SelectItem value="all">{locale === "zh" ? "全部满足" : "All conditions"}</SelectItem>
+                            <SelectItem value="any">{locale === "zh" ? "任一满足" : "Any condition"}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormField>
-                      <FormField label={locale === "zh" ? "匹配方式" : "Match"}>
-                        <Select value={hook.matchType} onValueChange={(value) => updateHook(hook.id, { matchType: value as CustomFormHook["matchType"] })}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="regex">{locale === "zh" ? "正则匹配" : "Regex"}</SelectItem>
-                            <SelectItem value="value">{locale === "zh" ? "匹配指定值" : "Exact value"}</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormField>
-                      {hook.matchType === "regex" ? (
-                        <FormField label={locale === "zh" ? "正则表达式" : "Regex"}>
-                          <Input
-                            value={hook.pattern}
-                            onChange={(event) => updateHook(hook.id, { pattern: event.target.value })}
-                            placeholder={targetField?.type === "number" ? "^\\d+$" : ".*"}
-                            className="font-mono text-xs"
-                          />
-                        </FormField>
-                      ) : valueOptions.length > 0 ? (
-                        <FormField label={locale === "zh" ? "匹配值" : "Value"}>
-                          <Select value={hook.value} onValueChange={(value) => updateHook(hook.id, { value })}>
-                            <SelectTrigger className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {valueOptions.map(option => (
-                                <SelectItem key={option} value={option}>{option}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </FormField>
-                      ) : (
-                        <FormField label={locale === "zh" ? "匹配值" : "Value"}>
-                          <Input
-                            value={hook.value}
-                            onChange={(event) => updateHook(hook.id, { value: event.target.value })}
-                          />
-                        </FormField>
-                      )}
+                      <div className="flex items-end justify-end">
+                        <Button type="button" variant="outline" size="sm" onClick={() => addHookCondition(hook.id)} className="h-9 rounded-lg">
+                          <Plus className="h-3.5 w-3.5" />
+                          {locale === "zh" ? "添加条件" : "Add condition"}
+                        </Button>
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        {conditions.map((condition, conditionIndex) => {
+                          const targetField = definition.fields.find(field => field.id === condition.fieldId) || definition.fields[0]
+                          const valueOptions = targetField?.type === "select"
+                            ? targetField.options
+                            : targetField?.type === "boolean" ? ["true", "false"] : []
+                          return (
+                            <div key={`${hook.id}_${conditionIndex}`} className="grid gap-2 rounded-lg bg-muted/55 p-2 md:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)_32px]">
+                              <FormField label={locale === "zh" ? "字段" : "Field"}>
+                                <Select value={condition.fieldId} onValueChange={(value) => updateHookCondition(hook.id, conditionIndex, { fieldId: value })}>
+                                  <SelectTrigger className="w-full bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {definition.fields.map(field => (
+                                      <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormField>
+                              <FormField label={locale === "zh" ? "匹配方式" : "Match"}>
+                                <Select value={condition.matchType} onValueChange={(value) => updateHookCondition(hook.id, conditionIndex, { matchType: value as CustomFormHookCondition["matchType"] })}>
+                                  <SelectTrigger className="w-full bg-background">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="regex">{locale === "zh" ? "正则" : "Regex"}</SelectItem>
+                                    <SelectItem value="value">{locale === "zh" ? "指定值" : "Exact"}</SelectItem>
+                                    <SelectItem value="empty">{locale === "zh" ? "为空" : "Empty"}</SelectItem>
+                                    <SelectItem value="not_empty">{locale === "zh" ? "不为空" : "Not empty"}</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </FormField>
+                              {condition.matchType === "regex" ? (
+                                <FormField label={locale === "zh" ? "正则表达式" : "Regex"}>
+                                  <Input
+                                    value={condition.pattern}
+                                    onChange={(event) => updateHookCondition(hook.id, conditionIndex, { pattern: event.target.value })}
+                                    placeholder={targetField?.type === "number" ? "^\\d+$" : ".*"}
+                                    className="bg-background font-mono text-xs"
+                                  />
+                                </FormField>
+                              ) : condition.matchType === "value" && valueOptions.length > 0 ? (
+                                <FormField label={locale === "zh" ? "匹配值" : "Value"}>
+                                  <Select value={condition.value} onValueChange={(value) => updateHookCondition(hook.id, conditionIndex, { value })}>
+                                    <SelectTrigger className="w-full bg-background">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {valueOptions.map(option => (
+                                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </FormField>
+                              ) : condition.matchType === "value" ? (
+                                <FormField label={locale === "zh" ? "匹配值" : "Value"}>
+                                  <Input
+                                    value={condition.value}
+                                    onChange={(event) => updateHookCondition(hook.id, conditionIndex, { value: event.target.value })}
+                                    className="bg-background"
+                                  />
+                                </FormField>
+                              ) : (
+                                <div className="flex items-end pb-2 text-xs text-muted-foreground">
+                                  {locale === "zh" ? "无需填写匹配值" : "No value required"}
+                                </div>
+                              )}
+                              <div className="flex items-end">
+                                <button
+                                  type="button"
+                                  onClick={() => removeHookCondition(hook.id, conditionIndex)}
+                                  className="mb-1 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                  title={locale === "zh" ? "删除条件" : "Delete condition"}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                       <FormField label={locale === "zh" ? "请求方法" : "Method"}>
                         <Select value={hook.method} onValueChange={(value) => updateHook(hook.id, { method: value as CustomFormHook["method"] })}>
                           <SelectTrigger className="w-full">

@@ -170,11 +170,20 @@ class FormFieldSchema(BaseModel):
     options: list[str] = Field(default_factory=list)
 
 
+class FormHookConditionSchema(BaseModel):
+    fieldId: str
+    matchType: Literal["regex", "value", "empty", "not_empty"] = "regex"
+    pattern: str = ""
+    value: str = ""
+
+
 class FormHookSchema(BaseModel):
     id: str
     name: str = ""
     enabled: bool = True
-    fieldId: str
+    conditions: list[FormHookConditionSchema] = Field(default_factory=list)
+    conditionLogic: Literal["all", "any"] = "all"
+    fieldId: str | None = None
     matchType: Literal["regex", "value"] = "regex"
     pattern: str = ""
     value: str = ""
