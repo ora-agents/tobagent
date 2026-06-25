@@ -399,11 +399,7 @@ export const MessageList = memo(function MessageList({
       {showScrollButton && (
         <button
           onClick={scrollToBottom}
-          className="scroll-button fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-3 z-40 rounded-full p-3 shadow-lg transition-transform hover:scale-110 active:scale-95 sm:right-8"
-          style={{
-            background: '#164199',
-            color: 'white',
-          }}
+          className="scroll-button fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-3 z-40 rounded-full bg-primary p-3 text-primary-foreground shadow-depth-hover transition-colors hover:bg-primary-active active:bg-primary-active sm:right-8"
           aria-label={t.scrollBottom}
         >
           <ArrowDown className="w-5 h-5" />

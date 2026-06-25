@@ -63,12 +63,12 @@ export function VoiceInputButton({
       size="sm"
       disabled={disabled || !isSupported}
       className={`
-        group ${dimensions} p-0 mb-0.5 rounded-full flex-shrink-0
-        transition-all duration-200 hover:scale-105 active:scale-95 border-0
+        group ${dimensions} p-0 mb-0.5 rounded-lg flex-shrink-0
+        transition-colors duration-200 border-0
         ${
           isActive
-            ? "bg-muted text-primary hover:text-primary hover:bg-muted/80 border-2 border-primary"
-            : "bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary"
+            ? "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary"
+            : "bg-card text-muted-foreground hover:bg-primary-soft hover:text-primary"
         }
       `}
       type="button"
@@ -76,7 +76,7 @@ export function VoiceInputButton({
     >
       {/* Pulse animation ring when listening */}
       {voiceState === "listening" && (
-        <span className="absolute inset-0 rounded-full border-2 border-primary/40 animate-ping" />
+        <span className="absolute inset-0 rounded-lg bg-primary/15 animate-ping" />
       )}
 
       {voiceState === "speaking" ? (

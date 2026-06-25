@@ -1,6 +1,6 @@
 "use client"
 
-import { History, GitBranch, Clock, ChevronRight } from "lucide-react"
+import { History, GitBranch, Clock, ChevronRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { Checkpoint } from "@/lib/hooks/threads"
@@ -28,19 +28,27 @@ export function TimeTravelPanel({
   if (!isOpen) return null
 
   return (
-    <div className="fixed right-0 top-0 h-full w-80 bg-card border-l border-border shadow-lg z-50 flex flex-col">
+    <div className="fixed right-0 top-0 z-50 flex h-full w-80 flex-col bg-card shadow-depth-hover">
       {/* Header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <History className="w-5 h-5" />
-            <h2 className="font-semibold">{t.timeTravel}</h2>
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft text-primary">
+              <History className="h-4 w-4" />
+            </span>
+            <h2 className="font-semibold text-foreground">{t.timeTravel}</h2>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            X
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            aria-label="Close time travel panel"
+          >
+            <X className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="mt-2 text-xs text-muted-foreground">
           {checkpoints.length} {t.checkpointsInConversation}
         </p>
       </div>
@@ -58,22 +66,22 @@ export function TimeTravelPanel({
             return (
               <div
                 key={checkpointId}
-                className={`p-3 rounded-lg border ${
+                className={`cursor-pointer rounded-lg p-3 transition-colors ${
                   isCurrent
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-muted/30 hover:bg-muted/50"
-                } transition-colors cursor-pointer`}
+                    ? "bg-primary-soft text-primary"
+                    : "bg-secondary text-foreground hover:bg-muted"
+                }`}
                 onClick={() => onJumpToCheckpoint(checkpointId)}
               >
                 {/* Step Info */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs font-medium">
+                    <Clock className={`h-3 w-3 ${isCurrent ? "text-primary" : "text-muted-foreground"}`} />
+                    <span className={`text-xs font-medium ${isCurrent ? "text-primary" : "text-foreground"}`}>
                       {t.step} {checkpoint.metadata?.step ?? idx}
                     </span>
                     {isCurrent && (
-                      <span className="text-xs text-primary">● {t.current}</span>
+                      <span className="rounded bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">{t.current}</span>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground">
@@ -86,7 +94,7 @@ export function TimeTravelPanel({
 
                 {/* Metadata */}
                 {checkpoint.metadata?.writes && (
-                  <div className="text-xs text-muted-foreground mb-2">
+                  <div className="mb-2 text-xs text-muted-foreground">
                     {Object.keys(checkpoint.metadata.writes).map((key) => (
                       <div key={key} className="flex items-center gap-1">
                         <ChevronRight className="w-3 h-3" />
@@ -97,11 +105,11 @@ export function TimeTravelPanel({
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2 mt-2">
+                <div className="mt-2 flex gap-2">
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
-                    className="flex-1 h-7 text-xs"
+                    className="h-7 flex-1 text-xs"
                     onClick={(e) => {
                       e.stopPropagation()
                       onJumpToCheckpoint(checkpointId)
@@ -111,9 +119,9 @@ export function TimeTravelPanel({
                     {t.jumpHere}
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="secondary"
                     size="sm"
-                    className="flex-1 h-7 text-xs"
+                    className="h-7 flex-1 text-xs"
                     onClick={(e) => {
                       e.stopPropagation()
                       onForkFromCheckpoint(checkpointId)

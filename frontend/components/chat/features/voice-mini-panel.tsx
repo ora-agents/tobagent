@@ -48,7 +48,7 @@ export function VoiceMiniPanel({
 
   return (
     <div className="fixed bottom-28 right-6 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-      <div className="w-60 rounded-xl border border-border/60 bg-card/95 backdrop-blur-sm shadow-lg overflow-hidden">
+      <div className="w-60 overflow-hidden rounded-xl bg-card shadow-depth-hover">
         {/* Header row: icon + state label + close button */}
         <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
           {/* State icon */}
@@ -58,10 +58,10 @@ export function VoiceMiniPanel({
               transition-all duration-300
               ${
                 voiceState === "listening"
-                  ? "bg-primary/10 ring-2 ring-primary/20"
+                  ? "bg-primary-soft"
                   : voiceState === "speaking"
-                    ? "bg-primary/15 ring-2 ring-primary/30"
-                    : "bg-muted/50 ring-2 ring-muted"
+                    ? "bg-primary-soft"
+                    : "bg-secondary"
               }
             `}
           >
@@ -81,7 +81,7 @@ export function VoiceMiniPanel({
 
             {/* Pulse ring when listening */}
             {voiceState === "listening" && (
-              <span className="absolute w-7 h-7 rounded-full border border-primary/30 animate-ping" />
+              <span className="absolute h-7 w-7 rounded-full bg-primary/15 animate-ping" />
             )}
           </div>
 
@@ -95,7 +95,7 @@ export function VoiceMiniPanel({
             variant="ghost"
             size="sm"
             onClick={onExit}
-            className="h-6 w-6 p-0 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            className="h-6 w-6 rounded-md p-0 text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

@@ -155,9 +155,9 @@ const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall
   const hasOutput = tool.output !== undefined && tool.output !== null && outputValue.length > 0
 
   return (
-    <details className="group/tool-call overflow-hidden rounded-lg bg-muted/70 text-xs text-foreground ring-1 ring-border/70 open:bg-card open:ring-border">
+    <details className="group/tool-call overflow-hidden rounded-lg bg-secondary text-xs text-foreground open:bg-card">
       <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20">
-        <Settings className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <Settings className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="shrink-0 font-mono text-[13px] font-semibold text-foreground">
           {tool.name}
         </span>
@@ -175,14 +175,14 @@ const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open/tool-call:rotate-180" />
         </div>
       </summary>
-      <div className="max-h-80 overflow-y-auto border-t border-border/70 px-3 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+      <div className="max-h-80 overflow-y-auto bg-muted px-3 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
         {argsValue && (
           <pre className="whitespace-pre-wrap break-words text-muted-foreground">
             {argsValue}
           </pre>
         )}
         {hasOutput && (
-          <pre className="mt-3 border-t border-border/70 pt-3 whitespace-pre-wrap break-words text-muted-foreground">
+          <pre className="mt-3 pt-3 whitespace-pre-wrap break-words text-muted-foreground">
             {outputValue}
           </pre>
         )}
@@ -470,7 +470,7 @@ export const MessageItem = memo(function MessageItem({
         <div
           className={`transition-all duration-150 ease-out ${
             message.role === "user"
-              ? "bg-card/95 backdrop-blur-sm border-2 border-border/50 rounded-xl px-3 py-2 text-foreground"
+              ? "rounded-xl bg-secondary px-3 py-2 text-foreground"
               : "text-foreground"
           }`}
           style={{
@@ -494,7 +494,7 @@ export const MessageItem = memo(function MessageItem({
             <details
               open={detailsOpen}
               onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
-              className="mb-3 rounded-lg border border-border/70 bg-muted/35 px-3 py-2 text-xs"
+              className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs"
             >
               <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors marker:text-muted-foreground">
                 {message.isThinking && (
@@ -518,7 +518,7 @@ export const MessageItem = memo(function MessageItem({
                   {message.processSteps.map((step, idx) => {
                     if (step.type === "text" && step.content) {
                       return (
-                        <div key={`ps-${idx}`} className="px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap bg-muted/20 rounded-lg border border-border/30">
+                        <div key={`ps-${idx}`} className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
                           {step.content}
                         </div>
                       )
@@ -547,14 +547,12 @@ export const MessageItem = memo(function MessageItem({
                       const fileSizeKB = file.size ? Math.round(file.size / 1024) : 0
 
                       // Get file type icon color
-                      const getFileColor = () => {
-                        return "text-white"
-                      }
+                      const getFileColor = () => "text-primary"
 
                       return (
                         <div
                           key={file.id}
-                          className="h-32 rounded-lg border-2 border-border bg-muted/30 hover:bg-muted/50 hover:border-primary transition-all flex flex-col overflow-hidden"
+                          className="flex h-32 flex-col overflow-hidden rounded-lg bg-muted transition-colors hover:bg-secondary"
                         >
                           {isImage ? (
                             // Image with filename overlay
@@ -578,7 +576,7 @@ export const MessageItem = memo(function MessageItem({
                                 {fileName}
                               </span>
                               <div className="flex items-center gap-1.5">
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded bg-muted ${getFileColor()}`}>
+                                <span className={`rounded bg-primary-soft px-1.5 py-0.5 text-xs font-bold ${getFileColor()}`}>
                                   {fileExt?.toUpperCase().slice(0, 4)}
                                 </span>
                                 {fileSizeKB > 0 && (
@@ -627,7 +625,7 @@ export const MessageItem = memo(function MessageItem({
                     >
                       {message.content}
                       {shouldCollapseUserMessage && !isUserMessageExpanded && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-card" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-secondary" />
                       )}
                     </div>
                     {shouldCollapseUserMessage && (
@@ -681,7 +679,7 @@ export const MessageItem = memo(function MessageItem({
                     variant="ghost"
                     size="sm"
                     onClick={() => onCopy(message.content, message.id)}
-                    className="h-8 px-2 text-xs"
+                    className="h-8 rounded-md bg-secondary px-2 text-xs text-foreground hover:bg-primary-soft hover:text-primary"
                   >
                     {copiedId === message.id ? (
                       <>
@@ -702,7 +700,7 @@ export const MessageItem = memo(function MessageItem({
                       size="sm"
                       onClick={onRegenerate}
                       disabled={isRegenerating}
-                      className="h-8 px-2 text-xs"
+                      className="h-8 rounded-md bg-secondary px-2 text-xs text-foreground hover:bg-primary-soft hover:text-primary"
                     >
                       <RefreshCw className={`w-3 h-3 mr-1 ${isRegenerating ? "animate-spin" : ""}`} />
                       {t.regenerate}

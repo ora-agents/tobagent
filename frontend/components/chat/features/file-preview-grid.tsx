@@ -17,7 +17,7 @@ interface FilePreviewGridProps {
  * Get color class for file extension badge based on file type.
  */
 function getFileColor(fileExt: string | undefined): string {
-  return "text-white"
+  return "text-primary"
 }
 
 /**
@@ -31,7 +31,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
   const fileSizeKB = file.size ? Math.round(file.size / 1024) : 0
 
   return (
-    <div className="group relative h-24 rounded-lg border-2 border-border hover:border-primary bg-card/50 hover:bg-muted/50 transition-all flex flex-col overflow-hidden">
+    <div className="group relative flex h-24 flex-col overflow-hidden rounded-lg bg-secondary transition-colors hover:bg-muted">
       {isImage ? (
         // Image preview
         <div className="relative h-full w-full">
@@ -57,7 +57,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={`w-8 h-8 mb-1.5 ${getFileColor(fileExt)}`}
+            className={`mb-1.5 h-8 w-8 ${getFileColor(fileExt)}`}
           >
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
@@ -66,7 +66,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
             {fileName}
           </span>
           <div className="flex items-center gap-1">
-            <span className={`text-[10px] font-bold px-1 py-0.5 rounded bg-muted ${getFileColor(fileExt)}`}>
+            <span className={`rounded bg-primary-soft px-1 py-0.5 text-[10px] font-bold ${getFileColor(fileExt)}`}>
               {fileExt?.toUpperCase().slice(0, 4) || t.file.toUpperCase()}
             </span>
             {fileSizeKB > 0 && (
@@ -85,7 +85,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
           e.stopPropagation()
           onRemove(file.id)
         }}
-        className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all shadow-lg z-10 cursor-pointer"
+        className="absolute right-1 top-1 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full bg-card text-muted-foreground opacity-100 transition-colors hover:bg-primary-soft hover:text-primary sm:opacity-0 sm:group-hover:opacity-100"
         type="button"
         title={t.removeFile}
       >

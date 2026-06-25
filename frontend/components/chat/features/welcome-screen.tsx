@@ -124,7 +124,7 @@ export function WelcomeScreen({
         {/* Header */}
         <div className="mb-4 text-center sm:mb-5">
           <h2
-            className="mb-2 text-3xl font-medium leading-tight text-foreground sm:text-5xl"
+            className="mb-2 text-3xl font-medium leading-tight tracking-normal text-foreground sm:text-5xl"
             style={{ fontFamily: "var(--font-display), 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif" }}
           >
             {t.whatCanIHelpWith}
@@ -153,14 +153,14 @@ export function WelcomeScreen({
 
         {/* Upload Error */}
         {uploadError && (
-          <div className="mb-3 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+          <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
             {uploadError}
           </div>
         )}
 
         {/* Voice Error */}
         {voiceError && (
-          <div className="mb-3 text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+          <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
             {voiceError}
           </div>
         )}
@@ -169,7 +169,7 @@ export function WelcomeScreen({
         <div className="relative">
           <div className="relative">
             <div
-              className={`relative rounded-xl bg-muted shadow-depth-sm transition-[background-color,box-shadow] duration-200 focus-within:bg-background focus-within:shadow-depth-md ${
+              className={`relative rounded-xl bg-secondary transition-[background-color,box-shadow] duration-200 focus-within:bg-card focus-within:ring-[3px] focus-within:ring-ring/15 ${
                 isDragging
                   ? 'bg-primary-soft ring-[3px] ring-primary/25'
                   : ''
@@ -199,7 +199,7 @@ export function WelcomeScreen({
                   variant="ghost"
                   size="sm"
                   disabled={isLoading || !userId || isAgentLoading || !hasActiveAgent}
-                  className="mb-0.5 h-9 w-9 flex-shrink-0 rounded-lg bg-background/80 p-0 text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
+                  className="mb-0.5 h-9 w-9 flex-shrink-0 rounded-lg bg-card p-0 text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
                   type="button"
                   title={t.attachFiles}
                 >
@@ -253,7 +253,7 @@ export function WelcomeScreen({
                   className={`
                     h-9 px-4 mb-0.5 rounded-lg flex-shrink-0
                     transition-colors duration-200
-                    bg-primary-soft text-primary hover:text-primary hover:bg-primary-soft
+                    bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary
                     ${isStopping ? 'opacity-60 cursor-not-allowed' : ''}
                   `}
                   type="button"

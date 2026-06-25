@@ -35,13 +35,13 @@ export function VoiceModeOverlay({
   if (voiceState === "idle") return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95">
       {/* Close button */}
       <Button
         variant="ghost"
         size="sm"
         onClick={onExit}
-        className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+        className="absolute right-4 top-4 rounded-lg bg-secondary text-muted-foreground hover:bg-primary-soft hover:text-primary"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -66,12 +66,12 @@ export function VoiceModeOverlay({
             transition-all duration-500
             ${
               voiceState === "listening"
-                ? "bg-primary/10 ring-4 ring-primary/20 animate-pulse"
+                ? "bg-primary-soft animate-pulse"
                 : voiceState === "speaking"
-                  ? "bg-primary/15 ring-4 ring-primary/30"
+                  ? "bg-primary-soft"
                   : voiceState === "processing" || voiceState === "loading" || voiceState === "transcribing"
-                    ? "bg-muted/50 ring-4 ring-muted"
-                    : "bg-muted/30"
+                    ? "bg-secondary"
+                    : "bg-secondary"
             }
           `}
         >
@@ -93,9 +93,9 @@ export function VoiceModeOverlay({
         {/* Pulsing ring animation when listening */}
         {voiceState === "listening" && (
           <>
-            <div className="absolute inset-0 rounded-full border-2 border-primary/30 animate-ping" />
+            <div className="absolute inset-0 rounded-full bg-primary/15 animate-ping" />
             <div
-              className="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping"
+              className="absolute inset-0 rounded-full bg-primary/10 animate-ping"
               style={{ animationDelay: "0.5s" }}
             />
           </>
@@ -113,7 +113,7 @@ export function VoiceModeOverlay({
       {/* Real-time transcript */}
       {currentTranscript && (
         <div className="max-w-md px-6 text-center">
-          <p className="text-lg text-foreground/80 italic">
+          <p className="text-lg italic text-foreground">
             &ldquo;{currentTranscript}&rdquo;
           </p>
         </div>
