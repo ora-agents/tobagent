@@ -1,4 +1,4 @@
-import { Check, Copy, FileText, RefreshCw } from "lucide-react"
+import { Check, ChevronDown, Copy, FileText, RefreshCw, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import ReactMarkdown from "react-markdown"
@@ -7,7 +7,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { ThinkingTimer } from "./animations/thinking-timer"
 import { AnimatedThinking } from "./animations/animated-thinking"
-import type { Message } from "@/lib/types"
+import type { Message, ToolCall } from "@/lib/types"
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react"
 import { useT } from "@/lib/i18n"
 import { isAndroidWebView } from "@/lib/voice/utils/browser"
@@ -125,6 +125,69 @@ const extractTextFromNode = (node: any): string => {
   }
   return ''
 }
+
+const formatToolValue = (value: unknown): string => {
+  if (value === undefined || value === null) return ""
+  if (typeof value === "string") return value
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+const getToolArgsSummary = (args: Record<string, any>): string => {
+  if (typeof args?.url === "string") return args.url
+  if (typeof args?.query === "string") return args.query
+
+  const compactArgs = JSON.stringify(args)
+  return compactArgs && compactArgs !== "{}" ? compactArgs : ""
+}
+
+const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall }) {
+  const t = useT()
+  const argsValue = formatToolValue(tool.args).trim()
+  const outputValue = formatToolValue(tool.output).trim()
+  const argsSummary = getToolArgsSummary(tool.args)
+  const hasOutput = tool.output !== undefined && tool.output !== null && outputValue.length > 0
+
+  return (
+    <details className="group/tool-call overflow-hidden rounded-lg bg-muted/70 text-xs text-foreground ring-1 ring-border/70 open:bg-card open:ring-border">
+      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20">
+        <Settings className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="shrink-0 font-mono text-[13px] font-semibold text-foreground">
+          {tool.name}
+        </span>
+        {argsSummary && (
+          <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-muted-foreground">
+            {argsSummary}
+          </span>
+        )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {hasOutput ? (
+            <Check className="h-3.5 w-3.5 text-success" />
+          ) : (
+            <span className="text-[11px] text-muted-foreground">{t.running}</span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open/tool-call:rotate-180" />
+        </div>
+      </summary>
+      <div className="max-h-80 overflow-y-auto border-t border-border/70 px-3 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+        {argsValue && (
+          <pre className="whitespace-pre-wrap break-words text-muted-foreground">
+            {argsValue}
+          </pre>
+        )}
+        {hasOutput && (
+          <pre className="mt-3 border-t border-border/70 pt-3 whitespace-pre-wrap break-words text-muted-foreground">
+            {outputValue}
+          </pre>
+        )}
+      </div>
+    </details>
+  )
+})
 
 /**
  * Individual code block component with its own copy state
@@ -264,6 +327,8 @@ export const MessageItem = memo(function MessageItem({
   //   the user can see the result without having to click.
   // - The user can still manually toggle by clicking the <summary>.
   const hasProcessContent = !!(message.processSteps && message.processSteps.length > 0)
+  const hasTextProcessSteps = !!message.processSteps?.some(step => step.type === "text" && step.content)
+  const showProcessDetailsPanel = !!message.isThinking || hasTextProcessSteps
 
   const [detailsOpen, setDetailsOpen] = useState(
     () => !!message.isThinking || hasProcessContent
@@ -373,6 +438,11 @@ export const MessageItem = memo(function MessageItem({
         .prose > * {
           transition: opacity 0.1s ease-out;
         }
+
+        details > summary::-webkit-details-marker {
+          display: none;
+        }
+
       `}</style>
       <div className={`flex min-w-0 gap-3 sm:gap-4 items-start group/message ${message.role === "user" ? "justify-end" : ""}`}>
       <div
@@ -396,7 +466,18 @@ export const MessageItem = memo(function MessageItem({
           }}
         >
           {/* Process panel - only shown when there are intermediate process steps */}
-          {message.role === "assistant" && message.processSteps && message.processSteps.length > 0 && (
+          {message.role === "assistant" && message.processSteps && message.processSteps.length > 0 && !showProcessDetailsPanel && (
+            <div className="mb-3 space-y-2">
+              {message.processSteps.map((step, idx) => {
+                if (step.type === "tool" && step.tool) {
+                  return <ToolCallPreview key={`ps-${idx}-${step.tool.id}`} tool={step.tool} />
+                }
+                return null
+              })}
+            </div>
+          )}
+
+          {message.role === "assistant" && message.processSteps && message.processSteps.length > 0 && showProcessDetailsPanel && (
             <details
               open={detailsOpen}
               onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
@@ -431,38 +512,7 @@ export const MessageItem = memo(function MessageItem({
                     } else if (step.type === "tool" && step.tool) {
                       const tool = step.tool
                       return (
-                        <div
-                          key={`ps-${idx}-${tool.id}`}
-                          className="px-3 py-2 rounded-lg border border-border bg-muted/50 text-xs"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-primary">
-                              {t.tool}: {tool.name}
-                            </span>
-                          </div>
-                          <div className="text-xs font-mono text-muted-foreground">
-                            <details>
-                              <summary className="cursor-pointer hover:opacity-80">
-                                {t.viewArguments}
-                              </summary>
-                              <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                                {JSON.stringify(tool.args, null, 2)}
-                              </pre>
-                            </details>
-                            {tool.output && (
-                              <details className="mt-2">
-                                <summary className="cursor-pointer hover:opacity-80">
-                                  {t.viewOutput}
-                                </summary>
-                                <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">
-                                  {typeof tool.output === "string"
-                                    ? tool.output
-                                    : JSON.stringify(tool.output, null, 2)}
-                                </pre>
-                              </details>
-                            )}
-                          </div>
-                        </div>
+                        <ToolCallPreview key={`ps-${idx}-${tool.id}`} tool={tool} />
                       )
                     }
                     return null
