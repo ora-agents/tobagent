@@ -25,7 +25,11 @@ from src.utils.db import (
 from src.utils.form_permissions import normalize_form_permissions
 from src.utils.mcp import discover_mcp_capabilities
 from src.utils.runtime_context import get_runtime_context_value
-from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
+from src.utils.skill_validation import (
+    SkillValidationError,
+    normalize_skill_content,
+    skill_identity_from_content,
+)
 
 
 def _now() -> str:
@@ -222,11 +226,19 @@ class UpsertSkillInput(BaseModel):
         description="Fallback skill name. The saved name is read from the skill frontmatter when present.",
     )
     description: str = ""
+    version: str = Field(
+        default="1.0.0",
+        description="Skill version written to the top-level YAML frontmatter.",
+    )
+    category: str = Field(
+        default="general",
+        description="Short skill category written to the top-level YAML frontmatter.",
+    )
     content: str = Field(
         description=(
             "Skill Markdown using the standard template: YAML frontmatter with "
-            "name, description, and allowed-tools, followed by headed Markdown sections. "
-            "Optional parameters may be declared in frontmatter under 'parameters'."
+            "name, description, version, and category, followed by headed Markdown sections. "
+            "Optional allowed-tools and parameters may be declared when non-empty; omit empty arrays."
         )
     )
 
@@ -252,6 +264,11 @@ class UpsertSkillTool(BaseTool):
                 db.add(skill)
             content = str(kwargs.get("content") or "")
             try:
+                content = normalize_skill_content(
+                    content,
+                    version=str(kwargs.get("version") or "").strip() or "1.0.0",
+                    category=str(kwargs.get("category") or "").strip() or "general",
+                )
                 skill_name, skill_description = skill_identity_from_content(
                     content,
                     fallback_name=str(kwargs.get("name") or ""),

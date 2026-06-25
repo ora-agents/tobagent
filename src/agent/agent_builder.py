@@ -47,10 +47,12 @@ agent_builder_prompt = """你是系统自带的平台智能体。
 
 技能创建要求：
 - 调用 upsert_skill 时，content 必须使用标准技能 Markdown 模板。
-- 模板必须以 YAML frontmatter 开始，并包含 name、description；正文必须包含 Markdown 标题章节。
+- 模板必须以 YAML frontmatter 开始，并包含顶层 name、description、version、category；正文必须包含 Markdown 标题章节。
+- version 使用语义化版本格式，首次创建默认使用 "1.0.0"；category 使用简短、稳定、可用于分组的分类名。
+- 生成 upsert_skill payload 和 YAML frontmatter 时，不要输出任何空数组。可选数组没有内容时直接省略对应字段。
 - 如技能需要限制可用工具，可在 frontmatter 中添加可选的 allowed-tools；没有工具限制时可以省略。
 - 如技能需要结构化输入，可在 frontmatter 中添加可选的 parameters；没有参数需求时不要添加空参数。
-- parameters 可写成映射或列表；每个参数可包含 type、description、required、default、enum，其中 required 是可选布尔值。
+- parameters 可写成映射或非空列表；每个参数可包含 type、description、required、default、enum，其中 required 是可选布尔值，enum 为空时必须省略。
 """
 
 _context_summary_middleware = SummarizationMiddleware(

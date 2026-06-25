@@ -37,6 +37,30 @@ def parse_skill_markdown(content: str) -> tuple[dict[str, Any], str]:
     return raw_frontmatter, match.group("body")
 
 
+def normalize_skill_content(
+    content: str,
+    *,
+    version: str = "",
+    category: str = "",
+) -> str:
+    """Return skill Markdown with canonical frontmatter and no empty arrays."""
+    frontmatter, body = parse_skill_markdown(content)
+    normalized = _without_empty_arrays(frontmatter)
+
+    if version and not _has_non_empty_value(normalized.get("version")):
+        normalized["version"] = version.strip()
+    if category and not _has_non_empty_value(normalized.get("category")):
+        normalized["category"] = category.strip()
+
+    yaml_content = yaml.safe_dump(
+        normalized,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+    ).rstrip()
+    return f"---\n{yaml_content}\n---\n{body.lstrip()}"
+
+
 def validate_skill_content(content: str) -> dict[str, Any]:
     """Validate skill Markdown and return parsed frontmatter."""
     frontmatter, body = parse_skill_markdown(content)
@@ -82,6 +106,22 @@ def skill_identity_from_content(
 
 def _has_non_empty_value(value: Any) -> bool:
     return value is not None and str(value).strip() != ""
+
+
+def _without_empty_arrays(value: Any) -> Any:
+    """Recursively remove mapping entries whose normalized value is an empty list."""
+    if isinstance(value, dict):
+        normalized = {}
+        for key, item in value.items():
+            cleaned = _without_empty_arrays(item)
+            if isinstance(cleaned, list) and not cleaned:
+                continue
+            normalized[key] = cleaned
+        return normalized
+    if isinstance(value, list):
+        normalized = [_without_empty_arrays(item) for item in value]
+        return [item for item in normalized if not (isinstance(item, list) and not item)]
+    return value
 
 
 def _allowed_tools(value: Any) -> list[str]:

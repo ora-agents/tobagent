@@ -5,7 +5,12 @@ from sqlalchemy.orm import sessionmaker
 
 from src.tools.agent_builder_tool import UpsertSkillTool
 from src.utils.db import Base, SkillTable
-from src.utils.skill_validation import SkillValidationError, validate_skill_content
+from src.utils.skill_validation import (
+    SkillValidationError,
+    normalize_skill_content,
+    parse_skill_markdown,
+    validate_skill_content,
+)
 
 VALID_SKILL = """---
 name: customer-intake
@@ -97,6 +102,37 @@ def test_validate_skill_content_rejects_empty_allowed_tools_when_present():
         raise AssertionError("Expected SkillValidationError")
 
 
+def test_normalize_skill_content_filters_empty_arrays_and_adds_metadata():
+    content = """---
+name: normalized-skill
+description: Normalize generated frontmatter.
+allowed-tools: []
+parameters:
+  query:
+    type: string
+    enum: []
+tags: []
+---
+
+# Purpose
+
+Normalize platform-agent output.
+"""
+
+    normalized = normalize_skill_content(
+        content,
+        version="1.0.0",
+        category="workflow",
+    )
+    frontmatter, _ = parse_skill_markdown(normalized)
+
+    assert frontmatter["version"] == "1.0.0"
+    assert frontmatter["category"] == "workflow"
+    assert "allowed-tools" not in frontmatter
+    assert "tags" not in frontmatter
+    assert "enum" not in frontmatter["parameters"]["query"]
+
+
 def test_validate_skill_content_rejects_missing_frontmatter():
     try:
         validate_skill_content("# Purpose\nMissing frontmatter.")
@@ -156,6 +192,8 @@ def test_upsert_skill_tool_saves_valid_content_with_frontmatter_identity(monkeyp
     result = UpsertSkillTool()._run(
         name="Fallback",
         description="Fallback description.",
+        version="2.1.0",
+        category="crm",
         content=VALID_SKILL,
     )
 
@@ -167,5 +205,31 @@ def test_upsert_skill_tool_saves_valid_content_with_frontmatter_identity(monkeyp
         saved = db.query(SkillTable).one()
         assert saved.name == "customer-intake"
         assert saved.description == "Collect customer intake details before routing."
+        frontmatter, _ = parse_skill_markdown(saved.content)
+        assert frontmatter["version"] == "2.1.0"
+        assert frontmatter["category"] == "crm"
+    finally:
+        db.close()
+
+
+def test_upsert_skill_tool_filters_empty_frontmatter_arrays(monkeypatch):
+    Session = _session_factory()
+    monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)
+    monkeypatch.setattr(
+        "src.tools.agent_builder_tool.get_runtime_context_value",
+        lambda key, default=None: "user_1" if key == "user_id" else default,
+    )
+    content = VALID_SKILL_WITHOUT_ALLOWED_TOOLS.replace(
+        "description: A skill that only provides behavioral instructions.",
+        "description: A skill that only provides behavioral instructions.\nallowed-tools: []",
+    )
+
+    result = UpsertSkillTool()._run(content=content)
+
+    assert json.loads(result)["status"] == "saved"
+    db = Session()
+    try:
+        frontmatter, _ = parse_skill_markdown(db.query(SkillTable).one().content)
+        assert "allowed-tools" not in frontmatter
     finally:
         db.close()
