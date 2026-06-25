@@ -2,7 +2,8 @@
   "name": "tobagent",
   "dependencies": ["."],
   "graphs": {
-    "generic_agent": "./src/agent/generic_agent.py:generic_agent"
+    "generic_agent": "./src/agent/generic_agent.py:generic_agent",
+    "agent_builder": "./src/agent/agent_builder.py:agent_builder"
   },
   "env": ".env",
   "auth": {
