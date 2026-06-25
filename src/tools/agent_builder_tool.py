@@ -25,6 +25,7 @@ from src.utils.db import (
 from src.utils.form_permissions import normalize_form_permissions
 from src.utils.mcp import discover_mcp_capabilities
 from src.utils.runtime_context import get_runtime_context_value
+from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
 
 
 def _now() -> str:
@@ -216,9 +217,18 @@ class UpsertSkillInput(BaseModel):
     """Input for creating or updating a skill."""
 
     skill_id: str = ""
-    name: str
+    name: str = Field(
+        default="",
+        description="Fallback skill name. The saved name is read from the skill frontmatter when present.",
+    )
     description: str = ""
-    content: str
+    content: str = Field(
+        description=(
+            "Skill Markdown using the standard template: YAML frontmatter with "
+            "name, description, and allowed-tools, followed by headed Markdown sections. "
+            "Optional parameters may be declared in frontmatter under 'parameters'."
+        )
+    )
 
 
 class UpsertSkillTool(BaseTool):
@@ -240,9 +250,18 @@ class UpsertSkillTool(BaseTool):
             if skill is None:
                 skill = SkillTable(id=_new_id("skill"), owner_user_id=owner, created_at=now)
                 db.add(skill)
-            skill.name = str(kwargs.get("name") or "").strip()
-            skill.description = str(kwargs.get("description") or "")
-            skill.content = str(kwargs.get("content") or "")
+            content = str(kwargs.get("content") or "")
+            try:
+                skill_name, skill_description = skill_identity_from_content(
+                    content,
+                    fallback_name=str(kwargs.get("name") or ""),
+                    fallback_description=str(kwargs.get("description") or ""),
+                )
+            except SkillValidationError as exc:
+                return f"Skill validation failed: {exc}"
+            skill.name = skill_name
+            skill.description = skill_description
+            skill.content = content
             skill.updated_at = now
             db.commit()
             _invalidate_runtime_caches(owner_user_id=owner)

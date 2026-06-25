@@ -13,6 +13,7 @@ from src.api.services import (
 )
 from src.utils.db import SkillTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
+from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
 
 router = APIRouter(tags=["skills"])
 
@@ -52,12 +53,21 @@ async def create_skill(
     existing = db.query(SkillTable).filter(SkillTable.id == skill_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Skill already exists")
-    
+
+    try:
+        skill_name, skill_description = skill_identity_from_content(
+            skill_data.content,
+            fallback_name=skill_data.name,
+            fallback_description=skill_data.description or "",
+        )
+    except SkillValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     new_skill = SkillTable(
         id=skill_data.id,
         owner_user_id=current_user.id,
-        name=skill_data.name,
-        description=skill_data.description,
+        name=skill_name,
+        description=skill_description,
         content=skill_data.content,
         created_at=skill_data.createdAt,
         updated_at=skill_data.updatedAt,
@@ -87,9 +97,18 @@ async def update_skill(
     ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
-    
-    skill.name = skill_data.name
-    skill.description = skill_data.description
+
+    try:
+        skill_name, skill_description = skill_identity_from_content(
+            skill_data.content,
+            fallback_name=skill_data.name,
+            fallback_description=skill_data.description or "",
+        )
+    except SkillValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    skill.name = skill_name
+    skill.description = skill_description
     skill.content = skill_data.content
     skill.updated_at = skill_data.updatedAt
     
@@ -120,4 +139,3 @@ async def delete_skill(
     db.commit()
     _invalidate_runtime_caches(owner_user_id=current_user.id)
     return {"status": "success", "message": f"Skill {id} deleted"}
-
