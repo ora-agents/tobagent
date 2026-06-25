@@ -1,8 +1,10 @@
 """Tests for Langfuse agent tracing configuration."""
 
+import copy
 from unittest.mock import Mock, patch
 
 from src.utils.langfuse_tracing import (
+    CopyableLangfuseCallbackHandler,
     get_langfuse_handler,
     langfuse_is_configured,
     with_langfuse_tracing,
@@ -49,3 +51,17 @@ def test_get_langfuse_handler_returns_none_without_credentials(monkeypatch):
     get_langfuse_handler.cache_clear()
 
     assert get_langfuse_handler() is None
+
+
+def test_langfuse_handler_can_be_deep_copied():
+    handler = object.__new__(CopyableLangfuseCallbackHandler)
+    copied_handler = Mock()
+
+    with patch.object(
+        CopyableLangfuseCallbackHandler,
+        "__new__",
+        return_value=copied_handler,
+    ):
+        copied = copy.deepcopy(handler)
+
+    assert copied is copied_handler
