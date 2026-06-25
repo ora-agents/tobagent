@@ -2056,7 +2056,7 @@ export function ManagementDashboard({
 
               <ScrollArea className="min-h-0 flex-1 bg-background">
                 {isCreatingForm || isEditingForm ? (
-                  <div className="mx-auto max-w-7xl space-y-5 p-6">
+                  <div className="w-full min-w-0 space-y-5 p-4 sm:p-6">
                     <div>
                       <h2 className="text-lg font-semibold">{isCreatingForm ? (locale === "zh" ? "新建表单" : "Create Form") : (locale === "zh" ? "编辑表单" : "Edit Form")}</h2>
                       <p className="mt-1 text-sm text-muted-foreground">
@@ -2094,7 +2094,7 @@ export function ManagementDashboard({
                     />
                   </div>
                 ) : selectedForm ? (
-                  <div className="mx-auto max-w-7xl space-y-5 p-6">
+                  <div className="w-full min-w-0 space-y-5 p-4 sm:p-6">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2">
