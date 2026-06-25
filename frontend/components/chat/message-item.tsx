@@ -1,5 +1,6 @@
 import { Check, ChevronDown, Copy, FileText, RefreshCw, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { Textarea } from "@/components/ui/textarea"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -174,7 +175,11 @@ const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform group-open/tool-call:rotate-180" />
         </div>
       </summary>
-      <div className="max-h-80 overflow-y-auto bg-muted px-3 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+      <ScrollArea
+        className="bg-muted [&_[data-slot=scroll-area-scrollbar]]:opacity-0 [&_[data-slot=scroll-area-scrollbar]]:transition-opacity hover:[&_[data-slot=scroll-area-scrollbar]]:opacity-100 focus-within:[&_[data-slot=scroll-area-scrollbar]]:opacity-100"
+        viewportClassName="!h-auto max-h-80 px-3 py-3"
+        contentClassName="font-mono text-[11px] leading-relaxed text-muted-foreground"
+      >
         {argsValue && (
           <pre className="whitespace-pre-wrap break-words text-muted-foreground">
             {argsValue}
@@ -185,7 +190,7 @@ const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall
             {outputValue}
           </pre>
         )}
-      </div>
+      </ScrollArea>
     </details>
   )
 })

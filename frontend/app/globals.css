@@ -4,6 +4,30 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+textarea.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+textarea.scrollbar-none::-webkit-scrollbar-track,
+textarea.scrollbar-none::-webkit-scrollbar-thumb,
+textarea.scrollbar-none::-webkit-scrollbar-corner {
+  background: transparent !important;
+  border: 0 !important;
+}
+
 /* ============================================================
    Light theme (default) — white-first WSIRI workspace
    ============================================================ */
