@@ -378,6 +378,7 @@ export function ChatInterface({
 
       try {
         console.log('Loading thread history for:', currentThreadId)
+        setMessages([])
         const state = await client.threads.getState(currentThreadId).catch((err) => {
           // 403 means auth issue (shouldn't happen after our fixes, but handle gracefully)
           if (err?.response?.status === 403 || err?.status === 403) {
@@ -1063,6 +1064,7 @@ export function ChatInterface({
         <MessageList
           messages={messages}
           forceAutoScroll={shouldFollowVoiceMessages}
+          isLoadingThread={uiState.isLoadingThread}
           isRegenerating={uiState.isRegenerating}
           copiedId={uiState.copiedId}
           onCopy={handleCopy}

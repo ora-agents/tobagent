@@ -2,12 +2,14 @@ import { memo, useMemo, useEffect, useRef, useState, useCallback } from "react"
 import type { Message } from "@/lib/types"
 import { MessageItem } from "./message-item"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { ArrowDown } from "lucide-react"
 import { useT } from "@/lib/i18n"
 
 interface MessageListProps {
   messages: Message[]
   forceAutoScroll?: boolean
+  isLoadingThread?: boolean
   isRegenerating: boolean
   copiedId: string | null
   onCopy: (content: string, messageId: string) => void
@@ -18,6 +20,7 @@ interface MessageListProps {
 export const MessageList = memo(function MessageList({
   messages,
   forceAutoScroll = false,
+  isLoadingThread = false,
   isRegenerating,
   copiedId,
   onCopy,
@@ -333,6 +336,37 @@ export const MessageList = memo(function MessageList({
     }, 400)
   }, [])
 
+  const historySkeleton = (
+    <div className="space-y-6" aria-busy="true" aria-label={t.loadingConversations} role="status">
+      <div className="flex justify-end">
+        <div className="w-[82%] max-w-[34rem] rounded-2xl rounded-br-md bg-secondary px-4 py-3">
+          <LoadingPlaceholder className="mb-2 h-3 w-3/5" />
+          <LoadingPlaceholder className="h-3 w-4/5" />
+        </div>
+      </div>
+      <div className="flex justify-start">
+        <div className="w-[88%] max-w-[38rem] space-y-2">
+          <LoadingPlaceholder className="h-3 w-28" />
+          <LoadingPlaceholder className="h-3 w-full" />
+          <LoadingPlaceholder className="h-3 w-[92%]" />
+          <LoadingPlaceholder className="h-3 w-2/3" />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <div className="w-[68%] max-w-[28rem] rounded-2xl rounded-br-md bg-secondary px-4 py-3">
+          <LoadingPlaceholder className="h-3 w-full" />
+        </div>
+      </div>
+      <div className="flex justify-start">
+        <div className="w-[86%] max-w-[36rem] space-y-2">
+          <LoadingPlaceholder className="h-3 w-24" />
+          <LoadingPlaceholder className="h-3 w-[95%]" />
+          <LoadingPlaceholder className="h-3 w-3/4" />
+        </div>
+      </div>
+    </div>
+  )
+
 
   return (
     <>
@@ -372,7 +406,7 @@ export const MessageList = memo(function MessageList({
         viewportClassName="relative scroll-smooth [contain:layout_style_paint] [will-change:scroll-position]"
       >
         <div className="mx-auto w-full max-w-4xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-8">
-          {messages.map((message, idx) => {
+          {isLoadingThread && messages.length === 0 ? historySkeleton : messages.map((message, idx) => {
             const isLastMessage = idx === messages.length - 1
             return (
               <div
@@ -396,7 +430,7 @@ export const MessageList = memo(function MessageList({
         </div>
       </ScrollArea>
 
-      {showScrollButton && (
+      {showScrollButton && !isLoadingThread && (
         <button
           onClick={scrollToBottom}
           className="scroll-button fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-3 z-40 rounded-full bg-primary p-3 text-primary-foreground shadow-depth-hover transition-colors hover:bg-primary-active active:bg-primary-active sm:right-8"
