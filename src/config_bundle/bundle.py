@@ -235,6 +235,7 @@ def build_export_bundle(
                     "description": row.description,
                     "category": row.category or "",
                     "fields": copy.deepcopy(row.fields or []),
+                    "hooks": copy.deepcopy(row.hooks or []),
                 }),
             )
             if request.options.includeFormRecords:
@@ -620,6 +621,7 @@ def execute_import(
                     row.description = item.get("description")
                     row.category = str(item.get("category") or "").strip()
                     row.fields = copy.deepcopy(item.get("fields") or [])
+                    row.hooks = copy.deepcopy(item.get("hooks") or [])
                     if existing:
                         db.query(FormRecordTable).filter(
                             FormRecordTable.form_id == target_id,

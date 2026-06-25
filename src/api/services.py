@@ -168,6 +168,7 @@ def _form_schema(form: FormTable, record_count: int = 0) -> FormSchema:
         description=form.description,
         category=form.category or "",
         fields=form.fields or [],
+        hooks=form.hooks or [],
         recordCount=record_count,
         createdAt=form.created_at,
         updatedAt=form.updated_at,
@@ -511,6 +512,7 @@ def _copy_shared_agent_resources(
                 description=form.description,
                 category=form.category or "",
                 fields=copy.deepcopy(form.fields or []),
+                hooks=copy.deepcopy(form.hooks or []),
                 created_at=now,
                 updated_at=now,
             ))
@@ -646,6 +648,7 @@ def agent_profiles_to_toml(
                 "name": form.name,
                 "description": form.description or "",
                 "category": form.category or "",
+                "hooks": copy.deepcopy(form.hooks or []),
                 "createdAt": form.created_at,
                 "updatedAt": form.updated_at,
             },

@@ -237,6 +237,7 @@ class FormTable(Base):
     description = Column(Text, nullable=True)
     category = Column(String(255), nullable=False, default="")
     fields = Column(JSON, nullable=False, default=list)
+    hooks = Column(JSON, nullable=False, default=list)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 
@@ -365,6 +366,7 @@ def ensure_database_schema() -> None:
         ("knowledge_bases", "import_error", "import_error TEXT"),
         ("mcp_servers", "owner_user_id", "owner_user_id VARCHAR(255)"),
         ("forms", "category", "category VARCHAR(255) DEFAULT ''"),
+        ("forms", "hooks", "hooks JSON"),
         ("agent_profiles", "user_voiceprint_id", "user_voiceprint_id VARCHAR(50)"),
         ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),
     ]

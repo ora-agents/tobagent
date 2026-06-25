@@ -25,6 +25,7 @@ import {
   Search,
   ToggleLeft,
   Trash2,
+  Webhook,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FormField } from "@/components/ui/form-field"
@@ -47,12 +48,26 @@ export interface CustomFormField {
   options: string[]
 }
 
+export interface CustomFormHook {
+  id: string
+  name: string
+  enabled: boolean
+  fieldId: string
+  matchType: "regex" | "value"
+  pattern: string
+  value: string
+  url: string
+  method: "POST" | "PUT" | "PATCH"
+  headers: Record<string, string>
+}
+
 export interface CustomForm {
   id: string
   name: string
   description: string
   category: string
   fields: CustomFormField[]
+  hooks: CustomFormHook[]
   recordCount: number
   createdAt: string
   updatedAt: string
@@ -73,6 +88,7 @@ export type FormDefinitionState = {
   description: string
   category: string
   fields: CustomFormField[]
+  hooks: CustomFormHook[]
 }
 
 export const SYSTEM_FORM_FIELDS: CustomFormField[] = [
@@ -109,6 +125,21 @@ function createDefaultField(type: CustomFormFieldType, locale: string, index: nu
     type,
     required: false,
     options: type === "select" ? (locale === "zh" ? ["选项 A", "选项 B"] : ["Option A", "Option B"]) : [],
+  }
+}
+
+function createDefaultHook(fields: CustomFormField[], locale: string, index: number): CustomFormHook {
+  return {
+    id: `hook_${Date.now()}_${index}`,
+    name: locale === "zh" ? `字段 Hook ${index}` : `Field hook ${index}`,
+    enabled: true,
+    fieldId: fields[0]?.id || "",
+    matchType: "regex",
+    pattern: "",
+    value: "",
+    url: "",
+    method: "POST",
+    headers: {},
   }
 }
 
@@ -186,7 +217,15 @@ export function FormFieldDesigner({
   const isSelectedSystemField = Boolean(selectedSystemField)
 
   const updateFields = (fields: CustomFormField[]) => {
-    onDefinitionChange({ ...definition, fields })
+    const fieldIds = new Set(fields.map(field => field.id))
+    onDefinitionChange({
+      ...definition,
+      fields,
+      hooks: (definition.hooks || []).map(hook => ({
+        ...hook,
+        fieldId: fieldIds.has(hook.fieldId) ? hook.fieldId : fields[0]?.id || "",
+      })),
+    })
   }
 
   const updateField = (fieldId: string, changes: Partial<CustomFormField>) => {
@@ -214,6 +253,22 @@ export function FormFieldDesigner({
     const [field] = nextFields.splice(index, 1)
     nextFields.splice(nextIndex, 0, field)
     updateFields(nextFields)
+  }
+
+  const updateHooks = (hooks: CustomFormHook[]) => {
+    onDefinitionChange({ ...definition, hooks })
+  }
+
+  const updateHook = (hookId: string, changes: Partial<CustomFormHook>) => {
+    updateHooks((definition.hooks || []).map(hook => hook.id === hookId ? { ...hook, ...changes } : hook))
+  }
+
+  const addHook = () => {
+    updateHooks([...(definition.hooks || []), createDefaultHook(definition.fields, locale, (definition.hooks || []).length + 1)])
+  }
+
+  const removeHook = (hookId: string) => {
+    updateHooks((definition.hooks || []).filter(hook => hook.id !== hookId))
   }
 
   const selectedFieldIndex = selectedField
@@ -379,6 +434,146 @@ export function FormFieldDesigner({
             <span>{locale === "zh" ? `${definition.fields.length} 个自定义字段，${SYSTEM_FORM_FIELDS.length} 个系统字段` : `${definition.fields.length} custom fields, ${SYSTEM_FORM_FIELDS.length} system fields`}</span>
             <span>{locale === "zh" ? "系统字段固定在记录末尾" : "System fields stay at the end"}</span>
           </div>
+        </div>
+
+        <div className="rounded-xl bg-muted/35 p-3">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">{locale === "zh" ? "字段 Hooks" : "Field hooks"}</h3>
+              <p className="text-xs text-muted-foreground">
+                {locale === "zh" ? "保存记录时，如果字段的新值命中条件，会触发配置的 API 请求。" : "When a saved field value matches a condition, the configured API request is triggered."}
+              </p>
+            </div>
+            <Button size="sm" onClick={addHook} disabled={definition.fields.length === 0} className="h-8 rounded-lg">
+              <Plus className="h-3.5 w-3.5" />
+              {locale === "zh" ? "添加 Hook" : "Add hook"}
+            </Button>
+          </div>
+          {(definition.hooks || []).length > 0 ? (
+            <div className="space-y-3">
+              {(definition.hooks || []).map((hook, index) => {
+                const targetField = definition.fields.find(field => field.id === hook.fieldId) || definition.fields[0]
+                const valueOptions = targetField?.type === "select"
+                  ? targetField.options
+                  : targetField?.type === "boolean" ? ["true", "false"] : []
+                return (
+                  <div key={hook.id} className="rounded-lg bg-background p-3 shadow-depth-xs">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <div className="rounded-md bg-primary-soft p-1.5 text-primary">
+                          <Webhook className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <Input
+                            value={hook.name}
+                            onChange={(event) => updateHook(hook.id, { name: event.target.value })}
+                            placeholder={locale === "zh" ? `字段 Hook ${index + 1}` : `Field hook ${index + 1}`}
+                            className="h-8 border-0 bg-muted/60 font-semibold shadow-none"
+                          />
+                          <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{hook.id}</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeHook(hook.id)}
+                        className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        title={locale === "zh" ? "删除 Hook" : "Delete hook"}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <FormField label={locale === "zh" ? "监听字段" : "Field"}>
+                        <Select value={hook.fieldId} onValueChange={(value) => updateHook(hook.id, { fieldId: value })}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {definition.fields.map(field => (
+                              <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                      <FormField label={locale === "zh" ? "匹配方式" : "Match"}>
+                        <Select value={hook.matchType} onValueChange={(value) => updateHook(hook.id, { matchType: value as CustomFormHook["matchType"] })}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="regex">{locale === "zh" ? "正则匹配" : "Regex"}</SelectItem>
+                            <SelectItem value="value">{locale === "zh" ? "匹配指定值" : "Exact value"}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                      {hook.matchType === "regex" ? (
+                        <FormField label={locale === "zh" ? "正则表达式" : "Regex"}>
+                          <Input
+                            value={hook.pattern}
+                            onChange={(event) => updateHook(hook.id, { pattern: event.target.value })}
+                            placeholder={targetField?.type === "number" ? "^\\d+$" : ".*"}
+                            className="font-mono text-xs"
+                          />
+                        </FormField>
+                      ) : valueOptions.length > 0 ? (
+                        <FormField label={locale === "zh" ? "匹配值" : "Value"}>
+                          <Select value={hook.value} onValueChange={(value) => updateHook(hook.id, { value })}>
+                            <SelectTrigger className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {valueOptions.map(option => (
+                                <SelectItem key={option} value={option}>{option}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormField>
+                      ) : (
+                        <FormField label={locale === "zh" ? "匹配值" : "Value"}>
+                          <Input
+                            value={hook.value}
+                            onChange={(event) => updateHook(hook.id, { value: event.target.value })}
+                          />
+                        </FormField>
+                      )}
+                      <FormField label={locale === "zh" ? "请求方法" : "Method"}>
+                        <Select value={hook.method} onValueChange={(value) => updateHook(hook.id, { method: value as CustomFormHook["method"] })}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="POST">POST</SelectItem>
+                            <SelectItem value="PUT">PUT</SelectItem>
+                            <SelectItem value="PATCH">PATCH</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                      <FormField label={locale === "zh" ? "API 地址" : "API URL"} className="md:col-span-2">
+                        <Input
+                          value={hook.url}
+                          onChange={(event) => updateHook(hook.id, { url: event.target.value })}
+                          placeholder="https://example.com/webhook"
+                        />
+                      </FormField>
+                      <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm md:col-span-2">
+                        <span>{locale === "zh" ? "启用" : "Enabled"}</span>
+                        <input
+                          type="checkbox"
+                          checked={hook.enabled}
+                          onChange={(event) => updateHook(hook.id, { enabled: event.target.checked })}
+                          className="h-4 w-4 accent-primary"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="rounded-lg bg-background px-3 py-6 text-center text-sm text-muted-foreground">
+              {locale === "zh" ? "暂无 Hook。添加后可按字段变化触发外部 API。" : "No hooks yet. Add one to call an external API when a field changes."}
+            </div>
+          )}
         </div>
       </div>
 

@@ -11,6 +11,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.db import AgentProfileTable, FormRecordTable, FormTable, SessionLocal
+from src.utils.form_hooks import trigger_form_hooks_sync
 from src.utils.form_permissions import has_form_permission, normalize_form_permissions
 from src.utils.runtime_context import get_runtime_context_value
 
@@ -270,6 +271,8 @@ class ManageFormDataTool(BaseTool):
                 return f"Form '{form_id}' was not found."
 
             now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            old_data: dict[str, Any] = {}
+            trigger_hooks = False
             if action == "create":
                 record = FormRecordTable(
                     id=f"record-{uuid.uuid4()}",
@@ -280,6 +283,7 @@ class ManageFormDataTool(BaseTool):
                     updated_at=now,
                 )
                 db.add(record)
+                trigger_hooks = True
             else:
                 if not record_id:
                     return f"record_id is required for {action}."
@@ -291,12 +295,20 @@ class ManageFormDataTool(BaseTool):
                 if not record:
                     return f"Form record '{record_id}' was not found."
                 if action == "update":
+                    old_data = dict(record.data or {})
                     record.data = data or {}
                     record.updated_at = now
+                    trigger_hooks = True
                 else:
                     db.delete(record)
 
             db.commit()
+            if trigger_hooks:
+                db.refresh(record)
+                try:
+                    trigger_form_hooks_sync(form, record, old_data, record.data or {})
+                except Exception as exc:
+                    logger.warning("Form hooks failed after %s: %s", action, exc)
             return json.dumps(
                 {
                     "status": "success",

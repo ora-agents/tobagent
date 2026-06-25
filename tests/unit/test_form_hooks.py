@@ -1,0 +1,148 @@
+"""Tests for custom form hook triggering."""
+
+import pytest
+
+from src.utils import form_hooks
+from src.utils.db import FormRecordTable, FormTable
+
+
+class _FakeResponse:
+    def raise_for_status(self) -> None:
+        return None
+
+
+class _FakeAsyncClient:
+    calls: list[dict] = []
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+    async def request(self, method, url, **kwargs):
+        self.calls.append({"method": method, "url": url, **kwargs})
+        return _FakeResponse()
+
+
+@pytest.mark.anyio
+async def test_form_hook_triggers_when_changed_field_matches_regex(monkeypatch):
+    _FakeAsyncClient.calls = []
+    monkeypatch.setattr(form_hooks.httpx, "AsyncClient", _FakeAsyncClient)
+    form = FormTable(
+        id="form-1",
+        owner_user_id="user-1",
+        name="Orders",
+        category="CRM",
+        fields=[],
+        hooks=[{
+            "id": "hook-1",
+            "name": "VIP",
+            "enabled": True,
+            "fieldId": "customer",
+            "matchType": "regex",
+            "pattern": "^VIP-",
+            "url": "https://example.test/webhook",
+            "method": "POST",
+            "headers": {"X-Test": "1"},
+        }],
+        created_at="now",
+        updated_at="now",
+    )
+    record = FormRecordTable(
+        id="record-1",
+        form_id="form-1",
+        owner_user_id="user-1",
+        data={"customer": "VIP-001"},
+        created_at="now",
+        updated_at="now",
+    )
+
+    await form_hooks.trigger_form_hooks(form, record, {"customer": "old"}, record.data)
+
+    assert len(_FakeAsyncClient.calls) == 1
+    call = _FakeAsyncClient.calls[0]
+    assert call["method"] == "POST"
+    assert call["url"] == "https://example.test/webhook"
+    assert call["headers"] == {"X-Test": "1"}
+    assert call["json"]["field"] == {
+        "id": "customer",
+        "oldValue": "old",
+        "newValue": "VIP-001",
+    }
+
+
+@pytest.mark.anyio
+async def test_form_hook_triggers_when_select_value_matches(monkeypatch):
+    _FakeAsyncClient.calls = []
+    monkeypatch.setattr(form_hooks.httpx, "AsyncClient", _FakeAsyncClient)
+    form = FormTable(
+        id="form-1",
+        owner_user_id="user-1",
+        name="Orders",
+        category="CRM",
+        fields=[],
+        hooks=[{
+            "id": "hook-1",
+            "enabled": True,
+            "fieldId": "status",
+            "matchType": "value",
+            "value": "approved",
+            "url": "https://example.test/status",
+            "method": "PATCH",
+        }],
+        created_at="now",
+        updated_at="now",
+    )
+    record = FormRecordTable(
+        id="record-1",
+        form_id="form-1",
+        owner_user_id="user-1",
+        data={"status": "approved"},
+        created_at="now",
+        updated_at="now",
+    )
+
+    await form_hooks.trigger_form_hooks(form, record, {"status": "pending"}, record.data)
+
+    assert len(_FakeAsyncClient.calls) == 1
+    assert _FakeAsyncClient.calls[0]["method"] == "PATCH"
+
+
+@pytest.mark.anyio
+async def test_form_hook_ignores_unchanged_field(monkeypatch):
+    _FakeAsyncClient.calls = []
+    monkeypatch.setattr(form_hooks.httpx, "AsyncClient", _FakeAsyncClient)
+    form = FormTable(
+        id="form-1",
+        owner_user_id="user-1",
+        name="Orders",
+        category="CRM",
+        fields=[],
+        hooks=[{
+            "id": "hook-1",
+            "enabled": True,
+            "fieldId": "status",
+            "matchType": "value",
+            "value": "approved",
+            "url": "https://example.test/status",
+            "method": "POST",
+        }],
+        created_at="now",
+        updated_at="now",
+    )
+    record = FormRecordTable(
+        id="record-1",
+        form_id="form-1",
+        owner_user_id="user-1",
+        data={"status": "approved"},
+        created_at="now",
+        updated_at="now",
+    )
+
+    await form_hooks.trigger_form_hooks(form, record, {"status": "approved"}, record.data)
+
+    assert _FakeAsyncClient.calls == []

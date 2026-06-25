@@ -559,6 +559,7 @@ async def import_agent_profiles_toml(
             description=str(raw_form.get("description") or ""),
             category=str(raw_form.get("category") or "").strip(),
             fields=fields,
+            hooks=list(raw_form.get("hooks") or []),
             created_at=now,
             updated_at=now,
         ))

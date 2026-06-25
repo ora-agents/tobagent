@@ -20,6 +20,7 @@ from src.api.services import (
     _remove_agent_profile_links,
 )
 from src.utils.db import FormRecordTable, FormTable, UserTable, get_db
+from src.utils.form_hooks import trigger_form_hooks
 
 router = APIRouter(tags=["forms"])
 
@@ -147,6 +148,7 @@ async def create_form(
         description=form_data.description,
         category=form_data.category.strip(),
         fields=[field.model_dump(mode="json") for field in form_data.fields],
+        hooks=[hook.model_dump(mode="json") for hook in form_data.hooks],
         created_at=form_data.createdAt,
         updated_at=form_data.updatedAt,
     )
@@ -173,6 +175,7 @@ async def update_form(
     form.description = form_data.description
     form.category = form_data.category.strip()
     form.fields = [field.model_dump(mode="json") for field in form_data.fields]
+    form.hooks = [hook.model_dump(mode="json") for hook in form_data.hooks]
     form.updated_at = form_data.updatedAt
     db.commit()
     db.refresh(form)
@@ -270,20 +273,23 @@ async def create_form_record(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    if not db.query(FormTable).filter(FormTable.id == id, FormTable.owner_user_id == current_user.id).first():
+    form = db.query(FormTable).filter(FormTable.id == id, FormTable.owner_user_id == current_user.id).first()
+    if not form:
         raise HTTPException(status_code=404, detail="Form not found")
     now = _now()
+    new_data = record_data.data or {}
     record = FormRecordTable(
         id=record_data.id or f"record-{uuid.uuid4()}",
         form_id=id,
         owner_user_id=current_user.id,
-        data=record_data.data or {},
+        data=new_data,
         created_at=record_data.createdAt or now,
         updated_at=record_data.updatedAt or now,
     )
     db.add(record)
     db.commit()
     db.refresh(record)
+    await trigger_form_hooks(form, record, {}, new_data)
     return _form_record_schema(record)
 
 
@@ -307,10 +313,19 @@ async def update_form_record(
     ).first()
     if not record:
         raise HTTPException(status_code=404, detail="Form record not found")
-    record.data = record_data.data or {}
+    form = db.query(FormTable).filter(
+        FormTable.id == form_id,
+        FormTable.owner_user_id == current_user.id,
+    ).first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    old_data = dict(record.data or {})
+    new_data = record_data.data or {}
+    record.data = new_data
     record.updated_at = record_data.updatedAt or _now()
     db.commit()
     db.refresh(record)
+    await trigger_form_hooks(form, record, old_data, new_data)
     return _form_record_schema(record)
 
 

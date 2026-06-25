@@ -91,6 +91,7 @@ import {
   validateFormRecordData,
   type CustomForm,
   type CustomFormField,
+  type CustomFormHook,
   type CustomFormRecord,
   type FormDefinitionState,
 } from "@/components/layout/management-dashboard/forms"
@@ -277,7 +278,7 @@ export function ManagementDashboard({
   const [formRecordTotal, setFormRecordTotal] = useState(0)
   const [isEditingForm, setIsEditingForm] = useState(false)
   const [isCreatingForm, setIsCreatingForm] = useState(false)
-  const [formDefinition, setFormDefinition] = useState<FormDefinitionState>({ name: "", description: "", category: "", fields: [] })
+  const [formDefinition, setFormDefinition] = useState<FormDefinitionState>({ name: "", description: "", category: "", fields: [], hooks: [] })
   const [selectedFormFieldId, setSelectedFormFieldId] = useState<string | null>(null)
   const [recordQuery, setRecordQuery] = useState("")
   const [recordPage, setRecordPage] = useState(1)
@@ -1259,6 +1260,7 @@ export function ManagementDashboard({
       description: "",
       category: "",
       fields: [{ id: "name", label: locale === "zh" ? "名称" : "Name", type: "text", required: false, options: [] }],
+      hooks: [],
     })
     setSelectedFormFieldId("name")
     setDeleteConfirmId(null)
@@ -1274,6 +1276,7 @@ export function ManagementDashboard({
       description: form.description,
       category: form.category || "",
       fields: form.fields || [],
+      hooks: form.hooks || [],
     })
     setSelectedFormFieldId(form.fields[0]?.id || null)
     setDeleteConfirmId(null)
@@ -1329,10 +1332,42 @@ export function ManagementDashboard({
     return fields
   }
 
+  const parseFormHooks = (fields: CustomFormField[]): CustomFormHook[] | null => {
+    const fieldIds = new Set(fields.map(field => field.id))
+    const hooks = (formDefinition.hooks || []).map((hook) => ({
+      id: String(hook.id || generateUUID()).trim(),
+      name: String(hook.name || "").trim(),
+      enabled: hook.enabled !== false,
+      fieldId: String(hook.fieldId || "").trim(),
+      matchType: (hook.matchType === "value" ? "value" : "regex") as CustomFormHook["matchType"],
+      pattern: String(hook.pattern || ""),
+      value: String(hook.value || ""),
+      url: String(hook.url || "").trim(),
+      method: (["POST", "PUT", "PATCH"].includes(hook.method) ? hook.method : "POST") as CustomFormHook["method"],
+      headers: hook.headers && typeof hook.headers === "object" ? hook.headers : {},
+    })).filter(hook => hook.fieldId || hook.url || hook.pattern || hook.value)
+
+    const invalidHook = hooks.find(hook => {
+      if (!fieldIds.has(hook.fieldId)) return true
+      if (!hook.url.startsWith("http://") && !hook.url.startsWith("https://")) return true
+      if (hook.matchType === "regex" && !hook.pattern) return true
+      return hook.matchType === "value" && hook.value === ""
+    })
+    if (invalidHook) {
+      alert(locale === "zh"
+        ? "Hook 需要选择有效字段、填写 http(s) API 地址，并配置匹配条件。"
+        : "Each hook needs a valid field, an http(s) API URL, and a match condition.")
+      return null
+    }
+    return hooks
+  }
+
   const handleSaveForm = async () => {
     if (!LANGGRAPH_API_URL || !authHeaders || !formDefinition.name.trim()) return
     const fields = parseFormFields()
     if (!fields) return
+    const hooks = parseFormHooks(fields)
+    if (!hooks) return
     const now = new Date().toISOString()
     if (isCreatingForm) {
       const payload: CustomForm = {
@@ -1341,6 +1376,7 @@ export function ManagementDashboard({
         description: formDefinition.description.trim(),
         category: formDefinition.category.trim(),
         fields,
+        hooks,
         recordCount: 0,
         createdAt: now,
         updatedAt: now,
@@ -1369,6 +1405,7 @@ export function ManagementDashboard({
           description: formDefinition.description.trim(),
           category: formDefinition.category.trim(),
           fields,
+          hooks,
           updatedAt: now,
         }),
       })

@@ -167,7 +167,20 @@ class FormFieldSchema(BaseModel):
     label: str
     type: str = "text"
     required: bool = False
-    options: list[str] = []
+    options: list[str] = Field(default_factory=list)
+
+
+class FormHookSchema(BaseModel):
+    id: str
+    name: str = ""
+    enabled: bool = True
+    fieldId: str
+    matchType: Literal["regex", "value"] = "regex"
+    pattern: str = ""
+    value: str = ""
+    url: str
+    method: Literal["POST", "PUT", "PATCH"] = "POST"
+    headers: dict[str, str] = Field(default_factory=dict)
 
 
 class FormSchema(BaseModel):
@@ -175,7 +188,8 @@ class FormSchema(BaseModel):
     name: str
     description: str | None = None
     category: str = ""
-    fields: list[FormFieldSchema] = []
+    fields: list[FormFieldSchema] = Field(default_factory=list)
+    hooks: list[FormHookSchema] = Field(default_factory=list)
     recordCount: int = 0
     createdAt: str
     updatedAt: str
@@ -184,14 +198,14 @@ class FormSchema(BaseModel):
 class FormRecordSchema(BaseModel):
     id: str
     formId: str
-    data: dict = {}
+    data: dict = Field(default_factory=dict)
     createdAt: str
     updatedAt: str
 
 
 class FormRecordWriteSchema(BaseModel):
     id: str | None = None
-    data: dict = {}
+    data: dict = Field(default_factory=dict)
     createdAt: str | None = None
     updatedAt: str | None = None
 
