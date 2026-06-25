@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ClientProfile } from "@/lib/hooks"
 import { Client } from "@langchain/langgraph-sdk"
 import type { Message, ImageAttachment } from "@/lib/types"
-import { createUserMessage, generateMessageId, extractTextFromContent } from "@/lib/utils/chat"
+import { createUserMessage, generateMessageId, extractAttachmentsFromContent, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useChatState } from "@/lib/hooks/chat"
 import { useUserId } from "@/lib/hooks/auth"
@@ -472,12 +472,15 @@ export function ChatInterface({
           
           if (msgType === "human" || msgType === "user") {
             const messageId = msg.id || `history-${currentThreadId}-${idx}-user`
+            const attachments = Array.isArray(msg.images) && msg.images.length > 0
+              ? msg.images
+              : extractAttachmentsFromContent(msg.content)
             convertedMessages.push({
               id: messageId,
               role: "user",
               content: extractTextFromContent(msg.content),
               timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-              images: msg.images,
+              images: attachments.length > 0 ? attachments : undefined,
             })
           } else if (msgType === "ai" || msgType === "assistant") {
             const content = extractTextFromContent(msg.content)
