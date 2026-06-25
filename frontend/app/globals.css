@@ -633,6 +633,13 @@
   color: #334155;
 }
 
+.prose pre .chat-code-block {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: #faf9f5;
+}
+
 .dark .prose pre code {
   color: #faf9f5;
 }

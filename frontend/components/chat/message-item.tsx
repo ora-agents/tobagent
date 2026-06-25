@@ -22,16 +22,16 @@ const USER_MESSAGE_COLLAPSE_LINE_LIMIT = 8
 
 // Color palette for code highlighting
 const CODE_COLORS = {
-  // Background & borders
-  blockBackground: 'oklch(0.16 0 0)',
-  blockBorder: 'oklch(0.30 0 0)',
-  inlineBackground: 'oklch(0.22 0 0)',
-  inlineBorder: 'oklch(0.32 0 0)',
+  // Dark product surface from docs/design.md
+  blockBackground: '#181715',
+  blockHeader: '#252320',
+  blockText: '#faf9f5',
+  blockMuted: '#a09d96',
 
   // Primary theme colors (WSIRI blue palette)
-  primary: '#dbeafe',      // Blue-tinted light — properties, operators, tags
-  primaryLight: '#eff6ff',  // Pale blue — strings, attributes
-  primaryDark: '#93c5fd',  // Mid blue — keywords, built-ins
+  primary: '#dbeafe',      // Blue-tinted light - properties, operators, tags
+  primaryLight: '#eff6ff',  // Pale blue - strings, attributes
+  primaryDark: '#93c5fd',  // Mid blue - keywords, built-ins
 
   // Accent colors
   blue: '#60a5fa',         // Functions
@@ -41,9 +41,9 @@ const CODE_COLORS = {
   red: '#ef4444',          // Important, deleted
 
   // Neutral colors
-  text: '#e4e4e7',         // Main text
-  comment: '#6b7280',      // Comments, docstrings
-  punctuation: '#a1a1aa',  // Punctuation
+  text: '#faf9f5',         // Main text
+  comment: '#a09d96',      // Comments, docstrings
+  punctuation: '#d6d3cc',  // Punctuation
 } as const
 
 // ============================================================================
@@ -55,10 +55,9 @@ const customTheme = {
   'pre[class*="language-"]': {
     ...vscDarkPlus['pre[class*="language-"]'],
     background: CODE_COLORS.blockBackground,
-    border: `1px solid ${CODE_COLORS.blockBorder}`,
     borderRadius: '8px',
-    padding: '1rem',
-    margin: '0.75rem 0',
+    padding: '1rem 1.25rem',
+    margin: 0,
   },
   'code[class*="language-"]': {
     ...vscDarkPlus['code[class*="language-"]'],
@@ -206,51 +205,56 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
   }, [codeString])
 
   return (
-    <div className="relative group my-3 max-w-full overflow-hidden sm:my-4">
+    <div className="group/code my-3 max-w-full overflow-hidden rounded-lg bg-[#181715] sm:my-4">
+      <div className="flex min-h-10 items-center justify-between bg-[#252320] px-3 py-2">
+        <span className="truncate font-mono text-[11px] font-medium uppercase tracking-normal text-[#a09d96]">
+          {language || "text"}
+        </span>
+        <button
+          onClick={handleCopyCode}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#1f1e1b] px-2 text-xs font-medium text-[#faf9f5] transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25"
+          aria-label="Copy code to clipboard"
+          type="button"
+        >
+          {isCopied ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              {t.copied}
+            </>
+          ) : (
+            <>
+              <Copy className="h-3.5 w-3.5" />
+              {t.copy}
+            </>
+          )}
+        </button>
+      </div>
       <SyntaxHighlighter
         language={language}
         style={customTheme}
+        PreTag="div"
+        CodeTag="code"
         customStyle={{
-          margin: '0.75rem 0',
+          margin: 0,
           background: CODE_COLORS.blockBackground,
-          border: `1px solid ${CODE_COLORS.blockBorder}`,
-          borderRadius: '8px',
-          padding: '1rem',
+          borderRadius: 0,
+          padding: '1rem 1.25rem',
           maxWidth: '100%',
           overflowX: 'auto',
+          color: CODE_COLORS.blockText,
         }}
         codeTagProps={{
+          className: "chat-code-block",
           style: {
             fontSize: '13px',
             fontFamily: 'var(--font-mono), ui-monospace, monospace',
+            color: CODE_COLORS.blockText,
+            lineHeight: '1.65',
           }
         }}
       >
         {codeString}
       </SyntaxHighlighter>
-      <button
-        onClick={handleCopyCode}
-        className="absolute top-2 right-2 sm:top-3 sm:right-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-xs flex items-center gap-1 sm:gap-1.5 backdrop-blur-sm"
-        style={{
-          background: 'rgba(0, 0, 0, 0.7)',
-          color: CODE_COLORS.text,
-          border: `1px solid ${CODE_COLORS.blockBorder}`,
-          willChange: 'opacity',
-        }}
-        aria-label="Copy code to clipboard"
-      >
-        {isCopied ? (
-          <>
-            <Check className="w-3.5 h-3.5" />
-            {t.copied}
-          </>
-        ) : (
-          <>
-            <Copy className="w-3.5 h-3.5" />
-            {t.copy}
-          </>
-        )}
-      </button>
     </div>
   )
 })
