@@ -232,9 +232,16 @@ export function ConfigBundleDialog({
 
   return (
     <Dialog open={mode !== null} onOpenChange={close}>
-      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-2xl">
-        <ScrollArea className="min-h-0 flex-1">
-        <div className="pr-3">
+      <DialogContent
+        className={`flex max-h-[90vh] flex-col overflow-hidden ${
+          mode === "export" ? "sm:max-w-4xl" : "sm:max-w-2xl"
+        }`}
+      >
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="pr-3"
+        >
+        <div>
         <DialogHeader>
           <DialogTitle>
             {mode === "export"
