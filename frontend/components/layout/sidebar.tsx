@@ -274,7 +274,7 @@ export const Sidebar = memo(function Sidebar({
   // Early return for collapsed state (after all hooks)
   if (isCollapsed && !isMobileDrawer) {
     return (
-      <aside className="hidden h-screen w-16 flex-col justify-between bg-sidebar md:flex">
+      <aside className="hidden h-screen w-16 flex-col justify-between md:flex">
         <div className="px-3 py-4 h-16 flex items-center justify-center">
           <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg">
             <PanelLeft className="w-5 h-5" />
@@ -394,8 +394,8 @@ export const Sidebar = memo(function Sidebar({
       <aside
         className={
           isMobileDrawer
-            ? "flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col bg-sidebar shadow-depth-lg"
-            : "hidden w-56 flex-col bg-sidebar md:flex"
+            ? "flex h-full w-[min(20rem,calc(100vw-2rem))] flex-col shadow-depth-lg"
+            : "hidden w-56 flex-col md:flex"
         }
       >
         <div className="px-3 pt-[13px] pb-[14px]">

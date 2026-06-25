@@ -33,7 +33,7 @@ function AppSidebar({ className, ...props }: React.HTMLAttributes<HTMLElement>) 
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col border-r border-sidebar-border/60 bg-sidebar text-sidebar-foreground md:flex",
+        "hidden shrink-0 flex-col border-r border-sidebar-border/60 text-sidebar-foreground md:flex",
         className,
       )}
       {...props}

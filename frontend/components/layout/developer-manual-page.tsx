@@ -238,7 +238,7 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
-        <aside className="w-full flex-shrink-0 overflow-hidden border-b border-border/60 bg-secondary md:w-[208px] md:border-b-0 md:border-r">
+        <aside className="w-full flex-shrink-0 overflow-hidden border-b border-border/60 md:w-[208px] md:border-b-0 md:border-r">
           <ScrollArea className="h-14 w-full md:h-full" scrollbars="both">
           <nav className="flex gap-1 p-2 md:sticky md:top-0 md:block md:space-y-1 md:p-4">
             <div className="hidden md:mb-3 md:block md:px-3 md:text-xs md:font-semibold md:text-muted-foreground">
@@ -273,22 +273,22 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
             <div
               id="section-overview"
               ref={registerSectionRef("section-overview")}
-              className="scroll-mt-4 space-y-4 rounded-xl bg-primary-soft p-5 sm:p-6"
+              className="scroll-mt-4 space-y-4 rounded-xl bg-card p-5 shadow-depth-xs sm:p-6"
             >
               <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                 <BookOpenText className="h-5 w-5 text-primary" />
                 {zh ? "调用前准备" : "Before Calling"}
               </h3>
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="min-w-0 rounded-lg bg-background p-4">
+                <div className="min-w-0 rounded-lg bg-secondary p-4">
                   <div className="text-sm font-semibold">{zh ? "服务地址" : "Base URL"}</div>
-                  <div className="mt-2 break-all rounded-md bg-secondary px-3 py-2 font-mono text-xs">{apiBase}</div>
+                  <div className="mt-2 break-all rounded-md bg-sidebar-accent px-3 py-2 font-mono text-xs">{apiBase}</div>
                 </div>
-                <div className="min-w-0 rounded-lg bg-background p-4">
+                <div className="min-w-0 rounded-lg bg-secondary p-4">
                   <div className="text-sm font-semibold">assistant_id</div>
-                  <div className="mt-2 rounded-md bg-secondary px-3 py-2 font-mono text-xs">generic_agent</div>
+                  <div className="mt-2 rounded-md bg-sidebar-accent px-3 py-2 font-mono text-xs">generic_agent</div>
                 </div>
-                <div className="min-w-0 rounded-lg bg-background p-4">
+                <div className="min-w-0 rounded-lg bg-secondary p-4">
                   <div className="text-sm font-semibold">context.agent_id</div>
                   <p className="mt-2 text-xs leading-5 text-muted-foreground">
                     {zh
@@ -297,7 +297,7 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                   </p>
                 </div>
               </div>
-              <div className="flex flex-col gap-3 rounded-lg bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-lg bg-secondary p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold">{zh ? "完整接口文档" : "Full API Reference"}</div>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">

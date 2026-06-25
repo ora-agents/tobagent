@@ -569,7 +569,7 @@ export function UserSettingsPage({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Left nav (hidden in elder mode for simplicity) */}
         {!elderOptimized && (
-          <aside className="w-full flex-shrink-0 overflow-hidden border-b border-border/60 bg-secondary md:w-[208px] md:border-b-0 md:border-r">
+          <aside className="w-full flex-shrink-0 overflow-hidden border-b border-border/60 md:w-[208px] md:border-b-0 md:border-r">
             <ScrollArea className="h-14 w-full md:h-full" scrollbars="both">
             <nav className="flex gap-1 p-2 md:sticky md:top-0 md:block md:space-y-1 md:p-4">
               <div className="hidden text-xs font-semibold text-muted-foreground md:mb-3 md:block md:px-3">
@@ -609,7 +609,6 @@ export function UserSettingsPage({
             <PageSection
               id="section-display"
               ref={registerSectionRef("section-display")}
-              tone="primary"
               density={sectionDensity}
             >
               <PageSectionTitle icon={Accessibility} compact={sectionTitleCompact}>
@@ -623,8 +622,8 @@ export function UserSettingsPage({
                 label={zh ? "放大全部界面" : "Enlarge The Whole App"}
                 description={
                   zh
-                    ? "开启后会放大全部界面的文字、输入框、按钮、开关和对话内容，让点击和阅读更轻松，同时保留当前的温暖配色和简洁布局。"
-                    : "Increases text, inputs, buttons, switches, and chat content across the app while keeping the current warm palette and clean layout."
+                    ? "开启后会放大全部界面的文字、输入框、按钮、开关和对话内容，让点击和阅读更轻松，同时保留当前的清爽配色和简洁布局。"
+                    : "Increases text, inputs, buttons, switches, and chat content across the app while keeping the current clean palette and layout."
                 }
               />
             </PageSection>
@@ -938,13 +937,13 @@ export function UserSettingsPage({
             <PageSection
               id="section-danger"
               ref={registerSectionRef("section-danger")}
-              className="bg-destructive/10 shadow-none"
+              density={sectionDensity}
             >
               <PageSectionTitle icon={Trash2} compact={sectionTitleCompact} className="text-destructive">
                 {zh ? "危险操作" : "Danger Zone"}
               </PageSectionTitle>
 
-              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-xl bg-background sm:flex-row sm:items-center sm:justify-between`}>
+              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary sm:flex-row sm:items-center sm:justify-between`}>
                 <div className="min-w-0">
                   <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
                     {zh ? "清空所有对话记录" : "Clear all conversations"}
