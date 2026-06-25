@@ -233,8 +233,10 @@ export function ConfigBundleDialog({
   return (
     <Dialog open={mode !== null} onOpenChange={close}>
       <DialogContent
-        className={`flex max-h-[90vh] flex-col overflow-hidden ${
-          mode === "export" ? "sm:max-w-4xl" : "sm:max-w-2xl"
+        className={`flex flex-col overflow-hidden ${
+          mode === "export"
+            ? "h-[90dvh] sm:max-w-4xl"
+            : "max-h-[90dvh] sm:max-w-2xl"
         }`}
       >
         <ScrollArea
@@ -409,7 +411,7 @@ export function ConfigBundleDialog({
 
         </div>
         </ScrollArea>
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           {mode === "import" && inspections.length > 0 && (
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={busy}>
               {zh ? "重新选择文件" : "Choose again"}
