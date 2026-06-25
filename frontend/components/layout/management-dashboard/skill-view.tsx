@@ -424,12 +424,12 @@ export function SkillStructuredView({
         {hasStandardContent ? (
           <div className="space-y-3">
             <h4 className="text-xs font-semibold text-foreground">{labels.body}</h4>
-            {parsed.sections.map(section => (
-              <section key={section.title} className="rounded-xl bg-muted/25 p-3.5">
+            {parsed.sections.map((section, sectionIndex) => (
+              <section key={`${section.title}-${sectionIndex}`} className="rounded-xl bg-muted/25 p-3.5">
                 <h5 className="text-sm font-semibold text-foreground">{section.title}</h5>
                 <div className="mt-2 space-y-2.5">
                   {section.blocks.map((block, index) => (
-                    <SkillBlockView key={`${section.title}-${index}`} block={block} />
+                    <SkillBlockView key={`${section.title}-${sectionIndex}-${index}`} block={block} />
                   ))}
                 </div>
               </section>
