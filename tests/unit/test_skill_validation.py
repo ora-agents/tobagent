@@ -48,6 +48,17 @@ Help gather optional appointment parameters without requiring all of them.
 """
 
 
+VALID_SKILL_WITHOUT_ALLOWED_TOOLS = """---
+name: no-tool-skill
+description: A skill that only provides behavioral instructions.
+---
+
+# Purpose
+
+Guide the agent without declaring any tool requirement.
+"""
+
+
 def _session_factory():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
@@ -64,6 +75,26 @@ def test_validate_skill_content_accepts_optional_parameters():
     frontmatter = validate_skill_content(VALID_SKILL_WITH_PARAMETERS)
 
     assert frontmatter["parameters"]["preferred_date"]["required"] is False
+
+
+def test_validate_skill_content_accepts_missing_allowed_tools():
+    frontmatter = validate_skill_content(VALID_SKILL_WITHOUT_ALLOWED_TOOLS)
+
+    assert frontmatter["name"] == "no-tool-skill"
+
+
+def test_validate_skill_content_rejects_empty_allowed_tools_when_present():
+    content = VALID_SKILL_WITHOUT_ALLOWED_TOOLS.replace(
+        "description: A skill that only provides behavioral instructions.",
+        "description: A skill that only provides behavioral instructions.\nallowed-tools: []",
+    )
+
+    try:
+        validate_skill_content(content)
+    except SkillValidationError as exc:
+        assert "allowed-tools" in str(exc)
+    else:
+        raise AssertionError("Expected SkillValidationError")
 
 
 def test_validate_skill_content_rejects_missing_frontmatter():

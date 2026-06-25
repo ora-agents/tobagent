@@ -13,7 +13,7 @@ class SkillValidationError(ValueError):
 
 
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(?P<yaml>[\s\S]*?)\r?\n---\r?\n?(?P<body>[\s\S]*)\Z")
-_REQUIRED_FRONTMATTER_FIELDS = ("name", "description", "allowed-tools")
+_REQUIRED_FRONTMATTER_FIELDS = ("name", "description")
 _OPTIONAL_PARAMETER_FIELDS = {"type", "description", "required", "default", "enum"}
 
 
@@ -51,7 +51,7 @@ def validate_skill_content(content: str) -> dict[str, Any]:
             "Skill frontmatter is missing required field(s): " + ", ".join(missing)
         )
 
-    if not _allowed_tools(frontmatter["allowed-tools"]):
+    if "allowed-tools" in frontmatter and not _allowed_tools(frontmatter["allowed-tools"]):
         raise SkillValidationError(
             "Skill frontmatter field 'allowed-tools' must contain at least one tool."
         )
