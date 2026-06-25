@@ -17,6 +17,8 @@ import { isAndroidWebView } from "@/lib/voice/utils/browser"
 // ============================================================================
 
 const COPY_FEEDBACK_DURATION = 2000
+const USER_MESSAGE_COLLAPSE_CHAR_LIMIT = 520
+const USER_MESSAGE_COLLAPSE_LINE_LIMIT = 8
 
 // Color palette for code highlighting
 const CODE_COLORS = {
@@ -275,6 +277,7 @@ export const MessageItem = memo(function MessageItem({
   const t = useT()
   const [editContent, setEditContent] = useState(message.content)
   const [isEditingUserMessage, setIsEditingUserMessage] = useState(false)
+  const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
   const [useAndroidWebViewLayout, setUseAndroidWebViewLayout] = useState(false)
   const userEditTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -304,6 +307,10 @@ export const MessageItem = memo(function MessageItem({
   }, [])
 
   useEffect(() => {
+    setIsUserMessageExpanded(false)
+  }, [message.id, message.content])
+
+  useEffect(() => {
     if (!isEditingUserMessage) {
       setEditContent(message.content)
       return
@@ -329,6 +336,12 @@ export const MessageItem = memo(function MessageItem({
   const hasProcessContent = !!(message.processSteps && message.processSteps.length > 0)
   const hasTextProcessSteps = !!message.processSteps?.some(step => step.type === "text" && step.content)
   const showProcessDetailsPanel = !!message.isThinking || hasTextProcessSteps
+  const userMessageLineCount = typeof message.content === "string" ? message.content.split(/\r\n|\r|\n/).length : 0
+  const shouldCollapseUserMessage =
+    message.role === "user" &&
+    !isEditingUserMessage &&
+    typeof message.content === "string" &&
+    (message.content.length > USER_MESSAGE_COLLAPSE_CHAR_LIMIT || userMessageLineCount > USER_MESSAGE_COLLAPSE_LINE_LIMIT)
 
   const [detailsOpen, setDetailsOpen] = useState(
     () => !!message.isThinking || hasProcessContent
@@ -581,45 +594,57 @@ export const MessageItem = memo(function MessageItem({
                     })}
                   </div>
                 )}
-                {useAndroidWebViewLayout ? (
-                  <>
-                    {/* Android WebView: avoid textarea auto-sizing differences while not editing. */}
-                    {isEditingUserMessage ? (
-                      <Textarea
-                        ref={userEditTextareaRef}
-                        value={editContent}
-                        onChange={(e) => setEditContent(e.target.value)}
-                        onKeyDown={handleEditKeyDown}
-                        onBlur={cancelEditingUserMessage}
-                        className="chat-message-textarea min-h-0 min-w-[12ch] max-w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-                        rows={1}
-                      />
-                    ) : (
-                      <div
-                        className={`max-w-full whitespace-pre-wrap break-words text-sm leading-relaxed ${onEditAndRerun ? "cursor-text" : ""}`}
-                        onClick={startEditingUserMessage}
-                        role={onEditAndRerun ? "textbox" : undefined}
-                        aria-label={onEditAndRerun ? "Edit message" : undefined}
-                        tabIndex={onEditAndRerun ? 0 : undefined}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault()
-                            startEditingUserMessage()
-                          }
-                        }}
-                      >
-                        {message.content}
-                      </div>
-                    )}
-                  </>
-                ) : (
+                {isEditingUserMessage ? (
                   <Textarea
+                    ref={userEditTextareaRef}
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     onKeyDown={handleEditKeyDown}
-                    className="chat-message-textarea min-h-0 w-full resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                    onBlur={cancelEditingUserMessage}
+                    className={`chat-message-textarea min-h-0 resize-none bg-transparent border-0 p-0 text-sm leading-relaxed text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none ${
+                      useAndroidWebViewLayout ? "min-w-[12ch] max-w-full" : "w-full"
+                    }`}
                     rows={1}
                   />
+                ) : (
+                  <div className="space-y-1.5">
+                    <div
+                      className={`relative max-w-full whitespace-pre-wrap break-words text-sm leading-relaxed ${
+                        shouldCollapseUserMessage && !isUserMessageExpanded
+                          ? "max-h-40 overflow-hidden"
+                          : ""
+                      } ${onEditAndRerun ? "cursor-text" : ""}`}
+                      onClick={startEditingUserMessage}
+                      role={onEditAndRerun ? "textbox" : undefined}
+                      aria-label={onEditAndRerun ? "Edit message" : undefined}
+                      tabIndex={onEditAndRerun ? 0 : undefined}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          startEditingUserMessage()
+                        }
+                      }}
+                    >
+                      {message.content}
+                      {shouldCollapseUserMessage && !isUserMessageExpanded && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-card" />
+                      )}
+                    </div>
+                    {shouldCollapseUserMessage && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setIsUserMessageExpanded((expanded) => !expanded)
+                        }}
+                        className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
+                        aria-expanded={isUserMessageExpanded}
+                      >
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isUserMessageExpanded ? "rotate-180" : ""}`} />
+                        {isUserMessageExpanded ? t.collapseMessage : t.expandMessage}
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
           ) : (
