@@ -713,6 +713,7 @@ export function FormRecordsTable({
   const dirtyCount = dirtyRecordIds.size
   const hasValidationErrors = Object.values(validationErrors).some(fields => Object.keys(fields).length > 0)
   const tableMinWidth = rowColumnWidth + orderedRecordFields.length * recordColumnWidth
+  const showPagination = total > 25
 
   return (
     <div className={`min-h-0 ${isFullscreen ? "fixed inset-0 z-[100] flex flex-col rounded-none bg-background" : "rounded-xl bg-muted/35"}`}>
@@ -840,15 +841,17 @@ export function FormRecordsTable({
           </tbody>
         </table>
       </ScrollArea>
-      <div className="flex items-center justify-between p-3">
-        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))} className="h-8 rounded-lg">
-          {locale === "zh" ? "上一页" : "Previous"}
-        </Button>
-        <span className="text-xs text-muted-foreground">Page {page}</span>
-        <Button variant="outline" size="sm" disabled={page * 25 >= total} onClick={() => onPageChange(page + 1)} className="h-8 rounded-lg">
-          {locale === "zh" ? "下一页" : "Next"}
-        </Button>
-      </div>
+      {showPagination && (
+        <div className="flex items-center justify-between p-3">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))} className="h-8 rounded-lg">
+            {locale === "zh" ? "上一页" : "Previous"}
+          </Button>
+          <span className="text-xs text-muted-foreground">Page {page}</span>
+          <Button variant="outline" size="sm" disabled={page * 25 >= total} onClick={() => onPageChange(page + 1)} className="h-8 rounded-lg">
+            {locale === "zh" ? "下一页" : "Next"}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
