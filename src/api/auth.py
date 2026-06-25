@@ -102,6 +102,39 @@ def _normalize_run_agent_context(value: dict, kwargs: dict, config: dict, contex
         context["agent_id"] = agent_id
 
 
+def _inject_langfuse_metadata(
+    *,
+    ctx: Auth.types.AuthContext,
+    value: dict,
+    kwargs: dict,
+    config: dict,
+    context: dict,
+) -> None:
+    """Add authenticated Langfuse trace attributes to the run config."""
+    config_metadata = config.get("metadata")
+    if not isinstance(config_metadata, dict):
+        config_metadata = {}
+        config["metadata"] = config_metadata
+
+    user_id = ctx.user.identity
+    if isinstance(user_id, str) and user_id:
+        config_metadata["langfuse_user_id"] = user_id
+
+    thread_id = (
+        kwargs.get("thread_id")
+        or value.get("thread_id")
+        or context.get("thread_id")
+    )
+    if isinstance(thread_id, str) and thread_id:
+        config_metadata["langfuse_session_id"] = thread_id
+
+    tags = config.get("tags")
+    langfuse_tags = [str(tag) for tag in tags] if isinstance(tags, list) else []
+    if "agent" not in langfuse_tags:
+        langfuse_tags.append("agent")
+    config_metadata["langfuse_tags"] = langfuse_tags
+
+
 def _get_auth_secret() -> str | None:
     """Return optional auth secret for X-Auth-Key enforcement."""
     return os.getenv("LANGGRAPH_AUTH_SECRET")
@@ -234,11 +267,11 @@ async def block_all(ctx: Auth.types.AuthContext, value: dict):
 @auth.on.threads
 async def add_owner(ctx: Auth.types.AuthContext, value: dict | None):
     """Tag threads with their owner and restrict access."""
-    if is_studio_user(ctx.user):
-        return {}
-
     if _is_run_create_payload(value):
         return await _enrich_run_context(ctx, value)
+
+    if is_studio_user(ctx.user):
+        return {}
 
     user_id = ctx.user.identity
     metadata = _ensure_metadata(value)
@@ -335,6 +368,13 @@ async def _enrich_run_context(
         input_has_image=input_has_image,
         owner_user_id=None if is_studio_user(ctx.user) else ctx.user.identity,
         require_agent_id=not is_studio_user(ctx.user),
+    )
+    _inject_langfuse_metadata(
+        ctx=ctx,
+        value=value,
+        kwargs=kwargs,
+        config=config,
+        context=context,
     )
     write_debug_event(
         "auth.create_run.after_validate",

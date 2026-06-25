@@ -13,6 +13,14 @@ logger = logging.getLogger(__name__)
 _INITIALIZED = False
 
 
+def _langfuse_sdk_configured() -> bool:
+    """Return whether voice events can use the shared Langfuse SDK."""
+    return bool(
+        os.environ.get("LANGFUSE_PUBLIC_KEY", "").strip()
+        and os.environ.get("LANGFUSE_SECRET_KEY", "").strip()
+    )
+
+
 def _langfuse_base_url() -> str | None:
     base_url = os.environ.get("LANGFUSE_BASE_URL", "").strip()
     return base_url.rstrip("/") if base_url else None
@@ -49,7 +57,7 @@ def _langfuse_headers() -> dict[str, str] | None:
     if not public_key or not secret_key:
         return None
 
-    auth = b64encode(f"{public_key}:{secret_key}".encode("utf-8")).decode("ascii")
+    auth = b64encode(f"{public_key}:{secret_key}".encode()).decode("ascii")
     return {
         "Authorization": f"Basic {auth}",
         "x-langfuse-ingestion-version": "4",
@@ -75,6 +83,20 @@ def init_voice_telemetry() -> None:
     if _INITIALIZED:
         return
     _INITIALIZED = True
+
+    if _langfuse_sdk_configured():
+        try:
+            from langfuse import get_client
+
+            get_client()
+            logger.info("Voice telemetry enabled through the shared Langfuse SDK")
+            return
+        except Exception as exc:
+            logger.warning(
+                "Langfuse voice telemetry initialization failed; trying OTLP: %s",
+                exc,
+                exc_info=True,
+            )
 
     if not _otel_available():
         logger.info("Voice telemetry disabled: OpenTelemetry packages are not installed")
@@ -157,6 +179,40 @@ def record_voice_event(
     attributes: dict[str, Any] | None = None,
 ) -> bool:
     """Record one short voice event span."""
+    attrs = attributes.copy() if attributes else {}
+    if voice_session_id:
+        attrs["voice.session_id"] = voice_session_id
+    if traceparent:
+        attrs["voice.traceparent"] = traceparent
+    if timestamp_ms is not None:
+        attrs["voice.event_timestamp_ms"] = timestamp_ms
+        try:
+            attrs["voice.event_delay_ms"] = max(
+                0.0,
+                (time.time_ns() / 1_000_000) - float(timestamp_ms),
+            )
+        except (TypeError, ValueError):
+            pass
+
+    if _langfuse_sdk_configured():
+        try:
+            from langfuse import get_client, propagate_attributes
+
+            with propagate_attributes(
+                session_id=voice_session_id,
+                tags=["voice"],
+            ):
+                observation = get_client().start_observation(
+                    name=name,
+                    as_type="span",
+                    metadata=attrs,
+                )
+                observation.end()
+            return True
+        except Exception as exc:
+            logger.debug("Failed to record Langfuse voice event: %s", exc)
+            return False
+
     tracer = get_voice_tracer()
     if tracer is None:
         return False
@@ -164,9 +220,7 @@ def record_voice_event(
     context = context_from_traceparent(traceparent)
     start_time = event_time_ns(timestamp_ms)
     end_time = max(start_time + 1_000_000, time.time_ns())
-    attrs = attributes.copy() if attributes else {}
     if voice_session_id:
-        attrs["voice.session_id"] = voice_session_id
         attrs["langfuse.session.id"] = voice_session_id
 
     try:

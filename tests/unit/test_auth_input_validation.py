@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from langgraph_sdk import Auth
+from langgraph_sdk.auth.types import StudioUser
 
 from src.api.auth import (
     MAX_MESSAGE_CHARS,
@@ -82,6 +83,25 @@ async def test_thread_auth_enriches_run_payload_when_resource_handler_matches(mo
     assert value["kwargs"]["context"]["user_id"] == "user-1"
     assert value["context"]["agent_id"] == "agent-1"
     assert value["context"]["user_id"] == "user-1"
+
+
+@pytest.mark.anyio
+async def test_thread_auth_enriches_studio_run_payload():
+    ctx = SimpleNamespace(user=StudioUser("studio-user", is_authenticated=True))
+    value = {
+        "thread_id": "thread-studio",
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+            "config": {"tags": ["Studio"]},
+        },
+    }
+
+    result = await add_owner(ctx, value)
+
+    assert result is None
+    metadata = value["kwargs"]["config"]["metadata"]
+    assert metadata["langfuse_user_id"] == "studio-user"
+    assert metadata["langfuse_session_id"] == "thread-studio"
 
 
 def test_validate_inputs_accepts_forked_conversation_history():
@@ -213,6 +233,32 @@ async def test_create_run_auth_writes_validated_config_back_to_kwargs(monkeypatc
     assert value["kwargs"]["context"]["user_id"] == "user-1"
     assert value["context"]["agent_id"] == "agent-1"
     assert value["context"]["user_id"] == "user-1"
+
+
+@pytest.mark.anyio
+async def test_create_run_auth_injects_langfuse_trace_attributes(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {
+        "thread_id": "thread-1",
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+            "context": {"agent_id": "agent-1"},
+            "config": {"tags": ["Chat-LangChain", "generic_agent"]},
+        },
+    }
+
+    await enrich_run_metadata(ctx, value)
+
+    metadata = value["kwargs"]["config"]["metadata"]
+    assert metadata["langfuse_user_id"] == "user-1"
+    assert metadata["langfuse_session_id"] == "thread-1"
+    assert metadata["langfuse_tags"] == [
+        "Chat-LangChain",
+        "generic_agent",
+        "agent",
+    ]
 
 
 @pytest.mark.anyio

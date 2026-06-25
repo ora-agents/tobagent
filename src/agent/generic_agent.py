@@ -28,6 +28,7 @@ from src.tools.form_tool import ManageFormDataTool, QueryFormDataTool
 from src.tools.rag_tool import RagSearchTool
 from src.tools.robot_control_tool import navigate_robot_to_point
 from src.tools.skill_tool import ReadSkillTool
+from src.utils.langfuse_tracing import with_langfuse_tracing
 
 logger = logging.getLogger(__name__)
 logger.info("Generic agent module loaded")
@@ -131,5 +132,6 @@ generic_agent = create_agent(
     middleware=_middleware,
     context_schema=GenericAgentContext,
 )
+generic_agent = with_langfuse_tracing(generic_agent, graph_name="generic_agent")
 
 logger.info("Generic agent graph compiled")

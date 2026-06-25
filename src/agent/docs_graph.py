@@ -18,6 +18,7 @@ from src.prompts.docs_agent_prompt import docs_agent_prompt as _local_prompt
 from src.tools.link_check_tools import check_links
 from src.tools.mcp_tools import mcp_docs_tools
 from src.tools.pricing_tools import fetch_langchain_pricing
+from src.utils.langfuse_tracing import with_langfuse_tracing
 
 # Set up logging for this module
 logger = logging.getLogger(__name__)
@@ -100,5 +101,6 @@ if _revision_id := os.environ.get("LANGCHAIN_REVISION_ID"):
     _prompt_metadata["LANGSMITH_AGENT_VERSION"] = _revision_id
 
 docs_agent = docs_agent.with_config(metadata=_prompt_metadata)
+docs_agent = with_langfuse_tracing(docs_agent, graph_name="docs_agent")
 docs_agent.tools = docs_agent_tools
 docs_agent.middleware = docs_agent_middleware

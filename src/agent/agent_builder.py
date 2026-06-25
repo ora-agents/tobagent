@@ -15,6 +15,7 @@ from src.agent.config import (
 from src.middleware.dynamic_config_middleware import dynamic_config_middleware
 from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.agent_builder_tool import agent_builder_tools
+from src.utils.langfuse_tracing import with_langfuse_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -76,5 +77,6 @@ agent_builder = create_agent(
     ],
     context_schema=AgentBuilderContext,
 )
+agent_builder = with_langfuse_tracing(agent_builder, graph_name="agent_builder")
 
 logger.info("Agent builder graph compiled")

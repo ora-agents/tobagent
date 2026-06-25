@@ -391,9 +391,12 @@ export function useStreamHandler({
       const agentType = agentProfile?.graphId?.trim() || "generic_agent"
       const repos = agentConfig?.repos ?? []
 
-      // Trace metadata for LangSmith observability
+      // Trace metadata for Langfuse observability
       const traceMetadata = {
         user_id: userId || "unknown",
+        langfuse_user_id: userId || "unknown",
+        langfuse_session_id: targetThreadId,
+        langfuse_tags: ["Chat-LangChain", agentType, "agent"],
         ...(userEmail && userEmail !== userId ? { user_email: userEmail } : {}),
         ...(userName && !userName.startsWith("User") ? { user_name: userName } : {}),
         source_type: "Chat-LangChain",

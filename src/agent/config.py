@@ -15,6 +15,16 @@ dotenv.load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# Langfuse is the single observability backend for agent traces. Disable
+# LangSmith's environment-driven callback when Langfuse credentials exist to
+# prevent every run from being exported twice.
+if (
+    os.getenv("LANGFUSE_PUBLIC_KEY", "").strip()
+    and os.getenv("LANGFUSE_SECRET_KEY", "").strip()
+):
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+    os.environ["LANGSMITH_TRACING"] = "false"
+
 # =============================================================================
 # OpenAI-compatible endpoint configuration
 #
