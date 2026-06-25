@@ -339,29 +339,33 @@ export const MessageList = memo(function MessageList({
   const historySkeleton = (
     <div className="space-y-6" aria-busy="true" aria-label={t.loadingConversations} role="status">
       <div className="flex justify-end">
-        <div className="w-[82%] max-w-[34rem] rounded-2xl rounded-br-md bg-secondary px-4 py-3">
+        <div className="w-[82%] max-w-[34rem] rounded-xl bg-muted px-4 py-3">
           <LoadingPlaceholder className="mb-2 h-3 w-3/5" />
           <LoadingPlaceholder className="h-3 w-4/5" />
         </div>
       </div>
       <div className="flex justify-start">
-        <div className="w-[88%] max-w-[38rem] space-y-2">
-          <LoadingPlaceholder className="h-3 w-28" />
-          <LoadingPlaceholder className="h-3 w-full" />
-          <LoadingPlaceholder className="h-3 w-[92%]" />
-          <LoadingPlaceholder className="h-3 w-2/3" />
+        <div className="w-[88%] max-w-[38rem] rounded-xl bg-card px-4 py-3">
+          <LoadingPlaceholder className="mb-3 h-2.5 w-24 opacity-70" />
+          <div className="space-y-2">
+            <LoadingPlaceholder className="h-3 w-full" />
+            <LoadingPlaceholder className="h-3 w-[92%]" />
+            <LoadingPlaceholder className="h-3 w-2/3" />
+          </div>
         </div>
       </div>
       <div className="flex justify-end">
-        <div className="w-[68%] max-w-[28rem] rounded-2xl rounded-br-md bg-secondary px-4 py-3">
+        <div className="w-[68%] max-w-[28rem] rounded-xl bg-muted px-4 py-3">
           <LoadingPlaceholder className="h-3 w-full" />
         </div>
       </div>
       <div className="flex justify-start">
-        <div className="w-[86%] max-w-[36rem] space-y-2">
-          <LoadingPlaceholder className="h-3 w-24" />
-          <LoadingPlaceholder className="h-3 w-[95%]" />
-          <LoadingPlaceholder className="h-3 w-3/4" />
+        <div className="w-[86%] max-w-[36rem] rounded-xl bg-card px-4 py-3">
+          <LoadingPlaceholder className="mb-3 h-2.5 w-20 opacity-70" />
+          <div className="space-y-2">
+            <LoadingPlaceholder className="h-3 w-[95%]" />
+            <LoadingPlaceholder className="h-3 w-3/4" />
+          </div>
         </div>
       </div>
     </div>
