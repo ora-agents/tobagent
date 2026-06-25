@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/components/providers/auth-provider'
-import { User, Lock, Mail, AlertCircle, Loader2, ShieldCheck, X } from 'lucide-react'
+import { User, Lock, Mail, AlertCircle, Loader2, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
 interface AuthPanelProps {
@@ -94,22 +94,20 @@ export function AuthPanel({
   const cardContent = (
     <section
       aria-label={title}
-      className="relative w-full max-w-[29rem] overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-depth-lg sm:p-6 dark:bg-card"
+      className="relative w-full max-w-[29rem] overflow-hidden rounded-2xl bg-card p-6 shadow-depth-lg sm:p-7 dark:bg-card"
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary" />
-      <div className="pointer-events-none absolute bottom-0 left-0 h-24 w-full bg-gradient-to-t from-primary-soft/70 to-transparent dark:from-background/40" />
 
-      <div className="relative space-y-4">
+      <div className="relative space-y-5">
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4">
-          
             {!inline && (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => onOpenChange(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-foreground transition-colors hover:bg-muted"
                 aria-label="Close auth panel"
               >
                 <X className="h-4 w-4" />
@@ -121,21 +119,21 @@ export function AuthPanel({
             <h2 className="font-display text-4xl font-medium leading-[1.05] tracking-normal text-foreground">
               {title}
             </h2>
-            <p className="max-w-sm text-sm leading-5 text-muted-foreground">
+            <p className="max-w-sm text-sm leading-5 text-foreground/75">
               {description}
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 rounded-lg border border-border bg-secondary p-1">
+        <div className="grid grid-cols-2 rounded-lg bg-secondary p-1">
           <Button
             type="button"
             variant="ghost"
             onClick={() => setActiveTab('login')}
             className={`rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
               activeTab === 'login'
-                ? 'bg-background text-foreground shadow-depth-xs'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-card text-primary shadow-depth-xs'
+                : 'text-foreground hover:bg-background hover:text-foreground'
             }`}
           >
             {t.signIn}
@@ -146,49 +144,28 @@ export function AuthPanel({
             onClick={() => setActiveTab('register')}
             className={`rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
               activeTab === 'register'
-                ? 'bg-background text-foreground shadow-depth-xs'
-                : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-card text-primary shadow-depth-xs'
+                : 'text-foreground hover:bg-background hover:text-foreground'
             }`}
           >
             {t.register}
           </Button>
         </div>
 
-        <div className="rounded-xl bg-secondary p-3 dark:bg-background/50">
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium tracking-[0.12em] text-muted-foreground">
-            <span className="h-2 w-2 rounded-full bg-success" />
-            {t.authWorkspaceTitle}
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-            <div className="rounded-lg border border-border/70 bg-background/70 p-2">
-              <div className="font-mono text-[11px] text-primary">01</div>
-              {t.authFeatureRole}
-            </div>
-            <div className="rounded-lg border border-border/70 bg-background/70 p-2">
-              <div className="font-mono text-[11px] text-primary">02</div>
-              {t.authFeatureKnowledge}
-            </div>
-            <div className="rounded-lg border border-border/70 bg-background/70 p-2">
-              <div className="font-mono text-[11px] text-primary">03</div>
-              {t.authFeatureTools}
-            </div>
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-3">
           {shownError && (
-            <div className="flex items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+            <div className="flex items-center gap-2.5 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <div className="whitespace-pre-line font-medium">{shownError}</div>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="username" className="text-xs font-medium text-muted-foreground">
+            <Label htmlFor="username" className="text-xs font-medium text-foreground">
               {t.username} <span className="text-destructive">*</span>
             </Label>
             <div className="group relative">
-              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70 transition-all duration-200 group-focus-within:text-primary">
+              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
                 <User className="h-4 w-4" />
               </span>
               <Input
@@ -198,7 +175,7 @@ export function AuthPanel({
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
-                className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
+                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
                 required
               />
             </div>
@@ -206,11 +183,11 @@ export function AuthPanel({
 
           {activeTab === 'register' && (
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">
+              <Label htmlFor="email" className="text-xs font-medium text-foreground">
                 {t.email}
               </Label>
               <div className="group relative">
-                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70 transition-all duration-200 group-focus-within:text-primary">
+                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
                   <Mail className="h-4 w-4" />
                 </span>
                 <Input
@@ -220,18 +197,18 @@ export function AuthPanel({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
+                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
                 />
               </div>
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
+            <Label htmlFor="password" className="text-xs font-medium text-foreground">
               {t.password} <span className="text-destructive">*</span>
             </Label>
             <div className="group relative">
-              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70 transition-all duration-200 group-focus-within:text-primary">
+              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
                 <Lock className="h-4 w-4" />
               </span>
               <Input
@@ -241,7 +218,7 @@ export function AuthPanel({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
+                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
                 required
               />
             </div>
@@ -249,11 +226,11 @@ export function AuthPanel({
 
           {activeTab === 'register' && (
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-xs font-medium text-muted-foreground">
+              <Label htmlFor="confirmPassword" className="text-xs font-medium text-foreground">
                 {t.confirmPassword} <span className="text-destructive">*</span>
               </Label>
               <div className="group relative">
-                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/70 transition-all duration-200 group-focus-within:text-primary">
+                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
                   <Lock className="h-4 w-4" />
                 </span>
                 <Input
@@ -263,7 +240,7 @@ export function AuthPanel({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={loading}
-                  className="h-10 rounded-md pl-9 text-sm transition-all duration-200 focus-visible:ring-4 focus-visible:ring-primary/15"
+                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
                   required
                 />
               </div>
@@ -288,7 +265,7 @@ export function AuthPanel({
           </Button>
         </form>
 
-        <div className="border-t border-border pt-3 text-center text-sm text-muted-foreground">
+        <div className="pt-1 text-center text-sm text-foreground/75">
           {activeTab === 'login' ? (
             <>
               {t.dontHaveAccount}{' '}
