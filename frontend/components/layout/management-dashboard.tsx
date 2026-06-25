@@ -2726,7 +2726,7 @@ export function ManagementDashboard({
                       </div>
                     )}
 
-                    <div className="grid gap-4 xl:grid-cols-[minmax(0,42rem)_minmax(26rem,1fr)] xl:items-start">
+                    <div className="grid w-full gap-4 xl:grid-cols-2 xl:items-start">
                       <div className="min-w-0 space-y-4">
                     <div className="space-y-3 border border-border/50 rounded-xl p-4 bg-background/50">
                       <div className="space-y-1.5">
@@ -3503,7 +3503,7 @@ export function ManagementDashboard({
                     </div>
                   </div>
                 ) : selectedAgent ? (
-                  <div className="max-w-2xl space-y-4">
+                  <div className="w-full space-y-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h2 className="text-xl font-bold font-display flex items-center gap-2">
@@ -3516,7 +3516,8 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="space-y-6 mt-6">
+                    <div className="mt-6 grid w-full gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(24rem,2fr)] xl:items-start">
+                      <div className="min-w-0 space-y-6">
                       <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/50 px-4 py-3">
                         <div className="min-w-0">
                           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -3785,17 +3786,6 @@ export function ManagementDashboard({
                         )}
                       </div>
 
-                      <div className="border border-border/40 rounded-xl bg-background/50 overflow-hidden">
-                        <div className="px-4 py-2 border-b border-border/30 bg-muted/20">
-                          <span className="text-[10px] font-bold text-muted-foreground tracking-wider uppercase font-mono">
-                            {t.systemInstructions}
-                          </span>
-                        </div>
-                        <div className="p-4 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                          {selectedAgent.systemPrompt}
-                        </div>
-                      </div>
-
                       <div className="space-y-2">
                         <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
                           {t.enabledToolsTitle}
@@ -3924,6 +3914,18 @@ export function ManagementDashboard({
                           </div>
                         )}
                       </div>
+                      </div>
+
+                      <aside className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/50 xl:sticky xl:top-0">
+                        <div className="border-b border-border/30 bg-muted/20 px-4 py-2">
+                          <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            {t.systemInstructions}
+                          </span>
+                        </div>
+                        <div className="whitespace-pre-wrap break-words p-4 text-sm leading-relaxed text-muted-foreground">
+                          {selectedAgent.systemPrompt}
+                        </div>
+                      </aside>
                     </div>
                   </div>
                 ) : (
