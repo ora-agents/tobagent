@@ -10,7 +10,6 @@ import {
   AlertCircle,
   Settings2,
   ArrowLeft,
-  MessagesSquare,
   KeyRound,
   Plus,
   Trash2,
@@ -137,8 +136,6 @@ export function UserSettingsPage({
   const [email, setEmail] = useState("")
   const [preferences, setPreferences] = useState("")
   const [safetyEnabled, setSafetyEnabled] = useState(false)
-  const [multiAgentEnabled, setMultiAgentEnabled] = useState(false)
-
   // ---- Auto-save state ----
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -917,21 +914,6 @@ export function UserSettingsPage({
                 )}
               </div>
             </PageSection>
-
-            {/* Multi-agent toggle (kept at bottom) */}
-            <SettingsSwitch
-              checked={multiAgentEnabled}
-              onCheckedChange={setMultiAgentEnabled}
-              size={elderOptimized ? "lg" : "default"}
-              label={
-                <span className="flex items-center gap-2 min-w-0">
-                <MessagesSquare className={`${elderOptimized ? "w-5 h-5" : "w-4 h-4"} flex-shrink-0`} />
-                <span className="truncate">
-                  {zh ? "多角色对话和信息沟通" : "Multi-agent Conversation & Information Exchange"}
-                </span>
-              </span>
-              }
-            />
 
             {/* ============ Section: Danger Zone ============ */}
             <PageSection
