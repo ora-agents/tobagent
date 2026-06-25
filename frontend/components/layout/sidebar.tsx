@@ -424,14 +424,14 @@ export const Sidebar = memo(function Sidebar({
       <div className="px-3 py-2">
         <div className="relative group">
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2 z-10">
-            <Search className="w-4 h-4 text-muted-foreground/70 group-focus-within:text-primary transition-all duration-200" />
+            <Search className="w-4 h-4 text-muted-foreground/70 transition-all duration-200" />
           </div>
           <Input
             type="text"
             placeholder={t.searchThreads}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 rounded-lg bg-muted pl-10 pr-8 text-sm hover:bg-sidebar-accent focus-visible:bg-background"
+            className="h-10 rounded-lg bg-muted pl-10 pr-8 text-sm hover:bg-sidebar-accent"
           />
           {searchQuery && (
             <button

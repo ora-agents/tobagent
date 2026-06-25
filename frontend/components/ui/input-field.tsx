@@ -39,7 +39,7 @@ function InputField({
     >
       <div className={cn("relative", leadingIcon && "group")}>
         {leadingIcon && (
-          <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/75 transition-colors group-focus-within:text-primary">
+          <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground/75 transition-colors">
             {leadingIcon}
           </span>
         )}

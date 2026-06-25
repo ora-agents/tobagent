@@ -651,7 +651,7 @@ export function UserSettingsPage({
                 leadingIcon={<User className={elderOptimized ? "w-5 h-5" : "w-4 h-4"} />}
                 fieldClassName={elderOptimized ? "space-y-2" : undefined}
                 labelClassName={elderOptimized ? "text-base" : undefined}
-                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary focus-visible:bg-background`}
+                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary`}
               />
 
               {/* Email */}
@@ -665,7 +665,7 @@ export function UserSettingsPage({
                 leadingIcon={<Mail className={elderOptimized ? "w-5 h-5" : "w-4 h-4"} />}
                 fieldClassName={elderOptimized ? "space-y-2" : undefined}
                 labelClassName={elderOptimized ? "text-base" : undefined}
-                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary focus-visible:bg-background`}
+                className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary`}
               />
             </PageSection>
 
@@ -693,7 +693,7 @@ export function UserSettingsPage({
                       ? "例如：我是一名前端开发者，偏好使用 TypeScript 和 React。回答时请简洁明了，使用中文。我喜欢先看方案概览再看具体实现..."
                       : "e.g., I'm a frontend developer who prefers TypeScript and React. Please keep answers concise. I like to see the overview before diving into implementation details..."
                   }
-                  className={`${elderOptimized ? "min-h-48 p-4 text-lg leading-8" : "text-sm leading-relaxed"} resize-none bg-secondary focus-visible:bg-background`}
+                  className={`${elderOptimized ? "min-h-48 p-4 text-lg leading-8" : "text-sm leading-relaxed"} resize-none bg-secondary`}
                 />
                 <p className={`${elderOptimized ? "text-sm leading-6" : "text-[11px]"} text-muted-foreground/80`}>
                   {zh
@@ -874,7 +874,7 @@ export function UserSettingsPage({
                   value={apiKeyName}
                   onChange={(e) => setApiKeyName(e.target.value)}
                   placeholder={zh ? "API key 名称" : "API key name"}
-                  className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-secondary focus-visible:bg-background`}
+                  className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-secondary`}
                 />
                 <ActionButton
                   type="button"

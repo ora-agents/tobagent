@@ -136,7 +136,7 @@ export function ChatInput({
           <div className="relative">
             <div className="relative">
               <div
-                className={`relative rounded-xl bg-secondary transition-[background-color,box-shadow] duration-200 focus-within:bg-card focus-within:ring-[3px] focus-within:ring-ring/15 ${
+                className={`relative rounded-xl bg-secondary transition-[background-color,box-shadow] duration-200 ${
                   isDragging
                     ? 'bg-primary-soft ring-[3px] ring-primary/25'
                     : ''

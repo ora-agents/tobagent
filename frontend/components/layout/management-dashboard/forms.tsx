@@ -532,7 +532,7 @@ function EditableRecordCell({ field, value, error, onCommit }: EditableRecordCel
         value={String(value ?? "")}
         onChange={(event) => onCommit(event.target.value)}
         title={error}
-        className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 ${error ? "bg-destructive/10 text-destructive focus:ring-destructive/20" : "focus:ring-ring/20"}`}
+        className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:ring-0 ${error ? "bg-destructive/10 text-destructive" : ""}`}
       >
         <option value=""></option>
         {field.options.map(option => (
@@ -554,7 +554,7 @@ function EditableRecordCell({ field, value, error, onCommit }: EditableRecordCel
         }
       }}
       title={error}
-      className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:bg-background focus:ring-2 ${error ? "bg-destructive/10 text-destructive focus:ring-destructive/20" : "focus:ring-ring/20"}`}
+      className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:ring-0 ${error ? "bg-destructive/10 text-destructive" : ""}`}
     />
   )
 }

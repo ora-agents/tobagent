@@ -165,7 +165,7 @@ export function AuthPanel({
               {t.username} <span className="text-destructive">*</span>
             </Label>
             <div className="group relative">
-              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
+              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
                 <User className="h-4 w-4" />
               </span>
               <Input
@@ -175,7 +175,7 @@ export function AuthPanel({
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
-                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
+                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
                 required
               />
             </div>
@@ -187,7 +187,7 @@ export function AuthPanel({
                 {t.email}
               </Label>
               <div className="group relative">
-                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
+                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
                   <Mail className="h-4 w-4" />
                 </span>
                 <Input
@@ -197,7 +197,7 @@ export function AuthPanel({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   disabled={loading}
-                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
+                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
                 />
               </div>
             </div>
@@ -208,7 +208,7 @@ export function AuthPanel({
               {t.password} <span className="text-destructive">*</span>
             </Label>
             <div className="group relative">
-              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
+              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
                 <Lock className="h-4 w-4" />
               </span>
               <Input
@@ -218,7 +218,7 @@ export function AuthPanel({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
-                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
+                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
                 required
               />
             </div>
@@ -230,7 +230,7 @@ export function AuthPanel({
                 {t.confirmPassword} <span className="text-destructive">*</span>
               </Label>
               <div className="group relative">
-                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200 group-focus-within:text-primary">
+                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
                   <Lock className="h-4 w-4" />
                 </span>
                 <Input
@@ -240,7 +240,7 @@ export function AuthPanel({
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={loading}
-                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/15"
+                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
                   required
                 />
               </div>
