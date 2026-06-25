@@ -1,9 +1,17 @@
 import json
 
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.tools.agent_builder_tool import UpsertSkillTool
+from src.tools.agent_builder_tool import (
+    UpsertAgentProfileInput,
+    UpsertFormInput,
+    UpsertKnowledgeBaseInput,
+    UpsertMcpServerInput,
+    UpsertSkillInput,
+    UpsertSkillTool,
+)
 from src.utils.db import Base, SkillTable
 from src.utils.skill_validation import (
     SkillValidationError,
@@ -178,6 +186,39 @@ def test_upsert_skill_tool_rejects_invalid_content(monkeypatch):
         db.close()
 
 
+def test_upsert_resource_schemas_do_not_accept_caller_generated_ids():
+    schema_and_legacy_id = [
+        (UpsertAgentProfileInput, "agent_id"),
+        (UpsertSkillInput, "skill_id"),
+        (UpsertFormInput, "form_id"),
+        (UpsertMcpServerInput, "mcp_id"),
+        (UpsertKnowledgeBaseInput, "knowledge_base_id"),
+    ]
+
+    for schema, legacy_id_field in schema_and_legacy_id:
+        assert legacy_id_field not in schema.model_fields
+
+        required_payload = {
+            "name": "Generated ID resource",
+            "content": VALID_SKILL,
+            "url": "https://mcp.example.com",
+        }
+        accepted_fields = schema.model_fields
+        payload = {
+            key: value
+            for key, value in required_payload.items()
+            if key in accepted_fields
+        }
+        payload[legacy_id_field] = "caller-selected-id"
+
+        try:
+            schema.model_validate(payload)
+        except ValidationError as exc:
+            assert legacy_id_field in str(exc)
+        else:
+            raise AssertionError(f"{schema.__name__} accepted {legacy_id_field}")
+
+
 def test_upsert_skill_tool_saves_valid_content_with_frontmatter_identity(monkeypatch):
     Session = _session_factory()
     monkeypatch.setattr(
@@ -212,7 +253,7 @@ def test_upsert_skill_tool_saves_valid_content_with_frontmatter_identity(monkeyp
         db.close()
 
 
-def test_upsert_skill_tool_creates_skill_with_explicit_id(monkeypatch):
+def test_upsert_skill_tool_generates_id_when_creating(monkeypatch):
     Session = _session_factory()
     monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)
     monkeypatch.setattr(
@@ -220,21 +261,22 @@ def test_upsert_skill_tool_creates_skill_with_explicit_id(monkeypatch):
         lambda key, default=None: "user_1" if key == "user_id" else default,
     )
 
-    result = UpsertSkillTool()._run(skill_id="ticket_followup_01", content=VALID_SKILL)
+    result = UpsertSkillTool()._run(content=VALID_SKILL)
 
     payload = json.loads(result)
-    assert payload == {"skillId": "ticket_followup_01", "status": "saved"}
+    assert payload["skillId"].startswith("skill-")
+    assert payload["status"] == "saved"
 
     db = Session()
     try:
         saved = db.query(SkillTable).one()
-        assert saved.id == "ticket_followup_01"
+        assert saved.id == payload["skillId"]
         assert saved.owner_user_id == "user_1"
     finally:
         db.close()
 
 
-def test_upsert_skill_tool_updates_existing_explicit_id(monkeypatch):
+def test_upsert_skill_tool_updates_existing_backend_generated_id(monkeypatch):
     Session = _session_factory()
     monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)
     monkeypatch.setattr(
@@ -243,14 +285,15 @@ def test_upsert_skill_tool_updates_existing_explicit_id(monkeypatch):
     )
 
     tool = UpsertSkillTool()
-    create_result = tool._run(skill_id="ticket_followup_01", content=VALID_SKILL)
+    create_result = tool._run(content=VALID_SKILL)
+    skill_id = json.loads(create_result)["skillId"]
     update_result = tool._run(
-        skill_id="ticket_followup_01",
+        existing_skill_id=skill_id,
         content=VALID_SKILL_WITHOUT_ALLOWED_TOOLS,
     )
 
-    assert json.loads(create_result)["skillId"] == "ticket_followup_01"
-    assert json.loads(update_result)["skillId"] == "ticket_followup_01"
+    assert skill_id.startswith("skill-")
+    assert json.loads(update_result)["skillId"] == skill_id
 
     db = Session()
     try:
@@ -261,7 +304,7 @@ def test_upsert_skill_tool_updates_existing_explicit_id(monkeypatch):
         db.close()
 
 
-def test_upsert_skill_tool_rejects_explicit_id_owned_by_another_user(monkeypatch):
+def test_upsert_skill_tool_does_not_update_id_owned_by_another_user(monkeypatch):
     Session = _session_factory()
     db = Session()
     try:
@@ -286,9 +329,12 @@ def test_upsert_skill_tool_rejects_explicit_id_owned_by_another_user(monkeypatch
         lambda key, default=None: "user_1" if key == "user_id" else default,
     )
 
-    result = UpsertSkillTool()._run(skill_id="ticket_followup_01", content=VALID_SKILL)
+    result = UpsertSkillTool()._run(
+        existing_skill_id="ticket_followup_01",
+        content=VALID_SKILL,
+    )
 
-    assert result == "Skill 'ticket_followup_01' already exists for another user."
+    assert result == "Skill 'ticket_followup_01' was not found for this user."
 
 
 def test_upsert_skill_tool_filters_empty_frontmatter_arrays(monkeypatch):
