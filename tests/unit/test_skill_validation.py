@@ -212,6 +212,85 @@ def test_upsert_skill_tool_saves_valid_content_with_frontmatter_identity(monkeyp
         db.close()
 
 
+def test_upsert_skill_tool_creates_skill_with_explicit_id(monkeypatch):
+    Session = _session_factory()
+    monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)
+    monkeypatch.setattr(
+        "src.tools.agent_builder_tool.get_runtime_context_value",
+        lambda key, default=None: "user_1" if key == "user_id" else default,
+    )
+
+    result = UpsertSkillTool()._run(skill_id="ticket_followup_01", content=VALID_SKILL)
+
+    payload = json.loads(result)
+    assert payload == {"skillId": "ticket_followup_01", "status": "saved"}
+
+    db = Session()
+    try:
+        saved = db.query(SkillTable).one()
+        assert saved.id == "ticket_followup_01"
+        assert saved.owner_user_id == "user_1"
+    finally:
+        db.close()
+
+
+def test_upsert_skill_tool_updates_existing_explicit_id(monkeypatch):
+    Session = _session_factory()
+    monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)
+    monkeypatch.setattr(
+        "src.tools.agent_builder_tool.get_runtime_context_value",
+        lambda key, default=None: "user_1" if key == "user_id" else default,
+    )
+
+    tool = UpsertSkillTool()
+    create_result = tool._run(skill_id="ticket_followup_01", content=VALID_SKILL)
+    update_result = tool._run(
+        skill_id="ticket_followup_01",
+        content=VALID_SKILL_WITHOUT_ALLOWED_TOOLS,
+    )
+
+    assert json.loads(create_result)["skillId"] == "ticket_followup_01"
+    assert json.loads(update_result)["skillId"] == "ticket_followup_01"
+
+    db = Session()
+    try:
+        saved = db.query(SkillTable).one()
+        assert saved.name == "no-tool-skill"
+        assert saved.description == "A skill that only provides behavioral instructions."
+    finally:
+        db.close()
+
+
+def test_upsert_skill_tool_rejects_explicit_id_owned_by_another_user(monkeypatch):
+    Session = _session_factory()
+    db = Session()
+    try:
+        db.add(
+            SkillTable(
+                id="ticket_followup_01",
+                owner_user_id="user_2",
+                name="Existing",
+                description="",
+                content=VALID_SKILL,
+                created_at="2026-01-01T00:00:00Z",
+                updated_at="2026-01-01T00:00:00Z",
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)
+    monkeypatch.setattr(
+        "src.tools.agent_builder_tool.get_runtime_context_value",
+        lambda key, default=None: "user_1" if key == "user_id" else default,
+    )
+
+    result = UpsertSkillTool()._run(skill_id="ticket_followup_01", content=VALID_SKILL)
+
+    assert result == "Skill 'ticket_followup_01' already exists for another user."
+
+
 def test_upsert_skill_tool_filters_empty_frontmatter_arrays(monkeypatch):
     Session = _session_factory()
     monkeypatch.setattr("src.tools.agent_builder_tool.SessionLocal", Session)

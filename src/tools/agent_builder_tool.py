@@ -220,7 +220,10 @@ class UpsertAgentProfileTool(BaseTool):
 class UpsertSkillInput(BaseModel):
     """Input for creating or updating a skill."""
 
-    skill_id: str = ""
+    skill_id: str = Field(
+        default="",
+        description="Optional stable skill ID. When omitted, a new skill ID is generated.",
+    )
     name: str = Field(
         default="",
         description="Fallback skill name. The saved name is read from the skill frontmatter when present.",
@@ -256,11 +259,11 @@ class UpsertSkillTool(BaseTool):
         db = SessionLocal()
         try:
             skill_id = str(kwargs.get("skill_id") or "").strip()
-            skill = db.query(SkillTable).filter(SkillTable.id == skill_id, SkillTable.owner_user_id == owner).first() if skill_id else None
-            if skill_id and skill is None:
-                return f"Skill '{skill_id}' was not found for this user."
+            skill = db.query(SkillTable).filter(SkillTable.id == skill_id).first() if skill_id else None
+            if skill is not None and skill.owner_user_id != owner:
+                return f"Skill '{skill_id}' already exists for another user."
             if skill is None:
-                skill = SkillTable(id=_new_id("skill"), owner_user_id=owner, created_at=now)
+                skill = SkillTable(id=skill_id or _new_id("skill"), owner_user_id=owner, created_at=now)
                 db.add(skill)
             content = str(kwargs.get("content") or "")
             try:
