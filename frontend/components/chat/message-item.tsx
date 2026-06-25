@@ -6,7 +6,6 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { ThinkingTimer } from "./animations/thinking-timer"
 import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message, ToolCall } from "@/lib/types"
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react"
@@ -515,12 +514,6 @@ export const MessageItem = memo(function MessageItem({
                 <span>
                   {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Process</span>}
                 </span>
-                <span className="ml-1">•</span>
-                <ThinkingTimer
-                  startTime={message.thinkingStartTime}
-                  duration={message.thinkingDuration}
-                  isThinking={!!message.isThinking}
-                />
               </summary>
               {message.processSteps && message.processSteps.length > 0 && (
                 <div className="mt-3 space-y-3">
