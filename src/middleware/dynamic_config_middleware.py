@@ -31,6 +31,7 @@ from src.utils.db import (
     SkillTable,
 )
 from src.utils.debug_logging import write_debug_event
+from src.utils.form_permissions import normalize_form_permissions
 from src.utils.mcp import McpPoolManager
 from src.utils.runtime_context import get_runtime_context_value
 
@@ -132,7 +133,8 @@ def _format_linked_forms_for_prompt(forms: list[dict[str, Any]]) -> str:
         return ""
 
     form_instructions = (
-        "\n\nYou have access to structured form data through `query_form_data`. "
+        "\n\nYou have access to structured form data through `query_form_data` and, "
+        "where granted, `manage_form_data`. "
         "The linked form names and schemas are included below by default so you can "
         "choose the right `form_id`, `fields`, and filter fields without first listing forms. "
         "Use `query_form_data` when the user asks about records, rows, customers, orders, cases, "
@@ -147,6 +149,7 @@ def _format_linked_forms_for_prompt(forms: list[dict[str, Any]]) -> str:
         form_instructions += (
             f"- **{form['name']}** (ID: `{form['id']}`): "
             f"{form['description']}{category_suffix}\n"
+            f"  Record permissions: {', '.join(form.get('permissions', ['read'])) or 'none'}\n"
             "  Schema:\n"
         )
         if isinstance(fields, list) and fields:
@@ -427,6 +430,10 @@ def _load_agent_runtime_resources(
         ]
 
         form_ids = list(agent_profile.form_ids or [])
+        form_permissions = normalize_form_permissions(
+            form_ids,
+            agent_profile.form_permissions,
+        )
         form_rows = []
         if form_ids:
             form_rows = db.query(FormTable).filter(
@@ -443,6 +450,7 @@ def _load_agent_runtime_resources(
                 "description": form.description or "No description.",
                 "category": form.category or "",
                 "fields": form.fields or [],
+                "permissions": form_permissions.get(form.id, []),
             }
             for form in form_rows
         ]
@@ -596,7 +604,8 @@ class DynamicConfigMiddleware(AgentMiddleware):
         robot_environment = bool(getattr(ctx, "robot_environment", False))
         linked_agent_tools: list[BaseTool] = []
         has_linked_skills = False
-        has_linked_forms = False
+        has_readable_forms = False
+        has_manageable_forms = False
 
         write_debug_event(
             "middleware.model_call.context",
@@ -665,7 +674,15 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     # ---- Linked forms ----
                     forms = resources.get("forms", [])
                     if forms:
-                        has_linked_forms = True
+                        has_readable_forms = any(
+                            "read" in form.get("permissions", ["read"])
+                            for form in forms
+                        )
+                        has_manageable_forms = any(
+                            {"create", "update", "delete"}
+                            & set(form.get("permissions", []))
+                            for form in forms
+                        )
                         system_prompt += _format_linked_forms_for_prompt(forms)
 
                     # ---- Linked skills ----
@@ -826,10 +843,14 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 tool_set.add("read_skill")
             else:
                 tool_set.discard("read_skill")
-            if has_linked_forms:
+            if has_readable_forms:
                 tool_set.add("query_form_data")
             else:
                 tool_set.discard("query_form_data")
+            if has_manageable_forms:
+                tool_set.add("manage_form_data")
+            else:
+                tool_set.discard("manage_form_data")
             if not robot_environment:
                 tool_set.discard("navigate_robot_to_point")
             filtered = [t for t in filtered if getattr(t, "name", "") in tool_set]

@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
-from src.api.schemas import FormRecordListResponse, FormRecordSchema, FormSchema
+from src.api.schemas import (
+    FormRecordListResponse,
+    FormRecordSchema,
+    FormRecordWriteSchema,
+    FormSchema,
+)
 from src.api.services import (
     _form_record_schema,
     _form_schema,
@@ -101,6 +106,30 @@ async def list_forms(
         )
         for form in forms
     ]
+
+
+@router.get(
+    "/api/forms/{id}",
+    response_model=FormSchema,
+    summary="Get a form definition",
+    description="Returns one owned form and its field schema. Supports user API keys.",
+)
+async def get_form(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    form = db.query(FormTable).filter(
+        FormTable.id == id,
+        FormTable.owner_user_id == current_user.id,
+    ).first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    record_count = db.query(FormRecordTable).filter(
+        FormRecordTable.form_id == id,
+        FormRecordTable.owner_user_id == current_user.id,
+    ).count()
+    return _form_schema(form, record_count)
 
 
 @router.post("/api/forms", response_model=FormSchema, summary="Create a form")
@@ -229,10 +258,15 @@ async def list_form_records(
     )
 
 
-@router.post("/api/forms/{id}/records", response_model=FormRecordSchema, summary="Create a form record")
+@router.post(
+    "/api/forms/{id}/records",
+    response_model=FormRecordSchema,
+    summary="Create a form record",
+    description="Creates a record through a browser session or user API key. Only data is required.",
+)
 async def create_form_record(
     id: str,
-    record_data: FormRecordSchema,
+    record_data: FormRecordWriteSchema,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -253,11 +287,16 @@ async def create_form_record(
     return _form_record_schema(record)
 
 
-@router.put("/api/forms/{form_id}/records/{record_id}", response_model=FormRecordSchema, summary="Update a form record")
+@router.put(
+    "/api/forms/{form_id}/records/{record_id}",
+    response_model=FormRecordSchema,
+    summary="Update a form record",
+    description="Replaces record data through a browser session or user API key.",
+)
 async def update_form_record(
     form_id: str,
     record_id: str,
-    record_data: FormRecordSchema,
+    record_data: FormRecordWriteSchema,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):

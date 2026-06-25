@@ -46,6 +46,7 @@ from src.utils.db import (
     get_db,
 )
 from src.utils.default_skills import ensure_default_skills
+from src.utils.form_permissions import normalize_form_permissions
 
 router = APIRouter(tags=["agent-profiles"])
 
@@ -132,6 +133,10 @@ async def create_agent_profile(
         mcp_ids=profile_data.mcpIds,
         agent_ids=profile_data.agentIds,
         form_ids=profile_data.formIds,
+        form_permissions=normalize_form_permissions(
+            profile_data.formIds,
+            profile_data.formPermissions,
+        ),
         wake_words=profile_data.wakeWords,
         role_template_id=profile_data.roleTemplateId,
         persona_style=profile_data.personaStyle,
@@ -184,6 +189,10 @@ async def update_agent_profile(
     profile.mcp_ids = profile_data.mcpIds
     profile.agent_ids = profile_data.agentIds
     profile.form_ids = profile_data.formIds
+    profile.form_permissions = normalize_form_permissions(
+        profile_data.formIds,
+        profile_data.formPermissions,
+    )
     profile.wake_words = profile_data.wakeWords
     profile.role_template_id = profile_data.roleTemplateId
     profile.persona_style = profile_data.personaStyle
@@ -270,6 +279,10 @@ async def restore_agent_profile_version(
     profile.mcp_ids = restored.mcpIds
     profile.agent_ids = restored.agentIds
     profile.form_ids = restored.formIds
+    profile.form_permissions = normalize_form_permissions(
+        restored.formIds,
+        restored.formPermissions,
+    )
     profile.wake_words = restored.wakeWords
     profile.role_template_id = restored.roleTemplateId
     profile.persona_style = restored.personaStyle
@@ -432,6 +445,13 @@ async def import_agent_share(
         mcp_ids=copied_ids["mcpIds"],
         agent_ids=copied_ids["agentIds"],
         form_ids=copied_ids["formIds"],
+        form_permissions={
+            target_id: normalize_form_permissions(
+                source_profile.form_ids,
+                source_profile.form_permissions,
+            ).get(source_id, ["read"])
+            for source_id, target_id in id_map["formIds"].items()
+        },
         wake_words=copy.deepcopy(source_profile.wake_words or []),
         role_template_id=source_profile.role_template_id,
         persona_style=source_profile.persona_style,
@@ -581,6 +601,16 @@ async def import_agent_profiles_toml(
         ]
         for form_id in skipped_form_ids:
             warnings.append(f"Form {form_id} was not present in the TOML bundle and was skipped.")
+        source_form_permissions = (
+            raw_agent.get("formPermissions")
+            if isinstance(raw_agent.get("formPermissions"), dict)
+            else {}
+        )
+        form_permissions = {
+            id_map["formIds"][source_form_id]: permissions
+            for source_form_id, permissions in source_form_permissions.items()
+            if source_form_id in id_map["formIds"] and isinstance(permissions, list)
+        }
 
         profile = AgentProfileTable(
             id=target_id,
@@ -596,6 +626,7 @@ async def import_agent_profiles_toml(
             mcp_ids=[],
             agent_ids=[],
             form_ids=form_ids,
+            form_permissions=normalize_form_permissions(form_ids, form_permissions),
             wake_words=list(raw_agent.get("wakeWords") or []),
             role_template_id=raw_agent.get("roleTemplateId") or None,
             persona_style=raw_agent.get("personaStyle") or None,

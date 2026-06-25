@@ -55,7 +55,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId, FormRecordPermission } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS, isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -308,6 +308,7 @@ export function ManagementDashboard({
     mcpIds: string[]
     agentIds: string[]
     formIds: string[]
+    formPermissions: Record<string, FormRecordPermission[]>
     wakeWords: string[]
     roleTemplateId: string
     personaStyle: PersonaStyle
@@ -328,6 +329,7 @@ export function ManagementDashboard({
     mcpIds: [],
     agentIds: [],
     formIds: [],
+    formPermissions: {},
     wakeWords: [],
     roleTemplateId: "",
     personaStyle: "professional",
@@ -702,6 +704,7 @@ export function ManagementDashboard({
       mcpIds: [],
       agentIds: [],
       formIds: [],
+      formPermissions: {},
       wakeWords: [],
       roleTemplateId: "",
       personaStyle: "professional",
@@ -736,6 +739,12 @@ export function ManagementDashboard({
       mcpIds: profile.mcpIds || [],
       agentIds: (profile as any).agentIds || [],
       formIds: profile.formIds || [],
+      formPermissions: Object.fromEntries(
+        (profile.formIds || []).map(formId => [
+          formId,
+          profile.formPermissions?.[formId] || ["read"],
+        ]),
+      ),
       wakeWords: (profile as any).wakeWords || [],
       roleTemplateId: profile.roleTemplateId || "",
       personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
@@ -786,10 +795,15 @@ export function ManagementDashboard({
 
     const enabledTools = [
       ...agentForm.enabledTools.filter(
-        tool => tool !== "rag_search" && tool !== "query_form_data"
+        tool => tool !== "rag_search" && tool !== "query_form_data" && tool !== "manage_form_data"
       ),
       ...(agentForm.knowledgeBaseIds.length > 0 ? ["rag_search" as const] : []),
-      ...(agentForm.formIds.length > 0 ? ["query_form_data" as const] : []),
+      ...(Object.values(agentForm.formPermissions).some(permissions =>
+        permissions.includes("read")
+      ) ? ["query_form_data" as const] : []),
+      ...(Object.values(agentForm.formPermissions).some(permissions =>
+        permissions.some(permission => permission !== "read")
+      ) ? ["manage_form_data" as const] : []),
     ]
 
     const profileData = {
@@ -803,6 +817,7 @@ export function ManagementDashboard({
       mcpIds: agentForm.mcpIds,
       agentIds: agentForm.agentIds,
       formIds: agentForm.formIds,
+      formPermissions: agentForm.formPermissions,
       wakeWords: agentForm.wakeWords,
       roleTemplateId: agentForm.roleTemplateId || null,
       personaStyle: agentForm.personaStyle,
@@ -3386,10 +3401,21 @@ export function ManagementDashboard({
                                             const nextIds = linked
                                               ? agentForm.formIds.filter(id => id !== form.id)
                                               : [...agentForm.formIds, form.id]
+                                            const nextPermissions = { ...agentForm.formPermissions }
+                                            if (linked) {
+                                              delete nextPermissions[form.id]
+                                            } else {
+                                              nextPermissions[form.id] = ["read"]
+                                            }
                                             const enabledTools = nextIds.length > 0
                                               ? [...new Set([...agentForm.enabledTools, "query_form_data" as BuiltinToolId])]
-                                              : agentForm.enabledTools.filter(tool => tool !== "query_form_data")
-                                            setAgentForm({ ...agentForm, formIds: nextIds, enabledTools })
+                                              : agentForm.enabledTools.filter(tool => tool !== "query_form_data" && tool !== "manage_form_data")
+                                            setAgentForm({
+                                              ...agentForm,
+                                              formIds: nextIds,
+                                              formPermissions: nextPermissions,
+                                              enabledTools,
+                                            })
                                           }}
                                         >
                                           <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
@@ -3397,9 +3423,51 @@ export function ManagementDashboard({
                                           }`}>
                                             {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
                                           </span>
-                                          <div className="min-w-0">
+                                          <div className="min-w-0 flex-1">
                                             <div className="text-xs font-medium truncate">{form.name}</div>
                                             <div className="text-[10px] text-muted-foreground truncate">{form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
+                                            {linked && (
+                                              <div className="mt-2 flex flex-wrap gap-1">
+                                                {([
+                                                  ["create", locale === "zh" ? "增" : "Create"],
+                                                  ["read", locale === "zh" ? "查" : "Read"],
+                                                  ["update", locale === "zh" ? "改" : "Update"],
+                                                  ["delete", locale === "zh" ? "删" : "Delete"],
+                                                ] as Array<[FormRecordPermission, string]>).map(([permission, label]) => {
+                                                  const selected = (agentForm.formPermissions[form.id] || ["read"]).includes(permission)
+                                                  return (
+                                                    <button
+                                                      key={permission}
+                                                      type="button"
+                                                      onClick={(event) => {
+                                                        event.stopPropagation()
+                                                        const current = agentForm.formPermissions[form.id] || ["read"]
+                                                        if (selected && current.length === 1) return
+                                                        const next = selected
+                                                          ? current.filter(item => item !== permission)
+                                                          : [...current, permission]
+                                                        setAgentForm({
+                                                          ...agentForm,
+                                                          formPermissions: {
+                                                            ...agentForm.formPermissions,
+                                                            [form.id]: next,
+                                                          },
+                                                        })
+                                                      }}
+                                                      className={cn(
+                                                        "rounded-md px-2 py-1 text-[10px] font-medium transition focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20",
+                                                        selected
+                                                          ? "bg-primary-soft text-primary"
+                                                          : "bg-muted text-muted-foreground hover:text-foreground",
+                                                      )}
+                                                      aria-pressed={selected}
+                                                    >
+                                                      {label}
+                                                    </button>
+                                                  )
+                                                })}
+                                              </div>
+                                            )}
                                           </div>
                                           <button
                                             type="button"

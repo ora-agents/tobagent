@@ -22,6 +22,7 @@ from src.utils.db import (
     SessionLocal,
     SkillTable,
 )
+from src.utils.form_permissions import normalize_form_permissions
 from src.utils.mcp import discover_mcp_capabilities
 from src.utils.runtime_context import get_runtime_context_value
 
@@ -83,6 +84,10 @@ class ListConfigResourcesTool(BaseTool):
                         "mcpIds": row.mcp_ids or [],
                         "agentIds": row.agent_ids or [],
                         "formIds": row.form_ids or [],
+                        "formPermissions": normalize_form_permissions(
+                            row.form_ids,
+                            row.form_permissions,
+                        ),
                     }
                     for row in db.query(AgentProfileTable)
                     .filter(AgentProfileTable.owner_user_id == owner)
@@ -179,6 +184,7 @@ class UpsertAgentProfileTool(BaseTool):
                     mcp_ids=[],
                     agent_ids=[],
                     form_ids=[],
+                    form_permissions={},
                 )
                 db.add(profile)
 
@@ -408,6 +414,10 @@ class LinkAgentResourcesInput(BaseModel):
     skill_ids: list[str] = Field(default_factory=list)
     mcp_ids: list[str] = Field(default_factory=list)
     form_ids: list[str] = Field(default_factory=list)
+    form_permissions: dict[str, list[Literal["create", "read", "update", "delete"]]] = Field(
+        default_factory=dict,
+        description="CRUD record permissions by form ID. Legacy form links default to read-only.",
+    )
     agent_ids: list[str] = Field(default_factory=list)
     mode: Literal["merge", "replace"] = "merge"
 
@@ -460,6 +470,20 @@ class LinkAgentResourcesTool(BaseTool):
                 current = [] if mode == "replace" else list(getattr(profile, field) or [])
                 setattr(profile, field, list(dict.fromkeys([*current, *unique_ids])))
 
+            requested_form_permissions = kwargs.get("form_permissions") or {}
+            raw_form_permissions = (
+                requested_form_permissions
+                if mode == "replace"
+                else {
+                    **(profile.form_permissions or {}),
+                    **requested_form_permissions,
+                }
+            )
+            profile.form_permissions = normalize_form_permissions(
+                profile.form_ids,
+                raw_form_permissions,
+            )
+
             profile.updated_at = _now()
             _create_agent_profile_version(db, profile, profile.updated_at)
             db.commit()
@@ -471,6 +495,7 @@ class LinkAgentResourcesTool(BaseTool):
                     "skillIds": profile.skill_ids or [],
                     "mcpIds": profile.mcp_ids or [],
                     "formIds": profile.form_ids or [],
+                    "formPermissions": profile.form_permissions or {},
                     "agentIds": profile.agent_ids or [],
                 }
             )

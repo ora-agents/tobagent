@@ -427,6 +427,16 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                   ]}
                 />
                 <EndpointGroup
+                  title={zh ? "表单开放接口" : "Form APIs"}
+                  description={zh ? "使用用户 API Key 浏览表单定义，并对表单记录执行增删改查。" : "Browse form definitions and manage records with a user API key."}
+                  endpoints={[
+                    "GET/POST /api/forms",
+                    "GET/PUT/DELETE /api/forms/{form_id}",
+                    "GET/POST /api/forms/{form_id}/records",
+                    "PUT/DELETE /api/forms/{form_id}/records/{record_id}",
+                  ]}
+                />
+                <EndpointGroup
                   title={zh ? "语音与机器人" : "Voice and Robot"}
                   description={zh ? "语音识别、语音会话、TTS、声纹绑定/验证，以及机器人点位和指令结果上报。" : "ASR, voice sessions, TTS, voiceprint enrollment/verification, robot points, and command result reporting."}
                   endpoints={[

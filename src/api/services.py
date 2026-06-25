@@ -33,6 +33,7 @@ from src.utils.db import (
     SkillTable,
     UserVoiceprintTable,
 )
+from src.utils.form_permissions import normalize_form_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,10 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         mcpIds=profile.mcp_ids or [],
         agentIds=profile.agent_ids or [],
         formIds=profile.form_ids or [],
+        formPermissions=normalize_form_permissions(
+            profile.form_ids,
+            profile.form_permissions,
+        ),
         wakeWords=profile.wake_words or [],
         roleTemplateId=profile.role_template_id,
         personaStyle=profile.persona_style,
@@ -249,6 +254,22 @@ def _validate_agent_profile_links(
     _require_owned_ids(db, SkillTable, profile_data.skillIds, owner_user_id, "skillIds")
     _require_owned_ids(db, McpServerTable, profile_data.mcpIds, owner_user_id, "mcpIds")
     _require_owned_ids(db, FormTable, profile_data.formIds, owner_user_id, "formIds")
+    invalid_form_permissions = set(profile_data.formPermissions) - set(profile_data.formIds)
+    if invalid_form_permissions:
+        raise HTTPException(
+            status_code=400,
+            detail="formPermissions contains forms that are not linked in formIds",
+        )
+    empty_form_permissions = [
+        form_id
+        for form_id, permissions in profile_data.formPermissions.items()
+        if not permissions
+    ]
+    if empty_form_permissions:
+        raise HTTPException(
+            status_code=400,
+            detail="Each linked form must grant at least one record permission",
+        )
     if profile_data.userVoiceprintId:
         _require_owned_ids(
             db,
@@ -293,6 +314,11 @@ def _remove_agent_profile_links(
             continue
 
         setattr(profile, field_name, updated_ids)
+        if field_name == "form_ids":
+            profile.form_permissions = normalize_form_permissions(
+                updated_ids,
+                profile.form_permissions,
+            )
         profile.updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         changed_count += 1
 
@@ -574,10 +600,11 @@ def _toml_path(*parts: str) -> str:
 def _toml_dict(prefix: str, payload: dict, lines: list[str]) -> None:
     lines.append(f"[{prefix}]")
     for key, value in payload.items():
+        toml_key = _toml_quote(str(key))
         if isinstance(value, list):
-            lines.append(f"{key} = {_toml_array(value)}")
+            lines.append(f"{toml_key} = {_toml_array(value)}")
         else:
-            lines.append(f"{key} = {_toml_scalar(value)}")
+            lines.append(f"{toml_key} = {_toml_scalar(value)}")
     lines.append("")
 
 
@@ -599,11 +626,17 @@ def agent_profiles_to_toml(
 
     for profile in profiles:
         payload = _agent_profile_snapshot(profile)
+        form_permissions = payload.pop("formPermissions", {})
         payload.pop("speakerVerificationBound", None)
         payload.pop("speakerSampleText", None)
         payload.pop("speakerEnrolledAt", None)
         payload.pop("userVoiceprintId", None)
         _toml_dict(_toml_path("agents", profile.id), payload, lines)
+        _toml_dict(
+            _toml_path("agents", profile.id, "formPermissions"),
+            form_permissions,
+            lines,
+        )
 
     for form_id, form in forms_by_id.items():
         _toml_dict(

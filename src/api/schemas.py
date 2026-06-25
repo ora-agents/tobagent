@@ -1,6 +1,8 @@
 """Pydantic schemas for the FastAPI API surface."""
 # ruff: noqa: D101
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -119,6 +121,10 @@ class AgentProfileSchema(BaseModel):
     mcpIds: list[str] = []
     agentIds: list[str] = []
     formIds: list[str] = []
+    formPermissions: dict[
+        str,
+        list[Literal["create", "read", "update", "delete"]],
+    ] = {}
     wakeWords: list[str] = []
     roleTemplateId: str | None = None
     personaStyle: str | None = None
@@ -181,6 +187,13 @@ class FormRecordSchema(BaseModel):
     data: dict = {}
     createdAt: str
     updatedAt: str
+
+
+class FormRecordWriteSchema(BaseModel):
+    id: str | None = None
+    data: dict = {}
+    createdAt: str | None = None
+    updatedAt: str | None = None
 
 
 class FormRecordListResponse(BaseModel):

@@ -6,7 +6,7 @@ import secrets
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
-from src.utils.db import UserTable, get_db
+from src.utils.db import UserApiKeyTable, UserTable, get_db
 
 AVATAR_COLORS = [
     "#cc785c",  # Coral
@@ -73,10 +73,19 @@ async def get_current_user(
     db: Session = Depends(get_db),
 ) -> UserTable:
     """Require a logged-in account and return the authenticated user."""
-    user_id = _extract_bearer_user_id(authorization)
+    credential = _extract_bearer_user_id(authorization)
+    api_key = db.query(UserApiKeyTable).filter(
+        UserApiKeyTable.key_hash == hash_api_key(credential),
+    ).first()
+    user_id = api_key.owner_user_id if api_key else credential
     user = db.query(UserTable).filter(UserTable.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid user")
+    if api_key:
+        from datetime import UTC, datetime
+
+        api_key.last_used_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        db.commit()
     return user
 
 

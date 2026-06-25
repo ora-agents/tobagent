@@ -1,5 +1,6 @@
 /** Built-in tool identifiers for generic agents. */
-export type BuiltinToolId = "rag_search" | "fetch" | "query_form_data" | "navigate_robot_to_point"
+export type BuiltinToolId = "rag_search" | "fetch" | "query_form_data" | "manage_form_data" | "navigate_robot_to_point"
+export type FormRecordPermission = "create" | "read" | "update" | "delete"
 
 export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: string }[] = [
   {
@@ -32,6 +33,7 @@ export interface AgentProfile {
   mcpIds?: string[]
   agentIds?: string[]
   formIds?: string[]
+  formPermissions?: Record<string, FormRecordPermission[]>
   wakeWords?: string[]
   roleTemplateId?: string | null
   personaStyle?: string | null

@@ -37,6 +37,7 @@ from src.utils.db import (
     McpServerTable,
     SkillTable,
 )
+from src.utils.form_permissions import normalize_form_permissions
 
 FORMAT = "tob-config-bundle"
 FORMAT_VERSION = 1
@@ -114,6 +115,10 @@ def _agent_payload(row: AgentProfileTable) -> dict:
         "mcpIds": list(row.mcp_ids or []),
         "agentIds": list(row.agent_ids or []),
         "formIds": list(row.form_ids or []),
+        "formPermissions": normalize_form_permissions(
+            row.form_ids,
+            row.form_permissions,
+        ),
         "wakeWords": list(row.wake_words or []),
         "roleTemplateId": row.role_template_id,
         "personaStyle": row.persona_style,
@@ -715,6 +720,19 @@ def execute_import(
                     "formIds": "form_ids",
                 }[field], mapped)
             row.wake_words = list(item.get("wakeWords") or [])
+            source_form_permissions = (
+                item.get("formPermissions")
+                if isinstance(item.get("formPermissions"), dict)
+                else {}
+            )
+            row.form_permissions = normalize_form_permissions(
+                row.form_ids,
+                {
+                    id_map["formIds"][source_form_id]: permissions
+                    for source_form_id, permissions in source_form_permissions.items()
+                    if source_form_id in id_map["formIds"] and isinstance(permissions, list)
+                },
+            )
             row.role_template_id = item.get("roleTemplateId")
             row.persona_style = item.get("personaStyle")
             row.boundary_mode = item.get("boundaryMode")
