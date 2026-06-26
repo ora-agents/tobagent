@@ -478,6 +478,8 @@ export function useStreamHandler({
         langfuse_tags: ["Chat-LangChain", agentType, "agent"],
         ...(userEmail && userEmail !== userId ? { user_email: userEmail } : {}),
         ...(userName && !userName.startsWith("User") ? { user_name: userName } : {}),
+        ...(agentProfile?.id ? { agent_id: agentProfile.id } : {}),
+        ...(agentProfile?.name ? { agent_name: agentProfile.name } : {}),
         source_type: sourceType,
         ...(conversationSource === "agent_app" ? { conversation_source: "agent_app" } : {}),
         graph: agentType,

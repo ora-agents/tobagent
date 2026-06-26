@@ -10,6 +10,7 @@ import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
+import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -32,7 +33,7 @@ import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
-const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual"] as const
+const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual", "traces"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
@@ -429,6 +430,7 @@ function DashboardContent() {
       lastMessage,
       client: resolvedClient,
       agent_id: agentId,
+      ...(activeAgentProfile?.name ? { agent_name: activeAgentProfile.name } : {}),
       ...(isDedicatedAgentApp
         ? {
             source_type: "Agent App",
@@ -858,6 +860,10 @@ function DashboardContent() {
           <DeveloperManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+          />
+        ) : !isDedicatedAgentApp && currentView === "traces" ? (
+          <TraceBrowserPage
+            onBackToChat={() => setCurrentView("chat")}
           />
         ) : !isDedicatedAgentApp && currentView !== "chat" ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">

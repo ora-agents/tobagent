@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
@@ -34,7 +34,7 @@ interface SidebarProps {
   onDeleteThread: (threadId: string) => void
   isLoading?: boolean
   currentView?: string
-  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual") => void
+  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual" | "traces") => void
   isMobileDrawer?: boolean
   onMobileClose?: () => void
   variant?: "default" | "agentApp"
@@ -226,7 +226,7 @@ export const Sidebar = memo(function Sidebar({
     onMobileClose?.()
   }, [onSelectThread, onViewChange, onMobileClose])
 
-  const handleViewChange = useCallback((view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual") => {
+  const handleViewChange = useCallback((view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual" | "traces") => {
     onViewChange?.(view)
     onMobileClose?.()
   }, [onViewChange, onMobileClose])
@@ -433,6 +433,17 @@ export const Sidebar = memo(function Sidebar({
             title={t.developerManual}
           >
             <BookOpenText className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => handleViewChange("traces")}
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+              currentView === "traces"
+                ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            }`}
+            title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
+          >
+            <Code2 className="w-5 h-5" />
           </button>
           <button
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
@@ -646,6 +657,17 @@ export const Sidebar = memo(function Sidebar({
         >
           <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate">{t.developerManual}</span>
+        </button>
+        <button
+          onClick={() => handleViewChange("traces")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+            currentView === "traces"
+              ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+          }`}
+        >
+          <Code2 className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+          <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
         </button>
         <button
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
