@@ -288,6 +288,69 @@ async def test_import_agent_share_reuses_existing_import_for_same_user(db_sessio
 
 
 @pytest.mark.anyio
+async def test_import_agent_share_reuses_legacy_copy_without_source_marker(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    source_agent = _agent("agent-source", owner.id)
+    db_session.add(source_agent)
+    now = datetime.now(UTC).isoformat()
+    db_session.add(
+        AgentProfileTable(
+            id="agent-legacy-copy",
+            owner_user_id=receiver.id,
+            name=source_agent.name,
+            description=source_agent.description,
+            system_prompt=source_agent.system_prompt,
+            model=source_agent.model,
+            graph_id=source_agent.graph_id,
+            enabled_tools=list(source_agent.enabled_tools or []),
+            knowledge_base_ids=[],
+            skill_ids=[],
+            mcp_ids=[],
+            agent_ids=[],
+            form_ids=[],
+            wake_words=list(source_agent.wake_words or []),
+            role_template_id=source_agent.role_template_id,
+            persona_style=source_agent.persona_style,
+            boundary_mode=source_agent.boundary_mode,
+            tts_voice=source_agent.tts_voice,
+            voice_interruption_enabled=source_agent.voice_interruption_enabled,
+            speaker_verification_enabled=False,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(),
+        db_session,
+        owner,
+    )
+
+    imported = await import_agent_share(
+        share.token,
+        AgentShareImportRequest(),
+        db_session,
+        receiver,
+    )
+
+    receiver_agents = db_session.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == receiver.id,
+    ).all()
+    legacy_copy = db_session.get(AgentProfileTable, "agent-legacy-copy")
+    share_row = db_session.query(AgentShareLinkTable).filter(
+        AgentShareLinkTable.token == share.token,
+    ).one()
+    assert len(receiver_agents) == 1
+    assert imported.agent.id == "agent-legacy-copy"
+    assert legacy_copy.imported_from_share_id == share_row.id
+    assert legacy_copy.imported_from_agent_profile_id == "agent-source"
+
+
+@pytest.mark.anyio
 async def test_import_agent_share_returns_owned_source_without_copying(db_session):
     owner = _user("user-owner")
     db_session.add(owner)

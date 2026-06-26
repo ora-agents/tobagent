@@ -2,6 +2,8 @@
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import { LogOut, Moon, Sun } from "lucide-react"
+import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -29,8 +31,16 @@ import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import type { User } from "@/components/providers/auth-provider"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
@@ -105,9 +115,81 @@ function AuthRedirect() {
   return <DashboardFallback />
 }
 
+function DedicatedAgentHeader({
+  agentName,
+  user,
+  onLogout,
+}: {
+  agentName: string
+  user: User
+  onLogout: () => void
+}) {
+  const t = useT()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => setMounted(true), [])
+
+  const isDark = mounted && resolvedTheme === "dark"
+
+  return (
+    <header className="flex h-14 shrink-0 items-center border-b border-border/50 bg-background/95 sm:h-16">
+      <div className="flex w-full items-center justify-between gap-3 px-3 sm:px-6">
+        <div className="min-w-0">
+          <span className="block truncate text-base font-semibold text-foreground">
+            {agentName}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+            title={isDark ? t.lightMode : t.darkMode}
+            aria-label={isDark ? t.lightMode : t.darkMode}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full p-0 text-white hover:opacity-90"
+                style={{ backgroundColor: user.avatarColor || "#164199" }}
+                title={user.username}
+                aria-label={user.username}
+              >
+                <span className="text-sm font-semibold">
+                  {user.username.charAt(0).toUpperCase()}
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <div className="px-2 py-1.5">
+                <p className="truncate text-sm font-medium">{user.username}</p>
+                {user.email && (
+                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                )}
+              </div>
+              <DropdownMenuItem onClick={onLogout} className="gap-2 text-destructive focus:text-destructive">
+                <LogOut className="h-4 w-4" />
+                <span>退出登录</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  )
+}
+
 function DashboardContent() {
   const t = useT()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, logout } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
@@ -713,21 +795,29 @@ function DashboardContent() {
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
           aria-hidden={currentView !== "chat"}
         >
-            <Header
-              onNewChat={handleNewChat}
-              agentConfig={agentConfig}
-              onAgentConfigChange={setAgentConfig}
-              onShowShortcuts={() => setShowShortcutsDialog(true)}
-              forceShowTooltip={forceShowTooltip}
-              selectedAgentProfile={activeAgentProfile}
-              agentProfiles={agentProfiles}
-              agentProfilesLoaded={agentProfilesLoaded}
-              selectedAgentProfileId={currentAgentId === "default" ? null : currentAgentId}
-              onAgentProfileChange={isDedicatedAgentApp ? undefined : setSelectedAgentProfileId}
-              onCreateAgent={isDedicatedAgentApp ? undefined : handleOpenCreateAgent}
-              onOpenAgentSettings={isDedicatedAgentApp ? undefined : handleOpenActiveAgentSettings}
-              onOpenSidebar={isDedicatedAgentApp ? undefined : () => setIsMobileSidebarOpen(true)}
-            />
+            {isDedicatedAgentApp && activeAgentProfile ? (
+              <DedicatedAgentHeader
+                agentName={activeAgentProfile.name}
+                user={user}
+                onLogout={logout}
+              />
+            ) : (
+              <Header
+                onNewChat={handleNewChat}
+                agentConfig={agentConfig}
+                onAgentConfigChange={setAgentConfig}
+                onShowShortcuts={() => setShowShortcutsDialog(true)}
+                forceShowTooltip={forceShowTooltip}
+                selectedAgentProfile={activeAgentProfile}
+                agentProfiles={agentProfiles}
+                agentProfilesLoaded={agentProfilesLoaded}
+                selectedAgentProfileId={currentAgentId === "default" ? null : currentAgentId}
+                onAgentProfileChange={setSelectedAgentProfileId}
+                onCreateAgent={handleOpenCreateAgent}
+                onOpenAgentSettings={handleOpenActiveAgentSettings}
+                onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+              />
+            )}
             <ChatInterface
               key={chatSessionKey}
               threadId={activeThreadId}

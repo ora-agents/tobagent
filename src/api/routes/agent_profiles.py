@@ -65,6 +65,70 @@ def _reject_system_agent_profile(profile: AgentProfileTable) -> None:
         raise HTTPException(status_code=403, detail="System agent profiles cannot be modified")
 
 
+def _empty_share_resource_map() -> dict[str, dict[str, str]]:
+    return {
+        "knowledgeBaseIds": {},
+        "skillIds": {},
+        "mcpIds": {},
+        "agentIds": {},
+        "formIds": {},
+    }
+
+
+def _share_import_signature(profile: AgentProfileTable) -> tuple:
+    return (
+        profile.name,
+        profile.description,
+        profile.system_prompt,
+        profile.model,
+        profile.graph_id,
+        tuple(profile.enabled_tools or []),
+        tuple(profile.wake_words or []),
+        profile.role_template_id,
+        profile.persona_style,
+        profile.boundary_mode,
+        profile.tts_voice,
+        profile.voice_interruption_enabled is not False,
+    )
+
+
+def _find_existing_agent_share_import(
+    db: Session,
+    source_profile: AgentProfileTable,
+    share: AgentShareLinkTable,
+    owner_user_id: str,
+) -> AgentProfileTable | None:
+    existing_import = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == owner_user_id,
+        AgentProfileTable.imported_from_share_id == share.id,
+    ).first()
+    if existing_import:
+        return existing_import
+
+    existing_import = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == owner_user_id,
+        AgentProfileTable.imported_from_agent_profile_id == source_profile.id,
+    ).first()
+    if existing_import:
+        return existing_import
+
+    source_signature = _share_import_signature(source_profile)
+    candidates = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == owner_user_id,
+    ).all()
+    for candidate in candidates:
+        if _is_system_agent_profile(candidate):
+            continue
+        if _share_import_signature(candidate) == source_signature:
+            candidate.imported_from_share_id = share.id
+            candidate.imported_from_agent_profile_id = source_profile.id
+            db.commit()
+            db.refresh(candidate)
+            return candidate
+
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Agent Profile CRUD
 # ---------------------------------------------------------------------------
@@ -425,30 +489,20 @@ async def import_agent_share(
     if current_user.id == share.owner_user_id:
         return AgentShareImportResponse(
             agent=_agent_profile_schema(source_profile),
-            resourceIdMap={
-                "knowledgeBaseIds": {},
-                "skillIds": {},
-                "mcpIds": {},
-                "agentIds": {},
-                "formIds": {},
-            },
+            resourceIdMap=_empty_share_resource_map(),
             warnings=[],
         )
 
-    existing_import = db.query(AgentProfileTable).filter(
-        AgentProfileTable.owner_user_id == current_user.id,
-        AgentProfileTable.imported_from_share_id == share.id,
-    ).first()
+    existing_import = _find_existing_agent_share_import(
+        db,
+        source_profile,
+        share,
+        current_user.id,
+    )
     if existing_import:
         return AgentShareImportResponse(
             agent=_agent_profile_schema(existing_import),
-            resourceIdMap={
-                "knowledgeBaseIds": {},
-                "skillIds": {},
-                "mcpIds": {},
-                "agentIds": {},
-                "formIds": {},
-            },
+            resourceIdMap=_empty_share_resource_map(),
             warnings=[],
         )
 
