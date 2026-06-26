@@ -626,15 +626,12 @@ function DashboardContent() {
         url.searchParams.delete("editAgent")
         url.searchParams.delete("create")
         router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
-        setCurrentView("chat")
-        setThreadId(null)
-        setEditAgentIdParam(null)
       })
       .catch((err) => {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, importAgentShareLink, router, setCurrentView, setEditAgentIdParam, setThreadId, user])
+  }, [agentShareToken, importAgentShareLink, router, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
