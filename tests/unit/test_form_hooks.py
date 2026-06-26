@@ -341,3 +341,83 @@ async def test_form_hook_ignores_matching_conditions_when_no_condition_field_cha
     )
 
     assert _FakeAsyncClient.calls == []
+
+
+@pytest.mark.anyio
+async def test_form_hook_renders_record_field_variables_in_url(monkeypatch):
+    _FakeAsyncClient.calls = []
+    monkeypatch.setattr(form_hooks.httpx, "AsyncClient", _FakeAsyncClient)
+    form = FormTable(
+        id="form-1",
+        owner_user_id="user-1",
+        name="Orders",
+        category="CRM",
+        fields=[],
+        hooks=[{
+            "id": "hook-1",
+            "enabled": True,
+            "fieldId": "status",
+            "matchType": "value",
+            "value": "approved",
+            "url": "https://example.test/hooks/{{record.id}}?phone={{phone}}&status={{fields.status}}",
+            "method": "POST",
+        }],
+        created_at="now",
+        updated_at="now",
+    )
+    record = FormRecordTable(
+        id="record-1",
+        form_id="form-1",
+        owner_user_id="user-1",
+        data={"status": "approved", "phone": "138 0013 8000"},
+        created_at="now",
+        updated_at="now",
+    )
+
+    await form_hooks.trigger_form_hooks(form, record, {"status": "pending"}, record.data)
+
+    assert len(_FakeAsyncClient.calls) == 1
+    assert _FakeAsyncClient.calls[0]["url"] == (
+        "https://example.test/hooks/record-1?phone=138%200013%208000&status=approved"
+    )
+
+
+@pytest.mark.anyio
+async def test_form_hook_payload_field_values_can_be_limited(monkeypatch):
+    _FakeAsyncClient.calls = []
+    monkeypatch.setattr(form_hooks.httpx, "AsyncClient", _FakeAsyncClient)
+    form = FormTable(
+        id="form-1",
+        owner_user_id="user-1",
+        name="Orders",
+        category="CRM",
+        fields=[],
+        hooks=[{
+            "id": "hook-1",
+            "enabled": True,
+            "fieldId": "status",
+            "matchType": "value",
+            "value": "approved",
+            "url": "https://example.test/status",
+            "method": "POST",
+            "payloadFieldIds": ["phone", "status"],
+        }],
+        created_at="now",
+        updated_at="now",
+    )
+    record = FormRecordTable(
+        id="record-1",
+        form_id="form-1",
+        owner_user_id="user-1",
+        data={"status": "approved", "phone": "13800138000", "internal": "hidden"},
+        created_at="now",
+        updated_at="now",
+    )
+
+    await form_hooks.trigger_form_hooks(form, record, {"status": "pending"}, record.data)
+
+    assert len(_FakeAsyncClient.calls) == 1
+    assert _FakeAsyncClient.calls[0]["json"]["record"]["fieldValues"] == {
+        "phone": "13800138000",
+        "status": "approved",
+    }

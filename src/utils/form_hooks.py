@@ -4,12 +4,15 @@ import asyncio
 import logging
 import re
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
 from src.utils.db import FormRecordTable, FormTable
 
 logger = logging.getLogger(__name__)
+
+_URL_VARIABLE_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
 
 
 def _field_value_changed(old_data: dict[str, Any], new_data: dict[str, Any], field_id: str) -> bool:
@@ -87,6 +90,63 @@ def _evaluate_hook_conditions(
     return all(result["matched"] for result in results), results
 
 
+def _get_path_value(source: dict[str, Any], path: str) -> Any:
+    value: Any = source
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
+def _url_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _render_hook_url(
+    url_template: str,
+    *,
+    form: FormTable,
+    record: FormRecordTable,
+    new_data: dict[str, Any],
+    matched_field: dict[str, Any],
+) -> str:
+    context = {
+        "form": {
+            "id": form.id,
+            "name": form.name,
+            "category": form.category or "",
+        },
+        "record": {
+            "id": record.id,
+            "formId": record.form_id,
+            "createdAt": record.created_at,
+            "updatedAt": record.updated_at,
+            "data": new_data,
+        },
+        "fields": new_data,
+        "field": {
+            "id": matched_field.get("fieldId"),
+            "oldValue": matched_field.get("oldValue"),
+            "newValue": matched_field.get("newValue"),
+        },
+    }
+
+    def replace(match: re.Match[str]) -> str:
+        token = match.group(1)
+        if token in new_data:
+            value = new_data.get(token)
+        else:
+            value = _get_path_value(context, token)
+        return quote(_url_value(value), safe="")
+
+    return _URL_VARIABLE_RE.sub(replace, url_template).strip()
+
+
 async def trigger_form_hooks(
     form: FormTable,
     record: FormRecordTable,
@@ -100,9 +160,9 @@ async def trigger_form_hooks(
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         for hook in hooks:
-            url = str(hook.get("url") or "").strip()
+            url_template = str(hook.get("url") or "").strip()
             method = str(hook.get("method") or "POST").upper()
-            if method not in {"POST", "PUT", "PATCH"} or not url.startswith(("http://", "https://")):
+            if method not in {"POST", "PUT", "PATCH"} or not url_template.startswith(("http://", "https://")):
                 continue
             matched, condition_results = _evaluate_hook_conditions(hook, old_data, new_data)
             if not matched:
@@ -112,6 +172,25 @@ async def trigger_form_hooks(
                 condition_results[0],
             )
             field_id = str(matched_field["fieldId"])
+            url = _render_hook_url(
+                url_template,
+                form=form,
+                record=record,
+                new_data=new_data,
+                matched_field=matched_field,
+            )
+            if not url.startswith(("http://", "https://")):
+                continue
+
+            payload_field_ids = hook.get("payloadFieldIds")
+            if isinstance(payload_field_ids, list) and payload_field_ids:
+                field_values = {
+                    str(item): new_data.get(str(item))
+                    for item in payload_field_ids
+                    if str(item)
+                }
+            else:
+                field_values = dict(new_data)
 
             payload = {
                 "hook": {
@@ -130,6 +209,7 @@ async def trigger_form_hooks(
                     "id": record.id,
                     "formId": record.form_id,
                     "data": new_data,
+                    "fieldValues": field_values,
                     "createdAt": record.created_at,
                     "updatedAt": record.updated_at,
                 },

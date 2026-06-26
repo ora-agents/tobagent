@@ -190,6 +190,7 @@ class FormHookSchema(BaseModel):
     url: str
     method: Literal["POST", "PUT", "PATCH"] = "POST"
     headers: dict[str, str] = Field(default_factory=dict)
+    payloadFieldIds: list[str] = Field(default_factory=list)
 
 
 class FormSchema(BaseModel):
