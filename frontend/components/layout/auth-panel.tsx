@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@/components/providers/auth-provider'
-import { User, Lock, Mail, AlertCircle, Loader2, X } from 'lucide-react'
+import { AlertCircle, Loader2, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
 interface AuthPanelProps {
@@ -91,8 +91,8 @@ export function AuthPanel({
   const title = activeTab === 'login' ? t.welcomeBack : t.createAccountTitle
   const description = activeTab === 'login' ? t.signInAccessDesc : t.registerAccessDesc
   const sectionClassName = inline
-    ? 'relative w-full max-w-[29rem]'
-    : 'relative w-full max-w-[29rem] overflow-hidden rounded-2xl bg-card p-6 shadow-depth-lg sm:p-7 dark:bg-card'
+    ? 'relative w-full max-w-sm'
+    : 'relative w-full max-w-[29rem] overflow-hidden rounded-2xl bg-card p-7 shadow-depth-lg sm:p-8 dark:bg-card'
 
   const cardContent = (
     <section
@@ -101,8 +101,8 @@ export function AuthPanel({
     >
       {!inline && <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary" />}
 
-      <div className="relative space-y-5">
-        <div className="space-y-3">
+      <div className="relative space-y-6">
+        <div className="space-y-4">
           {!inline && (
             <div className="flex items-center justify-end">
               <Button
@@ -118,17 +118,14 @@ export function AuthPanel({
             </div>
           )}
 
-          <div className="space-y-2">
-            <h2 className="font-display text-4xl font-medium leading-[1.05] tracking-normal text-foreground">
-              {title}
-            </h2>
-            <p className="max-w-sm text-sm leading-5 text-foreground/75">
+          <div className={inline ? 'flex flex-col items-center gap-1 text-center' : 'space-y-2.5'}>
+            <p className={inline ? 'text-balance text-sm leading-6 text-muted-foreground' : 'max-w-sm text-sm leading-6 text-muted-foreground'}>
               {description}
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {shownError && (
             <div className="flex items-center gap-2.5 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -137,96 +134,76 @@ export function AuthPanel({
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="username" className="text-xs font-medium text-foreground">
+            <Label htmlFor="username" className="text-sm font-medium text-foreground">
               {t.username} <span className="text-destructive">*</span>
             </Label>
-            <div className="group relative">
-              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
-                <User className="h-4 w-4" />
-              </span>
-              <Input
-                id="username"
-                type="text"
-                placeholder={t.enterUsername}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
-                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
-                required
-              />
-            </div>
+            <Input
+              id="username"
+              type="text"
+              placeholder={t.enterUsername}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+              className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
+              required
+            />
           </div>
 
           {activeTab === 'register' && (
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-medium text-foreground">
+              <Label htmlFor="email" className="text-sm font-medium text-foreground">
                 {t.email}
               </Label>
-              <div className="group relative">
-                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
-                  <Mail className="h-4 w-4" />
-                </span>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder={t.enterEmailOptional}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
-                />
-              </div>
+              <Input
+                id="email"
+                type="email"
+                placeholder={t.enterEmailOptional}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+                className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
+              />
             </div>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs font-medium text-foreground">
+            <Label htmlFor="password" className="text-sm font-medium text-foreground">
               {t.password} <span className="text-destructive">*</span>
             </Label>
-            <div className="group relative">
-              <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
-                <Lock className="h-4 w-4" />
-              </span>
-              <Input
-                id="password"
-                type="password"
-                placeholder={t.enterPassword}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
-                required
-              />
-            </div>
+            <Input
+              id="password"
+              type="password"
+              placeholder={t.enterPassword}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={loading}
+              className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
+              required
+            />
           </div>
 
           {activeTab === 'register' && (
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-xs font-medium text-foreground">
+              <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                 {t.confirmPassword} <span className="text-destructive">*</span>
               </Label>
-              <div className="group relative">
-                <span className="absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground transition-all duration-200">
-                  <Lock className="h-4 w-4" />
-                </span>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder={t.confirmPasswordPlaceholder}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={loading}
-                  className="h-10 rounded-md bg-secondary pl-9 text-sm text-foreground transition-all duration-200"
-                  required
-                />
-              </div>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder={t.confirmPasswordPlaceholder}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={loading}
+                className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
+                required
+              />
             </div>
           )}
 
           <Button
             type="submit"
             disabled={loading}
-            className="h-11 w-full cursor-pointer rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-depth-xs transition-all duration-200 hover:bg-primary-active hover:shadow-depth-hover active:bg-primary-active"
+            className="h-11 w-full cursor-pointer rounded-lg bg-primary text-sm font-medium text-primary-foreground shadow-depth-xs transition-all duration-200 hover:bg-primary-active hover:shadow-depth-hover active:bg-primary-active"
           >
             {loading ? (
               <>
@@ -241,7 +218,7 @@ export function AuthPanel({
           </Button>
         </form>
 
-        <div className="pt-1 text-center text-sm text-foreground/75">
+        <div className="pt-1 text-center text-sm text-muted-foreground">
           {activeTab === 'login' ? (
             <>
               {t.dontHaveAccount}{' '}

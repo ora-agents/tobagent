@@ -36,57 +36,18 @@ export function AuthPage({ mode }: AuthPageProps) {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-background-tint text-foreground">
-      <div className="relative mx-auto grid h-full w-full max-w-7xl grid-cols-1 lg:grid-cols-[1fr_0.9fr]">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-28 bg-background" />
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.028)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.024)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:linear-gradient(to_bottom,#000_0%,transparent_72%)]" />
-        </div>
-
-        <main className="relative hidden min-h-0 flex-col justify-between px-6 py-7 sm:px-10 lg:flex lg:px-14 lg:py-10">
-          <div className="flex items-center gap-3">
+    <div className="min-h-svh bg-background p-4 text-foreground sm:p-6 lg:p-8">
+      <div className="grid min-h-[calc(100svh-2rem)] overflow-hidden rounded-2xl bg-card shadow-depth-sm sm:min-h-[calc(100svh-3rem)] lg:min-h-[calc(100svh-4rem)] lg:grid-cols-2">
+        <main className="flex min-h-0 flex-col gap-8 px-6 py-7 sm:px-10 lg:px-14 lg:py-10">
+          <div className="flex justify-center gap-3 md:justify-start">
             <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" />
             <div>
               <div className="text-sm font-medium tracking-tight">{t.loginBrandName}</div>
-              <div className="text-xs text-foreground/75">{t.loginBrandSub}</div>
+              <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>
             </div>
           </div>
 
-          <section className="max-w-2xl py-8">
-            <div className="mb-5 inline-flex rounded-full border border-primary/15 bg-primary-soft px-3 py-1.5 text-xs font-medium tracking-[0.12em] text-primary dark:bg-card">
-              {t.loginBadge}
-            </div>
-            <h1 className="font-display text-[4.8rem] font-medium leading-[0.95] tracking-normal text-foreground">
-              {t.loginHeadline}
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-foreground/75">{t.loginDescription}</p>
-          </section>
-
-          <section className="grid gap-3 sm:grid-cols-3">
-            {[
-              [t.loginMetricScene, t.loginMetricSceneDesc],
-              [t.loginMetricKnowledge, t.loginMetricKnowledgeDesc],
-              [t.loginMetricTools, t.loginMetricToolsDesc],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-xl bg-card p-4 shadow-depth-xs dark:bg-card">
-                <div className="font-mono text-xs text-primary">{label}</div>
-                <div className="mt-2 text-sm text-foreground/75">{value}</div>
-              </div>
-            ))}
-          </section>
-        </main>
-
-        <aside className="relative flex min-h-0 items-center justify-center px-5 py-5 sm:px-8 lg:px-12 lg:py-10">
-          <div className="absolute inset-y-10 left-0 hidden w-px bg-border lg:block" />
-          <div className="w-full max-w-[31rem] space-y-4">
-            <div className="flex items-center gap-3 lg:hidden">
-              <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" />
-              <div>
-                <div className="text-sm font-medium">{t.loginBrandName}</div>
-                <div className="text-xs text-foreground/75">{t.loginBrandSub}</div>
-              </div>
-            </div>
-
+          <div className="flex flex-1 items-center justify-center">
             <AuthPanel
               open={true}
               onOpenChange={() => {}}
@@ -95,6 +56,48 @@ export function AuthPage({ mode }: AuthPageProps) {
               onModeChange={(nextMode) => router.push(nextMode === 'login' ? '/login' : '/register')}
               onAuthenticated={() => router.replace('/')}
             />
+          </div>
+        </main>
+
+        <aside className="relative hidden min-h-0 overflow-hidden bg-background-tint lg:block">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.026)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+          <div className="relative flex h-full items-center justify-center p-12">
+            <section className="w-full max-w-xl space-y-8">
+              <div className="inline-flex rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary">
+                {t.loginBadge}
+              </div>
+
+              <div className="space-y-5">
+                <h1 className="max-w-lg font-display text-6xl font-medium leading-[1.02] tracking-normal text-foreground">
+                  {t.loginHeadline}
+                </h1>
+                <p className="max-w-lg text-base leading-7 text-muted-foreground">{t.loginDescription}</p>
+              </div>
+
+              <div className="rounded-2xl bg-card p-4 shadow-depth-md">
+                <div className="rounded-xl bg-secondary p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-foreground">{t.loginBrandName}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{t.loginBrandSub}</div>
+                    </div>
+                    <Image src="/logo.png" alt="" width={96} height={62} className="h-9 w-auto" />
+                  </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    {[
+                      [t.loginMetricScene, t.loginMetricSceneDesc],
+                      [t.loginMetricKnowledge, t.loginMetricKnowledgeDesc],
+                      [t.loginMetricTools, t.loginMetricToolsDesc],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg bg-card p-3">
+                        <div className="font-mono text-xs text-primary">{label}</div>
+                        <div className="mt-2 text-sm leading-5 text-muted-foreground">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </aside>
       </div>
