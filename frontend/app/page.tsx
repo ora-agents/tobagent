@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "rea
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Copy, LogOut, Moon, Sparkles, Sun } from "lucide-react"
+import { Copy, History, LogOut, Moon, Sparkles, Sun, Trash2 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -31,7 +31,7 @@ import {
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
-import { useT } from "@/lib/i18n"
+import { useI18n, useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,6 +43,8 @@ import {
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import type { User } from "@/components/providers/auth-provider"
+import type { Thread } from "@/lib/hooks/threads"
+import { getThreadSource } from "@/lib/utils/thread-source"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
@@ -121,6 +123,11 @@ function DedicatedAgentHeader({
   agentName,
   user,
   onNewChat,
+  threads,
+  currentThreadId,
+  onSelectThread,
+  onDeleteThread,
+  isLoadingThreads = false,
   onCopyAgent,
   copyAgentDisabled = false,
   onLogout,
@@ -128,11 +135,17 @@ function DedicatedAgentHeader({
   agentName: string
   user: User
   onNewChat: () => void
+  threads: Thread[]
+  currentThreadId: string | null
+  onSelectThread: (threadId: string) => void
+  onDeleteThread: (threadId: string) => void
+  isLoadingThreads?: boolean
   onCopyAgent?: () => void
   copyAgentDisabled?: boolean
   onLogout: () => void
 }) {
   const t = useT()
+  const { locale } = useI18n()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -180,6 +193,72 @@ function DedicatedAgentHeader({
               <span className="hidden sm:inline">复制</span>
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 gap-1.5 rounded-lg px-3 text-muted-foreground hover:bg-primary-soft hover:text-primary dark:hover:bg-white/10 dark:hover:text-foreground"
+                title={t.threads}
+                aria-label={t.threads}
+              >
+                <History className="h-4 w-4" />
+                <span className="hidden sm:inline">{t.threads}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1.5rem))] p-2">
+              <div className="px-2 pb-2 pt-1 text-xs font-semibold uppercase text-muted-foreground">
+                {t.threads}
+              </div>
+              <div className="max-h-[min(26rem,70vh)] space-y-1 overflow-y-auto pr-1">
+                {isLoadingThreads ? (
+                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">{t.loadingConversations}</div>
+                ) : threads.length === 0 ? (
+                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">{t.noConversationsYet}</div>
+                ) : (
+                  threads.map((thread) => {
+                    const source = getThreadSource(thread)
+                    const sourceLabel = locale === "zh" ? source.labelZh : source.labelEn
+                    const title = thread.metadata?.title || t.untitled
+                    const isActive = thread.thread_id === currentThreadId
+                    return (
+                      <div
+                        key={thread.thread_id}
+                        className={`group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors ${
+                          isActive
+                            ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                            : "text-foreground hover:bg-muted"
+                        }`}
+                        onClick={() => onSelectThread(thread.thread_id)}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{title}</div>
+                          {source.kind !== "main" && (
+                            <div className="mt-1">
+                              <span className="inline-flex max-w-full items-center rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary dark:bg-white/10 dark:text-foreground">
+                                <span className="truncate">{sourceLabel}</span>
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onDeleteThread(thread.thread_id)
+                          }}
+                          className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                          aria-label="删除对话"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="ghost"
@@ -553,6 +632,12 @@ function DashboardContent() {
       lastMessage,
       client: resolvedClient,
       agent_id: agentId,
+      ...(isDedicatedAgentApp
+        ? {
+            source_type: "Agent App",
+            conversation_source: "agent_app",
+          }
+        : {}),
       ...sharedMetadata,
     }
 
@@ -891,6 +976,11 @@ function DashboardContent() {
                 agentName={activeAgentProfile.name}
                 user={user}
                 onNewChat={handleNewChat}
+                threads={filteredThreads.filter((thread) => !newThreads.has(thread.thread_id))}
+                currentThreadId={activeThreadId}
+                onSelectThread={handleSelectThread}
+                onDeleteThread={handleDeleteThread}
+                isLoadingThreads={threadsLoading}
                 onCopyAgent={isSharedAgentApp ? handleCopySharedAgent : undefined}
                 copyAgentDisabled={isCopyingSharedAgent}
                 onLogout={logout}

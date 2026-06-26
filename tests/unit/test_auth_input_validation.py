@@ -62,6 +62,19 @@ async def test_thread_auth_normalizes_none_metadata():
 
 
 @pytest.mark.anyio
+async def test_thread_auth_marks_api_key_threads():
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1", auth_source="api_key"))
+    value = {"metadata": {"agent_id": "agent-1"}}
+
+    result = await add_owner(ctx, value)
+
+    assert result == {"user_id": "user-1"}
+    assert value["metadata"]["user_id"] == "user-1"
+    assert value["metadata"]["source_type"] == "API Key"
+    assert value["metadata"]["created_via_api_key"] is True
+
+
+@pytest.mark.anyio
 async def test_thread_auth_enriches_run_payload_when_resource_handler_matches(monkeypatch):
     """Some SDK stream calls arrive through the broad threads auth handler."""
     monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
@@ -281,6 +294,25 @@ async def test_create_run_auth_normalizes_none_metadata(monkeypatch):
     await enrich_run_metadata(ctx, value)
 
     assert value["metadata"]["source_type"] == "Chat-LangChain"
+
+
+@pytest.mark.anyio
+async def test_create_run_auth_marks_api_key_source(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1", auth_source="api_key"))
+    value = {
+        "metadata": {},
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+            "context": {"agent_id": "agent-1"},
+        },
+    }
+
+    await enrich_run_metadata(ctx, value)
+
+    assert value["metadata"]["source_type"] == "API Key"
+    assert value["metadata"]["created_via_api_key"] is True
 
 
 @pytest.mark.anyio

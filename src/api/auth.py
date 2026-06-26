@@ -52,6 +52,15 @@ def _ensure_metadata(value: dict | None) -> dict:
     return metadata
 
 
+def _user_auth_source(user: object) -> str | None:
+    """Return optional auth source carried by the authenticate callback."""
+    if isinstance(user, dict):
+        source = user.get("auth_source")
+    else:
+        source = getattr(user, "auth_source", None)
+    return source if isinstance(source, str) else None
+
+
 def _first_agent_id(*sources: dict | None) -> str | None:
     """Return the first non-empty agent profile id from request payload sources."""
     for source in sources:
@@ -282,6 +291,8 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
         "identity": user_id or "anonymous",
         "is_authenticated": True,
     }
+    if resolved_user_id:
+        user_dict["auth_source"] = "api_key"
     if is_studio:
         user_dict["kind"] = "StudioUser"
 
@@ -315,6 +326,9 @@ async def add_owner(ctx: Auth.types.AuthContext, value: dict | None):
     user_id = ctx.user.identity
     metadata = _ensure_metadata(value)
     metadata["user_id"] = user_id
+    if _user_auth_source(ctx.user) == "api_key":
+        metadata.setdefault("source_type", "API Key")
+        metadata["created_via_api_key"] = True
 
     return {"user_id": user_id}
 
@@ -423,7 +437,11 @@ async def _enrich_run_context(
         if isinstance(config_source_type, str) and config_source_type:
             metadata.setdefault("source_type", config_source_type)
 
-    metadata.setdefault("source_type", "Chat-LangChain")
+    if _user_auth_source(ctx.user) == "api_key":
+        metadata.setdefault("source_type", "API Key")
+        metadata["created_via_api_key"] = True
+    else:
+        metadata.setdefault("source_type", "Chat-LangChain")
 
     input_has_image = validate_inputs(
         kwargs.get("input"), kwargs.get("command")

@@ -12,6 +12,7 @@ import { useTheme } from "next-themes"
 import { useAuth } from "@/components/providers/auth-provider"
 import { AuthPanel } from "./auth-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { getThreadSource } from "@/lib/utils/thread-source"
 
 const DEFAULT_ADMIN_URL = "http://114.55.10.54:8000/static/admin.html"
 
@@ -243,10 +244,9 @@ export const Sidebar = memo(function Sidebar({
         <div className="space-y-1">
           {groupThreads.map((thread) => {
             const title = thread.metadata?.title || "New conversation"
-            const isSharedVisitorThread =
-              thread.metadata?.shared_agent_owner_user_id &&
-              thread.metadata.shared_agent_viewer_user_id &&
-              thread.metadata.shared_agent_owner_user_id !== thread.metadata.shared_agent_viewer_user_id
+            const source = getThreadSource(thread)
+            const sourceLabel = locale === "zh" ? source.labelZh : source.labelEn
+            const shouldShowSource = source.kind !== "main"
 
             return (
               <div
@@ -260,9 +260,19 @@ export const Sidebar = memo(function Sidebar({
               >
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{title}</div>
-                  {isSharedVisitorThread && (
-                    <div className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">
-                      {locale === "zh" ? "访客会话" : "Guest conversation"}
+                  {shouldShowSource && (
+                    <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                      <span
+                        className={`inline-flex max-w-full items-center rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none ${
+                          source.kind === "api_key"
+                            ? "bg-amber-500/15 text-foreground"
+                            : source.kind === "shared_agent_app"
+                              ? "bg-cyan-500/15 text-foreground"
+                              : "bg-primary-soft text-primary"
+                        }`}
+                      >
+                        <span className="truncate">{sourceLabel}</span>
+                      </span>
                     </div>
                   )}
                 </div>
@@ -278,7 +288,7 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
     )
-  }, [currentThreadId, handleSelectThread, handleDeleteThread])
+  }, [currentThreadId, handleSelectThread, handleDeleteThread, locale])
 
   // Early return for collapsed state (after all hooks)
   if (isCollapsed && !isMobileDrawer) {
