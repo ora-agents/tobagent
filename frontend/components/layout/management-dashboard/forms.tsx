@@ -1149,7 +1149,7 @@ export function FormRecordsTable({
   const showPagination = total > 25
 
   return (
-    <div className={`min-h-0 ${isFullscreen ? "fixed inset-0 z-[100] flex flex-col rounded-none bg-background" : "rounded-xl bg-muted/35"}`}>
+    <div className={`min-h-0 w-full min-w-0 overflow-hidden ${isFullscreen ? "fixed inset-0 z-[100] flex flex-col rounded-none bg-background" : "rounded-xl bg-muted/35"}`}>
       <div className={`flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between ${isFullscreen ? "bg-muted" : ""}`}>
         <div>
           <h3 className="text-sm font-semibold">{locale === "zh" ? "记录表格" : "Records table"}</h3>
@@ -1206,73 +1206,72 @@ export function FormRecordsTable({
         </div>
       </div>
       <ScrollArea
-        className={`bg-background ${isFullscreen ? "min-h-0 flex-1" : "max-h-[560px] rounded-b-xl"}`}
-        contentClassName="!w-full min-w-0"
+        className={`w-full min-w-0 overflow-hidden bg-background ${isFullscreen ? "min-h-0 flex-1" : "max-h-[560px] rounded-b-xl"}`}
+        contentClassName="w-max min-w-full pb-3 pr-3"
         scrollbars="both"
         viewportClassName={isFullscreen ? undefined : "!h-auto max-h-[560px]"}
       >
-        <table
-          className="w-full table-fixed border-separate border-spacing-0"
-          style={{ minWidth: tableMinWidth }}
-        >
-          <colgroup>
-            <col style={{ width: rowColumnWidth }} />
-            {orderedRecordFields.map(field => (
-              <col key={field.id} style={{ width: recordColumnWidth }} />
-            ))}
-          </colgroup>
-          <thead className="sticky top-0 z-30">
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id} className="bg-muted">
-                {headerGroup.headers.map(header => (
-                  <th
-                    key={header.id}
-                    style={getStickyColumnStyle(header.id)}
-                    className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
-                  >
-                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => (
-              <ContextMenu.Root key={row.id}>
-                <ContextMenu.Trigger asChild>
-                  <tr className="group/record cursor-context-menu hover:bg-primary/5">
-                    {row.getVisibleCells().map(cell => (
-                      <td
-                        key={cell.id}
-                        style={getStickyColumnStyle(cell.column.id)}
-                        className={`h-11 border-r border-t border-border/40 px-2 py-1 align-middle ${getStickyColumnClass(cell.column.id)}`}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                </ContextMenu.Trigger>
-                <ContextMenu.Portal>
-                  <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
-                    <ContextMenu.Item
-                      onSelect={() => onDeleteRecord(row.original.id)}
-                      className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-none focus:bg-destructive/10"
+        <div style={{ width: tableMinWidth, minWidth: tableMinWidth }}>
+          <table className="w-full table-fixed border-separate border-spacing-0">
+            <colgroup>
+              <col style={{ width: rowColumnWidth }} />
+              {orderedRecordFields.map(field => (
+                <col key={field.id} style={{ width: recordColumnWidth }} />
+              ))}
+            </colgroup>
+            <thead className="sticky top-0 z-30">
+              {table.getHeaderGroups().map(headerGroup => (
+                <tr key={headerGroup.id} className="bg-muted">
+                  {headerGroup.headers.map(header => (
+                    <th
+                      key={header.id}
+                      style={getStickyColumnStyle(header.id)}
+                      className={`border-r border-border/50 px-3 py-2 text-left align-top ${header.id === "_row" ? "w-14" : "w-48"} ${getStickyColumnClass(header.id, true)}`}
                     >
-                      <Trash2 className="h-4 w-4" />
-                      {locale === "zh" ? "删除记录" : "Delete record"}
-                    </ContextMenu.Item>
-                  </ContextMenu.Content>
-                </ContextMenu.Portal>
-              </ContextMenu.Root>
-            )) : (
-              <tr>
-                <td colSpan={Math.max(1, columns.length)} className="h-28 text-center text-sm text-muted-foreground">
-                  {locale === "zh" ? "暂无记录，点击新增行开始录入。" : "No records yet. Add a row to start."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.length > 0 ? table.getRowModel().rows.map(row => (
+                <ContextMenu.Root key={row.id}>
+                  <ContextMenu.Trigger asChild>
+                    <tr className="group/record cursor-context-menu hover:bg-primary/5">
+                      {row.getVisibleCells().map(cell => (
+                        <td
+                          key={cell.id}
+                          style={getStickyColumnStyle(cell.column.id)}
+                          className={`h-11 border-r border-t border-border/40 px-2 py-1 align-middle ${getStickyColumnClass(cell.column.id)}`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  </ContextMenu.Trigger>
+                  <ContextMenu.Portal>
+                    <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-popover p-1 text-popover-foreground shadow-depth-lg">
+                      <ContextMenu.Item
+                        onSelect={() => onDeleteRecord(row.original.id)}
+                        className="flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-none focus:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {locale === "zh" ? "删除记录" : "Delete record"}
+                      </ContextMenu.Item>
+                    </ContextMenu.Content>
+                  </ContextMenu.Portal>
+                </ContextMenu.Root>
+              )) : (
+                <tr>
+                  <td colSpan={Math.max(1, columns.length)} className="h-28 text-center text-sm text-muted-foreground">
+                    {locale === "zh" ? "暂无记录，点击新增行开始录入。" : "No records yet. Add a row to start."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </ScrollArea>
       {showPagination && (
         <div className="flex items-center justify-between p-3">
