@@ -21,12 +21,6 @@ from src.api.services import (
 )
 from src.utils.db import FormRecordTable, FormTable, UserTable, get_db
 from src.utils.form_hooks import trigger_form_hooks
-from src.utils.form_relations import (
-    apply_target_delete_policy,
-    resolve_record_references,
-    validate_form_definition_relations,
-    validate_record_relations,
-)
 
 router = APIRouter(tags=["forms"])
 
@@ -147,15 +141,13 @@ async def create_form(
 ):
     if db.query(FormTable).filter(FormTable.id == form_data.id).first():
         raise HTTPException(status_code=400, detail="Form already exists")
-    fields = [field.model_dump(mode="json") for field in form_data.fields]
-    validate_form_definition_relations(db, current_user.id, fields)
     form = FormTable(
         id=form_data.id,
         owner_user_id=current_user.id,
         name=form_data.name,
         description=form_data.description,
         category=form_data.category.strip(),
-        fields=fields,
+        fields=[field.model_dump(mode="json") for field in form_data.fields],
         hooks=[hook.model_dump(mode="json") for hook in form_data.hooks],
         created_at=form_data.createdAt,
         updated_at=form_data.updatedAt,
@@ -179,12 +171,10 @@ async def update_form(
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
-    fields = [field.model_dump(mode="json") for field in form_data.fields]
-    validate_form_definition_relations(db, current_user.id, fields)
     form.name = form_data.name
     form.description = form_data.description
     form.category = form_data.category.strip()
-    form.fields = fields
+    form.fields = [field.model_dump(mode="json") for field in form_data.fields]
     form.hooks = [hook.model_dump(mode="json") for hook in form_data.hooks]
     form.updated_at = form_data.updatedAt
     db.commit()
@@ -204,27 +194,6 @@ async def delete_form(
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
-    inbound_references = []
-    for record in db.query(FormRecordTable).filter(
-        FormRecordTable.form_id == id,
-        FormRecordTable.owner_user_id == current_user.id,
-    ).all():
-        try:
-            apply_target_delete_policy(db, current_user.id, id, record.id)
-        except HTTPException as exc:
-            if exc.status_code == 409 and isinstance(exc.detail, dict):
-                inbound_references.extend(exc.detail.get("references") or [])
-            else:
-                raise
-    if inbound_references:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "code": "form_referenced",
-                "message": "Form records are referenced by other form records.",
-                "references": inbound_references,
-            },
-        )
     _remove_agent_profile_links(db, current_user.id, "form_ids", [id])
     db.query(FormRecordTable).filter(
         FormRecordTable.form_id == id,
@@ -249,7 +218,6 @@ async def list_form_records(
     filter_field: str = Query(default="", alias="filterField"),
     filter_value: str = Query(default="", alias="filterValue"),
     filter_op: str = Query(default="contains", alias="filterOp"),
-    expand_references: bool = Query(default=False, alias="expandReferences"),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -282,7 +250,6 @@ async def list_form_records(
             id=record.id,
             formId=record.form_id,
             data=data,
-            references=resolve_record_references(db, current_user.id, form, record) if expand_references else {},
             createdAt=record.created_at,
             updatedAt=record.updated_at,
         ))
@@ -311,7 +278,6 @@ async def create_form_record(
         raise HTTPException(status_code=404, detail="Form not found")
     now = _now()
     new_data = record_data.data or {}
-    validate_record_relations(db, current_user.id, form, new_data, record_data.id)
     record = FormRecordTable(
         id=record_data.id or f"record-{uuid.uuid4()}",
         form_id=id,
@@ -355,7 +321,6 @@ async def update_form_record(
         raise HTTPException(status_code=404, detail="Form not found")
     old_data = dict(record.data or {})
     new_data = record_data.data or {}
-    validate_record_relations(db, current_user.id, form, new_data, record_id)
     record.data = new_data
     record.updated_at = record_data.updatedAt or _now()
     db.commit()
@@ -378,7 +343,6 @@ async def delete_form_record(
     ).first()
     if not record:
         raise HTTPException(status_code=404, detail="Form record not found")
-    apply_target_delete_policy(db, current_user.id, form_id, record_id)
     db.delete(record)
     db.commit()
     return {"status": "success", "message": f"Form record {record_id} deleted"}

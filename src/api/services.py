@@ -180,7 +180,6 @@ def _form_record_schema(record: FormRecordTable) -> FormRecordSchema:
         id=record.id,
         formId=record.form_id,
         data=record.data or {},
-        references={},
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )

@@ -71,46 +71,6 @@ LINK_FIELDS = {
 }
 
 
-def _rewrite_form_field_bindings(
-    fields: list[dict],
-    form_id_map: dict[str, str],
-    warnings: list[str],
-    source_form_id: str,
-) -> list[dict]:
-    rewritten = copy.deepcopy(fields or [])
-    for field in rewritten:
-        if field.get("type") != "reference" or not isinstance(field.get("binding"), dict):
-            continue
-        binding = field["binding"]
-        source_target_form_id = str(binding.get("targetFormId") or "")
-        if not source_target_form_id:
-            continue
-        target_form_id = form_id_map.get(source_target_form_id)
-        if target_form_id:
-            binding["targetFormId"] = target_form_id
-        else:
-            warnings.append(
-                f"Form {source_form_id} reference field {field.get('id')} targets skipped form {source_target_form_id}."
-            )
-    return rewritten
-
-
-def _rewrite_form_record_reference_data(
-    data: dict,
-    fields: list[dict],
-    record_id_map: dict[str, str],
-) -> dict:
-    rewritten = copy.deepcopy(data or {})
-    for field in fields or []:
-        if field.get("type") != "reference":
-            continue
-        field_id = str(field.get("id") or "")
-        value = rewritten.get(field_id)
-        if isinstance(value, str) and value in record_id_map:
-            rewritten[field_id] = record_id_map[value]
-    return rewritten
-
-
 def _now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -621,12 +581,6 @@ def execute_import(
             )
             targets[key][source_id] = (target_id, existing)
             id_map[ID_MAP_KEYS[key]][source_id] = target_id
-    record_id_map: dict[str, str] = {}
-    for source_form_id in selected["forms"]:
-        for record in resources["forms"][source_form_id].get("records") or []:
-            source_record_id = str(record.get("id") or "")
-            if source_record_id:
-                record_id_map[source_record_id] = _new_resource_id("record")
 
     imported = {key: [] for key in RESOURCE_KEYS}
     warnings: list[str] = []
@@ -666,12 +620,7 @@ def execute_import(
                     row.name = str(item.get("name") or source_id)
                     row.description = item.get("description")
                     row.category = str(item.get("category") or "").strip()
-                    row.fields = _rewrite_form_field_bindings(
-                        item.get("fields") or [],
-                        id_map["formIds"],
-                        warnings,
-                        source_id,
-                    )
+                    row.fields = copy.deepcopy(item.get("fields") or [])
                     row.hooks = copy.deepcopy(item.get("hooks") or [])
                     if existing:
                         db.query(FormRecordTable).filter(
@@ -679,17 +628,11 @@ def execute_import(
                             FormRecordTable.owner_user_id == owner_user_id,
                         ).delete()
                     for record in item.get("records") or []:
-                        source_record_id = str(record.get("id") or "")
-                        target_record_id = record_id_map.get(source_record_id) or _new_resource_id("record")
                         db.add(FormRecordTable(
-                            id=target_record_id,
+                            id=_new_resource_id("record"),
                             form_id=target_id,
                             owner_user_id=owner_user_id,
-                            data=_rewrite_form_record_reference_data(
-                                record.get("data") or {},
-                                row.fields,
-                                record_id_map,
-                            ),
+                            data=copy.deepcopy(record.get("data") or {}),
                             created_at=now,
                             updated_at=now,
                         ))

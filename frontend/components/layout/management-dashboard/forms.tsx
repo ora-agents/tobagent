@@ -11,11 +11,9 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
-  Database,
   FileText,
   GripVertical,
   Hash,
-  Link2,
   ListChecks,
   Lock,
   Maximize2,
@@ -45,17 +43,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 export interface CustomFormField {
   id: string
   label: string
-  type: "text" | "number" | "date" | "boolean" | "select" | "reference"
+  type: "text" | "number" | "date" | "boolean" | "select"
   required: boolean
   options: string[]
-  binding?: {
-    targetFormId: string
-    targetDisplayFieldId?: string
-    relation: "many_to_one" | "one_to_one"
-    unique?: boolean
-    onTargetDelete: "restrict" | "set_null"
-    reverseLabel?: string
-  } | null
 }
 
 export interface CustomFormHookCondition {
@@ -97,13 +87,6 @@ export interface CustomFormRecord {
   id: string
   formId: string
   data: Record<string, string | number | boolean | null>
-  references?: Record<string, {
-    recordId: string
-    formId: string
-    formName?: string
-    label: string
-    exists: boolean
-  }>
   createdAt: string
   updatedAt: string
 }
@@ -137,7 +120,6 @@ const FORM_FIELD_TYPES: Array<{
   { type: "date", icon: CalendarDays, zh: "日期", en: "Date" },
   { type: "boolean", icon: ToggleLeft, zh: "开关", en: "Boolean" },
   { type: "select", icon: ListChecks, zh: "单选", en: "Select" },
-  { type: "reference", icon: Link2, zh: "关联", en: "Reference" },
 ]
 
 function getFieldTypeLabel(type: CustomFormFieldType, locale: string) {
@@ -153,9 +135,6 @@ function createDefaultField(type: CustomFormFieldType, locale: string, index: nu
     type,
     required: false,
     options: type === "select" ? (locale === "zh" ? ["选项 A", "选项 B"] : ["Option A", "Option B"]) : [],
-    binding: type === "reference"
-      ? { targetFormId: "", relation: "many_to_one", unique: false, onTargetDelete: "restrict" }
-      : null,
   }
 }
 
@@ -268,9 +247,6 @@ export function normalizeFieldValue(field: CustomFormField, value: string | numb
   if (field.type === "boolean") {
     return Boolean(value)
   }
-  if (field.type === "reference") {
-    return value ? String(value) : null
-  }
   return value ?? ""
 }
 
@@ -317,8 +293,6 @@ function formatRecordTimestamp(value: string, locale: string) {
 
 interface FormFieldDesignerProps {
   locale: string
-  forms: CustomForm[]
-  currentFormId?: string | null
   definition: FormDefinitionState
   selectedFieldId: string | null
   onDefinitionChange: (definition: FormDefinitionState) => void
@@ -327,15 +301,12 @@ interface FormFieldDesignerProps {
 
 export function FormFieldDesigner({
   locale,
-  forms,
-  currentFormId,
   definition,
   selectedFieldId,
   onDefinitionChange,
   onSelectedFieldChange,
 }: FormFieldDesignerProps) {
   const displayFields = [...definition.fields, ...SYSTEM_FORM_FIELDS]
-  const referenceTargetForms = forms.filter(form => form.id !== currentFormId)
   const selectedSystemField = SYSTEM_FORM_FIELDS.find(field => field.id === selectedFieldId) || null
   const selectedField = selectedSystemField || definition.fields.find(field => field.id === selectedFieldId) || definition.fields[0] || SYSTEM_FORM_FIELDS[0]
   const isSelectedSystemField = Boolean(selectedSystemField)
@@ -899,9 +870,6 @@ export function FormFieldDesigner({
                     onValueChange={(value) => updateField(selectedField.id, {
                       type: value as CustomFormFieldType,
                       options: value === "select" ? selectedField.options : [],
-                      binding: value === "reference"
-                        ? selectedField.binding || { targetFormId: referenceTargetForms[0]?.id || "", relation: "many_to_one", unique: false, onTargetDelete: "restrict" }
-                        : null,
                     })}
                   >
                     <SelectTrigger className="w-full">
@@ -943,126 +911,6 @@ export function FormFieldDesigner({
                   </FormField>
                 </div>
               )}
-              {selectedField.type === "reference" && !isSelectedSystemField && (
-                <div className="space-y-3 rounded-lg bg-background p-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Database className="h-4 w-4 text-primary" />
-                    <span>{locale === "zh" ? "关联配置" : "Reference binding"}</span>
-                  </div>
-                  <FormField label={locale === "zh" ? "目标表单" : "Target form"}>
-                    <Select
-                      value={selectedField.binding?.targetFormId || ""}
-                      onValueChange={(value) => updateField(selectedField.id, {
-                        binding: {
-                          targetFormId: value,
-                          targetDisplayFieldId: "",
-                          relation: selectedField.binding?.relation || "many_to_one",
-                          unique: selectedField.binding?.unique || false,
-                          onTargetDelete: selectedField.binding?.onTargetDelete || "restrict",
-                          reverseLabel: selectedField.binding?.reverseLabel || "",
-                        },
-                      })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={locale === "zh" ? "选择目标表单" : "Select target form"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {referenceTargetForms.map(form => (
-                          <SelectItem key={form.id} value={form.id}>{form.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormField>
-                  <FormField label={locale === "zh" ? "显示字段" : "Display field"}>
-                    <Select
-                      value={selectedField.binding?.targetDisplayFieldId || "__auto__"}
-                      onValueChange={(value) => updateField(selectedField.id, {
-                        binding: {
-                          targetFormId: selectedField.binding?.targetFormId || "",
-                          targetDisplayFieldId: value === "__auto__" ? "" : value,
-                          relation: selectedField.binding?.relation || "many_to_one",
-                          unique: selectedField.binding?.unique || false,
-                          onTargetDelete: selectedField.binding?.onTargetDelete || "restrict",
-                          reverseLabel: selectedField.binding?.reverseLabel || "",
-                        },
-                      })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__auto__">{locale === "zh" ? "自动选择" : "Auto"}</SelectItem>
-                        {(forms.find(form => form.id === selectedField.binding?.targetFormId)?.fields || []).map(field => (
-                          <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
-                        ))}
-                        <SelectItem value="createdAt">{locale === "zh" ? "创建时间" : "Created at"}</SelectItem>
-                        <SelectItem value="updatedAt">{locale === "zh" ? "更新时间" : "Updated at"}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormField>
-                  <FormField label={locale === "zh" ? "关系类型" : "Relation"}>
-                    <Select
-                      value={selectedField.binding?.relation || "many_to_one"}
-                      onValueChange={(value) => updateField(selectedField.id, {
-                        binding: {
-                          targetFormId: selectedField.binding?.targetFormId || "",
-                          targetDisplayFieldId: selectedField.binding?.targetDisplayFieldId || "",
-                          relation: value as "many_to_one" | "one_to_one",
-                          unique: value === "one_to_one" || selectedField.binding?.unique || false,
-                          onTargetDelete: selectedField.binding?.onTargetDelete || "restrict",
-                          reverseLabel: selectedField.binding?.reverseLabel || "",
-                        },
-                      })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="many_to_one">{locale === "zh" ? "多对一" : "Many to one"}</SelectItem>
-                        <SelectItem value="one_to_one">{locale === "zh" ? "一对一" : "One to one"}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormField>
-                  <FormField label={locale === "zh" ? "目标删除时" : "When target is deleted"}>
-                    <Select
-                      value={selectedField.binding?.onTargetDelete || "restrict"}
-                      onValueChange={(value) => updateField(selectedField.id, {
-                        binding: {
-                          targetFormId: selectedField.binding?.targetFormId || "",
-                          targetDisplayFieldId: selectedField.binding?.targetDisplayFieldId || "",
-                          relation: selectedField.binding?.relation || "many_to_one",
-                          unique: selectedField.binding?.unique || false,
-                          onTargetDelete: value as "restrict" | "set_null",
-                          reverseLabel: selectedField.binding?.reverseLabel || "",
-                        },
-                      })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="restrict">{locale === "zh" ? "禁止删除" : "Restrict"}</SelectItem>
-                        <SelectItem value="set_null">{locale === "zh" ? "清空引用" : "Set null"}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormField>
-                  <FormField label={locale === "zh" ? "反向名称" : "Reverse label"}>
-                    <Input
-                      value={selectedField.binding?.reverseLabel || ""}
-                      onChange={(event) => updateField(selectedField.id, {
-                        binding: {
-                          targetFormId: selectedField.binding?.targetFormId || "",
-                          targetDisplayFieldId: selectedField.binding?.targetDisplayFieldId || "",
-                          relation: selectedField.binding?.relation || "many_to_one",
-                          unique: selectedField.binding?.unique || false,
-                          onTargetDelete: selectedField.binding?.onTargetDelete || "restrict",
-                          reverseLabel: event.target.value,
-                        },
-                      })}
-                    />
-                  </FormField>
-                </div>
-              )}
               {isSelectedSystemField && (
                 <p className="rounded-lg bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
                   {locale === "zh" ? "系统字段由平台自动维护，不能修改、删除或调整顺序。" : "System fields are maintained automatically and cannot be changed, deleted, or reordered."}
@@ -1081,30 +929,12 @@ export function FormFieldDesigner({
 
 interface EditableRecordCellProps {
   field: CustomFormField
-  record?: CustomFormRecord
   value: string | number | boolean | null | undefined
-  referenceRecords?: CustomFormRecord[]
-  targetForm?: CustomForm
   error?: string
   onCommit: (value: string | number | boolean | null) => void
 }
 
-function getReferenceRecordLabel(record: CustomFormRecord, targetForm?: CustomForm, displayFieldId?: string) {
-  if (displayFieldId === "createdAt") return record.createdAt
-  if (displayFieldId === "updatedAt") return record.updatedAt
-  const data = record.data || {}
-  if (displayFieldId && data[displayFieldId] !== null && data[displayFieldId] !== undefined && data[displayFieldId] !== "") {
-    return String(data[displayFieldId])
-  }
-  const firstDisplayField = targetForm?.fields.find(field => {
-    const value = data[field.id]
-    return ["text", "number", "date", "select"].includes(field.type) && value !== null && value !== undefined && value !== ""
-  })
-  if (firstDisplayField) return String(data[firstDisplayField.id])
-  return record.id
-}
-
-function EditableRecordCell({ field, record, value, referenceRecords, targetForm, error, onCommit }: EditableRecordCellProps) {
+function EditableRecordCell({ field, value, error, onCommit }: EditableRecordCellProps) {
   const [draft, setDraft] = useState(value ?? "")
 
   useEffect(() => {
@@ -1139,25 +969,6 @@ function EditableRecordCell({ field, record, value, referenceRecords, targetForm
     )
   }
 
-  if (field.type === "reference") {
-    const summary = record?.references?.[field.id]
-    return (
-      <select
-        value={String(value ?? "")}
-        onChange={(event) => onCommit(event.target.value || null)}
-        title={error || summary?.label}
-        className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:ring-0 ${error ? "bg-destructive/10 text-destructive" : ""}`}
-      >
-        <option value="">{summary && !summary.exists ? `${summary.label} (${summary.recordId})` : ""}</option>
-        {(referenceRecords || []).map(item => (
-          <option key={item.id} value={item.id}>
-            {getReferenceRecordLabel(item, targetForm, field.binding?.targetDisplayFieldId)}
-          </option>
-        ))}
-      </select>
-    )
-  }
-
   return (
     <input
       type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
@@ -1178,9 +989,7 @@ function EditableRecordCell({ field, record, value, referenceRecords, targetForm
 interface FormRecordsTableProps {
   locale: string
   form: CustomForm
-  forms: CustomForm[]
   records: CustomFormRecord[]
-  referenceRecordsByFormId: Record<string, CustomFormRecord[]>
   total: number
   page: number
   query: string
@@ -1197,9 +1006,7 @@ interface FormRecordsTableProps {
 export function FormRecordsTable({
   locale,
   form,
-  forms,
   records,
-  referenceRecordsByFormId,
   total,
   page,
   query,
@@ -1307,10 +1114,7 @@ export function FormRecordsTable({
         ) : (
           <EditableRecordCell
             field={field}
-            record={row.original}
             value={row.original.data?.[field.id]}
-            referenceRecords={field.type === "reference" ? referenceRecordsByFormId[field.binding?.targetFormId || ""] || [] : undefined}
-            targetForm={field.type === "reference" ? forms.find(form => form.id === field.binding?.targetFormId) : undefined}
             error={validationErrors[row.original.id]?.[field.id]}
             onCommit={(value) => onUpdateCell(row.original, field, value)}
           />
@@ -1325,7 +1129,7 @@ export function FormRecordsTable({
       },
       ...recordColumns,
     ]
-  }, [forms, locale, onUpdateCell, orderedRecordFields, page, referenceRecordsByFormId, renderFieldHeader, validationErrors])
+  }, [locale, onUpdateCell, orderedRecordFields, page, renderFieldHeader, validationErrors])
 
   const table = useReactTable({
     data: records,
