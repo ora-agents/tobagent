@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "rea
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Copy, History, LogOut, Moon, Sparkles, Sun, Trash2 } from "lucide-react"
+import { Copy, LogOut, Moon, PanelLeft, Sparkles, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -43,8 +43,6 @@ import {
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import type { User } from "@/components/providers/auth-provider"
-import type { Thread } from "@/lib/hooks/threads"
-import { getThreadSource } from "@/lib/utils/thread-source"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
@@ -123,29 +121,20 @@ function DedicatedAgentHeader({
   agentName,
   user,
   onNewChat,
-  threads,
-  currentThreadId,
-  onSelectThread,
-  onDeleteThread,
-  isLoadingThreads = false,
   onCopyAgent,
   copyAgentDisabled = false,
   onLogout,
+  onOpenSidebar,
 }: {
   agentName: string
   user: User
   onNewChat: () => void
-  threads: Thread[]
-  currentThreadId: string | null
-  onSelectThread: (threadId: string) => void
-  onDeleteThread: (threadId: string) => void
-  isLoadingThreads?: boolean
   onCopyAgent?: () => void
   copyAgentDisabled?: boolean
   onLogout: () => void
+  onOpenSidebar: () => void
 }) {
   const t = useT()
-  const { locale } = useI18n()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -154,9 +143,20 @@ function DedicatedAgentHeader({
   const isDark = mounted && resolvedTheme === "dark"
 
   return (
-    <header className="flex h-14 shrink-0 items-center border-b border-border/50 bg-background/95 sm:h-16">
+    <header className="flex h-14 shrink-0 items-center bg-background sm:h-16">
       <div className="flex w-full items-center justify-between gap-3 px-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onOpenSidebar}
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary md:hidden dark:hover:bg-white/10 dark:hover:text-foreground"
+            title={t.threads}
+            aria-label={t.threads}
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
           <Link
             href="/"
             className="flex h-10 shrink-0 items-center rounded-lg px-1.5 transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
@@ -173,8 +173,7 @@ function DedicatedAgentHeader({
               draggable={false}
             />
           </Link>
-          <div className="h-6 w-px shrink-0 bg-border/70 dark:bg-white/20" aria-hidden="true" />
-          <span className="block truncate text-base font-semibold text-foreground">
+          <span className="block max-w-[42vw] truncate rounded-lg bg-muted px-2.5 py-1.5 text-sm font-semibold text-foreground sm:max-w-[30rem]">
             {agentName}
           </span>
         </div>
@@ -185,7 +184,7 @@ function DedicatedAgentHeader({
               variant="ghost"
               onClick={onCopyAgent}
               disabled={copyAgentDisabled}
-              className="h-9 gap-1.5 rounded-lg px-3 text-muted-foreground hover:bg-primary-soft hover:text-primary disabled:opacity-60 dark:hover:bg-white/10 dark:hover:text-foreground"
+              className="h-9 gap-1.5 rounded-lg bg-muted px-3 text-muted-foreground hover:bg-primary-soft hover:text-primary disabled:opacity-60 dark:hover:bg-white/10 dark:hover:text-foreground"
               title="复制到我的账号"
               aria-label="复制到我的账号"
             >
@@ -193,77 +192,11 @@ function DedicatedAgentHeader({
               <span className="hidden sm:inline">复制</span>
             </Button>
           )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-9 gap-1.5 rounded-lg px-3 text-muted-foreground hover:bg-primary-soft hover:text-primary dark:hover:bg-white/10 dark:hover:text-foreground"
-                title={t.threads}
-                aria-label={t.threads}
-              >
-                <History className="h-4 w-4" />
-                <span className="hidden sm:inline">{t.threads}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[min(20rem,calc(100vw-1.5rem))] p-2">
-              <div className="px-2 pb-2 pt-1 text-xs font-semibold uppercase text-muted-foreground">
-                {t.threads}
-              </div>
-              <div className="max-h-[min(26rem,70vh)] space-y-1 overflow-y-auto pr-1">
-                {isLoadingThreads ? (
-                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">{t.loadingConversations}</div>
-                ) : threads.length === 0 ? (
-                  <div className="px-2 py-6 text-center text-sm text-muted-foreground">{t.noConversationsYet}</div>
-                ) : (
-                  threads.map((thread) => {
-                    const source = getThreadSource(thread)
-                    const sourceLabel = locale === "zh" ? source.labelZh : source.labelEn
-                    const title = thread.metadata?.title || t.untitled
-                    const isActive = thread.thread_id === currentThreadId
-                    return (
-                      <div
-                        key={thread.thread_id}
-                        className={`group flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors ${
-                          isActive
-                            ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
-                            : "text-foreground hover:bg-muted"
-                        }`}
-                        onClick={() => onSelectThread(thread.thread_id)}
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-medium">{title}</div>
-                          {source.kind !== "main" && (
-                            <div className="mt-1">
-                              <span className="inline-flex max-w-full items-center rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary dark:bg-white/10 dark:text-foreground">
-                                <span className="truncate">{sourceLabel}</span>
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            onDeleteThread(thread.thread_id)
-                          }}
-                          className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                          aria-label="删除对话"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button
             type="button"
             variant="ghost"
             onClick={onNewChat}
-            className="h-9 gap-1.5 rounded-lg bg-primary-soft px-3 text-primary hover:bg-primary hover:text-primary-foreground dark:bg-white/10 dark:text-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
+            className="h-9 gap-1.5 rounded-lg bg-primary px-3 text-primary-foreground hover:bg-primary-active hover:text-primary-foreground"
             title={t.newChat}
             aria-label={t.newChat}
           >
@@ -942,7 +875,7 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className={`flex h-dvh bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
+      <div className={`flex h-dvh bg-background ${isDedicatedAgentApp ? "text-foreground" : ""} ${elderOptimized ? "elder-optimized-ui" : ""}`}>
         {!isDedicatedAgentApp && (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
@@ -956,7 +889,23 @@ function DashboardContent() {
             onViewChange={setCurrentView}
           />
         )}
-        {!isDedicatedAgentApp && isMobileSidebarOpen && (
+        {isDedicatedAgentApp && activeAgentProfile && (
+          <Sidebar
+            isCollapsed={isSidebarCollapsed}
+            onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
+            currentThreadId={activeThreadId || ''}
+            onSelectThread={handleSelectThread}
+            onDeleteThread={handleDeleteThread}
+            isLoading={threadsLoading}
+            currentView={currentView}
+            onViewChange={setCurrentView}
+            variant="agentApp"
+            agentName={activeAgentProfile.name}
+            onNewChat={handleNewChat}
+          />
+        )}
+        {isMobileSidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="菜单">
             <button
               type="button"
@@ -977,11 +926,14 @@ function DashboardContent() {
                 onViewChange={setCurrentView}
                 isMobileDrawer
                 onMobileClose={() => setIsMobileSidebarOpen(false)}
+                variant={isDedicatedAgentApp ? "agentApp" : "default"}
+                agentName={isDedicatedAgentApp ? activeAgentProfile?.name : undefined}
+                onNewChat={isDedicatedAgentApp ? handleNewChat : undefined}
               />
             </div>
           </div>
         )}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-background">
         <div
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
           aria-hidden={currentView !== "chat"}
@@ -991,14 +943,10 @@ function DashboardContent() {
                 agentName={activeAgentProfile.name}
                 user={user}
                 onNewChat={handleNewChat}
-                threads={filteredThreads.filter((thread) => !newThreads.has(thread.thread_id))}
-                currentThreadId={activeThreadId}
-                onSelectThread={handleSelectThread}
-                onDeleteThread={handleDeleteThread}
-                isLoadingThreads={threadsLoading}
                 onCopyAgent={isSharedAgentApp ? handleCopySharedAgent : undefined}
                 copyAgentDisabled={isCopyingSharedAgent}
                 onLogout={logout}
+                onOpenSidebar={() => setIsMobileSidebarOpen(true)}
               />
             ) : (
               <Header

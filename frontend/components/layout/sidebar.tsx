@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
@@ -37,6 +37,9 @@ interface SidebarProps {
   onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual") => void
   isMobileDrawer?: boolean
   onMobileClose?: () => void
+  variant?: "default" | "agentApp"
+  agentName?: string
+  onNewChat?: () => void
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -184,6 +187,9 @@ export const Sidebar = memo(function Sidebar({
   onViewChange,
   isMobileDrawer = false,
   onMobileClose,
+  variant = "default",
+  agentName,
+  onNewChat,
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -194,6 +200,7 @@ export const Sidebar = memo(function Sidebar({
   const [searchQuery, setSearchQuery] = useState('')
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isConfigOpen, setIsConfigOpen] = useState(true)
+  const isAgentAppSidebar = variant === "agentApp"
   const isConfigView = currentView === "skills" || currentView === "agents" || currentView === "knowledge" || currentView === "forms" || currentView === "mcp"
 
   // Filter threads based on search query
@@ -246,7 +253,7 @@ export const Sidebar = memo(function Sidebar({
             const title = thread.metadata?.title || "New conversation"
             const source = getThreadSource(thread)
             const sourceLabel = locale === "zh" ? source.labelZh : source.labelEn
-            const shouldShowSource = source.kind !== "main"
+            const shouldShowSource = !isAgentAppSidebar && source.kind !== "main"
 
             return (
               <div
@@ -288,10 +295,45 @@ export const Sidebar = memo(function Sidebar({
         </div>
       </div>
     )
-  }, [currentThreadId, handleSelectThread, handleDeleteThread, locale])
+  }, [currentThreadId, handleSelectThread, handleDeleteThread, isAgentAppSidebar, locale])
 
   // Early return for collapsed state (after all hooks)
   if (isCollapsed && !isMobileDrawer) {
+    if (isAgentAppSidebar) {
+      return (
+        <aside className="hidden h-screen w-16 flex-col justify-between border-r border-sidebar-border/60 bg-sidebar text-sidebar-foreground md:flex">
+          <div className="flex flex-col items-center gap-3 px-3 py-4">
+            <Button variant="ghost" size="icon" onClick={onToggle} className="hover:bg-sidebar-primary/10 hover:text-sidebar-primary transition-all duration-200 shadow-depth-xs hover:shadow-depth-hover rounded-lg" aria-label={locale === "zh" ? "展开对话记录" : "Expand conversations"}>
+              <PanelLeft className="w-5 h-5" />
+            </Button>
+            {onNewChat && (
+              <button
+                type="button"
+                onClick={onNewChat}
+                className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
+                title={t.newChat}
+                aria-label={t.newChat}
+              >
+                <Sparkles className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col items-center gap-3.5 pb-6">
+            <button
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+            >
+              {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <div className="w-8 h-1 rounded-full bg-sidebar-accent/40 my-1 flex-shrink-0" />
+            <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
+          </div>
+        </aside>
+      )
+    }
+
     return (
       <aside className="hidden h-screen w-16 flex-col justify-between border-r border-sidebar-border/60 bg-sidebar text-sidebar-foreground md:flex">
         <div className="px-3 py-4 h-16 flex items-center justify-center">
@@ -433,12 +475,33 @@ export const Sidebar = memo(function Sidebar({
               alt="WSIRI"
               width={957}
               height={613}
-              className="h-10 w-auto max-w-[128px] object-contain"
+              className={`h-10 w-auto object-contain ${isAgentAppSidebar ? "max-w-[104px]" : "max-w-[128px]"}`}
               priority
               draggable={false}
             />
           </div>
+          {isAgentAppSidebar && agentName && (
+            <div className="mt-2 truncate px-1 text-sm font-semibold text-sidebar-foreground">
+              {agentName}
+            </div>
+          )}
         </div>
+
+      {isAgentAppSidebar && onNewChat && (
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={() => {
+              onNewChat()
+              onMobileClose?.()
+            }}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-soft px-3 text-sm font-medium text-primary transition-all duration-200 hover:bg-primary hover:text-primary-foreground dark:bg-white/10 dark:text-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="truncate">{t.newChat}</span>
+          </button>
+        </div>
+      )}
 
       {/* Search Bar */}
       <div className="px-3 py-2">
@@ -509,6 +572,7 @@ export const Sidebar = memo(function Sidebar({
       </ScrollArea>
 
       {/* Bottom Management Navigation */}
+      {!isAgentAppSidebar && (
       <div className="flex flex-shrink-0 flex-col gap-1 px-3 py-2">
         <button
           onClick={() => setIsConfigOpen((open) => !open)}
@@ -617,6 +681,7 @@ export const Sidebar = memo(function Sidebar({
           </span>
         </button>
       </div>
+      )}
 
       <div className="pt-2 pb-3 px-3">
         <UserProfileSection isCollapsed={false} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
