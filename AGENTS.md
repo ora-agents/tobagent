@@ -44,3 +44,7 @@ Recent history uses Conventional Commits with scopes, such as `feat(frontend): a
 ## Security & Configuration Tips
 
 Copy `.env.example` to `.env` for local backend configuration and keep secrets out of git. Frontend-local secrets belong in `frontend/.env.local`. Do not commit generated caches such as `.pytest_cache/`, `.langgraph_api/`, or local virtual environments.
+
+
+## 区分
+主界面是 根目录，agentapp 是 /agentapp 的目录下的应用
