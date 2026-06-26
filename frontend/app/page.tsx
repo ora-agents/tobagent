@@ -1,6 +1,8 @@
 "use client"
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
+import Image from "next/image"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { LogOut, Moon, Sparkles, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -137,7 +139,24 @@ function DedicatedAgentHeader({
   return (
     <header className="flex h-14 shrink-0 items-center border-b border-border/50 bg-background/95 sm:h-16">
       <div className="flex w-full items-center justify-between gap-3 px-3 sm:px-6">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <Link
+            href="/"
+            className="flex h-10 shrink-0 items-center rounded-lg px-1.5 transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
+            title="返回主页"
+            aria-label="返回主页"
+          >
+            <Image
+              src="/logo.png"
+              alt="WSIRI"
+              width={957}
+              height={613}
+              className="h-8 w-auto max-w-[104px] object-contain sm:h-9 sm:max-w-[120px]"
+              priority
+              draggable={false}
+            />
+          </Link>
+          <div className="h-6 w-px shrink-0 bg-border/70 dark:bg-white/20" aria-hidden="true" />
           <span className="block truncate text-base font-semibold text-foreground">
             {agentName}
           </span>
@@ -147,7 +166,7 @@ function DedicatedAgentHeader({
             type="button"
             variant="ghost"
             onClick={onNewChat}
-            className="h-9 gap-1.5 rounded-lg bg-primary-soft px-3 text-primary hover:bg-primary hover:text-primary-foreground"
+            className="h-9 gap-1.5 rounded-lg bg-primary-soft px-3 text-primary hover:bg-primary hover:text-primary-foreground dark:bg-white/10 dark:text-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
             title={t.newChat}
             aria-label={t.newChat}
           >
@@ -159,7 +178,7 @@ function DedicatedAgentHeader({
             variant="ghost"
             size="icon"
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary"
+            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary dark:hover:bg-white/10 dark:hover:text-foreground"
             title={isDark ? t.lightMode : t.darkMode}
             aria-label={isDark ? t.lightMode : t.darkMode}
           >
