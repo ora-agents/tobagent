@@ -2041,12 +2041,12 @@ export function ManagementDashboard({
       {/* 2. Main Content Area */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
         {/* Content Detail View */}
-        <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
+        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
           {/* ========================================== */}
           {/* FORMS TAB PANEL                            */}
           {/* ========================================== */}
           {activeTab === "forms" && (
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
               <ListPanel
                 title={locale === "zh" ? "表单" : "Forms"}
                 className="border-border/40 bg-background/30"
@@ -2117,7 +2117,7 @@ export function ManagementDashboard({
                 </div>
               </ListPanel>
 
-              <div className="min-h-0 flex-1 bg-background">
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
                 {isCreatingForm || isEditingForm ? (
                   <div className="flex h-full min-h-0 w-full flex-col">
                     <div className="shrink-0 space-y-5 border-b border-border/40 p-4 sm:p-6">
@@ -2161,7 +2161,7 @@ export function ManagementDashboard({
                     </ScrollArea>
                   </div>
                 ) : selectedForm ? (
-                  <ScrollArea className="h-full min-h-0" contentClassName="w-full min-w-0 space-y-5 p-4 sm:p-6">
+                  <ScrollArea className="h-full min-h-0 w-full min-w-0 overflow-hidden" contentClassName="w-full min-w-0 space-y-5 p-4 sm:p-6">
                     <div className="w-full min-w-0 space-y-5">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
