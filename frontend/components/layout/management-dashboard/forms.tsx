@@ -809,12 +809,7 @@ export function FormFieldDesigner({
         </div>
       </div>
 
-      <div className="min-h-0 rounded-xl bg-muted/45 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-15rem)] xl:self-start">
-        <ScrollArea
-          className="max-h-[420px] xl:max-h-[calc(100dvh-15rem)]"
-          viewportClassName="!h-auto max-h-[420px] xl:max-h-[calc(100dvh-15rem)]"
-          contentClassName="p-4"
-        >
+      <div className="rounded-xl bg-muted/45 p-4 xl:sticky xl:top-4 xl:self-start">
           {selectedField ? (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -927,7 +922,6 @@ export function FormFieldDesigner({
               {locale === "zh" ? "选择一个字段进行配置。" : "Select a field to configure it."}
             </div>
           )}
-        </ScrollArea>
       </div>
     </div>
   )
