@@ -392,32 +392,35 @@ export function FormFieldDesigner({
         </div>
 
         <div className="rounded-xl bg-muted/35 p-3">
-          <div className="overflow-x-auto rounded-lg bg-background shadow-depth-xs">
-            <div className="min-w-[860px]">
-              <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayFields.length, 1)}, minmax(180px, 1fr))` }}>
-                <div className="sticky left-0 z-20 flex items-center bg-muted px-3 py-3 text-xs font-semibold text-muted-foreground">#</div>
-                {displayFields.length > 0 ? displayFields.map(field => {
-                  const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
-                  const isSelected = selectedField?.id === field.id
-                  const fieldIndex = definition.fields.findIndex(item => item.id === field.id)
-                  return (
-                    <div
-                      key={field.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onSelectedFieldChange(field.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault()
-                          onSelectedFieldChange(field.id)
-                        }
-                      }}
-                      className={`group min-w-0 border-l px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/20 ${
-                        isSelected
-                          ? "border-primary/20 bg-primary-soft text-primary"
-                          : "border-border/50 bg-muted hover:bg-primary/10"
-                      }`}
-                    >
+          <ScrollArea
+            className="rounded-lg bg-background shadow-depth-xs"
+            contentClassName="min-w-[860px]"
+            scrollbars="horizontal"
+          >
+            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayFields.length, 1)}, minmax(180px, 1fr))` }}>
+              <div className="sticky left-0 z-20 flex items-center bg-muted px-3 py-3 text-xs font-semibold text-muted-foreground">#</div>
+              {displayFields.length > 0 ? displayFields.map(field => {
+                const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
+                const isSelected = selectedField?.id === field.id
+                const fieldIndex = definition.fields.findIndex(item => item.id === field.id)
+                return (
+                  <div
+                    key={field.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectedFieldChange(field.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        onSelectedFieldChange(field.id)
+                      }
+                    }}
+                    className={`group min-w-0 border-l px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/20 ${
+                      isSelected
+                        ? "border-primary/20 bg-primary-soft text-primary"
+                        : "border-border/50 bg-muted hover:bg-primary/10"
+                    }`}
+                  >
                       <div className="flex min-w-0 items-start justify-between gap-2">
                         <div className="flex min-w-0 items-start gap-2">
                           <GripVertical className={`mt-0.5 h-4 w-4 shrink-0 ${isSystemField ? "text-muted-foreground/50" : "text-muted-foreground"}`} />
@@ -487,8 +490,7 @@ export function FormFieldDesigner({
                   </div>
                 )}
               </div>
-            </div>
-          </div>
+          </ScrollArea>
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>{locale === "zh" ? `${definition.fields.length} 个自定义字段，${SYSTEM_FORM_FIELDS.length} 个系统字段` : `${definition.fields.length} custom fields, ${SYSTEM_FORM_FIELDS.length} system fields`}</span>
             <span>{locale === "zh" ? "系统字段固定在记录末尾" : "System fields stay at the end"}</span>
@@ -679,119 +681,125 @@ export function FormFieldDesigner({
         </div>
       </div>
 
-      <div className="rounded-xl bg-muted/45 p-4 xl:sticky xl:top-6 xl:self-start">
-        {selectedField ? (
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-muted-foreground">{locale === "zh" ? "字段属性" : "Field properties"}</div>
-                <h3 className="mt-1 truncate text-base font-semibold">
-                  {isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
-                </h3>
-                <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{selectedField.id}</p>
-              </div>
-              {isSelectedSystemField ? (
-                <div className="rounded-md bg-primary-soft p-1.5 text-primary" title={locale === "zh" ? "系统字段" : "System field"}>
-                  <Lock className="h-4 w-4" />
+      <div className="min-h-0 rounded-xl bg-muted/45 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-15rem)] xl:self-start">
+        <ScrollArea
+          className="max-h-[420px] xl:max-h-[calc(100dvh-15rem)]"
+          viewportClassName="!h-auto max-h-[420px] xl:max-h-[calc(100dvh-15rem)]"
+          contentClassName="p-4"
+        >
+          {selectedField ? (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-muted-foreground">{locale === "zh" ? "字段属性" : "Field properties"}</div>
+                  <h3 className="mt-1 truncate text-base font-semibold">
+                    {isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
+                  </h3>
+                  <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{selectedField.id}</p>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => removeField(selectedField.id)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  title={locale === "zh" ? "删除字段" : "Delete field"}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <div className="rounded-lg bg-background p-3">
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" disabled={!canMoveSelectedLeft} onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
-                  <ArrowUp className="h-3.5 w-3.5 -rotate-90" />
-                  {locale === "zh" ? "左移" : "Move left"}
-                </Button>
-                <Button variant="outline" size="sm" disabled={!canMoveSelectedRight} onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
-                  <ArrowDown className="h-3.5 w-3.5 -rotate-90" />
-                  {locale === "zh" ? "右移" : "Move right"}
-                </Button>
+                {isSelectedSystemField ? (
+                  <div className="rounded-md bg-primary-soft p-1.5 text-primary" title={locale === "zh" ? "系统字段" : "System field"}>
+                    <Lock className="h-4 w-4" />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => removeField(selectedField.id)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title={locale === "zh" ? "删除字段" : "Delete field"}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-            </div>
-            <div className="space-y-4 rounded-lg bg-background p-3">
-              <FormField label={locale === "zh" ? "字段名称" : "Label"}>
-                <Input
-                  value={isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
-                  onChange={(event) => updateField(selectedField.id, { label: event.target.value })}
-                  disabled={isSelectedSystemField}
-                />
-              </FormField>
-              <FormField label={locale === "zh" ? "字段 ID" : "Field ID"}>
-                <Input
-                  value={selectedField.id}
-                  onChange={(event) => updateField(selectedField.id, { id: event.target.value.trim() })}
-                  disabled={isSelectedSystemField}
-                  className="font-mono text-xs"
-                />
-              </FormField>
-              <FormField label={locale === "zh" ? "字段类型" : "Type"}>
-                <Select
-                  value={selectedField.type}
-                  disabled={isSelectedSystemField}
-                  onValueChange={(value) => updateField(selectedField.id, {
-                    type: value as CustomFormFieldType,
-                    options: value === "select" ? selectedField.options : [],
-                  })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FORM_FIELD_TYPES.map(item => (
-                      <SelectItem key={item.type} value={item.type}>
-                        {locale === "zh" ? item.zh : item.en}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm">
-                <span>{locale === "zh" ? "必填" : "Required"}</span>
-                <input
-                  type="checkbox"
-                  checked={selectedField.required}
-                  onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
-                  disabled={isSelectedSystemField}
-                  className="h-4 w-4 accent-primary"
-                />
-              </label>
-            </div>
-            {selectedField.type === "select" && (
               <div className="rounded-lg bg-background p-3">
-                <FormField
-                  label={locale === "zh" ? "选项" : "Options"}
-                  description={locale === "zh" ? "每行一个选项。" : "One option per line."}
-                >
-                  <Textarea
-                    value={selectedField.options.join("\n")}
-                    onChange={(event) => updateField(selectedField.id, {
-                      options: event.target.value.split("\n").map(item => item.trim()).filter(Boolean),
-                    })}
-                    className="min-h-32"
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" size="sm" disabled={!canMoveSelectedLeft} onClick={() => moveField(selectedField.id, -1)} className="rounded-lg">
+                    <ArrowUp className="h-3.5 w-3.5 -rotate-90" />
+                    {locale === "zh" ? "左移" : "Move left"}
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={!canMoveSelectedRight} onClick={() => moveField(selectedField.id, 1)} className="rounded-lg">
+                    <ArrowDown className="h-3.5 w-3.5 -rotate-90" />
+                    {locale === "zh" ? "右移" : "Move right"}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-4 rounded-lg bg-background p-3">
+                <FormField label={locale === "zh" ? "字段名称" : "Label"}>
+                  <Input
+                    value={isSelectedSystemField ? getSystemFieldLabel(selectedField, locale) : selectedField.label}
+                    onChange={(event) => updateField(selectedField.id, { label: event.target.value })}
+                    disabled={isSelectedSystemField}
                   />
                 </FormField>
+                <FormField label={locale === "zh" ? "字段 ID" : "Field ID"}>
+                  <Input
+                    value={selectedField.id}
+                    onChange={(event) => updateField(selectedField.id, { id: event.target.value.trim() })}
+                    disabled={isSelectedSystemField}
+                    className="font-mono text-xs"
+                  />
+                </FormField>
+                <FormField label={locale === "zh" ? "字段类型" : "Type"}>
+                  <Select
+                    value={selectedField.type}
+                    disabled={isSelectedSystemField}
+                    onValueChange={(value) => updateField(selectedField.id, {
+                      type: value as CustomFormFieldType,
+                      options: value === "select" ? selectedField.options : [],
+                    })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FORM_FIELD_TYPES.map(item => (
+                        <SelectItem key={item.type} value={item.type}>
+                          {locale === "zh" ? item.zh : item.en}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm">
+                  <span>{locale === "zh" ? "必填" : "Required"}</span>
+                  <input
+                    type="checkbox"
+                    checked={selectedField.required}
+                    onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
+                    disabled={isSelectedSystemField}
+                    className="h-4 w-4 accent-primary"
+                  />
+                </label>
               </div>
-            )}
-            {isSelectedSystemField && (
-              <p className="rounded-lg bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-                {locale === "zh" ? "系统字段由平台自动维护，不能修改、删除或调整顺序。" : "System fields are maintained automatically and cannot be changed, deleted, or reordered."}
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
-            {locale === "zh" ? "选择一个字段进行配置。" : "Select a field to configure it."}
-          </div>
-        )}
+              {selectedField.type === "select" && (
+                <div className="rounded-lg bg-background p-3">
+                  <FormField
+                    label={locale === "zh" ? "选项" : "Options"}
+                    description={locale === "zh" ? "每行一个选项。" : "One option per line."}
+                  >
+                    <Textarea
+                      value={selectedField.options.join("\n")}
+                      onChange={(event) => updateField(selectedField.id, {
+                        options: event.target.value.split("\n").map(item => item.trim()).filter(Boolean),
+                      })}
+                      className="min-h-32"
+                    />
+                  </FormField>
+                </div>
+              )}
+              {isSelectedSystemField && (
+                <p className="rounded-lg bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                  {locale === "zh" ? "系统字段由平台自动维护，不能修改、删除或调整顺序。" : "System fields are maintained automatically and cannot be changed, deleted, or reordered."}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex min-h-40 items-center justify-center text-center text-sm text-muted-foreground">
+              {locale === "zh" ? "选择一个字段进行配置。" : "Select a field to configure it."}
+            </div>
+          )}
+        </ScrollArea>
       </div>
     </div>
   )

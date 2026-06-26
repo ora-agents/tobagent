@@ -2091,87 +2091,92 @@ export function ManagementDashboard({
                 </div>
               </ListPanel>
 
-              <ScrollArea className="min-h-0 flex-1 bg-background">
+              <div className="min-h-0 flex-1 bg-background">
                 {isCreatingForm || isEditingForm ? (
-                  <div className="w-full min-w-0 space-y-5 p-4 sm:p-6">
-                    <div>
-                      <h2 className="text-lg font-semibold">{isCreatingForm ? (locale === "zh" ? "新建表单" : "Create Form") : (locale === "zh" ? "编辑表单" : "Edit Form")}</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {locale === "zh" ? "通过可视化列设计字段，保存后记录表格会按字段生成可编辑列。" : "Design fields visually as columns. The records table follows this structure after saving."}
-                      </p>
-                    </div>
-                    <div className="grid gap-4 rounded-xl bg-muted/35 p-4 md:grid-cols-2">
-                      <InputField
-                        id="form-name"
-                        label={locale === "zh" ? "表单名称" : "Form Name"}
-                        value={formDefinition.name}
-                        onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
-                      />
-                      <InputField
-                        id="form-category"
-                        label={locale === "zh" ? "表单类型" : "Form Type"}
-                        value={formDefinition.category}
-                        placeholder={locale === "zh" ? "例如：客户、订单、巡检" : "e.g. Customer, Order, Inspection"}
-                        onChange={(e) => setFormDefinition(prev => ({ ...prev, category: e.target.value }))}
-                      />
-                      <FormField label={locale === "zh" ? "描述" : "Description"} className="md:col-span-2">
-                        <Textarea
-                          value={formDefinition.description}
-                          onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
-                          className="min-h-28 rounded-lg"
+                  <div className="flex h-full min-h-0 w-full flex-col">
+                    <div className="shrink-0 space-y-5 border-b border-border/40 p-4 sm:p-6">
+                      <div>
+                        <h2 className="text-lg font-semibold">{isCreatingForm ? (locale === "zh" ? "新建表单" : "Create Form") : (locale === "zh" ? "编辑表单" : "Edit Form")}</h2>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {locale === "zh" ? "通过可视化列设计字段，保存后记录表格会按字段生成可编辑列。" : "Design fields visually as columns. The records table follows this structure after saving."}
+                        </p>
+                      </div>
+                      <div className="grid gap-4 rounded-xl bg-muted/35 p-4 md:grid-cols-2">
+                        <InputField
+                          id="form-name"
+                          label={locale === "zh" ? "表单名称" : "Form Name"}
+                          value={formDefinition.name}
+                          onChange={(e) => setFormDefinition(prev => ({ ...prev, name: e.target.value }))}
                         />
-                      </FormField>
+                        <InputField
+                          id="form-category"
+                          label={locale === "zh" ? "表单类型" : "Form Type"}
+                          value={formDefinition.category}
+                          placeholder={locale === "zh" ? "例如：客户、订单、巡检" : "e.g. Customer, Order, Inspection"}
+                          onChange={(e) => setFormDefinition(prev => ({ ...prev, category: e.target.value }))}
+                        />
+                        <FormField label={locale === "zh" ? "描述" : "Description"} className="md:col-span-2">
+                          <Textarea
+                            value={formDefinition.description}
+                            onChange={(e) => setFormDefinition(prev => ({ ...prev, description: e.target.value }))}
+                            className="min-h-28 rounded-lg"
+                          />
+                        </FormField>
+                      </div>
                     </div>
-                    <FormFieldDesigner
-                      locale={locale}
-                      definition={formDefinition}
-                      selectedFieldId={selectedFormFieldId}
-                      onDefinitionChange={setFormDefinition}
-                      onSelectedFieldChange={setSelectedFormFieldId}
-                    />
+                    <ScrollArea className="min-h-0 flex-1" contentClassName="w-full min-w-0 p-4 sm:p-6">
+                      <FormFieldDesigner
+                        locale={locale}
+                        definition={formDefinition}
+                        selectedFieldId={selectedFormFieldId}
+                        onDefinitionChange={setFormDefinition}
+                        onSelectedFieldChange={setSelectedFormFieldId}
+                      />
+                    </ScrollArea>
                   </div>
                 ) : selectedForm ? (
-                  <div className="w-full min-w-0 space-y-5 p-4 sm:p-6">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <TableProperties className="h-5 w-5 text-primary" />
-                          <h2 className="text-lg font-semibold">{selectedForm.name}</h2>
-                          {selectedForm.category && (
-                            <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                              {selectedForm.category}
-                            </span>
-                          )}
+                  <ScrollArea className="h-full min-h-0" contentClassName="w-full min-w-0 space-y-5 p-4 sm:p-6">
+                    <div className="w-full min-w-0 space-y-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <TableProperties className="h-5 w-5 text-primary" />
+                            <h2 className="text-lg font-semibold">{selectedForm.name}</h2>
+                            {selectedForm.category && (
+                              <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                                {selectedForm.category}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">{selectedForm.description || (locale === "zh" ? "无描述" : "No description")}</p>
+                          <p className="mt-2 font-mono text-xs text-muted-foreground">{selectedForm.id}</p>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{selectedForm.description || (locale === "zh" ? "无描述" : "No description")}</p>
-                        <p className="mt-2 font-mono text-xs text-muted-foreground">{selectedForm.id}</p>
                       </div>
 
+                      <FormRecordsTable
+                        locale={locale}
+                        form={selectedForm}
+                        records={formRecords}
+                        total={formRecordTotal}
+                        page={recordPage}
+                        query={recordQuery}
+                        dirtyRecordIds={dirtyFormRecordIds}
+                        validationErrors={formRecordValidationErrors}
+                        onQueryChange={setRecordQuery}
+                        onPageChange={setRecordPage}
+                        onAddRecord={handleAddFormRecord}
+                        onDeleteRecord={handleDeleteFormRecord}
+                        onUpdateCell={handleUpdateFormRecordCell}
+                        onSaveDirtyRecords={handleSaveDirtyFormRecords}
+                      />
                     </div>
-
-                    <FormRecordsTable
-                      locale={locale}
-                      form={selectedForm}
-                      records={formRecords}
-                      total={formRecordTotal}
-                      page={recordPage}
-                      query={recordQuery}
-                      dirtyRecordIds={dirtyFormRecordIds}
-                      validationErrors={formRecordValidationErrors}
-                      onQueryChange={setRecordQuery}
-                      onPageChange={setRecordPage}
-                      onAddRecord={handleAddFormRecord}
-                      onDeleteRecord={handleDeleteFormRecord}
-                      onUpdateCell={handleUpdateFormRecordCell}
-                      onSaveDirtyRecords={handleSaveDirtyFormRecords}
-                    />
-                  </div>
+                  </ScrollArea>
                 ) : (
                   <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
                     {locale === "zh" ? "选择或新建一个表单。" : "Select or create a form."}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </div>
           )}
 
