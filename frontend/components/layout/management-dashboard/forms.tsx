@@ -178,6 +178,66 @@ function getHookConditions(hook: CustomFormHook, fields: CustomFormField[]): Cus
   }]
 }
 
+function getPreviewFieldValue(field: CustomFormField) {
+  if (field.type === "number") return 123
+  if (field.type === "boolean") return true
+  if (field.type === "date") return "2026-06-26"
+  if (field.type === "select") return field.options[0] || "选项"
+  return field.label || field.id
+}
+
+function buildHookPayloadPreview(hook: CustomFormHook, fields: CustomFormField[]) {
+  const fieldValues = Object.fromEntries(
+    fields.map(field => [field.id, getPreviewFieldValue(field)])
+  )
+  const includedFieldIds = hook.payloadFieldIds?.length
+    ? hook.payloadFieldIds.filter(fieldId => fields.some(field => field.id === fieldId))
+    : fields.map(field => field.id)
+  const includedFieldValues = Object.fromEntries(
+    includedFieldIds.map(fieldId => [fieldId, fieldValues[fieldId]])
+  )
+  const conditions = getHookConditions(hook, fields)
+  const firstCondition = conditions[0]
+
+  return {
+    hook: {
+      id: hook.id,
+      name: hook.name || "",
+      matchType: hook.matchType || firstCondition?.matchType || "regex",
+      fieldId: firstCondition?.fieldId || "",
+      conditionLogic: hook.conditionLogic || "all",
+    },
+    form: {
+      id: "form_id",
+      name: "form_name",
+      category: "category",
+    },
+    record: {
+      id: "record_id",
+      formId: "form_id",
+      data: fieldValues,
+      fieldValues: includedFieldValues,
+      createdAt: "2026-06-26T00:00:00.000Z",
+      updatedAt: "2026-06-26T00:00:00.000Z",
+    },
+    field: {
+      id: firstCondition?.fieldId || "",
+      oldValue: "",
+      newValue: firstCondition?.fieldId ? fieldValues[firstCondition.fieldId] : "",
+    },
+    conditions: conditions.map(condition => ({
+      fieldId: condition.fieldId,
+      matchType: condition.matchType,
+      oldValue: "",
+      newValue: condition.fieldId ? fieldValues[condition.fieldId] : "",
+      changed: true,
+      matched: true,
+    })),
+    conditionEvent: "form_record_conditions_matched",
+    event: "form_record_field_changed",
+  }
+}
+
 export function normalizeFieldValue(field: CustomFormField, value: string | number | boolean | null | undefined) {
   if (field.type === "number") {
     if (value === "" || value === null || value === undefined) return null
@@ -727,6 +787,15 @@ export function FormFieldDesigner({
                           className="h-4 w-4 accent-primary"
                         />
                       </label>
+                      <FormField
+                        label={locale === "zh" ? "请求体预览" : "Request body preview"}
+                        description={locale === "zh" ? "实际请求会使用触发时的记录值；URL 中的字段变量会单独替换到 API 地址。" : "The real request uses the record values at trigger time. URL variables are rendered into the API URL separately."}
+                        className="md:col-span-2"
+                      >
+                        <pre className="max-h-72 overflow-auto rounded-lg bg-muted/55 p-3 text-xs leading-relaxed">
+                          <code>{JSON.stringify(buildHookPayloadPreview(hook, definition.fields), null, 2)}</code>
+                        </pre>
+                      </FormField>
                     </div>
                   </div>
                 )
