@@ -90,18 +90,21 @@ export function AuthPanel({
   const shownError = localError || error
   const title = activeTab === 'login' ? t.welcomeBack : t.createAccountTitle
   const description = activeTab === 'login' ? t.signInAccessDesc : t.registerAccessDesc
+  const sectionClassName = inline
+    ? 'relative w-full max-w-[29rem]'
+    : 'relative w-full max-w-[29rem] overflow-hidden rounded-2xl bg-card p-6 shadow-depth-lg sm:p-7 dark:bg-card'
 
   const cardContent = (
     <section
       aria-label={title}
-      className="relative w-full max-w-[29rem] overflow-hidden rounded-2xl bg-card p-6 shadow-depth-lg sm:p-7 dark:bg-card"
+      className={sectionClassName}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary" />
+      {!inline && <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-primary" />}
 
       <div className="relative space-y-5">
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-4">
-            {!inline && (
+          {!inline && (
+            <div className="flex items-center justify-end">
               <Button
                 type="button"
                 variant="ghost"
@@ -112,8 +115,8 @@ export function AuthPanel({
               >
                 <X className="h-4 w-4" />
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <h2 className="font-display text-4xl font-medium leading-[1.05] tracking-normal text-foreground">
@@ -123,33 +126,6 @@ export function AuthPanel({
               {description}
             </p>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 rounded-lg bg-secondary p-1">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setActiveTab('login')}
-            className={`rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
-              activeTab === 'login'
-                ? 'bg-card text-primary shadow-depth-xs'
-                : 'text-foreground hover:bg-background hover:text-foreground'
-            }`}
-          >
-            {t.signIn}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setActiveTab('register')}
-            className={`rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${
-              activeTab === 'register'
-                ? 'bg-card text-primary shadow-depth-xs'
-                : 'text-foreground hover:bg-background hover:text-foreground'
-            }`}
-          >
-            {t.register}
-          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
