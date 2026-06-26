@@ -168,6 +168,7 @@ class FormFieldSchema(BaseModel):
     type: str = "text"
     required: bool = False
     options: list[str] = Field(default_factory=list)
+    binding: dict | None = None
 
 
 class FormHookConditionSchema(BaseModel):
@@ -209,6 +210,7 @@ class FormRecordSchema(BaseModel):
     id: str
     formId: str
     data: dict = Field(default_factory=dict)
+    references: dict = Field(default_factory=dict)
     createdAt: str
     updatedAt: str
 

@@ -13,6 +13,11 @@ from pydantic import BaseModel, Field
 from src.utils.db import AgentProfileTable, FormRecordTable, FormTable, SessionLocal
 from src.utils.form_hooks import trigger_form_hooks_sync
 from src.utils.form_permissions import has_form_permission, normalize_form_permissions
+from src.utils.form_relations import (
+    apply_target_delete_policy,
+    resolve_record_references,
+    validate_record_relations,
+)
 from src.utils.runtime_context import get_runtime_context_value
 
 logger = logging.getLogger(__name__)
@@ -181,7 +186,12 @@ class QueryFormDataTool(BaseTool):
                 data = record.data or {}
                 if selected_fields:
                     data = {field: data.get(field) for field in selected_fields if field in data}
-                rows.append({"id": record.id, "data": data, "updatedAt": record.updated_at})
+                rows.append({
+                    "id": record.id,
+                    "data": data,
+                    "references": resolve_record_references(db, owner_user_id, form, record),
+                    "updatedAt": record.updated_at,
+                })
 
             return json.dumps(
                 {
@@ -274,6 +284,7 @@ class ManageFormDataTool(BaseTool):
             old_data: dict[str, Any] = {}
             trigger_hooks = False
             if action == "create":
+                validate_record_relations(db, owner_user_id, form, data or {})
                 record = FormRecordTable(
                     id=f"record-{uuid.uuid4()}",
                     form_id=form_id,
@@ -296,10 +307,12 @@ class ManageFormDataTool(BaseTool):
                     return f"Form record '{record_id}' was not found."
                 if action == "update":
                     old_data = dict(record.data or {})
+                    validate_record_relations(db, owner_user_id, form, data or {}, record_id)
                     record.data = data or {}
                     record.updated_at = now
                     trigger_hooks = True
                 else:
+                    apply_target_delete_policy(db, owner_user_id, form_id, record_id)
                     db.delete(record)
 
             db.commit()

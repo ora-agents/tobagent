@@ -276,6 +276,7 @@ export function ManagementDashboard({
   const [forms, setForms] = useState<CustomForm[]>([])
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null)
   const [formRecords, setFormRecords] = useState<CustomFormRecord[]>([])
+  const [referenceRecordsByFormId, setReferenceRecordsByFormId] = useState<Record<string, CustomFormRecord[]>>({})
   const [formRecordTotal, setFormRecordTotal] = useState(0)
   const [isEditingForm, setIsEditingForm] = useState(false)
   const [isCreatingForm, setIsCreatingForm] = useState(false)
@@ -533,6 +534,7 @@ export function ManagementDashboard({
     const params = new URLSearchParams({
       page: String(recordPage),
       pageSize: "25",
+      expandReferences: "true",
     })
     if (recordQuery.trim()) params.set("q", recordQuery.trim())
     fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records?${params.toString()}`, {
@@ -552,6 +554,39 @@ export function ManagementDashboard({
         setFormRecordValidationErrors({})
       })
   }, [activeTab, authHeaders, selectedFormId, recordPage, recordQuery])
+
+  useEffect(() => {
+    if (!LANGGRAPH_API_URL || !authHeaders || activeTab !== "forms" || !selectedFormId) {
+      setReferenceRecordsByFormId({})
+      return
+    }
+    const selectedForm = forms.find(form => form.id === selectedFormId)
+    const targetFormIds = Array.from(new Set(
+      (selectedForm?.fields || [])
+        .filter(field => field.type === "reference" && field.binding?.targetFormId)
+        .map(field => field.binding?.targetFormId as string)
+    ))
+    if (targetFormIds.length === 0) {
+      setReferenceRecordsByFormId({})
+      return
+    }
+    let cancelled = false
+    Promise.all(targetFormIds.map(async formId => {
+      const params = new URLSearchParams({ page: "1", pageSize: "100" })
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${formId}/records?${params.toString()}`, {
+        headers: authHeaders,
+      })
+      const data = resp.ok ? await resp.json() : { records: [] }
+      return [formId, data.records || []] as const
+    })).then(entries => {
+      if (!cancelled) setReferenceRecordsByFormId(Object.fromEntries(entries))
+    }).catch(() => {
+      if (!cancelled) setReferenceRecordsByFormId({})
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, authHeaders, forms, selectedFormId])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -1309,13 +1344,26 @@ export function ManagementDashboard({
 
   const parseFormFields = (): CustomFormField[] | null => {
     const seen = new Set<string>()
-    const fields = formDefinition.fields.map((field) => ({
-      id: String(field.id || "").trim(),
-      label: String(field.label || field.id || "").trim(),
-      type: (["text", "number", "date", "boolean", "select"].includes(field.type) ? field.type : "text") as CustomFormField["type"],
-      required: Boolean(field.required),
-      options: Array.isArray(field.options) ? field.options.map(String).filter(Boolean) : [],
-    })).filter(field => field.id && field.label)
+    const fields: CustomFormField[] = formDefinition.fields.map((field): CustomFormField => {
+      const type = (["text", "number", "date", "boolean", "select", "reference"].includes(field.type) ? field.type : "text") as CustomFormField["type"]
+      return {
+        id: String(field.id || "").trim(),
+        label: String(field.label || field.id || "").trim(),
+        type,
+        required: Boolean(field.required),
+        options: type === "select" && Array.isArray(field.options) ? field.options.map(String).filter(Boolean) : [],
+        binding: type === "reference"
+          ? {
+              targetFormId: String(field.binding?.targetFormId || "").trim(),
+              targetDisplayFieldId: String(field.binding?.targetDisplayFieldId || "").trim(),
+              relation: field.binding?.relation === "one_to_one" ? "one_to_one" : "many_to_one",
+              unique: field.binding?.relation === "one_to_one" || field.binding?.unique === true,
+              onTargetDelete: field.binding?.onTargetDelete === "set_null" ? "set_null" : "restrict",
+              reverseLabel: String(field.binding?.reverseLabel || "").trim(),
+            }
+          : null,
+      }
+    }).filter(field => field.id && field.label)
     const hasDuplicate = fields.some(field => {
       if (seen.has(field.id)) return true
       seen.add(field.id)
@@ -1328,6 +1376,11 @@ export function ManagementDashboard({
     }
     if (hasDuplicate) {
       alert(locale === "zh" ? "字段 ID 不能重复" : "Field IDs must be unique")
+      return null
+    }
+    const invalidReference = fields.find(field => field.type === "reference" && !field.binding?.targetFormId)
+    if (invalidReference) {
+      alert(locale === "zh" ? "关联字段需要选择目标表单" : "Reference fields need a target form")
       return null
     }
     return fields
@@ -2151,6 +2204,8 @@ export function ManagementDashboard({
                       </div>
                       <FormFieldDesigner
                         locale={locale}
+                        forms={forms}
+                        currentFormId={selectedFormId}
                         definition={formDefinition}
                         selectedFieldId={selectedFormFieldId}
                         onDefinitionChange={setFormDefinition}
@@ -2180,7 +2235,9 @@ export function ManagementDashboard({
                       <FormRecordsTable
                         locale={locale}
                         form={selectedForm}
+                        forms={forms}
                         records={formRecords}
+                        referenceRecordsByFormId={referenceRecordsByFormId}
                         total={formRecordTotal}
                         page={recordPage}
                         query={recordQuery}
