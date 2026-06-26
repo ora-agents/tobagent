@@ -28,6 +28,11 @@ textarea.scrollbar-none::-webkit-scrollbar-corner {
   border: 0 !important;
 }
 
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
 /* ============================================================
    Light theme (default) — white-first WSIRI workspace
    ============================================================ */
@@ -178,11 +183,30 @@ textarea.scrollbar-none::-webkit-scrollbar-corner {
     overflow: hidden;
   }
 
-  * {
+  *,
+  *::before,
+  *::after {
     @apply border-border outline-ring/50;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   body {
     @apply bg-background text-foreground font-sans;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"],
+  .cm-editor,
+  .cm-content,
+  .cm-line,
+  pre,
+  code,
+  .chat-code-block {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
   }
 }
 
