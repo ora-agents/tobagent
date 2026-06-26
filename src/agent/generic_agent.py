@@ -61,6 +61,14 @@ class GenericAgentContext(BaseModel):
         default="",
         description="Authenticated account ID used to scope user-owned resources.",
     )
+    agent_owner_user_id: str = Field(
+        default="",
+        description="Owner account ID used to load a shared agent profile's resources.",
+    )
+    share_token: str = Field(
+        default="",
+        description="Share token authorizing direct use of a shared agent profile.",
+    )
     agent_ids: list[str] = Field(
         default_factory=list,
         description="List of other agent IDs linked to this agent.",

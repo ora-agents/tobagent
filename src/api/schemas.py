@@ -83,6 +83,7 @@ class AgentShareLinkSchema(BaseModel):
 class AgentSharePreview(BaseModel):
     token: str
     agent: "AgentProfileSchema"
+    ownerUserId: str
     include: AgentShareOptions
     resources: dict[str, int]
     createdAt: str

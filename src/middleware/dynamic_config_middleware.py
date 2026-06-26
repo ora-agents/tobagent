@@ -225,17 +225,33 @@ def _load_thread_owner_user_id(thread_id: str) -> str:
 
 def _resolve_owner_user_id(ctx: Any) -> tuple[str, dict[str, Any]]:
     """Resolve the authenticated resource owner for dynamic runtime resources."""
+    context_agent_owner_user_id = getattr(ctx, "agent_owner_user_id", "") or ""
     context_user_id = getattr(ctx, "user_id", "") or ""
+    fallback_agent_owner_user_id = get_runtime_context_value("agent_owner_user_id", "") or ""
     fallback_user_id = get_runtime_context_value("user_id", "") or ""
     config_metadata = _get_current_config_metadata()
     thread_id = config_metadata.get("thread_id", "")
     thread_owner_user_id = ""
-    if not context_user_id and not fallback_user_id and isinstance(thread_id, str):
+    if (
+        not context_agent_owner_user_id
+        and not context_user_id
+        and not fallback_agent_owner_user_id
+        and not fallback_user_id
+        and isinstance(thread_id, str)
+    ):
         thread_owner_user_id = _load_thread_owner_user_id(thread_id)
 
-    owner_user_id = context_user_id or fallback_user_id or thread_owner_user_id
+    owner_user_id = (
+        context_agent_owner_user_id
+        or context_user_id
+        or fallback_agent_owner_user_id
+        or fallback_user_id
+        or thread_owner_user_id
+    )
     return owner_user_id, {
+        "context_agent_owner_user_id": context_agent_owner_user_id,
         "context_user_id": context_user_id,
+        "fallback_agent_owner_user_id": fallback_agent_owner_user_id,
         "fallback_user_id": fallback_user_id,
         "thread_id": thread_id,
         "thread_owner_user_id": thread_owner_user_id,

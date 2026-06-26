@@ -243,6 +243,10 @@ export const Sidebar = memo(function Sidebar({
         <div className="space-y-1">
           {groupThreads.map((thread) => {
             const title = thread.metadata?.title || "New conversation"
+            const isSharedVisitorThread =
+              thread.metadata?.shared_agent_owner_user_id &&
+              thread.metadata.shared_agent_viewer_user_id &&
+              thread.metadata.shared_agent_owner_user_id !== thread.metadata.shared_agent_viewer_user_id
 
             return (
               <div
@@ -256,6 +260,11 @@ export const Sidebar = memo(function Sidebar({
               >
                 <div className="flex-1 min-w-0">
                   <div className="truncate font-medium">{title}</div>
+                  {isSharedVisitorThread && (
+                    <div className="mt-0.5 truncate text-[10px] font-medium text-muted-foreground">
+                      {locale === "zh" ? "访客会话" : "Guest conversation"}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={(e) => handleDeleteThread(thread.thread_id, e)}

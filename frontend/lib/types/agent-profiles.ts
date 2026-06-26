@@ -46,6 +46,12 @@ export interface AgentProfile {
   speakerSampleText?: string | null
   speakerEnrolledAt?: string | null
   userVoiceprintId?: string | null
+  /** Owner used at runtime for shared agent app profiles. */
+  ownerUserId?: string | null
+  /** Share token used to authorize direct shared-agent runs. */
+  shareToken?: string | null
+  /** True when this profile is a transient app profile loaded from a share link. */
+  isSharedApp?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -78,6 +84,15 @@ export interface AgentShareImportResponse {
   agent: AgentProfile
   resourceIdMap: Record<string, Record<string, string>>
   warnings: string[]
+}
+
+export interface AgentSharePreview {
+  token: string
+  agent: AgentProfile
+  ownerUserId: string
+  include: AgentShareOptions
+  resources: Record<string, number>
+  createdAt: string
 }
 
 export interface AgentConfigTomlImportResponse {

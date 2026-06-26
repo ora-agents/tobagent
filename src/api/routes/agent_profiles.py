@@ -457,6 +457,7 @@ async def get_agent_share_preview(
     return AgentSharePreview(
         token=share.token,
         agent=preview_agent,
+        ownerUserId=share.owner_user_id,
         include=include,
         resources=resources,
         createdAt=share.created_at,

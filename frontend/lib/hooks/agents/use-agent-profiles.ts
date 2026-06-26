@@ -6,6 +6,7 @@ import type {
   AgentShareImportResponse,
   AgentShareLink,
   AgentShareOptions,
+  AgentSharePreview,
 } from "@/lib/types/agent-profiles"
 import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
@@ -239,6 +240,22 @@ export function useAgentProfiles() {
     return null
   }, [user])
 
+  const fetchSharePreview = useCallback(async (
+    token: string,
+  ): Promise<AgentSharePreview | null> => {
+    if (!LANGGRAPH_API_URL) return null
+
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-shares/${encodeURIComponent(token)}`)
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to preview shared agent ${token}`, err)
+    }
+    return null
+  }, [])
+
   const importTomlConfig = useCallback(async (
     toml: string,
   ): Promise<AgentConfigTomlImportResponse | null> => {
@@ -303,6 +320,7 @@ export function useAgentProfiles() {
     fetchProfileVersions,
     restoreProfileVersion,
     createShareLink,
+    fetchSharePreview,
     importShareLink,
     importTomlConfig,
   }

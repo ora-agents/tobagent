@@ -1,5 +1,6 @@
 """Authenticate and authorize LangGraph deployment requests."""
 import hashlib
+import json
 import os
 from datetime import UTC, datetime
 
@@ -100,6 +101,44 @@ def _normalize_run_agent_context(value: dict, kwargs: dict, config: dict, contex
 
     if agent_id:
         context["agent_id"] = agent_id
+
+
+def _can_read_thread(thread_id: str, user_id: str) -> bool:
+    """Return whether a user may read a thread or owned shared-agent record."""
+    try:
+        from sqlalchemy import text
+
+        from src.utils.db import SessionLocal
+
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text('SELECT user_id, metadata_json FROM "thread" WHERE thread_id = :thread_id'),
+                {"thread_id": thread_id},
+            ).first()
+        finally:
+            db.close()
+    except Exception:
+        return False
+
+    if not row:
+        return False
+    if row[0] == user_id:
+        return True
+
+    metadata = row[1]
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except json.JSONDecodeError:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        return False
+
+    return (
+        metadata.get("shared_agent_owner_user_id") == user_id
+        or metadata.get("shared_agent_viewer_user_id") == user_id
+    )
 
 
 def _inject_langfuse_metadata(
@@ -278,6 +317,33 @@ async def add_owner(ctx: Auth.types.AuthContext, value: dict | None):
     metadata["user_id"] = user_id
 
     return {"user_id": user_id}
+
+
+@auth.on.threads.search
+async def search_threads(ctx: Auth.types.AuthContext, value: dict | None):
+    """Allow users to search own threads and shared-agent visitor records they own."""
+    if is_studio_user(ctx.user):
+        return {}
+
+    user_id = ctx.user.identity
+    metadata = value.get("metadata") if isinstance(value, dict) else None
+    if isinstance(metadata, dict) and metadata.get("shared_agent_owner_user_id") == user_id:
+        return {"metadata.shared_agent_owner_user_id": user_id}
+    return {"user_id": user_id}
+
+
+@auth.on.threads.read
+async def read_thread(ctx: Auth.types.AuthContext, value: dict | None):
+    """Allow reading own threads or visitor threads for an owned shared agent."""
+    if is_studio_user(ctx.user):
+        return {}
+
+    thread_id = value.get("thread_id") if isinstance(value, dict) else None
+    if not isinstance(thread_id, str) or not thread_id.strip():
+        return {"user_id": ctx.user.identity}
+    if _can_read_thread(thread_id.strip(), ctx.user.identity):
+        return True
+    raise Auth.exceptions.HTTPException(403, "Thread is not available for this user")
 
 
 @auth.on.threads.update
@@ -615,11 +681,29 @@ def validate_agent_context(
     if not agent_id or not owner_user_id:
         return
 
-    agent_profile = _load_owned_agent_profile(agent_id, owner_user_id)
+    resource_owner_user_id = owner_user_id
+    requested_agent_owner_user_id = configurable.get("agent_owner_user_id")
+    share_token = configurable.get("share_token")
+    if (
+        isinstance(requested_agent_owner_user_id, str)
+        and requested_agent_owner_user_id.strip()
+        and requested_agent_owner_user_id.strip() != owner_user_id
+    ):
+        if not isinstance(share_token, str) or not share_token.strip():
+            raise Auth.exceptions.HTTPException(403, "Shared agent token is required")
+        agent_profile = _load_shared_agent_profile(
+            agent_id,
+            requested_agent_owner_user_id.strip(),
+            share_token.strip(),
+        )
+        resource_owner_user_id = requested_agent_owner_user_id.strip()
+    else:
+        agent_profile = _load_owned_agent_profile(agent_id, owner_user_id)
     if not agent_profile:
         raise Auth.exceptions.HTTPException(403, "Agent is not available for this API key")
 
-    configurable["user_id"] = owner_user_id
+    configurable["user_id"] = resource_owner_user_id
+    configurable["agent_owner_user_id"] = resource_owner_user_id
 
     overrides = configurable.pop("overrides", None)
     if overrides is None:
@@ -656,7 +740,7 @@ def validate_agent_context(
         agent_ids = overrides["agent_ids"]
         if not isinstance(agent_ids, list) or not all(isinstance(a, str) for a in agent_ids):
             raise Auth.exceptions.HTTPException(422, "agent_ids override must be a string list")
-        _require_owned_agent_ids(agent_ids, owner_user_id)
+        _require_owned_agent_ids(agent_ids, resource_owner_user_id)
         configurable["agent_ids"] = agent_ids
 
     if "model" in overrides:
@@ -681,6 +765,30 @@ def _load_owned_agent_profile(agent_id: str, owner_user_id: str):
             db.close()
     except Exception as err:
         raise Auth.exceptions.HTTPException(500, f"Failed to validate agent ownership: {err}") from err
+
+
+def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: str):
+    """Return an agent profile when a share token authorizes direct app use."""
+    try:
+        from src.utils.db import AgentProfileTable, AgentShareLinkTable, SessionLocal
+
+        db = SessionLocal()
+        try:
+            share = db.query(AgentShareLinkTable).filter(
+                AgentShareLinkTable.token == share_token,
+                AgentShareLinkTable.owner_user_id == owner_user_id,
+                AgentShareLinkTable.agent_profile_id == agent_id,
+            ).first()
+            if not share:
+                return None
+            return db.query(AgentProfileTable).filter(
+                AgentProfileTable.id == agent_id,
+                AgentProfileTable.owner_user_id == owner_user_id,
+            ).first()
+        finally:
+            db.close()
+    except Exception as err:
+        raise Auth.exceptions.HTTPException(500, f"Failed to validate shared agent: {err}") from err
 
 
 def _require_owned_agent_ids(agent_ids: list[str], owner_user_id: str) -> None:

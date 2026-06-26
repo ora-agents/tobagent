@@ -42,6 +42,9 @@ export interface ThreadMetadata {
   title?: string
   lastMessage?: string
   client?: ClientProfile
+  shared_agent_owner_user_id?: string | null
+  shared_agent_viewer_user_id?: string | null
+  shared_agent_token?: string | null
   [key: string]: any // Allow additional metadata fields
 }
 
@@ -106,10 +109,29 @@ export function useThreads(userId: string | undefined) {
         },
         limit: THREAD_FETCH_LIMIT,
       })) as any[] as Thread[]
+      const ownedSharedThreads = (await client.threads.search({
+        metadata: {
+          shared_agent_owner_user_id: id,
+        },
+        limit: THREAD_FETCH_LIMIT,
+      }).catch((error) => {
+        logger.debug("Shared agent owner thread search unavailable:", error)
+        return []
+      })) as any[] as Thread[]
 
-      logger.info('Fetched threads:', userThreads.length)
+      const threadsById = new Map<string, Thread>()
+      for (const thread of [...userThreads, ...ownedSharedThreads]) {
+        threadsById.set(thread.thread_id, thread)
+      }
+      const mergedThreads = [...threadsById.values()].sort((a, b) => {
+        const aTime = new Date(a.updated_at || a.created_at).getTime()
+        const bTime = new Date(b.updated_at || b.created_at).getTime()
+        return bTime - aTime
+      })
 
-      setThreads(userThreads)
+      logger.info('Fetched threads:', mergedThreads.length)
+
+      setThreads(mergedThreads)
     } catch (error) {
       logger.error('Error fetching threads:', error)
       setThreads([])

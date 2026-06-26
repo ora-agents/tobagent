@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "rea
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { LogOut, Moon, Sparkles, Sun } from "lucide-react"
+import { Copy, LogOut, Moon, Sparkles, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -121,11 +121,15 @@ function DedicatedAgentHeader({
   agentName,
   user,
   onNewChat,
+  onCopyAgent,
+  copyAgentDisabled = false,
   onLogout,
 }: {
   agentName: string
   user: User
   onNewChat: () => void
+  onCopyAgent?: () => void
+  copyAgentDisabled?: boolean
   onLogout: () => void
 }) {
   const t = useT()
@@ -162,6 +166,20 @@ function DedicatedAgentHeader({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {onCopyAgent && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCopyAgent}
+              disabled={copyAgentDisabled}
+              className="h-9 gap-1.5 rounded-lg px-3 text-muted-foreground hover:bg-primary-soft hover:text-primary disabled:opacity-60 dark:hover:bg-white/10 dark:hover:text-foreground"
+              title="复制到我的账号"
+              aria-label="复制到我的账号"
+            >
+              <Copy className="h-4 w-4" />
+              <span className="hidden sm:inline">复制</span>
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -245,8 +263,11 @@ function DashboardContent() {
     fetchProfileVersions: fetchAgentProfileVersions,
     restoreProfileVersion: restoreAgentProfileVersion,
     createShareLink: createAgentShareLink,
+    fetchSharePreview: fetchAgentSharePreview,
     importShareLink: importAgentShareLink,
   } = useAgentProfiles()
+  const [sharedAgentProfile, setSharedAgentProfile] = useState<import("@/lib/types/agent-profiles").AgentProfile | null>(null)
+  const [isCopyingSharedAgent, setIsCopyingSharedAgent] = useState(false)
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -290,6 +311,18 @@ function DashboardContent() {
     if (!dedicatedAgentAppId || !agentProfilesLoaded) return
 
     const appAgent = agentProfiles.find((profile) => profile.id === dedicatedAgentAppId)
+    if (!appAgent && sharedAgentProfile?.id === dedicatedAgentAppId) {
+      if (currentView !== "chat") {
+        setCurrentView("chat")
+      }
+      if (editAgentIdParam) {
+        setEditAgentIdParam(null)
+      }
+      if (createParam) {
+        setCreateParam(null)
+      }
+      return
+    }
     if (!appAgent) {
       if (agentProfiles.length > 0) {
         setAgentAppParam(null)
@@ -322,6 +355,7 @@ function DashboardContent() {
     setCurrentView,
     setEditAgentIdParam,
     setSelectedAgentProfileId,
+    sharedAgentProfile,
   ])
 
   useEffect(() => {
@@ -421,8 +455,13 @@ function DashboardContent() {
 
   const currentAgentId = dedicatedAgentAppId || selectedAgentProfileId || "default"
   const activeAgentProfile = dedicatedAgentAppId
-    ? agentProfiles.find((profile) => profile.id === dedicatedAgentAppId) ?? selectedAgentProfile
+    ? agentProfiles.find((profile) => profile.id === dedicatedAgentAppId) ?? sharedAgentProfile ?? selectedAgentProfile
     : selectedAgentProfile
+  const isSharedAgentApp = Boolean(
+    dedicatedAgentAppId &&
+    sharedAgentProfile?.id === dedicatedAgentAppId &&
+    !agentProfiles.some((profile) => profile.id === dedicatedAgentAppId)
+  )
 
   // Filter threads based on active agent
   const filteredThreads = useMemo(() => {
@@ -501,6 +540,21 @@ function DashboardContent() {
 
     const resolvedClient = resolveClientProfile(client ?? clientProfile)
     const agentId = currentAgentId
+    const sharedOwnerUserId = activeAgentProfile?.ownerUserId || null
+    const sharedMetadata = sharedOwnerUserId && sharedOwnerUserId !== userId
+      ? {
+          shared_agent_owner_user_id: sharedOwnerUserId,
+          shared_agent_viewer_user_id: userId,
+          shared_agent_token: activeAgentProfile?.shareToken || agentShareToken?.trim() || null,
+        }
+      : {}
+    const baseThreadMetadata = {
+      user_id: userId,
+      lastMessage,
+      client: resolvedClient,
+      agent_id: agentId,
+      ...sharedMetadata,
+    }
 
     // Check if this thread already exists
     const existingThread = threads.find(t => t.thread_id === threadId)
@@ -519,22 +573,14 @@ function DashboardContent() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           metadata: {
-            user_id: userId,
+            ...baseThreadMetadata,
             title: t.untitled,
-            lastMessage,
-            client: resolvedClient,
-            agent_id: agentId,
           },
         })
       }
 
       // Update last message immediately (keep "Untitled" for now)
-      await updateThreadMetadata(threadId, {
-        user_id: userId,
-        lastMessage,
-        client: resolvedClient,
-        agent_id: agentId,
-      })
+      await updateThreadMetadata(threadId, baseThreadMetadata)
 
       // Generate AI title in background - goes straight from "Untitled" to AI title
       generateThreadTitle({
@@ -544,11 +590,8 @@ function DashboardContent() {
         if (aiTitle.length > 0) {
           console.log('Setting AI title:', aiTitle)
           updateThreadMetadata(threadId, {
-            user_id: userId,
+            ...baseThreadMetadata,
             title: aiTitle,
-            lastMessage,
-            client: resolvedClient,
-            agent_id: agentId,
           })
         }
       }).catch((error) => {
@@ -556,11 +599,8 @@ function DashboardContent() {
         // Fallback to quick title if AI fails
         const quickTitle = generateQuickTitle(title)
         updateThreadMetadata(threadId, {
-          user_id: userId,
+          ...baseThreadMetadata,
           title: quickTitle,
-          lastMessage,
-          client: resolvedClient,
-          agent_id: agentId,
         })
       })
     } else if (shouldGenerateAITitle && messageCount) {
@@ -568,12 +608,7 @@ function DashboardContent() {
       console.log(`Regenerating AI title at message ${messageCount}`)
 
       // Update last message immediately
-      await updateThreadMetadata(threadId, {
-        user_id: userId,
-        lastMessage,
-        client: resolvedClient,
-        agent_id: agentId,
-      })
+      await updateThreadMetadata(threadId, baseThreadMetadata)
 
       // Generate new AI title in background
       generateThreadTitle({
@@ -583,11 +618,8 @@ function DashboardContent() {
         if (aiTitle.length > 0) {
           console.log('Updated title at message', messageCount, '→', aiTitle)
           updateThreadMetadata(threadId, {
-            user_id: userId,
+            ...baseThreadMetadata,
             title: aiTitle,
-            lastMessage,
-            client: resolvedClient,
-            agent_id: agentId,
           })
         }
       }).catch((error) => {
@@ -595,12 +627,7 @@ function DashboardContent() {
       })
     } else {
       // Regular update: Just update last message, keep existing title
-      await updateThreadMetadata(threadId, {
-        user_id: userId,
-        lastMessage,
-        client: resolvedClient,
-        agent_id: agentId,
-      })
+      await updateThreadMetadata(threadId, baseThreadMetadata)
     }
   }
 
@@ -630,15 +657,21 @@ function DashboardContent() {
     if (!token || !user || processedAgentShareRef.current === token) return
 
     processedAgentShareRef.current = token
-    importAgentShareLink(token)
-      .then((result) => {
-        if (!result) {
+    fetchAgentSharePreview(token)
+      .then((preview) => {
+        if (!preview) {
           processedAgentShareRef.current = null
           return
         }
+        setSharedAgentProfile({
+          ...preview.agent,
+          ownerUserId: preview.ownerUserId,
+          shareToken: preview.token,
+          isSharedApp: true,
+        })
         const url = new URL(window.location.href)
-        url.searchParams.set("agentApp", result.agent.id)
-        url.searchParams.delete("agentShare")
+        url.searchParams.set("agentApp", preview.agent.id)
+        url.searchParams.set("agentShare", preview.token)
         url.searchParams.delete("threadId")
         url.searchParams.delete("q")
         url.searchParams.delete("view")
@@ -648,9 +681,28 @@ function DashboardContent() {
       })
       .catch((err) => {
         processedAgentShareRef.current = null
-        console.error("Failed to import shared agent from URL parameter", err)
+        console.error("Failed to load shared agent from URL parameter", err)
       })
-  }, [agentShareToken, importAgentShareLink, router, user])
+  }, [agentShareToken, fetchAgentSharePreview, router, user])
+
+  const handleCopySharedAgent = useCallback(async () => {
+    const token = sharedAgentProfile?.shareToken || agentShareToken?.trim()
+    if (!token || isCopyingSharedAgent) return
+
+    setIsCopyingSharedAgent(true)
+    try {
+      const result = await importAgentShareLink(token)
+      if (!result) return
+      setSharedAgentProfile(null)
+      const url = new URL(window.location.href)
+      url.searchParams.set("agentApp", result.agent.id)
+      url.searchParams.delete("agentShare")
+      url.searchParams.delete("threadId")
+      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
+    } finally {
+      setIsCopyingSharedAgent(false)
+    }
+  }, [agentShareToken, importAgentShareLink, isCopyingSharedAgent, router, sharedAgentProfile])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -839,6 +891,8 @@ function DashboardContent() {
                 agentName={activeAgentProfile.name}
                 user={user}
                 onNewChat={handleNewChat}
+                onCopyAgent={isSharedAgentApp ? handleCopySharedAgent : undefined}
+                copyAgentDisabled={isCopyingSharedAgent}
                 onLogout={logout}
               />
             ) : (

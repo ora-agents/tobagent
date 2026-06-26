@@ -493,6 +493,12 @@ export function useStreamHandler({
       const contextBase: Record<string, unknown> = { model, user_id: userId }
       if (isCustomProfile && agentProfile) {
         contextBase.agent_id = agentProfile.id
+        if (agentProfile.ownerUserId) {
+          contextBase.agent_owner_user_id = agentProfile.ownerUserId
+        }
+        if (agentProfile.shareToken) {
+          contextBase.share_token = agentProfile.shareToken
+        }
       } else if (repos.length > 0) {
         contextBase.repos = repos
       }
