@@ -1,11 +1,7 @@
 "use client"
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
-import Image from "next/image"
-import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Copy, LogOut, Moon, PanelLeft, Sparkles, Sun } from "lucide-react"
-import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
@@ -31,18 +27,10 @@ import {
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
-import { useI18n, useT } from "@/lib/i18n"
+import { useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
-import type { User } from "@/components/providers/auth-provider"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
@@ -117,143 +105,11 @@ function AuthRedirect() {
   return <DashboardFallback />
 }
 
-function DedicatedAgentHeader({
-  agentName,
-  user,
-  onNewChat,
-  onCopyAgent,
-  copyAgentDisabled = false,
-  onLogout,
-  onOpenSidebar,
-}: {
-  agentName: string
-  user: User
-  onNewChat: () => void
-  onCopyAgent?: () => void
-  copyAgentDisabled?: boolean
-  onLogout: () => void
-  onOpenSidebar: () => void
-}) {
-  const t = useT()
-  const { resolvedTheme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
-
-  const isDark = mounted && resolvedTheme === "dark"
-
-  return (
-    <header className="flex h-14 shrink-0 items-center bg-background sm:h-16">
-      <div className="flex w-full items-center justify-between gap-3 px-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onOpenSidebar}
-            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary md:hidden dark:hover:bg-white/10 dark:hover:text-foreground"
-            title={t.threads}
-            aria-label={t.threads}
-          >
-            <PanelLeft className="h-4 w-4" />
-          </Button>
-          <Link
-            href="/"
-            className="flex h-10 shrink-0 items-center rounded-lg px-1.5 transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-white/10"
-            title="返回主页"
-            aria-label="返回主页"
-          >
-            <Image
-              src="/logo.png"
-              alt="WSIRI"
-              width={957}
-              height={613}
-              className="h-8 w-auto max-w-[104px] object-contain sm:h-9 sm:max-w-[120px]"
-              priority
-              draggable={false}
-            />
-          </Link>
-          <span className="block max-w-[42vw] truncate rounded-lg bg-muted px-2.5 py-1.5 text-sm font-semibold text-foreground sm:max-w-[30rem]">
-            {agentName}
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {onCopyAgent && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onCopyAgent}
-              disabled={copyAgentDisabled}
-              className="h-9 gap-1.5 rounded-lg bg-muted px-3 text-muted-foreground hover:bg-primary-soft hover:text-primary disabled:opacity-60 dark:hover:bg-white/10 dark:hover:text-foreground"
-              title="复制到我的账号"
-              aria-label="复制到我的账号"
-            >
-              <Copy className="h-4 w-4" />
-              <span className="hidden sm:inline">复制</span>
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onNewChat}
-            className="h-9 gap-1.5 rounded-lg bg-primary px-3 text-primary-foreground hover:bg-primary-active hover:text-primary-foreground"
-            title={t.newChat}
-            aria-label={t.newChat}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">{t.newChat}</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-primary-soft hover:text-primary dark:hover:bg-white/10 dark:hover:text-foreground"
-            title={isDark ? t.lightMode : t.darkMode}
-            aria-label={isDark ? t.lightMode : t.darkMode}
-          >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full p-0 text-white hover:opacity-90"
-                style={{ backgroundColor: user.avatarColor || "#164199" }}
-                title={user.username}
-                aria-label={user.username}
-              >
-                <span className="text-sm font-semibold">
-                  {user.username.charAt(0).toUpperCase()}
-                </span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <div className="px-2 py-1.5">
-                <p className="truncate text-sm font-medium">{user.username}</p>
-                {user.email && (
-                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                )}
-              </div>
-              <DropdownMenuItem onClick={onLogout} className="gap-2 text-destructive focus:text-destructive">
-                <LogOut className="h-4 w-4" />
-                <span>退出登录</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-    </header>
-  )
-}
-
 function DashboardContent() {
   const t = useT()
   const router = useRouter()
   const pathname = usePathname()
-  const { user, loading: authLoading, logout } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
@@ -277,10 +133,8 @@ function DashboardContent() {
     restoreProfileVersion: restoreAgentProfileVersion,
     createShareLink: createAgentShareLink,
     fetchSharePreview: fetchAgentSharePreview,
-    importShareLink: importAgentShareLink,
   } = useAgentProfiles()
   const [sharedAgentProfile, setSharedAgentProfile] = useState<import("@/lib/types/agent-profiles").AgentProfile | null>(null)
-  const [isCopyingSharedAgent, setIsCopyingSharedAgent] = useState(false)
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -482,11 +336,6 @@ function DashboardContent() {
   const activeAgentProfile = dedicatedAgentAppId
     ? agentProfiles.find((profile) => profile.id === dedicatedAgentAppId) ?? sharedAgentProfile ?? selectedAgentProfile
     : selectedAgentProfile
-  const isSharedAgentApp = Boolean(
-    dedicatedAgentAppId &&
-    sharedAgentProfile?.id === dedicatedAgentAppId &&
-    !agentProfiles.some((profile) => profile.id === dedicatedAgentAppId)
-  )
 
   // Filter threads based on active agent
   const filteredThreads = useMemo(() => {
@@ -717,26 +566,6 @@ function DashboardContent() {
       })
   }, [agentShareToken, fetchAgentSharePreview, router, user])
 
-  const handleCopySharedAgent = useCallback(async () => {
-    const token = sharedAgentProfile?.shareToken || agentShareToken?.trim()
-    if (!token || isCopyingSharedAgent) return
-
-    setIsCopyingSharedAgent(true)
-    try {
-      const result = await importAgentShareLink(token)
-      if (!result) return
-      setSharedAgentProfile(null)
-      const url = new URL(window.location.href)
-      url.pathname = "/agentapp/"
-      url.searchParams.set("agentApp", result.agent.id)
-      url.searchParams.delete("agentShare")
-      url.searchParams.delete("threadId")
-      router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
-    } finally {
-      setIsCopyingSharedAgent(false)
-    }
-  }, [agentShareToken, importAgentShareLink, isCopyingSharedAgent, router, sharedAgentProfile])
-
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
   useEffect(() => {
@@ -938,33 +767,21 @@ function DashboardContent() {
           className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
           aria-hidden={currentView !== "chat"}
         >
-            {isDedicatedAgentApp && activeAgentProfile ? (
-              <DedicatedAgentHeader
-                agentName={activeAgentProfile.name}
-                user={user}
-                onNewChat={handleNewChat}
-                onCopyAgent={isSharedAgentApp ? handleCopySharedAgent : undefined}
-                copyAgentDisabled={isCopyingSharedAgent}
-                onLogout={logout}
-                onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-              />
-            ) : (
-              <Header
-                onNewChat={handleNewChat}
-                agentConfig={agentConfig}
-                onAgentConfigChange={setAgentConfig}
-                onShowShortcuts={() => setShowShortcutsDialog(true)}
-                forceShowTooltip={forceShowTooltip}
-                selectedAgentProfile={activeAgentProfile}
-                agentProfiles={agentProfiles}
-                agentProfilesLoaded={agentProfilesLoaded}
-                selectedAgentProfileId={currentAgentId === "default" ? null : currentAgentId}
-                onAgentProfileChange={setSelectedAgentProfileId}
-                onCreateAgent={handleOpenCreateAgent}
-                onOpenAgentSettings={handleOpenActiveAgentSettings}
-                onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-              />
-            )}
+            <Header
+              onNewChat={handleNewChat}
+              agentConfig={isDedicatedAgentApp ? undefined : agentConfig}
+              onAgentConfigChange={isDedicatedAgentApp ? undefined : setAgentConfig}
+              onShowShortcuts={isDedicatedAgentApp ? undefined : () => setShowShortcutsDialog(true)}
+              forceShowTooltip={isDedicatedAgentApp ? undefined : forceShowTooltip}
+              selectedAgentProfile={activeAgentProfile}
+              agentProfiles={isDedicatedAgentApp ? [] : agentProfiles}
+              agentProfilesLoaded={agentProfilesLoaded}
+              selectedAgentProfileId={currentAgentId === "default" ? null : currentAgentId}
+              onAgentProfileChange={isDedicatedAgentApp ? undefined : setSelectedAgentProfileId}
+              onCreateAgent={isDedicatedAgentApp ? undefined : handleOpenCreateAgent}
+              onOpenAgentSettings={isDedicatedAgentApp ? undefined : handleOpenActiveAgentSettings}
+              onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+            />
             <ChatInterface
               key={chatSessionKey}
               threadId={activeThreadId}
