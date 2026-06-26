@@ -40,7 +40,7 @@ export function AuthPage({ mode }: AuthPageProps) {
       <div className="grid min-h-[calc(100svh-2rem)] overflow-hidden rounded-2xl bg-card shadow-depth-sm sm:min-h-[calc(100svh-3rem)] lg:min-h-[calc(100svh-4rem)] lg:grid-cols-2">
         <main className="flex min-h-0 flex-col gap-8 px-6 py-7 sm:px-10 lg:px-14 lg:py-10">
           <div className="flex justify-center gap-3 md:justify-start">
-            <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" />
+            <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" draggable={false} />
             <div>
               <div className="text-sm font-medium tracking-tight">{t.loginBrandName}</div>
               <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>
@@ -68,6 +68,7 @@ export function AuthPage({ mode }: AuthPageProps) {
               height={1500}
               priority
               className="h-auto w-full max-w-[min(48vw,900px)] object-contain"
+              draggable={false}
             />
           </div>
         </aside>

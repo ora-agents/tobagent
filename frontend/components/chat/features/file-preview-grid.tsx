@@ -39,6 +39,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
             src={file.url}
             alt={fileName}
             className="h-full w-full object-cover"
+            draggable={false}
           />
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 py-1">
             <p className="text-xs text-white truncate" title={fileName}>

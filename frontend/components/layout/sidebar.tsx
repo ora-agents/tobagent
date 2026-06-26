@@ -416,6 +416,7 @@ export const Sidebar = memo(function Sidebar({
               height={613}
               className="h-10 w-auto max-w-[128px] object-contain"
               priority
+              draggable={false}
             />
           </div>
         </div>
