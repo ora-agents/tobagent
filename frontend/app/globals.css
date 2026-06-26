@@ -210,6 +210,19 @@ img {
   }
 }
 
+.chat-selectable-text,
+.chat-selectable-text :where(p, span, strong, em, a, ul, ol, li, blockquote, table, thead, tbody, tr, th, td, pre, code) {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.chat-selectable-text :where(button, img, svg) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Keep MDXEditor overrides unlayered so they win over the package's unlayered CSS. */
 .prompt-mdx-editor.mdxeditor,
 .prompt-mdx-editor {

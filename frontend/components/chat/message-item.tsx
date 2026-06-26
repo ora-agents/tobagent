@@ -651,7 +651,7 @@ export const MessageItem = memo(function MessageItem({
           ) : (
             <div className="relative">
               <div
-                className="prose prose-sm max-w-none break-words text-sm leading-relaxed transition-opacity duration-200 ease-out dark:prose-invert [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
+                className="chat-selectable-text prose prose-sm max-w-none break-words text-sm leading-relaxed transition-opacity duration-200 ease-out dark:prose-invert [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
                 style={{
                   animation: message.isThinking ? 'none' : 'fadeIn 0.3s ease-out',
                   willChange: message.isThinking ? 'contents, opacity' : 'auto',
