@@ -67,8 +67,8 @@ export function VoiceInputButton({
         transition-colors duration-200 border-0
         ${
           isActive
-            ? "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary"
-            : "bg-card text-muted-foreground hover:bg-primary-soft hover:text-primary"
+            ? "bg-primary-soft text-primary hover:bg-primary-soft hover:text-primary dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary-active dark:hover:text-primary-foreground"
+            : "bg-card text-muted-foreground hover:bg-primary-soft hover:text-primary dark:bg-secondary dark:text-muted-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
         }
       `}
       type="button"
