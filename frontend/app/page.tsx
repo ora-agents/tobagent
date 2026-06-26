@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { LogOut, Moon, Sun } from "lucide-react"
+import { LogOut, Moon, Sparkles, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
 import { Sidebar } from "@/components/layout/sidebar"
@@ -118,10 +118,12 @@ function AuthRedirect() {
 function DedicatedAgentHeader({
   agentName,
   user,
+  onNewChat,
   onLogout,
 }: {
   agentName: string
   user: User
+  onNewChat: () => void
   onLogout: () => void
 }) {
   const t = useT()
@@ -141,6 +143,17 @@ function DedicatedAgentHeader({
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onNewChat}
+            className="h-9 gap-1.5 rounded-lg bg-primary-soft px-3 text-primary hover:bg-primary hover:text-primary-foreground"
+            title={t.newChat}
+            aria-label={t.newChat}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">{t.newChat}</span>
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -189,6 +202,7 @@ function DedicatedAgentHeader({
 
 function DashboardContent() {
   const t = useT()
+  const router = useRouter()
   const { user, loading: authLoading, logout } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -223,7 +237,7 @@ function DashboardContent() {
 
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
-  const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
+  const [agentShareToken] = useQueryState("agentShare")
   const [agentAppParam, setAgentAppParam] = useQueryState("agentApp")
   const [viewParam, setViewParam] = useQueryState("view")
   const [editAgentIdParam, setEditAgentIdParam] = useQueryState("editAgent")
@@ -258,7 +272,9 @@ function DashboardContent() {
 
     const appAgent = agentProfiles.find((profile) => profile.id === dedicatedAgentAppId)
     if (!appAgent) {
-      setAgentAppParam(null)
+      if (agentProfiles.length > 0) {
+        setAgentAppParam(null)
+      }
       return
     }
 
@@ -601,17 +617,24 @@ function DashboardContent() {
           processedAgentShareRef.current = null
           return
         }
-        setAgentAppParam(result.agent.id)
+        const url = new URL(window.location.href)
+        url.searchParams.set("agentApp", result.agent.id)
+        url.searchParams.delete("agentShare")
+        url.searchParams.delete("threadId")
+        url.searchParams.delete("q")
+        url.searchParams.delete("view")
+        url.searchParams.delete("editAgent")
+        url.searchParams.delete("create")
+        router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
         setCurrentView("chat")
         setThreadId(null)
         setEditAgentIdParam(null)
-        setAgentShareToken(null)
       })
       .catch((err) => {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, importAgentShareLink, setAgentAppParam, setAgentShareToken, setEditAgentIdParam, setThreadId, user])
+  }, [agentShareToken, importAgentShareLink, router, setCurrentView, setEditAgentIdParam, setThreadId, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -799,6 +822,7 @@ function DashboardContent() {
               <DedicatedAgentHeader
                 agentName={activeAgentProfile.name}
                 user={user}
+                onNewChat={handleNewChat}
                 onLogout={logout}
               />
             ) : (
