@@ -422,6 +422,36 @@ async def import_agent_share(
     if not source_profile:
         raise HTTPException(status_code=404, detail="Shared agent profile not found")
 
+    if current_user.id == share.owner_user_id:
+        return AgentShareImportResponse(
+            agent=_agent_profile_schema(source_profile),
+            resourceIdMap={
+                "knowledgeBaseIds": {},
+                "skillIds": {},
+                "mcpIds": {},
+                "agentIds": {},
+                "formIds": {},
+            },
+            warnings=[],
+        )
+
+    existing_import = db.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.imported_from_share_id == share.id,
+    ).first()
+    if existing_import:
+        return AgentShareImportResponse(
+            agent=_agent_profile_schema(existing_import),
+            resourceIdMap={
+                "knowledgeBaseIds": {},
+                "skillIds": {},
+                "mcpIds": {},
+                "agentIds": {},
+                "formIds": {},
+            },
+            warnings=[],
+        )
+
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     include = _share_options_from_row(share)
     copied_ids, id_map, warnings = _copy_shared_agent_resources(
@@ -460,6 +490,8 @@ async def import_agent_share(
         is_hidden=bool(source_profile.is_hidden),
         voice_interruption_enabled=source_profile.voice_interruption_enabled is not False,
         speaker_verification_enabled=False,
+        imported_from_share_id=share.id,
+        imported_from_agent_profile_id=source_profile.id,
         created_at=now,
         updated_at=now,
     )

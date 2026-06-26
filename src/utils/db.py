@@ -154,6 +154,8 @@ class AgentProfileTable(Base):
     speaker_enrolled_at = Column(String(50), nullable=True)
     # Reference to a user-level voiceprint (user_voiceprints.id) for speaker verification.
     user_voiceprint_id = Column(String(50), nullable=True)
+    imported_from_share_id = Column(String(255), nullable=True, index=True)
+    imported_from_agent_profile_id = Column(String(255), nullable=True, index=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 
@@ -368,6 +370,12 @@ def ensure_database_schema() -> None:
         ("forms", "category", "category VARCHAR(255) DEFAULT ''"),
         ("forms", "hooks", "hooks JSON"),
         ("agent_profiles", "user_voiceprint_id", "user_voiceprint_id VARCHAR(50)"),
+        ("agent_profiles", "imported_from_share_id", "imported_from_share_id VARCHAR(255)"),
+        (
+            "agent_profiles",
+            "imported_from_agent_profile_id",
+            "imported_from_agent_profile_id VARCHAR(255)",
+        ),
         ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),
     ]
 

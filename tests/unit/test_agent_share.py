@@ -249,3 +249,68 @@ async def test_import_agent_share_defaults_to_source_name_without_shared_suffix(
     )
 
     assert imported.agent.name == "Source Agent"
+
+
+@pytest.mark.anyio
+async def test_import_agent_share_reuses_existing_import_for_same_user(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(),
+        db_session,
+        owner,
+    )
+
+    first = await import_agent_share(
+        share.token,
+        AgentShareImportRequest(),
+        db_session,
+        receiver,
+    )
+    second = await import_agent_share(
+        share.token,
+        AgentShareImportRequest(name="Should Not Copy Again"),
+        db_session,
+        receiver,
+    )
+
+    receiver_agents = db_session.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == receiver.id,
+    ).all()
+    assert len(receiver_agents) == 1
+    assert second.agent.id == first.agent.id
+    assert second.agent.name == "Source Agent"
+
+
+@pytest.mark.anyio
+async def test_import_agent_share_returns_owned_source_without_copying(db_session):
+    owner = _user("user-owner")
+    db_session.add(owner)
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(),
+        db_session,
+        owner,
+    )
+
+    imported = await import_agent_share(
+        share.token,
+        AgentShareImportRequest(name="Should Not Copy"),
+        db_session,
+        owner,
+    )
+
+    owner_agents = db_session.query(AgentProfileTable).filter(
+        AgentProfileTable.owner_user_id == owner.id,
+    ).all()
+    assert len(owner_agents) == 1
+    assert imported.agent.id == "agent-source"
+    assert imported.agent.name == "Source Agent"

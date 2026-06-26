@@ -142,9 +142,12 @@ function DashboardContent() {
   // Support ?q=... for auto-sending a prompt on page load
   const [initialPrompt, setInitialPrompt] = useQueryState("q")
   const [agentShareToken, setAgentShareToken] = useQueryState("agentShare")
+  const [agentAppParam, setAgentAppParam] = useQueryState("agentApp")
   const [viewParam, setViewParam] = useQueryState("view")
   const [editAgentIdParam, setEditAgentIdParam] = useQueryState("editAgent")
   const [createParam, setCreateParam] = useQueryState("create")
+  const dedicatedAgentAppId = agentAppParam?.trim() || null
+  const isDedicatedAgentApp = !!dedicatedAgentAppId
   const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
   const setCurrentView = useCallback((view: DashboardView) => {
     if (view !== "agents") {
@@ -169,10 +172,48 @@ function DashboardContent() {
   }, [currentView, hasInitialPrompt, setCurrentView])
 
   useEffect(() => {
+    if (!dedicatedAgentAppId || !agentProfilesLoaded) return
+
+    const appAgent = agentProfiles.find((profile) => profile.id === dedicatedAgentAppId)
+    if (!appAgent) {
+      setAgentAppParam(null)
+      return
+    }
+
+    if (selectedAgentProfileId !== dedicatedAgentAppId) {
+      setSelectedAgentProfileId(dedicatedAgentAppId)
+    }
+    if (currentView !== "chat") {
+      setCurrentView("chat")
+    }
+    if (editAgentIdParam) {
+      setEditAgentIdParam(null)
+    }
+    if (createParam) {
+      setCreateParam(null)
+    }
+  }, [
+    agentProfiles,
+    agentProfilesLoaded,
+    createParam,
+    currentView,
+    dedicatedAgentAppId,
+    editAgentIdParam,
+    selectedAgentProfileId,
+    setAgentAppParam,
+    setCreateParam,
+    setCurrentView,
+    setEditAgentIdParam,
+    setSelectedAgentProfileId,
+  ])
+
+  useEffect(() => {
+    if (isDedicatedAgentApp) return
+
     if (editAgentIdParam && !hasInitialPrompt && currentView !== "agents") {
       setCurrentView("agents")
     }
-  }, [currentView, editAgentIdParam, hasInitialPrompt, setCurrentView])
+  }, [currentView, editAgentIdParam, hasInitialPrompt, isDedicatedAgentApp, setCurrentView])
 
   useEffect(() => {
     if (!isMobileSidebarOpen) return
@@ -261,15 +302,18 @@ function DashboardContent() {
     addOptimisticThread,
   } = useThreads(userId || undefined)
 
+  const currentAgentId = dedicatedAgentAppId || selectedAgentProfileId || "default"
+  const activeAgentProfile = dedicatedAgentAppId
+    ? agentProfiles.find((profile) => profile.id === dedicatedAgentAppId) ?? selectedAgentProfile
+    : selectedAgentProfile
+
   // Filter threads based on active agent
   const filteredThreads = useMemo(() => {
     return threads.filter((thread) => {
       const threadAgentId = thread.metadata?.agent_id || "default";
-      const currentAgentId = selectedAgentProfileId || "default";
       return threadAgentId === currentAgentId;
     });
-  }, [threads, selectedAgentProfileId]);
-  const currentAgentId = selectedAgentProfileId || "default"
+  }, [currentAgentId, threads]);
 
   const { clientProfile } = useClientProfile()
 
@@ -339,7 +383,7 @@ function DashboardContent() {
     })
 
     const resolvedClient = resolveClientProfile(client ?? clientProfile)
-    const agentId = selectedAgentProfileId || "default"
+    const agentId = currentAgentId
 
     // Check if this thread already exists
     const existingThread = threads.find(t => t.thread_id === threadId)
@@ -475,6 +519,7 @@ function DashboardContent() {
           processedAgentShareRef.current = null
           return
         }
+        setAgentAppParam(result.agent.id)
         setCurrentView("chat")
         setThreadId(null)
         setEditAgentIdParam(null)
@@ -484,7 +529,7 @@ function DashboardContent() {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, importAgentShareLink, setAgentShareToken, setEditAgentIdParam, setThreadId, user])
+  }, [agentShareToken, importAgentShareLink, setAgentAppParam, setAgentShareToken, setEditAgentIdParam, setThreadId, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -549,9 +594,9 @@ function DashboardContent() {
   }
 
   const handleOpenActiveAgentSettings = () => {
-    if (!selectedAgentProfile || isSystemAgentProfile(selectedAgentProfile)) return
+    if (!activeAgentProfile || isSystemAgentProfile(activeAgentProfile)) return
 
-    setEditAgentIdParam(selectedAgentProfileId)
+    setEditAgentIdParam(activeAgentProfile.id)
     setCurrentView("agents")
   }
 
@@ -625,18 +670,20 @@ function DashboardContent() {
         onOpenChange={setShowShortcutsDialog}
       />
       <div className={`flex h-dvh bg-background ${elderOptimized ? "elder-optimized-ui" : ""}`}>
-        <Sidebar
-          isCollapsed={isSidebarCollapsed}
-          onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
-          currentThreadId={activeThreadId || ''}
-          onSelectThread={handleSelectThread}
-          onDeleteThread={handleDeleteThread}
-          isLoading={threadsLoading}
-          currentView={currentView}
-          onViewChange={setCurrentView}
-        />
-        {isMobileSidebarOpen && (
+        {!isDedicatedAgentApp && (
+          <Sidebar
+            isCollapsed={isSidebarCollapsed}
+            onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
+            currentThreadId={activeThreadId || ''}
+            onSelectThread={handleSelectThread}
+            onDeleteThread={handleDeleteThread}
+            isLoading={threadsLoading}
+            currentView={currentView}
+            onViewChange={setCurrentView}
+          />
+        )}
+        {!isDedicatedAgentApp && isMobileSidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="菜单">
             <button
               type="button"
@@ -672,14 +719,14 @@ function DashboardContent() {
               onAgentConfigChange={setAgentConfig}
               onShowShortcuts={() => setShowShortcutsDialog(true)}
               forceShowTooltip={forceShowTooltip}
-              selectedAgentProfile={selectedAgentProfile}
+              selectedAgentProfile={activeAgentProfile}
               agentProfiles={agentProfiles}
               agentProfilesLoaded={agentProfilesLoaded}
-              selectedAgentProfileId={selectedAgentProfileId}
-              onAgentProfileChange={setSelectedAgentProfileId}
-              onCreateAgent={handleOpenCreateAgent}
-              onOpenAgentSettings={handleOpenActiveAgentSettings}
-              onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+              selectedAgentProfileId={currentAgentId === "default" ? null : currentAgentId}
+              onAgentProfileChange={isDedicatedAgentApp ? undefined : setSelectedAgentProfileId}
+              onCreateAgent={isDedicatedAgentApp ? undefined : handleOpenCreateAgent}
+              onOpenAgentSettings={isDedicatedAgentApp ? undefined : handleOpenActiveAgentSettings}
+              onOpenSidebar={isDedicatedAgentApp ? undefined : () => setIsMobileSidebarOpen(true)}
             />
             <ChatInterface
               key={chatSessionKey}
@@ -689,7 +736,7 @@ function DashboardContent() {
               onThreadNotFound={handleThreadNotFound}
               agentConfig={agentConfig}
               onAgentConfigChange={setAgentConfig}
-              agentProfile={selectedAgentProfile}
+              agentProfile={activeAgentProfile}
               agentProfilesLoaded={agentProfilesLoaded}
               onCreateAgent={handleOpenCreateAgent}
               isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
@@ -699,7 +746,7 @@ function DashboardContent() {
             />
         </div>
 
-        {currentView === "settings" ? (
+        {!isDedicatedAgentApp && currentView === "settings" ? (
           <UserSettingsPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
@@ -710,12 +757,12 @@ function DashboardContent() {
             onClearAllConversations={handleClearAllConversations}
             conversationCount={threads.length}
           />
-        ) : currentView === "developer-manual" ? (
+        ) : !isDedicatedAgentApp && currentView === "developer-manual" ? (
           <DeveloperManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : currentView !== "chat" ? (
+        ) : !isDedicatedAgentApp && currentView !== "chat" ? (
           <div className="flex min-h-0 flex-1 overflow-hidden">
             <ManagementDashboard
               initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : currentView === "forms" ? "forms" : "knowledge"}

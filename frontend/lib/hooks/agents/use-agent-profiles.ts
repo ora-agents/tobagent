@@ -223,7 +223,12 @@ export function useAgentProfiles() {
       })
       if (resp.ok) {
         const data = await resp.json()
-        setProfiles(prev => [...prev, data.agent])
+        setProfiles(prev => {
+          const exists = prev.some(profile => profile.id === data.agent.id)
+          return exists
+            ? prev.map(profile => profile.id === data.agent.id ? data.agent : profile)
+            : [...prev, data.agent]
+        })
         setSelectedIdState(data.agent.id)
         saveSelectedId(data.agent.id)
         return data
