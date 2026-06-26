@@ -480,28 +480,8 @@ export const Sidebar = memo(function Sidebar({
               draggable={false}
             />
           </div>
-          {isAgentAppSidebar && agentName && (
-            <div className="mt-2 truncate px-1 text-sm font-semibold text-sidebar-foreground">
-              {agentName}
-            </div>
-          )}
+          
         </div>
-
-      {isAgentAppSidebar && onNewChat && (
-        <div className="px-3 pb-2">
-          <button
-            type="button"
-            onClick={() => {
-              onNewChat()
-              onMobileClose?.()
-            }}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary-soft px-3 text-sm font-medium text-primary transition-all duration-200 hover:bg-primary hover:text-primary-foreground dark:bg-white/10 dark:text-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="truncate">{t.newChat}</span>
-          </button>
-        </div>
-      )}
 
       {/* Search Bar */}
       <div className="px-3 py-2">
