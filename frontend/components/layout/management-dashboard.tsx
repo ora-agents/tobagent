@@ -775,7 +775,8 @@ export function ManagementDashboard({
     try {
       const share = await createAgentShareLink(id, shareOptions)
       if (!share) return
-      const url = new URL(window.location.href)
+      const url = new URL(window.location.origin)
+      url.pathname = "/agentapp/"
       url.searchParams.set("agentShare", share.token)
       url.searchParams.delete("threadId")
       const nextLink = url.toString()
@@ -3685,8 +3686,8 @@ export function ManagementDashboard({
                             </div>
                             <div className="mt-1 text-xs text-muted-foreground">
                               {locale === "zh"
-                                ? "生成带 agentShare 参数的链接，其他账号打开后可直接导入该角色。"
-                                : "Create a link with an agentShare parameter so another account can import this agent."}
+                                ? "生成 /agentapp/ 分享链接，其他账号打开后可直接导入该角色。"
+                                : "Create an /agentapp/ share link so another account can import this agent."}
                             </div>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">

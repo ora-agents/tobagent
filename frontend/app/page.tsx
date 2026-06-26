@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Copy, History, LogOut, Moon, Sparkles, Sun, Trash2 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useQueryState } from "nuqs"
@@ -319,6 +319,7 @@ function DedicatedAgentHeader({
 function DashboardContent() {
   const t = useT()
   const router = useRouter()
+  const pathname = usePathname()
   const { user, loading: authLoading, logout } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
@@ -361,8 +362,9 @@ function DashboardContent() {
   const [viewParam, setViewParam] = useQueryState("view")
   const [editAgentIdParam, setEditAgentIdParam] = useQueryState("editAgent")
   const [createParam, setCreateParam] = useQueryState("create")
-  const dedicatedAgentAppId = agentAppParam?.trim() || null
-  const isDedicatedAgentApp = !!dedicatedAgentAppId
+  const isAgentAppRoute = pathname === "/agentapp" || pathname.startsWith("/agentapp/")
+  const dedicatedAgentAppId = isAgentAppRoute ? agentAppParam?.trim() || null : null
+  const isDedicatedAgentApp = isAgentAppRoute && !!dedicatedAgentAppId
   const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
   const setCurrentView = useCallback((view: DashboardView) => {
     if (view !== "agents") {
@@ -379,6 +381,17 @@ function DashboardContent() {
       setViewParam(null)
     }
   }, [setViewParam, viewParam])
+
+  useEffect(() => {
+    if (isAgentAppRoute || (!agentAppParam?.trim() && !agentShareToken?.trim())) return
+
+    const url = new URL(window.location.href)
+    url.pathname = "/agentapp/"
+    url.searchParams.delete("view")
+    url.searchParams.delete("editAgent")
+    url.searchParams.delete("create")
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
+  }, [agentAppParam, agentShareToken, isAgentAppRoute, router])
 
   useEffect(() => {
     if (hasInitialPrompt && currentView !== "chat") {
@@ -755,6 +768,7 @@ function DashboardContent() {
           isSharedApp: true,
         })
         const url = new URL(window.location.href)
+        url.pathname = "/agentapp/"
         url.searchParams.set("agentApp", preview.agent.id)
         url.searchParams.set("agentShare", preview.token)
         url.searchParams.delete("threadId")
@@ -780,6 +794,7 @@ function DashboardContent() {
       if (!result) return
       setSharedAgentProfile(null)
       const url = new URL(window.location.href)
+      url.pathname = "/agentapp/"
       url.searchParams.set("agentApp", result.agent.id)
       url.searchParams.delete("agentShare")
       url.searchParams.delete("threadId")
