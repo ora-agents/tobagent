@@ -1032,6 +1032,7 @@ function DashboardContent() {
               initialMessage={initialPrompt}
               autoSend={!!initialPrompt}
               onInitialMessageSent={() => setInitialPrompt(null)}
+              conversationSource={isDedicatedAgentApp ? "agent_app" : "main"}
             />
         </div>
 

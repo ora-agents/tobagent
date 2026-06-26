@@ -11,17 +11,26 @@ export interface ThreadSourceInfo {
 export function getThreadSource(thread: Thread): ThreadSourceInfo {
   const metadata = thread.metadata || {}
   const sourceType = typeof metadata.source_type === "string" ? metadata.source_type.toLowerCase() : ""
+  const conversationSource =
+    typeof metadata.conversation_source === "string" ? metadata.conversation_source.toLowerCase() : ""
+  const authSource = typeof metadata.auth_source === "string" ? metadata.auth_source.toLowerCase() : ""
   const hasExternalApiSource =
     sourceType.includes("api") ||
     metadata.created_via_api_key === true ||
-    metadata.auth_source === "api_key"
+    authSource === "api_key" ||
+    authSource === "apikey" ||
+    conversationSource === "api_key" ||
+    conversationSource === "apikey"
   const isSharedAgentApp =
     Boolean(metadata.shared_agent_owner_user_id && metadata.shared_agent_viewer_user_id) &&
     metadata.shared_agent_owner_user_id !== metadata.shared_agent_viewer_user_id
   const isAgentApp =
     sourceType.includes("agent app") ||
     sourceType === "agent_app" ||
-    metadata.conversation_source === "agent_app"
+    sourceType === "agentapp" ||
+    conversationSource === "agent_app" ||
+    conversationSource === "agentapp" ||
+    conversationSource === "agent app"
 
   if (hasExternalApiSource) {
     return { kind: "api_key", labelZh: "API Key", labelEn: "API Key" }

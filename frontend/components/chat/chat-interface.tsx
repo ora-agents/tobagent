@@ -44,6 +44,7 @@ interface ChatInterfaceProps {
   /** Called after auto-send completes (use to clear URL params, etc.) */
   onInitialMessageSent?: () => void
   onCreateAgent?: () => void
+  conversationSource?: "main" | "agent_app"
 }
 
 interface QueuedMessage {
@@ -74,6 +75,7 @@ export function ChatInterface({
   autoSend = false,
   onInitialMessageSent,
   onCreateAgent,
+  conversationSource = "main",
 }: ChatInterfaceProps) {
   const t = useT()
   const userId = useUserId()
@@ -302,6 +304,7 @@ export function ChatInterface({
     userName,
     userPreferences,
     safetyEnabled,
+    conversationSource,
     onTextChunk: voiceAgent.feedTtsChunk,
     onStreamEnd: voiceAgent.onAgentStreamEnd,
   })

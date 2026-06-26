@@ -436,6 +436,9 @@ async def _enrich_run_context(
         config_source_type = config_metadata.get("source_type")
         if isinstance(config_source_type, str) and config_source_type:
             metadata.setdefault("source_type", config_source_type)
+        config_conversation_source = config_metadata.get("conversation_source")
+        if isinstance(config_conversation_source, str) and config_conversation_source:
+            metadata.setdefault("conversation_source", config_conversation_source)
 
     if _user_auth_source(ctx.user) == "api_key":
         metadata.setdefault("source_type", "API Key")

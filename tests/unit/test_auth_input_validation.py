@@ -316,6 +316,31 @@ async def test_create_run_auth_marks_api_key_source(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_create_run_auth_preserves_agent_app_source(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    ctx = SimpleNamespace(user=SimpleNamespace(identity="user-1"))
+    value = {
+        "metadata": {},
+        "kwargs": {
+            "input": {"messages": [{"role": "user", "content": "hello"}]},
+            "context": {"agent_id": "agent-1"},
+            "config": {
+                "metadata": {
+                    "source_type": "Agent App",
+                    "conversation_source": "agent_app",
+                },
+            },
+        },
+    }
+
+    await enrich_run_metadata(ctx, value)
+
+    assert value["metadata"]["source_type"] == "Agent App"
+    assert value["metadata"]["conversation_source"] == "agent_app"
+
+
+@pytest.mark.anyio
 async def test_create_run_auth_accepts_agent_id_from_run_metadata(monkeypatch):
     monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
 

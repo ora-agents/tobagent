@@ -259,6 +259,7 @@ interface UseStreamHandlerProps {
   userPreferences?: string | null
   /** When true, agent must confirm before executing dangerous actions. */
   safetyEnabled?: boolean
+  conversationSource?: "main" | "agent_app"
   /**
    * Called with each new text chunk as it streams in (delta, not accumulated).
    * Used by voice agent to feed text to TTS in real-time.
@@ -329,6 +330,7 @@ export function useStreamHandler({
   userName,
   userPreferences,
   safetyEnabled,
+  conversationSource = "main",
   onTextChunk,
   onStreamEnd,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
@@ -468,6 +470,7 @@ export function useStreamHandler({
       const repos = agentConfig?.repos ?? []
 
       // Trace metadata for Langfuse observability
+      const sourceType = conversationSource === "agent_app" ? "Agent App" : "Chat-LangChain"
       const traceMetadata = {
         user_id: userId || "unknown",
         langfuse_user_id: userId || "unknown",
@@ -475,7 +478,8 @@ export function useStreamHandler({
         langfuse_tags: ["Chat-LangChain", agentType, "agent"],
         ...(userEmail && userEmail !== userId ? { user_email: userEmail } : {}),
         ...(userName && !userName.startsWith("User") ? { user_name: userName } : {}),
-        source_type: "Chat-LangChain",
+        source_type: sourceType,
+        ...(conversationSource === "agent_app" ? { conversation_source: "agent_app" } : {}),
         graph: agentType,
       }
 
@@ -952,7 +956,7 @@ export function useStreamHandler({
     onStreamEnd?.()
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName, onTextChunk, onStreamEnd])
+  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName, conversationSource, onTextChunk, onStreamEnd])
 
   return { processStream }
 }
