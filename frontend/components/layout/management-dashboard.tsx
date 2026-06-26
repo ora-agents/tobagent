@@ -2119,8 +2119,8 @@ export function ManagementDashboard({
 
               <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
                 {isCreatingForm || isEditingForm ? (
-                  <div className="flex h-full min-h-0 w-full flex-col">
-                    <div className="shrink-0 space-y-5 border-b border-border/40 p-4 sm:p-6">
+                  <ScrollArea className="h-full min-h-0 w-full min-w-0 overflow-hidden" contentClassName="w-full min-w-0 space-y-5 p-4 sm:p-6">
+                    <div className="space-y-5">
                       <div>
                         <h2 className="text-lg font-semibold">{isCreatingForm ? (locale === "zh" ? "新建表单" : "Create Form") : (locale === "zh" ? "编辑表单" : "Edit Form")}</h2>
                         <p className="mt-1 text-sm text-muted-foreground">
@@ -2149,8 +2149,6 @@ export function ManagementDashboard({
                           />
                         </FormField>
                       </div>
-                    </div>
-                    <ScrollArea className="min-h-0 flex-1" contentClassName="w-full min-w-0 p-4 sm:p-6">
                       <FormFieldDesigner
                         locale={locale}
                         definition={formDefinition}
@@ -2158,8 +2156,8 @@ export function ManagementDashboard({
                         onDefinitionChange={setFormDefinition}
                         onSelectedFieldChange={setSelectedFormFieldId}
                       />
-                    </ScrollArea>
-                  </div>
+                    </div>
+                  </ScrollArea>
                 ) : selectedForm ? (
                   <ScrollArea className="h-full min-h-0 w-full min-w-0 overflow-hidden" contentClassName="w-full min-w-0 space-y-5 p-4 sm:p-6">
                     <div className="w-full min-w-0 space-y-5">
