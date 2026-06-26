@@ -68,6 +68,7 @@ export interface CustomFormHook {
   url: string
   method: "POST" | "PUT" | "PATCH"
   headers: Record<string, string>
+  payloadFieldIds?: string[]
 }
 
 export interface CustomForm {
@@ -161,6 +162,7 @@ function createDefaultHook(fields: CustomFormField[], locale: string, index: num
     url: "",
     method: "POST",
     headers: {},
+    payloadFieldIds: [],
   }
 }
 
@@ -298,6 +300,18 @@ export function FormFieldDesigner({
 
   const updateHook = (hookId: string, changes: Partial<CustomFormHook>) => {
     updateHooks((definition.hooks || []).map(hook => hook.id === hookId ? { ...hook, ...changes } : hook))
+  }
+
+  const appendHookUrlVariable = (hook: CustomFormHook, variable: string) => {
+    updateHook(hook.id, { url: `${hook.url || ""}${variable}` })
+  }
+
+  const toggleHookPayloadField = (hook: CustomFormHook, fieldId: string) => {
+    const current = hook.payloadFieldIds || []
+    const next = current.includes(fieldId)
+      ? current.filter(item => item !== fieldId)
+      : [...current, fieldId]
+    updateHook(hook.id, { payloadFieldIds: next })
   }
 
   const updateHookCondition = (hookId: string, conditionIndex: number, changes: Partial<CustomFormHookCondition>) => {
@@ -656,8 +670,53 @@ export function FormFieldDesigner({
                         <Input
                           value={hook.url}
                           onChange={(event) => updateHook(hook.id, { url: event.target.value })}
-                          placeholder="https://example.com/webhook"
+                          placeholder="https://example.com/webhook?phone={{phone}}"
                         />
+                        <div className="flex min-w-0 flex-wrap gap-1.5">
+                          {definition.fields.map(field => (
+                            <button
+                              key={field.id}
+                              type="button"
+                              onClick={() => appendHookUrlVariable(hook, `{{${field.id}}}`)}
+                              className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground transition hover:bg-primary-soft hover:text-primary"
+                              title={field.label || field.id}
+                            >
+                              {`{{${field.id}}}`}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => appendHookUrlVariable(hook, "{{record.id}}")}
+                            className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground transition hover:bg-primary-soft hover:text-primary"
+                          >
+                            {"{{record.id}}"}
+                          </button>
+                        </div>
+                      </FormField>
+                      <FormField
+                        label={locale === "zh" ? "携带字段值" : "Payload fields"}
+                        description={locale === "zh" ? "未选择时携带全部字段。" : "All fields are included when none are selected."}
+                        className="md:col-span-2"
+                      >
+                        <div className="flex min-w-0 flex-wrap gap-1.5 rounded-lg bg-muted/55 p-2">
+                          {definition.fields.map(field => {
+                            const selected = (hook.payloadFieldIds || []).includes(field.id)
+                            return (
+                              <button
+                                key={field.id}
+                                type="button"
+                                onClick={() => toggleHookPayloadField(hook, field.id)}
+                                className={`rounded-md px-2 py-1 text-xs transition ${
+                                  selected
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-background text-muted-foreground hover:bg-primary-soft hover:text-primary"
+                                }`}
+                              >
+                                {field.label || field.id}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </FormField>
                       <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm md:col-span-2">
                         <span>{locale === "zh" ? "启用" : "Enabled"}</span>

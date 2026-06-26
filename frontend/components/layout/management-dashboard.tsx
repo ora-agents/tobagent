@@ -92,6 +92,7 @@ import {
   type CustomForm,
   type CustomFormField,
   type CustomFormHook,
+  type CustomFormHookCondition,
   type CustomFormRecord,
   type FormDefinitionState,
 } from "@/components/layout/management-dashboard/forms"
@@ -1334,24 +1335,49 @@ export function ManagementDashboard({
 
   const parseFormHooks = (fields: CustomFormField[]): CustomFormHook[] | null => {
     const fieldIds = new Set(fields.map(field => field.id))
-    const hooks = (formDefinition.hooks || []).map((hook) => ({
-      id: String(hook.id || generateUUID()).trim(),
-      name: String(hook.name || "").trim(),
-      enabled: hook.enabled !== false,
-      fieldId: String(hook.fieldId || "").trim(),
-      matchType: (hook.matchType === "value" ? "value" : "regex") as CustomFormHook["matchType"],
-      pattern: String(hook.pattern || ""),
-      value: String(hook.value || ""),
-      url: String(hook.url || "").trim(),
-      method: (["POST", "PUT", "PATCH"].includes(hook.method) ? hook.method : "POST") as CustomFormHook["method"],
-      headers: hook.headers && typeof hook.headers === "object" ? hook.headers : {},
-    })).filter(hook => hook.fieldId || hook.url || hook.pattern || hook.value)
+    const hooks = (formDefinition.hooks || []).map((hook) => {
+      const conditions = (hook.conditions && hook.conditions.length > 0
+        ? hook.conditions
+        : [{
+            fieldId: hook.fieldId || "",
+            matchType: hook.matchType || "regex",
+            pattern: hook.pattern || "",
+            value: hook.value || "",
+          }]
+      ).map(condition => ({
+        fieldId: String(condition.fieldId || "").trim(),
+        matchType: (["regex", "value", "empty", "not_empty"].includes(condition.matchType)
+          ? condition.matchType
+          : "regex") as CustomFormHookCondition["matchType"],
+        pattern: String(condition.pattern || ""),
+        value: String(condition.value || ""),
+      }))
+      const firstCondition = conditions[0]
+      return {
+        id: String(hook.id || generateUUID()).trim(),
+        name: String(hook.name || "").trim(),
+        enabled: hook.enabled !== false,
+        conditions,
+        conditionLogic: (hook.conditionLogic === "any" ? "any" : "all") as CustomFormHook["conditionLogic"],
+        fieldId: firstCondition?.fieldId || "",
+        matchType: (firstCondition?.matchType === "value" ? "value" : "regex") as CustomFormHook["matchType"],
+        pattern: firstCondition?.pattern || "",
+        value: firstCondition?.value || "",
+        url: String(hook.url || "").trim(),
+        method: (["POST", "PUT", "PATCH"].includes(hook.method) ? hook.method : "POST") as CustomFormHook["method"],
+        headers: hook.headers && typeof hook.headers === "object" ? hook.headers : {},
+        payloadFieldIds: (hook.payloadFieldIds || []).map(item => String(item).trim()).filter(item => fieldIds.has(item)),
+      }
+    }).filter(hook => hook.conditions.some(condition => condition.fieldId || condition.pattern || condition.value) || hook.url)
 
     const invalidHook = hooks.find(hook => {
-      if (!fieldIds.has(hook.fieldId)) return true
+      if (!hook.conditions.length) return true
+      if (hook.conditions.some(condition => !fieldIds.has(condition.fieldId))) return true
       if (!hook.url.startsWith("http://") && !hook.url.startsWith("https://")) return true
-      if (hook.matchType === "regex" && !hook.pattern) return true
-      return hook.matchType === "value" && hook.value === ""
+      return hook.conditions.some(condition => {
+        if (condition.matchType === "regex" && !condition.pattern) return true
+        return condition.matchType === "value" && condition.value === ""
+      })
     })
     if (invalidHook) {
       alert(locale === "zh"
