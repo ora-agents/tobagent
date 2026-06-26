@@ -133,8 +133,10 @@ function DashboardContent() {
     restoreProfileVersion: restoreAgentProfileVersion,
     createShareLink: createAgentShareLink,
     fetchSharePreview: fetchAgentSharePreview,
+    importShareLink: importAgentShareLink,
   } = useAgentProfiles()
   const [sharedAgentProfile, setSharedAgentProfile] = useState<import("@/lib/types/agent-profiles").AgentProfile | null>(null)
+  const [copySharedAgentStatus, setCopySharedAgentStatus] = useState<"idle" | "copying" | "copied" | "error">("idle")
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -641,6 +643,44 @@ function DashboardContent() {
     setCreateParam("1")
   }
 
+  const handleCopySharedAgent = useCallback(async () => {
+    const token = activeAgentProfile?.shareToken || agentShareToken?.trim()
+    if (!token || copySharedAgentStatus === "copying") return
+
+    setCopySharedAgentStatus("copying")
+    const imported = await importAgentShareLink(token)
+    if (!imported) {
+      setCopySharedAgentStatus("error")
+      return
+    }
+
+    setCopySharedAgentStatus("copied")
+    setSharedAgentProfile(null)
+    setSelectedAgentProfileId(imported.agent.id)
+
+    const url = new URL(window.location.href)
+    url.pathname = "/agentapp/"
+    url.searchParams.set("agentApp", imported.agent.id)
+    url.searchParams.delete("agentShare")
+    url.searchParams.delete("threadId")
+    url.searchParams.delete("q")
+    url.searchParams.delete("view")
+    url.searchParams.delete("editAgent")
+    url.searchParams.delete("create")
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
+
+    window.setTimeout(() => {
+      setCopySharedAgentStatus((current) => current === "copied" ? "idle" : current)
+    }, 1600)
+  }, [
+    activeAgentProfile?.shareToken,
+    agentShareToken,
+    copySharedAgentStatus,
+    importAgentShareLink,
+    router,
+    setSelectedAgentProfileId,
+  ])
+
   // Keyboard shortcuts
   useKeyboardShortcuts([
     {
@@ -780,6 +820,8 @@ function DashboardContent() {
               onAgentProfileChange={isDedicatedAgentApp ? undefined : setSelectedAgentProfileId}
               onCreateAgent={isDedicatedAgentApp ? undefined : handleOpenCreateAgent}
               onOpenAgentSettings={isDedicatedAgentApp ? undefined : handleOpenActiveAgentSettings}
+              onCopySharedAgent={isDedicatedAgentApp && activeAgentProfile?.isSharedApp ? handleCopySharedAgent : undefined}
+              copySharedAgentStatus={copySharedAgentStatus}
               onOpenSidebar={() => setIsMobileSidebarOpen(true)}
             />
             <ChatInterface
