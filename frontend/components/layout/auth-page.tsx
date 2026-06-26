@@ -60,44 +60,15 @@ export function AuthPage({ mode }: AuthPageProps) {
         </main>
 
         <aside className="relative hidden min-h-0 overflow-hidden bg-background-tint lg:block">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.026)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
-          <div className="relative flex h-full items-center justify-center p-12">
-            <section className="w-full max-w-xl space-y-8">
-              <div className="inline-flex rounded-full bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary">
-                {t.loginBadge}
-              </div>
-
-              <div className="space-y-5">
-                <h1 className="max-w-lg font-display text-6xl font-medium leading-[1.02] tracking-normal text-foreground">
-                  {t.loginHeadline}
-                </h1>
-                <p className="max-w-lg text-base leading-7 text-muted-foreground">{t.loginDescription}</p>
-              </div>
-
-              <div className="rounded-2xl bg-card p-4 shadow-depth-md">
-                <div className="rounded-xl bg-secondary p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{t.loginBrandName}</div>
-                      <div className="mt-1 text-xs text-muted-foreground">{t.loginBrandSub}</div>
-                    </div>
-                    <Image src="/logo.png" alt="" width={96} height={62} className="h-9 w-auto" />
-                  </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    {[
-                      [t.loginMetricScene, t.loginMetricSceneDesc],
-                      [t.loginMetricKnowledge, t.loginMetricKnowledgeDesc],
-                      [t.loginMetricTools, t.loginMetricToolsDesc],
-                    ].map(([label, value]) => (
-                      <div key={label} className="rounded-lg bg-card p-3">
-                        <div className="font-mono text-xs text-primary">{label}</div>
-                        <div className="mt-2 text-sm leading-5 text-muted-foreground">{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
+          <div className="flex h-full items-center justify-center px-8 py-10 xl:px-12">
+            <Image
+              src="/login_sidepic.svg"
+              alt=""
+              width={2500}
+              height={1500}
+              priority
+              className="h-auto w-full max-w-[min(48vw,900px)] object-contain"
+            />
           </div>
         </aside>
       </div>
