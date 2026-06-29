@@ -371,14 +371,6 @@ export function ManagementDashboard({
   const [newWakeWord, setNewWakeWord] = useState("")
   const activeEditingAgentId = selectedAgentId
 
-  useEffect(() => {
-    if (canManageWorkspace) return
-    setIsEditingAgent(false)
-    setIsCreatingAgent(false)
-    onEditAgentChange?.(null)
-    onCreateChange?.(false)
-  }, [canManageWorkspace, onCreateChange, onEditAgentChange])
-
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
   // ---------------------------------------------------------------------------
@@ -694,7 +686,6 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateAgent = useCallback(() => {
-    if (!canManageWorkspace) return
     onCreateChange?.(true)
     setSelectedAgentId(null)
     setIsCreatingAgent(true)
@@ -727,10 +718,9 @@ export function ManagementDashboard({
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }, [canManageWorkspace, onCreateChange, onEditAgentChange])
+  }, [onCreateChange, onEditAgentChange])
 
   const handleStartEditAgent = (profile: AgentProfile) => {
-    if (!canManageWorkspace) return
     onCreateChange?.(false)
     setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
@@ -804,8 +794,30 @@ export function ManagementDashboard({
     setShareOptions(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const handleSaveAgent = () => {
-    if (!canManageWorkspace || !agentForm.name.trim()) return
+  const submitAgentChangeRequest = async (
+    action: "create" | "update",
+    profile: AgentProfile,
+  ) => {
+    if (!LANGGRAPH_API_URL || !authHeaders || !activeWorkspace) return false
+
+    const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspace.id}/change-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({
+        targetType: "agent_profile",
+        targetId: action === "update" ? profile.id : null,
+        action,
+        payload: profile,
+      }),
+    })
+    if (!response.ok) {
+      throw new Error(await response.text())
+    }
+    return true
+  }
+
+  const handleSaveAgent = async () => {
+    if (!agentForm.name.trim()) return
 
     const enabledTools = [
       ...agentForm.enabledTools.filter(
@@ -844,6 +856,29 @@ export function ManagementDashboard({
     }
 
     if (isCreatingAgent) {
+      if (!canManageWorkspace) {
+        const now = new Date().toISOString()
+        const pendingProfile: AgentProfile = {
+          ...(profileData as Omit<AgentProfile, "id" | "createdAt" | "updatedAt">),
+          id: generateUUID(),
+          createdAt: now,
+          updatedAt: now,
+        }
+        try {
+          const submitted = await submitAgentChangeRequest("create", pendingProfile)
+          if (submitted) {
+            setIsCreatingAgent(false)
+            onCreateChange?.(false)
+            onEditAgentChange?.(null)
+            onBackToChat()
+          }
+        } catch (err) {
+          console.error("Failed to submit agent profile change request", err)
+          window.alert(locale === "zh" ? "提交审批失败，请稍后重试。" : "Failed to submit change request. Please try again.")
+        }
+        return
+      }
+
       createAgentProfile(profileData as any).then(created => {
         if (created) {
           setSelectedAgentId(created.id)
@@ -859,6 +894,29 @@ export function ManagementDashboard({
         onBackToChat()
       })
     } else if (isEditingAgent && activeEditingAgentId) {
+      if (!canManageWorkspace) {
+        const target = agentProfiles.find(profile => profile.id === activeEditingAgentId)
+        if (!target) return
+        const pendingProfile: AgentProfile = {
+          ...target,
+          ...(profileData as Partial<AgentProfile>),
+          updatedAt: new Date().toISOString(),
+        }
+        try {
+          const submitted = await submitAgentChangeRequest("update", pendingProfile)
+          if (submitted) {
+            setIsEditingAgent(false)
+            onEditAgentChange?.(null)
+            onCreateChange?.(false)
+            onBackToChat()
+          }
+        } catch (err) {
+          console.error("Failed to submit agent profile change request", err)
+          window.alert(locale === "zh" ? "提交审批失败，请稍后重试。" : "Failed to submit change request. Please try again.")
+        }
+        return
+      }
+
       updateAgentProfile(activeEditingAgentId, profileData)
       // Mark saving so the useEffect won't re-enter edit mode
       isSavingRef.current = true
@@ -1782,7 +1840,7 @@ export function ManagementDashboard({
               disabled={!agentForm.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {t.save}
+              {canManageWorkspace ? t.save : (locale === "zh" ? "提交审批" : "Submit for approval")}
             </Button>
             <Button
               variant="ghost"
