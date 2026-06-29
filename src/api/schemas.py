@@ -186,6 +186,7 @@ class AgentConfigTomlImportResponse(BaseModel):
 
 class AgentProfileSchema(BaseModel):
     id: str
+    ownerUserId: str | None = None
     name: str
     description: str | None = None
     systemPrompt: str | None = None

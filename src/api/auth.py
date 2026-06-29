@@ -61,6 +61,15 @@ def _user_auth_source(user: object) -> str | None:
     return source if isinstance(source, str) else None
 
 
+def _user_workspace_id(user: object) -> str | None:
+    """Return optional workspace id carried by the authenticate callback."""
+    if isinstance(user, dict):
+        workspace_id = user.get("workspace_id")
+    else:
+        workspace_id = getattr(user, "workspace_id", None)
+    return workspace_id if isinstance(workspace_id, str) and workspace_id.strip() else None
+
+
 def _first_agent_id(*sources: dict | None) -> str | None:
     """Return the first non-empty agent profile id from request payload sources."""
     for source in sources:
@@ -293,6 +302,9 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
     }
     if resolved_user_id:
         user_dict["auth_source"] = "api_key"
+    workspace_id = _get_header(headers, "x-workspace-id")
+    if workspace_id and workspace_id.strip():
+        user_dict["workspace_id"] = workspace_id.strip()
     if is_studio:
         user_dict["kind"] = "StudioUser"
 
@@ -301,6 +313,7 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
         identity=user_dict["identity"],
         is_studio=is_studio,
         resolved_api_key=bool(resolved_user_id),
+        workspace_id=user_dict.get("workspace_id"),
     )
     return user_dict
 
@@ -454,6 +467,7 @@ async def _enrich_run_context(
         context=context,
         input_has_image=input_has_image,
         owner_user_id=None if is_studio_user(ctx.user) else ctx.user.identity,
+        workspace_id=None if is_studio_user(ctx.user) else _user_workspace_id(ctx.user),
         require_agent_id=not is_studio_user(ctx.user),
     )
     _inject_langfuse_metadata(
@@ -643,6 +657,7 @@ def validate_config(
     context: dict | None = None,
     input_has_image: bool = False,
     owner_user_id: str | None = None,
+    workspace_id: str | None = None,
     require_agent_id: bool = False,
 ):
     """Validate user-controlled run config before it reaches the graph."""
@@ -654,7 +669,12 @@ def validate_config(
         )
 
     if not config:
-        validate_agent_context(context, owner_user_id, require_agent_id=require_agent_id)
+        validate_agent_context(
+            context,
+            owner_user_id,
+            workspace_id=workspace_id,
+            require_agent_id=require_agent_id,
+        )
         requested_model = context.get("model")
         if requested_model is not None and (
             not isinstance(requested_model, str) or not requested_model.strip()
@@ -677,7 +697,12 @@ def validate_config(
         )
 
     context.update(configurable)
-    validate_agent_context(context, owner_user_id, require_agent_id=require_agent_id)
+    validate_agent_context(
+        context,
+        owner_user_id,
+        workspace_id=workspace_id,
+        require_agent_id=require_agent_id,
+    )
 
     requested_model = context.get("model")
     if requested_model is None:
@@ -692,6 +717,7 @@ def validate_agent_context(
     configurable: dict,
     owner_user_id: str | None,
     *,
+    workspace_id: str | None = None,
     require_agent_id: bool,
 ) -> None:
     """Validate required agent context and apply safe request overrides."""
@@ -702,13 +728,14 @@ def validate_agent_context(
     if not agent_id or not owner_user_id:
         return
 
-    resource_owner_user_id = owner_user_id
+    workspace_owner_user_id = _resolve_workspace_owner_user_id(owner_user_id, workspace_id)
+    resource_owner_user_id = workspace_owner_user_id
     requested_agent_owner_user_id = configurable.get("agent_owner_user_id")
     share_token = configurable.get("share_token")
     if (
         isinstance(requested_agent_owner_user_id, str)
         and requested_agent_owner_user_id.strip()
-        and requested_agent_owner_user_id.strip() != owner_user_id
+        and requested_agent_owner_user_id.strip() != workspace_owner_user_id
     ):
         if not isinstance(share_token, str) or not share_token.strip():
             raise Auth.exceptions.HTTPException(403, "Shared agent token is required")
@@ -719,12 +746,18 @@ def validate_agent_context(
         )
         resource_owner_user_id = requested_agent_owner_user_id.strip()
     else:
-        agent_profile = _load_owned_agent_profile(agent_id, owner_user_id)
+        agent_profile = _load_workspace_agent_profile(
+            agent_id,
+            workspace_owner_user_id,
+            workspace_id,
+        )
     if not agent_profile:
         raise Auth.exceptions.HTTPException(403, "Agent is not available for this API key")
 
     configurable["user_id"] = resource_owner_user_id
     configurable["agent_owner_user_id"] = resource_owner_user_id
+    if workspace_id:
+        configurable["workspace_id"] = workspace_id
 
     overrides = configurable.pop("overrides", None)
     if overrides is None:
@@ -786,6 +819,66 @@ def _load_owned_agent_profile(agent_id: str, owner_user_id: str):
             db.close()
     except Exception as err:
         raise Auth.exceptions.HTTPException(500, f"Failed to validate agent ownership: {err}") from err
+
+
+def _resolve_workspace_owner_user_id(user_id: str, workspace_id: str | None) -> str:
+    """Return the resource owner for a workspace after verifying membership."""
+    if not workspace_id:
+        return user_id
+    try:
+        from src.utils.db import SessionLocal, WorkspaceMemberTable, WorkspaceTable
+
+        db = SessionLocal()
+        try:
+            member = db.query(WorkspaceMemberTable).filter(
+                WorkspaceMemberTable.workspace_id == workspace_id,
+                WorkspaceMemberTable.user_id == user_id,
+                WorkspaceMemberTable.status == "active",
+            ).first()
+            if not member:
+                raise Auth.exceptions.HTTPException(403, "Workspace access denied")
+
+            workspace = db.query(WorkspaceTable).filter(
+                WorkspaceTable.id == workspace_id,
+            ).first()
+            if not workspace:
+                raise Auth.exceptions.HTTPException(404, "Workspace not found")
+            return workspace.owner_user_id
+        finally:
+            db.close()
+    except Auth.exceptions.HTTPException:
+        raise
+    except Exception as err:
+        raise Auth.exceptions.HTTPException(500, f"Failed to validate workspace access: {err}") from err
+
+
+def _load_workspace_agent_profile(
+    agent_id: str,
+    owner_user_id: str,
+    workspace_id: str | None,
+):
+    """Return an agent profile available in the selected workspace."""
+    if not workspace_id:
+        return _load_owned_agent_profile(agent_id, owner_user_id)
+    try:
+        from sqlalchemy import or_
+
+        from src.utils.db import AgentProfileTable, SessionLocal
+
+        db = SessionLocal()
+        try:
+            return db.query(AgentProfileTable).filter(
+                AgentProfileTable.id == agent_id,
+                AgentProfileTable.owner_user_id == owner_user_id,
+                or_(
+                    AgentProfileTable.workspace_id == workspace_id,
+                    AgentProfileTable.workspace_id.is_(None),
+                ),
+            ).first()
+        finally:
+            db.close()
+    except Exception as err:
+        raise Auth.exceptions.HTTPException(500, f"Failed to validate workspace agent: {err}") from err
 
 
 def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: str):

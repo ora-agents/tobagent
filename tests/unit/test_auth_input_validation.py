@@ -178,6 +178,56 @@ def test_validate_config_accepts_context_agent_id(monkeypatch):
     assert context["user_id"] == "user-1"
 
 
+@pytest.mark.anyio
+async def test_authenticate_carries_workspace_header(monkeypatch):
+    monkeypatch.delenv("LANGGRAPH_AUTH_SECRET", raising=False)
+
+    user = await authenticate({
+        "authorization": "Bearer user-123",
+        "x-workspace-id": "workspace-1",
+    })
+
+    assert user["identity"] == "user-123"
+    assert user["workspace_id"] == "workspace-1"
+
+
+def test_validate_config_uses_workspace_owner_for_member_agent_runs(monkeypatch):
+    calls = {}
+
+    def fake_resolve_workspace_owner(user_id, workspace_id):
+        calls["resolved"] = (user_id, workspace_id)
+        return "user-owner"
+
+    def fake_load_workspace_agent(agent_id, owner_user_id, workspace_id):
+        calls["loaded"] = (agent_id, owner_user_id, workspace_id)
+        return object()
+
+    monkeypatch.setattr(
+        "src.api.auth._resolve_workspace_owner_user_id",
+        fake_resolve_workspace_owner,
+    )
+    monkeypatch.setattr(
+        "src.api.auth._load_workspace_agent_profile",
+        fake_load_workspace_agent,
+    )
+
+    context = {"agent_id": "agent-1"}
+
+    validate_config(
+        {},
+        context=context,
+        owner_user_id="user-member",
+        workspace_id="workspace-1",
+        require_agent_id=True,
+    )
+
+    assert calls["resolved"] == ("user-member", "workspace-1")
+    assert calls["loaded"] == ("agent-1", "user-owner", "workspace-1")
+    assert context["user_id"] == "user-owner"
+    assert context["agent_owner_user_id"] == "user-owner"
+    assert context["workspace_id"] == "workspace-1"
+
+
 def test_validate_config_applies_owned_overrides(monkeypatch):
     monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
     monkeypatch.setattr("src.api.auth._require_owned_agent_ids", lambda *_args: None)

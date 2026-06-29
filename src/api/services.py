@@ -48,6 +48,7 @@ def _schema_files(files: list[dict] | None) -> list[KBFileSchema]:
 def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
     return AgentProfileSchema(
         id=profile.id,
+        ownerUserId=profile.owner_user_id,
         name=profile.name,
         description=profile.description,
         systemPrompt=profile.system_prompt,
