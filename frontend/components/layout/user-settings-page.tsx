@@ -15,7 +15,6 @@ import {
   Trash2,
   Copy,
   Check,
-  Accessibility,
   Mic,
   Square,
   Upload,
@@ -69,8 +68,6 @@ export interface UserVoiceprint {
 interface UserSettingsPageProps {
   onBackToChat: () => void
   onOpenSidebar?: () => void
-  elderOptimized: boolean
-  onElderOptimizedChange: (enabled: boolean) => void
   voiceprints: UserVoiceprint[]
   onVoiceprintsChange: (vps: UserVoiceprint[]) => void
   onClearAllConversations: () => Promise<number>
@@ -106,7 +103,6 @@ interface NavSection {
 }
 
 const NAV_SECTIONS: NavSection[] = [
-  { id: "section-display", icon: Accessibility, labelZh: "优化显示", labelEn: "Display" },
   { id: "section-profile", icon: User, labelZh: "基本信息", labelEn: "Profile" },
   { id: "section-workspace", icon: Building2, labelZh: "工作区", labelEn: "Workspace" },
   { id: "section-prefs", icon: Settings2, labelZh: "通用偏好", labelEn: "Preferences" },
@@ -123,13 +119,12 @@ const NAV_SECTIONS: NavSection[] = [
 export function UserSettingsPage({
   onBackToChat,
   onOpenSidebar,
-  elderOptimized,
-  onElderOptimizedChange,
   voiceprints,
   onVoiceprintsChange,
   onClearAllConversations,
   conversationCount,
 }: UserSettingsPageProps) {
+  const elderOptimized = false
   const { user, updateProfile, activeWorkspace, canManageWorkspace } = useAuth()
   const { locale } = useI18n()
   const zh = locale === "zh"
@@ -605,29 +600,6 @@ export function UserSettingsPage({
                 {error}
               </StatusNotice>
             )}
-
-            {/* ============ Section: Optimized Display ============ */}
-            <PageSection
-              id="section-display"
-              ref={registerSectionRef("section-display")}
-              density={sectionDensity}
-            >
-              <PageSectionTitle icon={Accessibility} compact={sectionTitleCompact}>
-                {zh ? "优化显示" : "Optimized Display"}
-              </PageSectionTitle>
-              <SettingsSwitch
-                checked={elderOptimized}
-                onCheckedChange={onElderOptimizedChange}
-                size={elderOptimized ? "lg" : "default"}
-                className="bg-background/80 hover:bg-background"
-                label={zh ? "放大全部界面" : "Enlarge The Whole App"}
-                description={
-                  zh
-                    ? "开启后会放大全部界面的文字、输入框、按钮、开关和对话内容，让点击和阅读更轻松，同时保留当前的清爽配色和简洁布局。"
-                    : "Increases text, inputs, buttons, switches, and chat content across the app while keeping the current clean palette and layout."
-                }
-              />
-            </PageSection>
 
             {/* ============ Section: Profile Info ============ */}
             <PageSection
