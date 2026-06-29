@@ -141,8 +141,26 @@ type FormCategoryGroup = {
   forms: CustomForm[]
 }
 
+type AgentLinkedResourceCreateContext = {
+  type: "skill" | "form"
+  agentMode: "create" | "edit"
+  agentId: string | null
+}
+
 const UNCATEGORIZED_SKILL_CATEGORY = "__uncategorized__"
 const UNCATEGORIZED_FORM_CATEGORY = "__uncategorized_form__"
+
+function getCategoryValueForCreate(key: string, label: string, uncategorizedKey: string) {
+  return key === uncategorizedKey ? "" : label
+}
+
+function getSkillTemplateForCategory(category: string) {
+  if (!category.trim()) return DEFAULT_SKILL_TEMPLATE
+  return DEFAULT_SKILL_TEMPLATE.replace(
+    /(\n\s*category:\s*)[^\n]*/,
+    `$1${category.trim()}`
+  )
+}
 
 function getSkillCategory(skill: Skill, uncategorizedLabel: string) {
   const parsed = parseSkillForView(skill.content)
@@ -285,6 +303,7 @@ export function ManagementDashboard({
   const [recordPage, setRecordPage] = useState(1)
   const [dirtyFormRecordIds, setDirtyFormRecordIds] = useState<Set<string>>(new Set())
   const [formRecordValidationErrors, setFormRecordValidationErrors] = useState<Record<string, Record<string, string>>>({})
+  const localCreateHandledRef = useRef(false)
 
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [selectedMcpId, setSelectedMcpId] = useState<string | null>(null)
@@ -349,8 +368,10 @@ export function ManagementDashboard({
   const [agentSkillSearch, setAgentSkillSearch] = useState("")
   const [agentMcpSearch, setAgentMcpSearch] = useState("")
   const [agentRoleSearch, setAgentRoleSearch] = useState("")
+  const [agentLinkedResourceCreateContext, setAgentLinkedResourceCreateContext] = useState<AgentLinkedResourceCreateContext | null>(null)
   // Guard: prevents the selectedAgentProfileId useEffect from re-entering edit mode right after a save
   const isSavingRef = useRef(false)
+  const skipNextEditAgentOpenRef = useRef<string | null>(null)
   const [copiedAgentId, setCopiedAgentId] = useState<string | null>(null)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [modelsLoading, setModelsLoading] = useState(true)
@@ -514,6 +535,10 @@ export function ManagementDashboard({
 
   useEffect(() => {
     if (activeTab !== "agents" || !editAgentIdOnOpen) return
+    if (skipNextEditAgentOpenRef.current === editAgentIdOnOpen) {
+      skipNextEditAgentOpenRef.current = null
+      return
+    }
 
     const profile = agentProfiles.find(p => p.id === editAgentIdOnOpen && !isSystemAgentProfile(p))
     if (profile) {
@@ -564,7 +589,8 @@ export function ManagementDashboard({
     setDeleteConfirmId(null)
   }
 
-  const handleStartCreateSkill = () => {
+  const handleStartCreateSkill = (category = "") => {
+    localCreateHandledRef.current = true
     onCreateChange?.(true)
     setSelectedSkillId(null)
     setIsCreatingSkill(true)
@@ -572,9 +598,71 @@ export function ManagementDashboard({
     setSkillForm({
       name: "",
       description: "",
-      content: DEFAULT_SKILL_TEMPLATE
+      content: getSkillTemplateForCategory(category)
     })
     setDeleteConfirmId(null)
+  }
+
+  const returnToAgentEditorAfterLinkedResourceCreate = (
+    context: AgentLinkedResourceCreateContext,
+    resourceId: string,
+  ) => {
+    setAgentForm(prev => {
+      if (context.type === "skill") {
+        return {
+          ...prev,
+          skillIds: prev.skillIds.includes(resourceId) ? prev.skillIds : [...prev.skillIds, resourceId],
+        }
+      }
+
+      const formIds = prev.formIds.includes(resourceId) ? prev.formIds : [...prev.formIds, resourceId]
+      return {
+        ...prev,
+        formIds,
+        formPermissions: {
+          ...prev.formPermissions,
+          [resourceId]: prev.formPermissions[resourceId] || ["read"],
+        },
+        enabledTools: formIds.length > 0
+          ? [...new Set([...prev.enabledTools, "query_form_data" as BuiltinToolId])]
+          : prev.enabledTools,
+      }
+    })
+    setAgentLinkedResourceCreateContext(null)
+    setActiveTab("agents")
+    setSelectedAgentId(context.agentId)
+    setIsCreatingAgent(context.agentMode === "create")
+    setIsEditingAgent(context.agentMode === "edit")
+    onCreateChange?.(context.agentMode === "create")
+    if (context.agentMode === "edit") {
+      skipNextEditAgentOpenRef.current = context.agentId
+    }
+    onEditAgentChange?.(context.agentMode === "edit" ? context.agentId : null)
+  }
+
+  const returnToAgentEditorFromLinkedResourceCreate = () => {
+    const context = agentLinkedResourceCreateContext
+    if (!context) return
+    setAgentLinkedResourceCreateContext(null)
+    setActiveTab("agents")
+    setSelectedAgentId(context.agentId)
+    setIsCreatingAgent(context.agentMode === "create")
+    setIsEditingAgent(context.agentMode === "edit")
+    onCreateChange?.(context.agentMode === "create")
+    if (context.agentMode === "edit") {
+      skipNextEditAgentOpenRef.current = context.agentId
+    }
+    onEditAgentChange?.(context.agentMode === "edit" ? context.agentId : null)
+  }
+
+  const handleStartCreateAgentLinkedSkill = (category = "") => {
+    setAgentLinkedResourceCreateContext({
+      type: "skill",
+      agentMode: isCreatingAgent ? "create" : "edit",
+      agentId: selectedAgentId,
+    })
+    setActiveTab("skills")
+    handleStartCreateSkill(category)
   }
 
   const handleStartEditSkill = (skill: Skill) => {
@@ -616,14 +704,27 @@ export function ManagementDashboard({
           setSelectedSkillId(saved.id)
           setIsCreatingSkill(false)
           onCreateChange?.(false)
+          if (agentLinkedResourceCreateContext?.type === "skill") {
+            returnToAgentEditorAfterLinkedResourceCreate(agentLinkedResourceCreateContext, saved.id)
+          }
+        } else {
+          const errorData = await resp.json().catch(() => null)
+          const errorMessage = errorData?.detail || resp.statusText
+          console.error("Failed to persist skill to database", errorMessage)
+          window.alert(locale === "zh"
+            ? `技能保存失败：${errorMessage}`
+            : `Failed to save skill: ${errorMessage}`)
         }
       } catch (err) {
         console.error("Failed to persist skill to database", err)
+        window.alert(locale === "zh"
+          ? "技能保存失败，请稍后重试。"
+          : "Failed to save skill. Please try again.")
       }
     } else if (isEditingSkill && selectedSkillId) {
       const target = skills.find(sk => sk.id === selectedSkillId)
       if (!target) return
-      
+
       const updatedSkill: Skill = {
         ...target,
         name: parsedName,
@@ -641,9 +742,19 @@ export function ManagementDashboard({
           const saved = await resp.json()
           setSkills(prev => prev.map(sk => sk.id === selectedSkillId ? saved : sk))
           setIsEditingSkill(false)
+        } else {
+          const errorData = await resp.json().catch(() => null)
+          const errorMessage = errorData?.detail || resp.statusText
+          console.error("Failed to update skill in database", errorMessage)
+          window.alert(locale === "zh"
+            ? `技能保存失败：${errorMessage}`
+            : `Failed to save skill: ${errorMessage}`)
         }
       } catch (err) {
         console.error("Failed to update skill in database", err)
+        window.alert(locale === "zh"
+          ? "技能保存失败，请稍后重试。"
+          : "Failed to save skill. Please try again.")
       }
     }
   }
@@ -1328,7 +1439,8 @@ export function ManagementDashboard({
     setRecordPage(1)
   }
 
-  const handleStartCreateForm = () => {
+  const handleStartCreateForm = (category = "") => {
+    localCreateHandledRef.current = true
     onCreateChange?.(true)
     setSelectedFormId(null)
     setIsCreatingForm(true)
@@ -1336,12 +1448,22 @@ export function ManagementDashboard({
     setFormDefinition({
       name: "",
       description: "",
-      category: "",
+      category,
       fields: [{ id: "name", label: locale === "zh" ? "名称" : "Name", type: "text", required: false, options: [] }],
       hooks: [],
     })
     setSelectedFormFieldId("name")
     setDeleteConfirmId(null)
+  }
+
+  const handleStartCreateAgentLinkedForm = (category = "") => {
+    setAgentLinkedResourceCreateContext({
+      type: "form",
+      agentMode: isCreatingAgent ? "create" : "edit",
+      agentId: selectedAgentId,
+    })
+    setActiveTab("forms")
+    handleStartCreateForm(category)
   }
 
   const handleStartEditForm = (form: CustomForm) => {
@@ -1375,6 +1497,12 @@ export function ManagementDashboard({
       return
     }
     if (createRouteHandledRef.current) return
+
+    if (localCreateHandledRef.current) {
+      createRouteHandledRef.current = true
+      localCreateHandledRef.current = false
+      return
+    }
 
     createRouteHandledRef.current = true
     if (activeTab === "skills") handleStartCreateSkill()
@@ -1495,6 +1623,9 @@ export function ManagementDashboard({
         setSelectedFormId(saved.id)
         setIsCreatingForm(false)
         onCreateChange?.(false)
+        if (agentLinkedResourceCreateContext?.type === "form") {
+          returnToAgentEditorAfterLinkedResourceCreate(agentLinkedResourceCreateContext, saved.id)
+        }
       }
     } else if (isEditingForm && selectedFormId) {
       const target = forms.find(form => form.id === selectedFormId)
@@ -1806,11 +1937,17 @@ export function ManagementDashboard({
               disabled={!skillForm.content.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {t.save}
+              {agentLinkedResourceCreateContext?.type === "skill"
+                ? (locale === "zh" ? "保存并关联" : "Save and link")
+                : t.save}
             </Button>
             <Button
               variant="ghost"
               onClick={() => {
+                if (agentLinkedResourceCreateContext?.type === "skill") {
+                  returnToAgentEditorFromLinkedResourceCreate()
+                  return
+                }
                 onCreateChange?.(false)
                 setIsEditingSkill(false)
                 setIsCreatingSkill(false)
@@ -1924,11 +2061,17 @@ export function ManagementDashboard({
               disabled={!formDefinition.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {t.save}
+              {agentLinkedResourceCreateContext?.type === "form"
+                ? (locale === "zh" ? "保存并关联" : "Save and link")
+                : t.save}
             </Button>
             <Button
               variant="ghost"
               onClick={() => {
+                if (agentLinkedResourceCreateContext?.type === "form") {
+                  returnToAgentEditorFromLinkedResourceCreate()
+                  return
+                }
                 onCreateChange?.(false)
                 setIsEditingForm(false)
                 setIsCreatingForm(false)
@@ -2137,7 +2280,7 @@ export function ManagementDashboard({
                 action={
                   <Button
                     size="sm"
-                    onClick={handleStartCreateForm}
+                    onClick={() => handleStartCreateForm()}
                     className="h-7 w-7 rounded-md border-none bg-primary p-0 text-primary-foreground hover:bg-primary-active cursor-pointer"
                     title={locale === "zh" ? "新建表单" : "Create form"}
                   >
@@ -2148,22 +2291,34 @@ export function ManagementDashboard({
                 <div className="space-y-2">
                   {formCategoryGroups.map(group => {
                     const collapsed = collapsedFormCategories.has(group.key)
+                    const createCategory = getCategoryValueForCreate(group.key, group.label, UNCATEGORIZED_FORM_CATEGORY)
                     return (
                       <div key={group.key} className="space-y-1.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleCollapsedFormCategory(group.key)}
-                          className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                          aria-expanded={!collapsed}
-                        >
-                          <span className="flex min-w-0 items-center gap-1.5">
+                        <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapsedFormCategory(group.key)}
+                            className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
+                            aria-expanded={!collapsed}
+                          >
                             {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                             <span className="truncate">{group.label}</span>
-                          </span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleStartCreateForm(createCategory)}
+                            className="h-6 w-6 shrink-0 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            title={locale === "zh" ? `新建${group.label}表单` : `Create ${group.label} form`}
+                            aria-label={locale === "zh" ? `新建${group.label}表单` : `Create ${group.label} form`}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
+                          <span className="mr-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                             {group.forms.length}
                           </span>
-                        </button>
+                        </div>
                         {!collapsed && group.forms.map(form => (
                           <ListItem
                             key={form.id}
@@ -2520,7 +2675,7 @@ export function ManagementDashboard({
                   </span>
                   <Button
                     size="sm"
-                    onClick={handleStartCreateSkill}
+                    onClick={() => handleStartCreateSkill()}
                     className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none"
                     title={t.addSkill}
                   >
@@ -2540,22 +2695,34 @@ export function ManagementDashboard({
                   ) : (
                     skillCategoryGroups.map(group => {
                       const collapsed = collapsedSkillCategories.has(group.key)
+                      const createCategory = getCategoryValueForCreate(group.key, group.label, UNCATEGORIZED_SKILL_CATEGORY)
                       return (
                         <div key={group.key} className="space-y-1.5">
-                          <button
-                            type="button"
-                            onClick={() => toggleCollapsedSkillCategory(group.key)}
-                            className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                            aria-expanded={!collapsed}
-                          >
-                            <span className="flex min-w-0 items-center gap-1.5">
+                          <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
+                            <button
+                              type="button"
+                              onClick={() => toggleCollapsedSkillCategory(group.key)}
+                              className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
+                              aria-expanded={!collapsed}
+                            >
                               {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
                               <span className="truncate">{group.label}</span>
-                            </span>
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleStartCreateSkill(createCategory)}
+                              className="h-6 w-6 shrink-0 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                              title={locale === "zh" ? `新建${group.label}技能` : `Create ${group.label} skill`}
+                              aria-label={locale === "zh" ? `新建${group.label}技能` : `Create ${group.label} skill`}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </Button>
+                            <span className="mr-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                               {group.skills.length}
                             </span>
-                          </button>
+                          </div>
                           {!collapsed && group.skills.map(skill => (
                             <div
                               key={skill.id}
@@ -2657,11 +2824,13 @@ export function ManagementDashboard({
                         </Button>
                       </div>
                       <div className="skill-content-editor">
-                        <PromptMarkdownEditor
+                        <Textarea
                           id="skill-content"
                           value={skillForm.content}
-                          onChange={content => setSkillForm({ ...skillForm, content })}
+                          onChange={e => setSkillForm({ ...skillForm, content: e.target.value })}
                           placeholder={t.skillContentPlaceholder}
+                          rows={24}
+                          className="font-mono text-sm resize-y rounded-lg border-border/80 bg-background"
                         />
                       </div>
                     </div>
@@ -2695,7 +2864,7 @@ export function ManagementDashboard({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={handleStartCreateSkill}
+                        onClick={() => handleStartCreateSkill()}
                         className="mt-3 gap-1.5 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 rounded-lg"
                       >
                         <Plus className="w-4 h-4 text-primary" />
@@ -3351,96 +3520,118 @@ export function ManagementDashboard({
                       </div>
                     )}
 
-                    {skills.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-border/40">
-                        <div className="flex items-center justify-between gap-3">
-                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
+                    <div className="space-y-2 pt-2 border-t border-border/40">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t.linkCustomSkills}</Label>
+                        <div className="flex items-center gap-2">
                           <span className="text-[10px] text-muted-foreground">
                             {agentForm.skillIds.length}/{skills.length}
                           </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleStartCreateAgentLinkedSkill()}
+                            className="h-7 w-7 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            title={locale === "zh" ? "新建并关联技能" : "Create and link skill"}
+                            aria-label={locale === "zh" ? "新建并关联技能" : "Create and link skill"}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                          <Input
-                            value={agentSkillSearch}
-                            onChange={e => setAgentSkillSearch(e.target.value)}
-                            placeholder={locale === "zh" ? "搜索技能名称、描述或 ID" : "Search skills by name, description, or ID"}
-                            className="h-8 rounded-lg pl-8 text-xs"
-                          />
-                        </div>
-                        <ScrollArea
-                          className="max-h-64 rounded-xl border border-border/40 bg-background/50"
-                          contentClassName="space-y-2 p-1"
-                          viewportClassName="!h-auto max-h-64"
-                        >
-                          {filteredAgentSkillCategoryGroups.length > 0 ? filteredAgentSkillCategoryGroups.map(group => {
-                            const collapsed = collapsedAgentSkillCategories.has(group.key)
-                            const linkedCount = group.skills.filter(sk => agentForm.skillIds.includes(sk.id)).length
-                            return (
-                              <div key={group.key} className="space-y-1.5">
+                      </div>
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={agentSkillSearch}
+                          onChange={e => setAgentSkillSearch(e.target.value)}
+                          placeholder={locale === "zh" ? "搜索技能名称、描述或 ID" : "Search skills by name, description, or ID"}
+                          className="h-8 rounded-lg pl-8 text-xs"
+                        />
+                      </div>
+                      <ScrollArea
+                        className="max-h-64 rounded-xl border border-border/40 bg-background/50"
+                        contentClassName="space-y-2 p-1"
+                        viewportClassName="!h-auto max-h-64"
+                      >
+                        {filteredAgentSkillCategoryGroups.length > 0 ? filteredAgentSkillCategoryGroups.map(group => {
+                          const collapsed = collapsedAgentSkillCategories.has(group.key)
+                          const linkedCount = group.skills.filter(sk => agentForm.skillIds.includes(sk.id)).length
+                          const createCategory = getCategoryValueForCreate(group.key, group.label, UNCATEGORIZED_SKILL_CATEGORY)
+                          return (
+                            <div key={group.key} className="space-y-1.5">
+                              <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
                                 <button
                                   type="button"
                                   onClick={() => toggleCollapsedAgentSkillCategory(group.key)}
-                                  className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                                  className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
                                   aria-expanded={!collapsed}
                                 >
-                                  <span className="flex min-w-0 items-center gap-1.5">
-                                    {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
-                                    <span className="truncate">{group.label}</span>
-                                  </span>
-                                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                                    {linkedCount}/{group.skills.length}
-                                  </span>
+                                  {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
+                                  <span className="truncate">{group.label}</span>
                                 </button>
-                                {!collapsed && (
-                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    {group.skills.map((sk) => {
-                                      const linked = agentForm.skillIds.includes(sk.id)
-                                      return (
-                                        <div
-                                          key={sk.id}
-                                          className={linkedResourceItemClassName(linked)}
-                                          onClick={() => {
-                                            const nextIds = linked
-                                              ? agentForm.skillIds.filter(id => id !== sk.id)
-                                              : [...agentForm.skillIds, sk.id]
-                                            setAgentForm({ ...agentForm, skillIds: nextIds })
-                                          }}
-                                        >
-                                          <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                                            linked ? "bg-primary border-primary" : "border-muted-foreground/35"
-                                          }`}>
-                                            {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                                          </span>
-                                          <div className="min-w-0">
-                                            <div className="text-xs font-medium truncate">{sk.name}</div>
-                                            <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
-                                          </div>
-                                          <button
-                                            type="button"
-                                            onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "skill", item: sk })}
-                                            className={linkedResourceJumpButtonClassName}
-                                            title={locale === "zh" ? "编辑技能配置" : "Edit skill configuration"}
-                                            aria-label={locale === "zh" ? `编辑技能配置：${sk.name}` : `Edit skill configuration: ${sk.name}`}
-                                          >
-                                            <ArrowUpRight className="h-3.5 w-3.5" />
-                                          </button>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleStartCreateAgentLinkedSkill(createCategory)}
+                                  className="h-6 w-6 shrink-0 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                  title={locale === "zh" ? `新建并关联${group.label}技能` : `Create and link ${group.label} skill`}
+                                  aria-label={locale === "zh" ? `新建并关联${group.label}技能` : `Create and link ${group.label} skill`}
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </Button>
+                                <span className="mr-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  {linkedCount}/{group.skills.length}
+                                </span>
                               </div>
-                            )
-                          }) : (
-                            <div className="py-6 text-center text-xs text-muted-foreground">
-                              {locale === "zh" ? "未找到匹配的技能" : "No matching skills found."}
+                              {!collapsed && (
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                  {group.skills.map((sk) => {
+                                    const linked = agentForm.skillIds.includes(sk.id)
+                                    return (
+                                      <div
+                                        key={sk.id}
+                                        className={linkedResourceItemClassName(linked)}
+                                        onClick={() => {
+                                          const nextIds = linked
+                                            ? agentForm.skillIds.filter(id => id !== sk.id)
+                                            : [...agentForm.skillIds, sk.id]
+                                          setAgentForm({ ...agentForm, skillIds: nextIds })
+                                        }}
+                                      >
+                                        <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                                          linked ? "bg-primary border-primary" : "border-muted-foreground/35"
+                                        }`}>
+                                          {linked && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+                                        </span>
+                                        <div className="min-w-0">
+                                          <div className="text-xs font-medium truncate">{sk.name}</div>
+                                          <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "skill", item: sk })}
+                                          className={linkedResourceJumpButtonClassName}
+                                          title={locale === "zh" ? "编辑技能配置" : "Edit skill configuration"}
+                                          aria-label={locale === "zh" ? `编辑技能配置：${sk.name}` : `Edit skill configuration: ${sk.name}`}
+                                        >
+                                          <ArrowUpRight className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </ScrollArea>
-                      </div>
-                    )}
-
+                          )
+                        }) : (
+                          <div className="py-6 text-center text-xs text-muted-foreground">
+                            {locale === "zh" ? "未找到匹配的技能" : "No matching skills found."}
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
                     {mcpServers.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
                         <div className="flex items-center justify-between gap-3">
@@ -3505,40 +3696,64 @@ export function ManagementDashboard({
                       </div>
                     )}
 
-                    {forms.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-border/40">
-                        <div className="flex items-center justify-between gap-3">
-                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                            {locale === "zh" ? "关联表单数据" : "Link Forms"}
-                          </Label>
+                    <div className="space-y-2 pt-2 border-t border-border/40">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {locale === "zh" ? "关联表单数据" : "Link Forms"}
+                        </Label>
+                        <div className="flex items-center gap-2">
                           <span className="text-[10px] text-muted-foreground">
                             {agentForm.formIds.length}/{forms.length}
                           </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleStartCreateAgentLinkedForm()}
+                            className="h-7 w-7 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            title={locale === "zh" ? "新建并关联表单" : "Create and link form"}
+                            aria-label={locale === "zh" ? "新建并关联表单" : "Create and link form"}
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
+                      </div>
                         <ScrollArea
                           className="max-h-64 rounded-xl border border-border/40 bg-background/50"
                           contentClassName="space-y-2 p-1"
                           viewportClassName="!h-auto max-h-64"
                         >
-                          {filteredAgentFormCategoryGroups.map(group => {
+                          {filteredAgentFormCategoryGroups.length > 0 ? filteredAgentFormCategoryGroups.map(group => {
                             const collapsed = collapsedAgentFormCategories.has(group.key)
                             const linkedCount = group.forms.filter(form => agentForm.formIds.includes(form.id)).length
+                            const createCategory = getCategoryValueForCreate(group.key, group.label, UNCATEGORIZED_FORM_CATEGORY)
                             return (
                               <div key={group.key} className="space-y-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => toggleCollapsedAgentFormCategory(group.key)}
-                                  className="flex w-full items-center justify-between rounded-md px-1.5 py-1 text-left text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                                  aria-expanded={!collapsed}
-                                >
-                                  <span className="flex min-w-0 items-center gap-1.5">
+                                <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCollapsedAgentFormCategory(group.key)}
+                                    className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
+                                    aria-expanded={!collapsed}
+                                  >
                                     {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                                     <span className="truncate">{group.label}</span>
-                                  </span>
-                                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  </button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleStartCreateAgentLinkedForm(createCategory)}
+                                    className="h-6 w-6 shrink-0 rounded-md p-0 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                    title={locale === "zh" ? `新建并关联${group.label}表单` : `Create and link ${group.label} form`}
+                                    aria-label={locale === "zh" ? `新建并关联${group.label}表单` : `Create and link ${group.label} form`}
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <span className="mr-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                                     {linkedCount}/{group.forms.length}
                                   </span>
-                                </button>
+                                </div>
                                 {!collapsed && (
                                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     {group.forms.map((form) => {
@@ -3635,10 +3850,13 @@ export function ManagementDashboard({
                                 )}
                               </div>
                             )
-                          })}
+                          }) : (
+                            <div className="py-6 text-center text-xs text-muted-foreground">
+                              {locale === "zh" ? "暂无表单，可新建并关联。" : "No forms yet. Create and link one."}
+                            </div>
+                          )}
                         </ScrollArea>
-                      </div>
-                    )}
+                    </div>
 
                     {linkableAgentProfiles.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-border/40">
