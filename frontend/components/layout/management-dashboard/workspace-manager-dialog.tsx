@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import { useAuth, type Workspace } from "@/components/providers/auth-provider"
 import { cn } from "@/lib/utils"
+import { ChangeDetail } from "./change-detail"
 
 type Locale = "zh" | "en"
 type WorkspaceRole = "owner" | "admin" | "member"
@@ -62,27 +63,11 @@ const roleLabels: Record<Locale, Record<WorkspaceRole, string>> = {
   },
 }
 
-const targetLabels: Record<string, { zh: string; en: string }> = {
-  agent_profile: { zh: "角色", en: "Agent" },
-  skill: { zh: "技能", en: "Skill" },
-  knowledge_base: { zh: "知识库", en: "Knowledge base" },
-  mcp_server: { zh: "MCP 服务", en: "MCP server" },
-  form: { zh: "表单", en: "Form" },
-  workspace_member: { zh: "工作区成员", en: "Workspace member" },
-}
-
 function headers(userId: string, workspaceId?: string | null) {
   return {
     Authorization: `Bearer ${userId}`,
     ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
   }
-}
-
-function payloadName(change: WorkspaceChangeRequest) {
-  const name = change.payload?.name
-  return typeof name === "string" && name.trim()
-    ? name
-    : change.targetId || change.id
 }
 
 export function WorkspaceManagerDialog({
@@ -216,6 +201,7 @@ export function WorkspaceManagerDialog({
                 name: member.username || member.userId,
                 role,
                 previousRole: member.role,
+                previousValues: { role: member.role },
               },
             }),
       })
@@ -420,44 +406,42 @@ export function WorkspaceManagerDialog({
           )}
 
           {tab === "requests" && (
-            <div className="divide-y divide-border rounded-lg border border-border">
+            <div className="space-y-2">
               {changes.map((change) => {
-                const label = targetLabels[change.targetType]?.[locale] || change.targetType
                 const pending = change.status === "pending"
                 return (
-                  <div key={change.id} className="grid gap-3 p-3 lg:grid-cols-[1fr_auto] lg:items-center">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
-                        {label} · {change.action} · {payloadName(change)}
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {(zh ? "提交人" : "Requester")}: {change.requesterUsername || change.requesterUserId} · {change.status}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        disabled={!canManageWorkspace || !pending || busy === `approve-${change.id}`}
-                        onClick={() => reviewChange(change, "approve")}
-                      >
-                        {busy === `approve-${change.id}` ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                        {zh ? "批准" : "Approve"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!canManageWorkspace || !pending || busy === `reject-${change.id}`}
-                        onClick={() => reviewChange(change, "reject")}
-                      >
-                        <X className="h-4 w-4" />
-                        {zh ? "拒绝" : "Reject"}
-                      </Button>
-                    </div>
-                  </div>
+                  <ChangeDetail
+                    key={change.id}
+                    change={change}
+                    locale={locale}
+                    actions={
+                      canManageWorkspace && pending ? (
+                        <>
+                          <Button
+                            size="sm"
+                            disabled={busy === `approve-${change.id}`}
+                            onClick={() => reviewChange(change, "approve")}
+                          >
+                            {busy === `approve-${change.id}` ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                            {zh ? "批准" : "Approve"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy === `reject-${change.id}`}
+                            onClick={() => reviewChange(change, "reject")}
+                          >
+                            <X className="h-4 w-4" />
+                            {zh ? "拒绝" : "Reject"}
+                          </Button>
+                        </>
+                      ) : undefined
+                    }
+                  />
                 )
               })}
               {changes.length === 0 && (
-                <div className="p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                   {zh ? "暂无修改申请" : "No change requests"}
                 </div>
               )}

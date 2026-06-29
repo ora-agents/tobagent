@@ -797,8 +797,14 @@ export function ManagementDashboard({
   const submitAgentChangeRequest = async (
     action: "create" | "update",
     profile: AgentProfile,
+    previousValues?: Record<string, unknown>,
   ) => {
     if (!LANGGRAPH_API_URL || !authHeaders || !activeWorkspace) return false
+
+    const payload: Record<string, unknown> = { ...profile }
+    if (action === "update" && previousValues) {
+      payload.previousValues = previousValues
+    }
 
     const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspace.id}/change-requests`, {
       method: "POST",
@@ -807,7 +813,7 @@ export function ManagementDashboard({
         targetType: "agent_profile",
         targetId: action === "update" ? profile.id : null,
         action,
-        payload: profile,
+        payload,
       }),
     })
     if (!response.ok) {
@@ -903,7 +909,7 @@ export function ManagementDashboard({
           updatedAt: new Date().toISOString(),
         }
         try {
-          const submitted = await submitAgentChangeRequest("update", pendingProfile)
+          const submitted = await submitAgentChangeRequest("update", pendingProfile, target as unknown as Record<string, unknown>)
           if (submitted) {
             setIsEditingAgent(false)
             onEditAgentChange?.(null)
