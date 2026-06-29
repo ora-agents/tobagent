@@ -687,7 +687,7 @@ export function UserSettingsPage({
                   </div>
                   <div className={`${elderOptimized ? "mt-2 text-base leading-7" : "mt-1 text-xs leading-relaxed"} text-muted-foreground`}>
                     {zh
-                      ? `当前角色：${canManageWorkspace ? "管理员/拥有者" : "普通成员"}。工作区成员和审批在这里管理。`
+                      ? `当前角色：${canManageWorkspace ? "管理员/拥有者" : "成员"}。工作区成员和审批在这里管理。`
                       : `Current role: ${canManageWorkspace ? "manager" : "member"}. Manage workspace members and approvals here.`}
                   </div>
                 </div>
