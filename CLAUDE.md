@@ -1,112 +1,50 @@
-# CLAUDE.md
+# Repository Guidelines
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project Structure & Module Organization
 
-## Development Commands
+This repository contains a LangGraph documentation agent with a Next.js chat UI. Backend code lives in `src/`: `src/agent/` defines graph and agent configuration, `src/api/` exposes FastAPI/LangGraph endpoints, `src/tools/` contains agent tools, `src/middleware/` holds runtime middleware, and `src/prompts/` stores prompts. Tests are under `tests/unit/` and `tests/evals/`. The frontend is in `frontend/`, with routes in `frontend/app/`, React components in `frontend/components/`, client logic in `frontend/lib/`, and browser assets in `frontend/public/`. Domain documents and local model artifacts live in `assets/` and `models/`.
 
-```bash
-# Install all dependencies (frontend + backend)
-make install
+安卓软件地址：`C:\Users\wrsi\Documents\wsrtobandroid`，WSL 路径为 `/mnt/c/Users/wrsi/Documents/wsrtobandroid`。
 
-# Run both frontend and backend concurrently
-make dev
+## Cross-Project Android Coordination
 
-# Run only backend (LangGraph dev server on :2024)
-make dev-backend
+When changing voice, wake-word, ASR/VAD, TTS playback, interruption, speaker verification, WebView bridge, telemetry, or agent-profile configuration behavior, also inspect the Android project at `/mnt/c/Users/wrsi/Documents/wsrtobandroid`. The Android app owns the native voice provider exposed through `TobNativeVoice` / `__TOB_NATIVE_VOICE__` and sends `nativeVoiceEvent` payloads consumed by `frontend/lib/hooks/files/use-voice-agent.ts`.
 
-# Run only frontend (Next.js on :3000, connects to remote LangGraph API)
-make dev-frontend
+Keep web and Android behavior aligned for shared state-machine semantics such as `idle`, `kws`, `listening`, `transcribing`, `processing`, `speaking`, `speech_start`, `asr`, `speaker_rejected`, `tts_audio`, and `tts_done`. If a frontend change adds, removes, or reinterprets a native bridge field, update or explicitly verify the Android counterpart in the same task. In particular, changes to `voiceInterruptionEnabled` must be checked on both sides so disabled interruption suppresses speech captured during an agent reply and does not send delayed ASR text after playback ends.
 
-# Run frontend pointing to local backend (:2024)
-make dev-local
+Do not assume Windows paths are inaccessible from WSL. Use the `/mnt/c/...` path above for reads, searches, and edits when the task touches these integration points. Keep Android commits separate from this repository unless the user explicitly asks for a coordinated multi-repo commit.
 
-# Backend linting/formatting
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
+## Build, Test, and Development Commands
 
-# Backend type checking
-uv run mypy src/
+- `make install` installs backend dependencies with `uv` and frontend dependencies with Bun.
+- `make dev-backend` starts the LangGraph server on `0.0.0.0`.
+- `make dev-frontend` starts the Next.js UI against the configured remote API.
+- `make dev-local` runs backend and frontend together for local integration.
+- `uv run pytest` runs all Python tests; use `uv run pytest tests/unit` for unit tests.
+- `uv run ruff check src tests` lints Python code.
+- `cd frontend && bun install` installs frontend dependencies; keep `frontend/bun.lock` authoritative.
+- `cd frontend && bun run build` verifies production build.
 
-# Frontend linting
-cd frontend && bun run lint
+## Coding Style & Naming Conventions
 
-# Frontend build
-cd frontend && bun run build
+Python targets 3.11+ and is linted with Ruff using `E`, `F`, `I`, `D`, `D401`, `T201`, and `UP` rules. Use 4-space indentation, Google-style docstrings where useful, and snake_case for modules, functions, and variables. Keep tests named `test_*.py`. Frontend code uses TypeScript, React, Next.js app routing, Tailwind CSS, and Radix UI. Use kebab-case for component filenames, PascalCase for exported React components, and keep shared utilities in `frontend/lib/`.
 
-# Run all tests
-uv run pytest
+## Frontend UI Design
 
-# Run a single test file
-uv run pytest tests/unit/test_check_links_async.py
+When making UI or styling changes, prefer the visual system in `docs/design.md` as the primary reference for colors, typography, spacing, layout, elevation, border radius, and component treatments. Keep new frontend work consistent with those tokens and patterns unless the task explicitly calls for a different style.
 
-# Run a single test by name
-uv run pytest -k "test_name"
-```
+## Testing Guidelines
 
-## Architecture
+Add focused unit tests in `tests/unit/` for isolated utilities, middleware, and API helpers. Use `tests/evals/` for agent behavior, guardrail, retry, and tool-wiring checks. Prefer deterministic tests that avoid live network calls unless the behavior explicitly requires integration coverage. Run `uv run pytest` before submitting backend changes and `cd frontend && bun run build` before submitting UI changes.
 
-A multi-agent AI assistant platform with a **LangGraph + Python backend** and a **Next.js frontend**. Uses `uv` for Python and `bun` for Node.js throughout.
+## Commit & Pull Request Guidelines
 
-### Backend (Python)
+Recent history uses Conventional Commits with scopes, such as `feat(frontend): add wake words editor` and `fix(frontend): debounce speaking-to-listening transition`. Follow `feat|fix|refactor|test|docs(scope): short imperative summary`. When completing a feature or task, make a separate commit containing only the related files for that specific unit of work. Pull requests should describe the user-visible change, list backend/frontend impacts, mention required environment variables, link issues when available, and include screenshots or recordings for UI changes.
 
-The backend runs as two coordinated services defined in `langgraph.json`:
+## Security & Configuration Tips
 
-1. **LangGraph Server** — The agent graph runtime (port 2024). Entry point is `src/agent/generic_agent.py:generic_agent`. Manages conversation state, tool execution, and streaming.
+Copy `.env.example` to `.env` for local backend configuration and keep secrets out of git. Frontend-local secrets belong in `frontend/.env.local`. Do not commit generated caches such as `.pytest_cache/`, `.langgraph_api/`, or local virtual environments.
 
-2. **FastAPI Sidecar** — REST API (mounted via `langgraph.json` `http.app`). Entry point is `src/api/server.py:app` which re-exports from `src/api/fastapi_app.py:app`. Handles CRUD for agent profiles, knowledge bases, skills, MCP servers, user auth, document uploads, model listing proxy, LangSmith trace sharing, and voice WebSocket proxy.
 
-**Two agent graphs:**
-- `generic_agent` (`src/agent/generic_agent.py`) — The primary production agent. Configured per-request via `config["configurable"]` with system prompt, enabled tools, model, agent_id, etc. Uses `context_schema=GenericAgentContext` for typed runtime config (system_prompt, enabled_tools, agent_id, agent_ids, model, user_preferences, safety_enabled).
-- `docs_agent` (`src/agent/docs_graph.py`) — A specialized LangChain documentation assistant. Pulls its system prompt from LangSmith Prompt Hub (or local file with `USE_LOCAL_PROMPTS=true`).
-
-**Shared config** lives in `src/agent/config.py` — initializes the OpenAI-compatible `ChatOpenAI` model, middleware stack, and env var reading. `NEXT_PUBLIC_OPENAI_BASE_URL` / `API_KEY` are backend-only; the frontend fetches the model list via the FastAPI `/api/models` proxy (the key stays server-side).
-
-**Middleware stack** (applied to agents via `langchain.agents`):
-- `SummarizationMiddleware` — auto-summarizes context at 130k tokens, keeps 30k
-- `DynamicConfigMiddleware` (`src/middleware/dynamic_config_middleware.py`) — the key middleware. Intercepts model calls to inject per-request system prompts, filter tools, create dynamic subagent tools (`call_agent_*`), inject MCP tools, and switch models at runtime. Reads agent profiles, skills, and linked subagents from the database. Caches subagent tools per agent_id to avoid redundant DB queries.
-- `ModelRetryMiddleware` / `ToolRetryMiddleware` — retry logic for model and tool failures
-- `ModelFallbackMiddleware` — fallback to default model on failures
-
-**Tools** (`src/tools/`):
-- `rag_tool.py` — LanceDB-backed RAG search. Each agent/KB gets its own LanceDB table. Uses async-native LanceDB API + OpenAI embeddings. Supports `ingest_documents_async` and `delete_documents_async`.
-- `fetch_tool.py` — URL fetching
-- `skill_tool.py` — `read_skill` tool to load custom skill content from DB (always available, even when filtered)
-- `mcp_tools.py` — Dynamic MCP (Model Context Protocol) tool integration via `src/utils/mcp.py` McpPoolManager
-- `link_check_tools.py`, `pricing_tools.py` — docs-agent-specific tools
-- `redis.py` — In-memory cache with TTL (RedisCache class, despite the name)
-
-**Database**: SQLAlchemy ORM in `src/utils/db.py`. Uses PostgreSQL (via `DATABASE_URL`) in production, falls back to local SQLite (`chat_langchain.db`) for development. Tables: `agent_profiles`, `knowledge_bases`, `skills`, `mcp_servers`, `users`, `client_profiles`. Schema migrations are done via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` in the FastAPI lifespan handler (not a migration tool).
-
-**Voice Proxy** (`src/api/voice_proxy.py`): WebSocket endpoints `/ws/voice/asr` and `/ws/voice/tts` that proxy to DashScope Realtime API. `DASHSCOPE_API_KEY` stays server-side.
-
-### Frontend (Next.js)
-
-Next.js 16 + React 19 in `frontend/`. Uses Tailwind CSS v4 + Radix UI (shadcn/ui pattern in `components/ui/`). Turbopack enabled via `next.config.ts`.
-
-- `app/` — Next.js App Router (single-page chat UI)
-- `components/chat/` — Chat interface, message rendering, input
-- `components/layout/` — Sidebar, header, agent profiles dialog, management dashboard, auth dialog, user profile
-- `components/providers/` — React context providers
-- `lib/api/` — API client code (LangGraph SDK wrapper, LangSmith client)
-- `lib/hooks/` — Custom React hooks organized by domain: `agents/`, `auth/`, `chat/`, `files/`, `threads/`
-- `lib/i18n/` — Internationalization
-- `lib/types/` — TypeScript type definitions
-- `lib/config/`, `lib/constants/` — App configuration and constants
-
-Communicates with the backend via the LangGraph SDK (`@langchain/langgraph-sdk`) for streaming agent responses and the FastAPI REST API for CRUD operations.
-
-### Auth
-
-`src/api/auth.py` implements LangGraph's auth framework. Optional `LANGGRAPH_AUTH_SECRET` env var gates access via `X-Auth-Key` header. User identity comes from `Authorization: Bearer <user_id>`. LangGraph Studio users are detected automatically and bypass restrictions. The FastAPI sidecar has its own user auth system (`/api/auth/register`, `/api/auth/login`) with PBKDF2 password hashing.
-
-## Environment Variables
-
-See `.env.example` for the full list. Key points:
-- `NEXT_PUBLIC_OPENAI_BASE_URL`, `NEXT_PUBLIC_OPENAI_API_KEY` — backend-only. The FastAPI sidecar proxies `/api/models` so the API key never reaches the browser. Supports any OpenAI-compatible endpoint (OpenAI, Ollama, OpenRouter, vLLM, DashScope).
-- `NEXT_PUBLIC_OPENAI_DEFAULT_MODEL` — used by both frontend (fallback) and backend.
-- `DATABASE_URL` — PostgreSQL connection string. Falls back to SQLite if unset.
-- `LANCEDB_PATH` — Where LanceDB vector stores live (default `/tmp/lancedb_agents`).
-- `OPENAI_EMBEDDING_MODEL` — Embedding model name (default `text-embedding-v4`, 1024 dims).
-- `LANGSMITH_API_KEY` / `LANGSMITH_PROJECT` — Tracing via LangSmith. Use `CHAT_LANGCHAIN_LANGSMITH_API_KEY` on LangGraph Cloud to avoid reserved name conflicts.
-- `DASHSCOPE_API_KEY` — Required for voice features (ASR/TTS WebSocket proxy).
-- `OPENAI_GUARDRAILS_MODEL` — Optional separate model for guardrails (defaults to main model).
+## 区分
+主界面是 根目录，agentapp 是 /agentapp 的目录下的应用
