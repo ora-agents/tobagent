@@ -6,6 +6,7 @@
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
 	desktop desktop-backend desktop-frontend desktop-tauri \
+	dev-desktop dev-tauri \
 	update-assets refresh-assets \
 	lint-actions \
 	test-agent-sdk
@@ -121,6 +122,22 @@ dev: dev-infra stop-ports
 # Frontend only (connects to the configured Aegra/LangGraph API)
 dev-frontend: check-frontend-port
 	$(call run_frontend,dev -- -H $(FRONTEND_HOST) -p $(FRONTEND_PORT))
+
+# Tauri desktop dev: backend + Next.js + Tauri desktop window (all-in-one)
+dev-desktop: dev-infra stop-ports
+	@cleanup() { trap - INT TERM EXIT; if [ -n "$$pids" ]; then kill $$pids 2>/dev/null || true; wait $$pids 2>/dev/null || true; fi; }; \
+	pids=""; \
+	trap cleanup INT TERM EXIT; \
+	$(MAKE) dev-backend & pids="$$pids $$!"; \
+	$(call run_frontend_local) & pids="$$pids $$!"; \
+	until curl -sf -o /dev/null http://localhost:$(FRONTEND_PORT) 2>/dev/null; do sleep 1; done; \
+	cd frontend && bun run tauri:dev:attach & pids="$$pids $$!"; \
+	wait $$pids
+
+# Tauri-only dev — expects `make dev` already running in another terminal.
+# Skips beforeDevCommand so Tauri attaches to the existing Next.js on port 3000.
+dev-tauri:
+	cd frontend && bun run tauri:dev:attach
 
 # Frontend pointing to local backend
 dev-local: dev-infra check-ports
