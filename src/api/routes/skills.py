@@ -6,16 +6,18 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
-from src.api.schemas import SkillSchema
+from src.api.schemas import SkillSchema, WorkspaceChangeRequestSchema
 from src.api.services import (
     _invalidate_runtime_caches,
     _remove_agent_profile_links,
     _skill_schema,
+    _workspace_change_request_schema,
 )
 from src.api.workspace_utils import (
+    MANAGER_ROLES,
+    create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
-    require_workspace_manager,
 )
 from src.utils.db import SkillTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
@@ -53,7 +55,7 @@ async def get_skills(
 
 @router.post(
     "/api/skills",
-    response_model=SkillSchema,
+    response_model=SkillSchema | WorkspaceChangeRequestSchema,
     summary="Create a skill",
     description="Creates one prompt-based skill for the authenticated user.",
 )
@@ -63,8 +65,19 @@ async def create_skill(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="skill",
+            target_id=skill_data.id,
+            action="create",
+            payload=skill_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     existing = db.query(SkillTable).filter(SkillTable.id == skill_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Skill already exists")
@@ -97,7 +110,7 @@ async def create_skill(
 
 @router.put(
     "/api/skills/{id}",
-    response_model=SkillSchema,
+    response_model=SkillSchema | WorkspaceChangeRequestSchema,
     summary="Update a skill",
     description="Updates one owned prompt-based skill and invalidates runtime caches.",
 )
@@ -108,8 +121,19 @@ async def update_skill(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="skill",
+            target_id=id,
+            action="update",
+            payload=skill_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     skill = db.query(SkillTable).filter(
         SkillTable.id == id,
         SkillTable.owner_user_id == owner_user_id,
@@ -150,8 +174,19 @@ async def delete_skill(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="skill",
+            target_id=id,
+            action="delete",
+            payload={},
+        )
+        return _workspace_change_request_schema(db, change)
     skill = db.query(SkillTable).filter(
         SkillTable.id == id,
         SkillTable.owner_user_id == owner_user_id,

@@ -9,14 +9,21 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
-from src.api.schemas import AgentRAGStatusResponse, KnowledgeBaseSchema
+from src.api.schemas import (
+    AgentRAGStatusResponse,
+    KnowledgeBaseSchema,
+    WorkspaceChangeRequestSchema,
+)
 from src.api.services import (
     _invalidate_runtime_caches,
     _kb_schema,
     _remove_agent_profile_links,
     _schema_files,
+    _workspace_change_request_schema,
 )
 from src.api.workspace_utils import (
+    MANAGER_ROLES,
+    create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
     require_workspace_manager,
@@ -59,7 +66,7 @@ async def get_knowledge_bases(
 
 @router.post(
     "/api/knowledge-bases",
-    response_model=KnowledgeBaseSchema,
+    response_model=KnowledgeBaseSchema | WorkspaceChangeRequestSchema,
     summary="Create a knowledge base",
     description="Creates knowledge base metadata for later document upload and RAG retrieval.",
 )
@@ -69,8 +76,19 @@ async def create_knowledge_base(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="knowledge_base",
+            target_id=kb_data.id,
+            action="create",
+            payload=kb_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     existing = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Knowledge Base already exists")
@@ -97,7 +115,7 @@ async def create_knowledge_base(
 
 @router.put(
     "/api/knowledge-bases/{id}",
-    response_model=KnowledgeBaseSchema,
+    response_model=KnowledgeBaseSchema | WorkspaceChangeRequestSchema,
     summary="Update a knowledge base",
     description="Updates metadata and file metadata for an owned knowledge base.",
 )
@@ -108,8 +126,19 @@ async def update_knowledge_base(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="knowledge_base",
+            target_id=id,
+            action="update",
+            payload=kb_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == id,
         KnowledgeBaseTable.owner_user_id == owner_user_id,
@@ -142,8 +171,19 @@ async def delete_knowledge_base(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="knowledge_base",
+            target_id=id,
+            action="delete",
+            payload={},
+        )
+        return _workspace_change_request_schema(db, change)
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == id,
         KnowledgeBaseTable.owner_user_id == owner_user_id,

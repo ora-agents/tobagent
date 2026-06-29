@@ -22,6 +22,7 @@ from src.api.schemas import (
     AgentShareLinkRequest,
     AgentShareLinkSchema,
     AgentSharePreview,
+    WorkspaceChangeRequestSchema,
 )
 from src.api.services import (
     _agent_profile_schema,
@@ -34,10 +35,13 @@ from src.api.services import (
     _share_link_schema,
     _share_options_from_row,
     _validate_agent_profile_links,
+    _workspace_change_request_schema,
     agent_profiles_to_toml,
     parse_agent_config_toml,
 )
 from src.api.workspace_utils import (
+    MANAGER_ROLES,
+    create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
     require_workspace_manager,
@@ -179,7 +183,7 @@ async def get_agent_profiles(
 
 @router.post(
     "/api/agent-profiles",
-    response_model=AgentProfileSchema,
+    response_model=AgentProfileSchema | WorkspaceChangeRequestSchema,
     summary="Create an agent profile",
     description=(
         "Creates a custom agent profile, including prompt, model, enabled tools, linked "
@@ -200,8 +204,19 @@ async def create_agent_profile(
     if (profile_data.graphId or "").strip() == DEFAULT_AGENT_GRAPH_ID or is_default_agent_profile_id(profile_data.id):
         raise HTTPException(status_code=403, detail="System agent profiles cannot be created by users")
 
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="agent_profile",
+            target_id=profile_data.id,
+            action="create",
+            payload=profile_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
 
     existing = db.query(AgentProfileTable).filter(AgentProfileTable.id == profile_data.id).first()
     if existing:
@@ -249,7 +264,7 @@ async def create_agent_profile(
 
 @router.put(
     "/api/agent-profiles/{id}",
-    response_model=AgentProfileSchema,
+    response_model=AgentProfileSchema | WorkspaceChangeRequestSchema,
     summary="Update an agent profile",
     description="Updates an owned agent profile and records a profile version snapshot.",
 )
@@ -260,8 +275,19 @@ async def update_agent_profile(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="agent_profile",
+            target_id=id,
+            action="update",
+            payload=profile_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
@@ -354,8 +380,19 @@ async def restore_agent_profile_version(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="agent_profile",
+            target_id=id,
+            action="delete",
+            payload={},
+        )
+        return _workspace_change_request_schema(db, change)
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,

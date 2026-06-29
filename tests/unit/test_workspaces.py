@@ -103,7 +103,30 @@ def test_default_workspace_is_created_for_user(client):
     assert workspaces[0]["currentUserRole"] == "owner"
 
 
-def test_member_can_read_but_cannot_directly_modify_workspace_resources(client):
+def _form_payload(form_id: str = "form-1") -> dict:
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    return {
+        "id": form_id,
+        "name": "Orders",
+        "description": "",
+        "category": "",
+        "fields": [
+            {
+                "id": "customer",
+                "label": "Customer",
+                "type": "text",
+                "required": False,
+                "options": [],
+            }
+        ],
+        "hooks": [],
+        "recordCount": 0,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+
+
+def test_member_can_read_and_submits_workspace_resource_changes_for_approval(client):
     created = client.post(
         "/api/workspaces",
         headers=_auth("user-owner"),
@@ -122,7 +145,9 @@ def test_member_can_read_but_cannot_directly_modify_workspace_resources(client):
         headers=_auth("user-member", workspace_id),
         json=_agent_payload(),
     )
-    assert write_response.status_code == 403
+    assert write_response.status_code == 200
+    assert write_response.json()["status"] == "pending"
+    assert write_response.json()["targetType"] == "agent_profile"
 
     read_response = client.get(
         "/api/agent-profiles",
@@ -207,6 +232,59 @@ def test_workspace_member_role_change_request_is_applied_by_owner(client):
     ).json()
     member = next(item for item in members if item["userId"] == "user-member")
     assert member["role"] == "admin"
+
+
+def test_member_form_record_change_request_is_applied_by_owner(client):
+    created = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "Team"},
+    )
+    workspace_id = created.json()["id"]
+    client.post(
+        f"/api/workspaces/{workspace_id}/members",
+        headers=_auth("user-owner"),
+        json={"username": "member", "role": "member"},
+    )
+    form = client.post(
+        "/api/forms",
+        headers=_auth("user-owner", workspace_id),
+        json=_form_payload(),
+    )
+    assert form.status_code == 200
+
+    change = client.post(
+        "/api/forms/form-1/records",
+        headers=_auth("user-member", workspace_id),
+        json={
+            "id": "record-1",
+            "data": {"customer": "Acme"},
+        },
+    )
+    assert change.status_code == 200
+    assert change.json()["status"] == "pending"
+    assert change.json()["targetType"] == "form_record"
+
+    listed_before = client.get(
+        "/api/forms/form-1/records",
+        headers=_auth("user-owner", workspace_id),
+    )
+    assert listed_before.json()["total"] == 0
+
+    approved = client.post(
+        f"/api/workspaces/{workspace_id}/change-requests/{change.json()['id']}/approve",
+        headers=_auth("user-owner", workspace_id),
+        json={"note": "ok"},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "applied"
+
+    listed_after = client.get(
+        "/api/forms/form-1/records",
+        headers=_auth("user-member", workspace_id),
+    )
+    assert listed_after.json()["total"] == 1
+    assert listed_after.json()["records"][0]["data"] == {"customer": "Acme"}
 
 
 def test_platform_agent_is_scoped_to_active_workspace(client):

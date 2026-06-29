@@ -6,16 +6,18 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
-from src.api.schemas import McpServerSchema
+from src.api.schemas import McpServerSchema, WorkspaceChangeRequestSchema
 from src.api.services import (
     _invalidate_runtime_caches,
     _mcp_schema,
     _remove_agent_profile_links,
+    _workspace_change_request_schema,
 )
 from src.api.workspace_utils import (
+    MANAGER_ROLES,
+    create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
-    require_workspace_manager,
 )
 from src.utils.db import McpServerTable, UserTable, get_db
 
@@ -48,7 +50,7 @@ async def get_mcp_servers(
 
 @router.post(
     "/api/mcp-servers",
-    response_model=McpServerSchema,
+    response_model=McpServerSchema | WorkspaceChangeRequestSchema,
     summary="Create an MCP server",
     description="Creates a streamable HTTP MCP server configuration and clears MCP runtime caches.",
 )
@@ -58,8 +60,19 @@ async def create_mcp_server(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="mcp_server",
+            target_id=server_data.id,
+            action="create",
+            payload=server_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     # Check duplicate
     existing = db.query(McpServerTable).filter(McpServerTable.id == server_data.id).first()
     if existing:
@@ -98,7 +111,7 @@ async def create_mcp_server(
 
 @router.put(
     "/api/mcp-servers/{id}",
-    response_model=McpServerSchema,
+    response_model=McpServerSchema | WorkspaceChangeRequestSchema,
     summary="Update an MCP server",
     description="Updates one owned MCP server configuration and clears MCP runtime caches.",
 )
@@ -109,8 +122,19 @@ async def update_mcp_server(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="mcp_server",
+            target_id=id,
+            action="update",
+            payload=server_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     server = db.query(McpServerTable).filter(
         McpServerTable.id == id,
         McpServerTable.owner_user_id == owner_user_id,
@@ -179,8 +203,19 @@ async def delete_mcp_server(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="mcp_server",
+            target_id=id,
+            action="delete",
+            payload={},
+        )
+        return _workspace_change_request_schema(db, change)
     server = db.query(McpServerTable).filter(
         McpServerTable.id == id,
         McpServerTable.owner_user_id == owner_user_id,

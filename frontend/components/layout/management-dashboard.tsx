@@ -147,6 +147,12 @@ type AgentLinkedResourceCreateContext = {
   agentId: string | null
 }
 
+type PendingChangeResponse = {
+  status: "pending"
+  targetType: string
+  id: string
+}
+
 const UNCATEGORIZED_SKILL_CATEGORY = "__uncategorized__"
 const UNCATEGORIZED_FORM_CATEGORY = "__uncategorized_form__"
 
@@ -159,6 +165,15 @@ function getSkillTemplateForCategory(category: string) {
   return DEFAULT_SKILL_TEMPLATE.replace(
     /(\n\s*category:\s*)[^\n]*/,
     `$1${category.trim()}`
+  )
+}
+
+function isPendingChangeResponse(value: unknown): value is PendingChangeResponse {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    (value as { status?: unknown }).status === "pending" &&
+    typeof (value as { targetType?: unknown }).targetType === "string"
   )
 }
 
@@ -391,6 +406,20 @@ export function ManagementDashboard({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
   const activeEditingAgentId = selectedAgentId
+
+  const handlePendingChangeResponse = useCallback(() => {
+    window.alert(locale === "zh" ? "已提交审批，审批通过后生效。" : "Submitted for approval. Changes apply after approval.")
+    setIsEditingSkill(false)
+    setIsCreatingSkill(false)
+    setIsEditingKB(false)
+    setIsCreatingKB(false)
+    setIsEditingForm(false)
+    setIsCreatingForm(false)
+    setIsEditingMcp(false)
+    setIsCreatingMcp(false)
+    setDeleteConfirmId(null)
+    onCreateChange?.(false)
+  }, [locale, onCreateChange])
 
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
@@ -700,6 +729,10 @@ export function ManagementDashboard({
         })
         if (resp.ok) {
           const saved = await resp.json()
+          if (isPendingChangeResponse(saved)) {
+            handlePendingChangeResponse()
+            return
+          }
           setSkills(prev => [...prev, saved])
           setSelectedSkillId(saved.id)
           setIsCreatingSkill(false)
@@ -740,6 +773,10 @@ export function ManagementDashboard({
         })
         if (resp.ok) {
           const saved = await resp.json()
+          if (isPendingChangeResponse(saved)) {
+            handlePendingChangeResponse()
+            return
+          }
           setSkills(prev => prev.map(sk => sk.id === selectedSkillId ? saved : sk))
           setIsEditingSkill(false)
         } else {
@@ -767,6 +804,11 @@ export function ManagementDashboard({
         headers: authHeaders,
       })
       if (resp.ok) {
+        const saved = await resp.json().catch(() => null)
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setSkills(prev => {
           const updated = prev.filter(sk => sk.id !== id)
           if (updated.length > 0) {
@@ -1197,6 +1239,10 @@ export function ManagementDashboard({
         })
         if (!resp.ok) throw new Error((await resp.json()).detail || t.mcpDiscoveryFailed)
         const saved = await resp.json()
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setMcpServers(prev => [...prev, saved])
         setSelectedMcpId(saved.id)
         setIsCreatingMcp(false)
@@ -1221,6 +1267,10 @@ export function ManagementDashboard({
         })
         if (!resp.ok) throw new Error((await resp.json()).detail || t.mcpDiscoveryFailed)
         const saved = await resp.json()
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setMcpServers(prev => prev.map(m => m.id === selectedMcpId ? saved : m))
         setIsEditingMcp(false)
       }
@@ -1240,6 +1290,11 @@ export function ManagementDashboard({
         headers: authHeaders,
       })
       if (resp.ok) {
+        const saved = await resp.json().catch(() => null)
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setMcpServers(prev => {
           const updated = prev.filter(m => m.id !== id)
           if (updated.length > 0) {
@@ -1307,6 +1362,10 @@ export function ManagementDashboard({
         })
         if (resp.ok) {
           const saved = await resp.json()
+          if (isPendingChangeResponse(saved)) {
+            handlePendingChangeResponse()
+            return
+          }
           setKnowledgeBases(prev => [...prev, saved])
           setSelectedKBId(saved.id)
           setIsCreatingKB(false)
@@ -1333,6 +1392,10 @@ export function ManagementDashboard({
         })
         if (resp.ok) {
           const saved = await resp.json()
+          if (isPendingChangeResponse(saved)) {
+            handlePendingChangeResponse()
+            return
+          }
           setKnowledgeBases(prev => prev.map(kb => kb.id === selectedKBId ? saved : kb))
           setIsEditingKB(false)
         }
@@ -1352,6 +1415,11 @@ export function ManagementDashboard({
         headers: authHeaders,
       })
       if (resp.ok) {
+        const saved = await resp.json().catch(() => null)
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setKnowledgeBases(prev => {
           const updated = prev.filter(kb => kb.id !== id)
           if (updated.length > 0) {
@@ -1619,6 +1687,10 @@ export function ManagementDashboard({
       })
       if (resp.ok) {
         const saved = await resp.json()
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setForms(prev => [...prev, saved])
         setSelectedFormId(saved.id)
         setIsCreatingForm(false)
@@ -1645,6 +1717,10 @@ export function ManagementDashboard({
       })
       if (resp.ok) {
         const saved = await resp.json()
+        if (isPendingChangeResponse(saved)) {
+          handlePendingChangeResponse()
+          return
+        }
         setForms(prev => prev.map(form => form.id === selectedFormId ? saved : form))
         setIsEditingForm(false)
       }
@@ -1655,6 +1731,11 @@ export function ManagementDashboard({
     if (!LANGGRAPH_API_URL || !authHeaders) return
     const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${id}`, { method: "DELETE", headers: authHeaders })
     if (resp.ok) {
+      const saved = await resp.json().catch(() => null)
+      if (isPendingChangeResponse(saved)) {
+        handlePendingChangeResponse()
+        return
+      }
       setForms(prev => {
         const updated = prev.filter(form => form.id !== id)
         setSelectedFormId(updated[0]?.id || null)
@@ -1741,6 +1822,15 @@ export function ManagementDashboard({
     )
     if (resp.ok) {
       const saved = await resp.json()
+      if (isPendingChangeResponse(saved)) {
+        handlePendingChangeResponse()
+        setDirtyFormRecordIds(prev => {
+          const next = new Set(prev)
+          next.delete(record.id)
+          return next
+        })
+        return true
+      }
       setFormRecords(prev => prev.map(item => item.id === record.id ? saved : item))
       setDirtyFormRecordIds(prev => {
         const next = new Set(prev)
@@ -1783,6 +1873,11 @@ export function ManagementDashboard({
       headers: authHeaders,
     })
     if (resp.ok) {
+      const saved = await resp.json().catch(() => null)
+      if (isPendingChangeResponse(saved)) {
+        handlePendingChangeResponse()
+        return
+      }
       setFormRecords(prev => prev.filter(record => record.id !== recordId))
       setDirtyFormRecordIds(prev => {
         const next = new Set(prev)

@@ -21,6 +21,7 @@ from src.api.schemas import (
     KnowledgeBaseSchema,
     McpServerSchema,
     SkillSchema,
+    WorkspaceChangeRequestSchema,
 )
 from src.utils.db import (
     AgentProfileTable,
@@ -31,7 +32,9 @@ from src.utils.db import (
     KnowledgeBaseTable,
     McpServerTable,
     SkillTable,
+    UserTable,
     UserVoiceprintTable,
+    WorkspaceChangeRequestTable,
 )
 from src.utils.form_permissions import normalize_form_permissions
 
@@ -198,6 +201,28 @@ def _share_link_schema(share: AgentShareLinkTable) -> AgentShareLinkSchema:
         include=_share_options_from_row(share),
         createdAt=share.created_at,
         updatedAt=share.updated_at,
+    )
+
+
+def _workspace_change_request_schema(
+    db: Session,
+    change: WorkspaceChangeRequestTable,
+) -> WorkspaceChangeRequestSchema:
+    requester = db.query(UserTable).filter(UserTable.id == change.requester_user_id).first()
+    return WorkspaceChangeRequestSchema(
+        id=change.id,
+        workspaceId=change.workspace_id,
+        requesterUserId=change.requester_user_id,
+        requesterUsername=requester.username if requester else None,
+        targetType=change.target_type,
+        targetId=change.target_id,
+        action=change.action,
+        payload=change.payload or {},
+        status=change.status,
+        reviewerUserId=change.reviewer_user_id,
+        reviewNote=change.review_note,
+        createdAt=change.created_at,
+        reviewedAt=change.reviewed_at,
     )
 
 

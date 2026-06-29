@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from src.api.deps import get_current_user
 from src.api.schemas import (
     AgentProfileSchema,
+    FormRecordWriteSchema,
+    FormSchema,
     KnowledgeBaseSchema,
     McpServerSchema,
     SkillSchema,
@@ -31,6 +33,7 @@ from src.api.services import (
 )
 from src.api.workspace_utils import (
     MANAGER_ROLES,
+    create_workspace_change_request_row,
     ensure_default_workspace,
     get_active_workspace,
     require_workspace_manager,
@@ -38,6 +41,8 @@ from src.api.workspace_utils import (
 )
 from src.utils.db import (
     AgentProfileTable,
+    FormRecordTable,
+    FormTable,
     KnowledgeBaseTable,
     McpServerTable,
     SkillTable,
@@ -47,7 +52,9 @@ from src.utils.db import (
     WorkspaceTable,
     get_db,
 )
+from src.utils.form_hooks import trigger_form_hooks
 from src.utils.form_permissions import normalize_form_permissions
+from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
 
@@ -172,17 +179,32 @@ async def get_workspace(
     return _workspace_schema(workspace, member)
 
 
-@router.patch("/{workspace_id}", response_model=WorkspaceSchema, summary="Update a workspace")
+@router.patch(
+    "/{workspace_id}",
+    response_model=WorkspaceSchema | WorkspaceChangeRequestSchema,
+    summary="Update a workspace",
+)
 async def update_workspace(
     workspace_id: str,
     request: WorkspaceUpdateRequest,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     name = request.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Workspace name is required")
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="workspace",
+            target_id=workspace.id,
+            action="update",
+            payload=request.model_dump(mode="json"),
+        )
+        return _change_request_schema(db, change)
     workspace.name = name
     workspace.updated_at = utc_now()
     db.commit()
@@ -318,22 +340,30 @@ async def create_workspace_change_request(
     current_user: UserTable = Depends(get_current_user),
 ):
     get_active_workspace(db, current_user, workspace_id)
-    now = utc_now()
-    change = WorkspaceChangeRequestTable(
-        id=f"workspace-change-{uuid.uuid4()}",
+    change = create_workspace_change_request_row(
+        db,
         workspace_id=workspace_id,
         requester_user_id=current_user.id,
         target_type=request.targetType,
         target_id=request.targetId,
         action=request.action,
         payload=request.payload,
-        status="pending",
-        created_at=now,
     )
-    db.add(change)
-    db.commit()
-    db.refresh(change)
     return _change_request_schema(db, change)
+
+
+def _apply_workspace_change(
+    workspace: WorkspaceTable,
+    change: WorkspaceChangeRequestTable,
+    now: str,
+) -> None:
+    if change.action != "update":
+        raise HTTPException(status_code=400, detail="Workspace changes only support update")
+    name = str(change.payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Workspace name is required")
+    workspace.name = name
+    workspace.updated_at = now
 
 
 def _apply_agent_profile_change(
@@ -419,6 +449,14 @@ def _apply_skill_change(
         _invalidate_runtime_caches(owner_user_id=workspace.owner_user_id)
         return
     data = SkillSchema.model_validate(change.payload)
+    try:
+        skill_name, skill_description = skill_identity_from_content(
+            data.content,
+            fallback_name=data.name,
+            fallback_description=data.description or "",
+        )
+    except SkillValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     skill = db.query(SkillTable).filter(
         SkillTable.id == data.id,
         or_(SkillTable.workspace_id == workspace.id, SkillTable.owner_user_id == workspace.owner_user_id),
@@ -432,11 +470,124 @@ def _apply_skill_change(
         db.add(skill)
     skill.owner_user_id = workspace.owner_user_id
     skill.workspace_id = workspace.id
-    skill.name = data.name
-    skill.description = data.description
+    skill.name = skill_name
+    skill.description = skill_description
     skill.content = data.content
     skill.updated_at = now
     _invalidate_runtime_caches(owner_user_id=workspace.owner_user_id)
+
+
+def _apply_form_change(
+    db: Session,
+    workspace: WorkspaceTable,
+    change: WorkspaceChangeRequestTable,
+    now: str,
+) -> None:
+    if change.action == "delete":
+        if not change.target_id:
+            raise HTTPException(status_code=400, detail="targetId is required")
+        form = db.query(FormTable).filter(
+            FormTable.id == change.target_id,
+            FormTable.owner_user_id == workspace.owner_user_id,
+            FormTable.workspace_id == workspace.id,
+        ).first()
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        _remove_agent_profile_links(db, workspace.owner_user_id, "form_ids", [change.target_id])
+        db.query(FormRecordTable).filter(
+            FormRecordTable.form_id == change.target_id,
+            FormRecordTable.owner_user_id == workspace.owner_user_id,
+        ).delete()
+        db.delete(form)
+        _invalidate_runtime_caches(owner_user_id=workspace.owner_user_id)
+        return
+
+    data = FormSchema.model_validate(change.payload)
+    form = db.query(FormTable).filter(
+        FormTable.id == data.id,
+        FormTable.owner_user_id == workspace.owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+    ).first()
+    if change.action == "create" and form:
+        raise HTTPException(status_code=400, detail="Form already exists")
+    if change.action == "update" and not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+    if not form:
+        form = FormTable(id=data.id, created_at=data.createdAt)
+        db.add(form)
+    form.owner_user_id = workspace.owner_user_id
+    form.workspace_id = workspace.id
+    form.name = data.name
+    form.description = data.description
+    form.category = data.category.strip()
+    form.fields = [field.model_dump(mode="json") for field in data.fields]
+    form.hooks = [hook.model_dump(mode="json") for hook in data.hooks]
+    form.updated_at = now
+    _invalidate_runtime_caches(owner_user_id=workspace.owner_user_id)
+
+
+async def _apply_form_record_change(
+    db: Session,
+    workspace: WorkspaceTable,
+    change: WorkspaceChangeRequestTable,
+    now: str,
+) -> None:
+    form_id = change.payload.get("formId") or change.payload.get("form_id")
+    if not isinstance(form_id, str) or not form_id.strip():
+        raise HTTPException(status_code=400, detail="formId is required")
+    form = db.query(FormTable).filter(
+        FormTable.id == form_id,
+        FormTable.owner_user_id == workspace.owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+    ).first()
+    if not form:
+        raise HTTPException(status_code=404, detail="Form not found")
+
+    if change.action == "delete":
+        record_id = change.target_id or change.payload.get("id")
+        if not isinstance(record_id, str) or not record_id.strip():
+            raise HTTPException(status_code=400, detail="targetId is required")
+        record = db.query(FormRecordTable).filter(
+            FormRecordTable.id == record_id,
+            FormRecordTable.form_id == form_id,
+            FormRecordTable.owner_user_id == workspace.owner_user_id,
+        ).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Form record not found")
+        db.delete(record)
+        return
+
+    data = FormRecordWriteSchema.model_validate(change.payload)
+    record_id = data.id or change.target_id or f"record-{uuid.uuid4()}"
+    record = db.query(FormRecordTable).filter(
+        FormRecordTable.id == record_id,
+        FormRecordTable.form_id == form_id,
+        FormRecordTable.owner_user_id == workspace.owner_user_id,
+    ).first()
+    if change.action == "create" and record:
+        raise HTTPException(status_code=400, detail="Form record already exists")
+    if change.action == "update" and not record:
+        raise HTTPException(status_code=404, detail="Form record not found")
+
+    old_data = dict(record.data or {}) if record else {}
+    new_data = data.data or {}
+    if not record:
+        record = FormRecordTable(
+            id=record_id,
+            form_id=form_id,
+            owner_user_id=workspace.owner_user_id,
+            workspace_id=workspace.id,
+            data=new_data,
+            created_at=data.createdAt or now,
+            updated_at=data.updatedAt or now,
+        )
+        db.add(record)
+        db.flush()
+    else:
+        record.workspace_id = workspace.id
+        record.data = new_data
+        record.updated_at = data.updatedAt or now
+    await trigger_form_hooks(form, record, old_data, new_data)
 
 
 def _apply_simple_metadata_change(
@@ -532,19 +683,25 @@ def _apply_workspace_member_change(
     member.updated_at = now
 
 
-def _apply_change_request(
+async def _apply_change_request(
     db: Session,
     workspace: WorkspaceTable,
     reviewer: WorkspaceMemberTable,
     change: WorkspaceChangeRequestTable,
     now: str,
 ) -> None:
-    if change.target_type == "agent_profile":
+    if change.target_type == "workspace":
+        _apply_workspace_change(workspace, change, now)
+    elif change.target_type == "agent_profile":
         _apply_agent_profile_change(db, workspace, change, now)
     elif change.target_type == "skill":
         _apply_skill_change(db, workspace, change, now)
     elif change.target_type in {"knowledge_base", "mcp_server"}:
         _apply_simple_metadata_change(db, workspace, change, now)
+    elif change.target_type == "form":
+        _apply_form_change(db, workspace, change, now)
+    elif change.target_type == "form_record":
+        await _apply_form_record_change(db, workspace, change, now)
     elif change.target_type == "workspace_member":
         _apply_workspace_member_change(db, workspace, reviewer, change, now)
     else:
@@ -569,7 +726,7 @@ async def approve_workspace_change_request(
     if change.status != "pending":
         raise HTTPException(status_code=400, detail="Change request is already reviewed")
     now = utc_now()
-    _apply_change_request(db, workspace, reviewer, change, now)
+    await _apply_change_request(db, workspace, reviewer, change, now)
     change.status = "applied"
     change.reviewer_user_id = current_user.id
     change.review_note = review.note

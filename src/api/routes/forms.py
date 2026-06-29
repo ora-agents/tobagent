@@ -14,16 +14,19 @@ from src.api.schemas import (
     FormRecordSchema,
     FormRecordWriteSchema,
     FormSchema,
+    WorkspaceChangeRequestSchema,
 )
 from src.api.services import (
     _form_record_schema,
     _form_schema,
     _remove_agent_profile_links,
+    _workspace_change_request_schema,
 )
 from src.api.workspace_utils import (
+    MANAGER_ROLES,
+    create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
-    require_workspace_manager,
 )
 from src.utils.db import FormRecordTable, FormTable, UserTable, get_db
 from src.utils.form_hooks import trigger_form_hooks
@@ -149,15 +152,26 @@ async def get_form(
     return _form_schema(form, record_count)
 
 
-@router.post("/api/forms", response_model=FormSchema, summary="Create a form")
+@router.post("/api/forms", response_model=FormSchema | WorkspaceChangeRequestSchema, summary="Create a form")
 async def create_form(
     form_data: FormSchema,
     workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="form",
+            target_id=form_data.id,
+            action="create",
+            payload=form_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     if db.query(FormTable).filter(FormTable.id == form_data.id).first():
         raise HTTPException(status_code=400, detail="Form already exists")
     form = FormTable(
@@ -178,7 +192,7 @@ async def create_form(
     return _form_schema(form)
 
 
-@router.put("/api/forms/{id}", response_model=FormSchema, summary="Update a form")
+@router.put("/api/forms/{id}", response_model=FormSchema | WorkspaceChangeRequestSchema, summary="Update a form")
 async def update_form(
     id: str,
     form_data: FormSchema,
@@ -186,8 +200,19 @@ async def update_form(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="form",
+            target_id=id,
+            action="update",
+            payload=form_data.model_dump(mode="json"),
+        )
+        return _workspace_change_request_schema(db, change)
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
@@ -214,8 +239,19 @@ async def delete_form(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="form",
+            target_id=id,
+            action="delete",
+            payload={},
+        )
+        return _workspace_change_request_schema(db, change)
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
@@ -296,7 +332,7 @@ async def list_form_records(
 
 @router.post(
     "/api/forms/{id}/records",
-    response_model=FormRecordSchema,
+    response_model=FormRecordSchema | WorkspaceChangeRequestSchema,
     summary="Create a form record",
     description="Creates a record through a browser session or user API key. Only data is required.",
 )
@@ -307,7 +343,7 @@ async def create_form_record(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     form = db.query(FormTable).filter(
         FormTable.id == id,
@@ -316,6 +352,19 @@ async def create_form_record(
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
+    if member.role not in MANAGER_ROLES:
+        payload = record_data.model_dump(mode="json")
+        payload["formId"] = id
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="form_record",
+            target_id=record_data.id,
+            action="create",
+            payload=payload,
+        )
+        return _workspace_change_request_schema(db, change)
     now = _now()
     new_data = record_data.data or {}
     record = FormRecordTable(
@@ -336,7 +385,7 @@ async def create_form_record(
 
 @router.put(
     "/api/forms/{form_id}/records/{record_id}",
-    response_model=FormRecordSchema,
+    response_model=FormRecordSchema | WorkspaceChangeRequestSchema,
     summary="Update a form record",
     description="Replaces record data through a browser session or user API key.",
 )
@@ -348,7 +397,7 @@ async def update_form_record(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     record = db.query(FormRecordTable).filter(
         FormRecordTable.id == record_id,
@@ -364,6 +413,20 @@ async def update_form_record(
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
+    if member.role not in MANAGER_ROLES:
+        payload = record_data.model_dump(mode="json")
+        payload["id"] = record_id
+        payload["formId"] = form_id
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="form_record",
+            target_id=record_id,
+            action="update",
+            payload=payload,
+        )
+        return _workspace_change_request_schema(db, change)
     old_data = dict(record.data or {})
     new_data = record_data.data or {}
     record.data = new_data
@@ -382,7 +445,7 @@ async def delete_form_record(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     record = db.query(FormRecordTable).filter(
         FormRecordTable.id == record_id,
@@ -391,6 +454,17 @@ async def delete_form_record(
     ).first()
     if not record:
         raise HTTPException(status_code=404, detail="Form record not found")
+    if member.role not in MANAGER_ROLES:
+        change = create_workspace_change_request_row(
+            db,
+            workspace_id=workspace.id,
+            requester_user_id=current_user.id,
+            target_type="form_record",
+            target_id=record_id,
+            action="delete",
+            payload={"id": record_id, "formId": form_id},
+        )
+        return _workspace_change_request_schema(db, change)
     db.delete(record)
     db.commit()
     return {"status": "success", "message": f"Form record {record_id} deleted"}

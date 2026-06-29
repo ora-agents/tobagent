@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.utils.db import (
     UserTable,
+    WorkspaceChangeRequestTable,
     WorkspaceMemberTable,
     WorkspaceTable,
 )
@@ -116,3 +117,30 @@ def require_workspace_manager(
 ) -> tuple[WorkspaceTable, WorkspaceMemberTable]:
     """Require owner or admin permissions in a workspace."""
     return require_workspace_role(db, current_user, workspace_id, MANAGER_ROLES)
+
+
+def create_workspace_change_request_row(
+    db: Session,
+    workspace_id: str,
+    requester_user_id: str,
+    target_type: str,
+    target_id: str | None,
+    action: str,
+    payload: dict,
+) -> WorkspaceChangeRequestTable:
+    """Persist a pending workspace change request."""
+    change = WorkspaceChangeRequestTable(
+        id=f"workspace-change-{uuid.uuid4()}",
+        workspace_id=workspace_id,
+        requester_user_id=requester_user_id,
+        target_type=target_type,
+        target_id=target_id,
+        action=action,
+        payload=payload,
+        status="pending",
+        created_at=utc_now(),
+    )
+    db.add(change)
+    db.commit()
+    db.refresh(change)
+    return change

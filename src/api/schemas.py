@@ -62,11 +62,13 @@ WorkspaceRole = Literal["owner", "admin", "member"]
 WorkspaceChangeStatus = Literal["pending", "approved", "rejected", "applied"]
 WorkspaceChangeAction = Literal["create", "update", "delete"]
 WorkspaceTargetType = Literal[
+    "workspace",
     "agent_profile",
     "skill",
     "knowledge_base",
     "mcp_server",
     "form",
+    "form_record",
     "workspace_member",
 ]
 
