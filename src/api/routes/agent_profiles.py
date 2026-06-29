@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -35,6 +36,11 @@ from src.api.services import (
     _validate_agent_profile_links,
     agent_profiles_to_toml,
     parse_agent_config_toml,
+)
+from src.api.workspace_utils import (
+    get_active_workspace,
+    get_workspace_header,
+    require_workspace_manager,
 )
 from src.utils.db import (
     AgentProfileTable,
@@ -140,17 +146,24 @@ def _find_existing_agent_share_import(
     description="Lists all custom agent profiles owned by the authenticated user.",
 )
 async def get_agent_profiles(
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
     from src.utils.assets_import import ensure_default_agent_profile
 
-    ensure_default_skills(db, current_user.id)
-    ensure_default_agent_profile(db, current_user.id)
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    ensure_default_skills(db, owner_user_id)
+    ensure_default_agent_profile(db, owner_user_id)
     db.commit()
 
     profiles = db.query(AgentProfileTable).filter(
-        AgentProfileTable.owner_user_id == current_user.id
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).all()
     return [_agent_profile_schema(p) for p in profiles]
 
@@ -166,6 +179,7 @@ async def get_agent_profiles(
 )
 async def create_agent_profile(
     profile_data: AgentProfileSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -177,15 +191,18 @@ async def create_agent_profile(
     if (profile_data.graphId or "").strip() == DEFAULT_AGENT_GRAPH_ID or is_default_agent_profile_id(profile_data.id):
         raise HTTPException(status_code=403, detail="System agent profiles cannot be created by users")
 
-    # Check duplicate
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+
     existing = db.query(AgentProfileTable).filter(AgentProfileTable.id == profile_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Agent profile already exists")
-    _validate_agent_profile_links(db, profile_data, current_user.id, profile_data.id)
+    _validate_agent_profile_links(db, profile_data, owner_user_id, profile_data.id)
     
     new_profile = AgentProfileTable(
         id=profile_data.id,
-        owner_user_id=current_user.id,
+        owner_user_id=owner_user_id,
+        workspace_id=workspace.id,
         name=profile_data.name,
         description=profile_data.description,
         system_prompt=profile_data.systemPrompt,
@@ -217,7 +234,7 @@ async def create_agent_profile(
     _create_agent_profile_version(db, new_profile, profile_data.createdAt)
     db.commit()
     db.refresh(new_profile)
-    _invalidate_runtime_caches(new_profile.id, current_user.id)
+    _invalidate_runtime_caches(new_profile.id, owner_user_id)
     return _agent_profile_schema(new_profile)
 
 
@@ -230,19 +247,27 @@ async def create_agent_profile(
 async def update_agent_profile(
     id: str,
     profile_data: AgentProfileSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
     _reject_system_agent_profile(profile)
-    _validate_agent_profile_links(db, profile_data, current_user.id, id)
+    _validate_agent_profile_links(db, profile_data, owner_user_id, id)
 
     profile.name = profile_data.name
+    profile.workspace_id = workspace.id
     profile.description = profile_data.description
     profile.system_prompt = profile_data.systemPrompt
     profile.model = (profile_data.model or "").strip() or None
@@ -271,7 +296,7 @@ async def update_agent_profile(
     
     db.commit()
     db.refresh(profile)
-    _invalidate_runtime_caches(id, current_user.id)
+    _invalidate_runtime_caches(id, owner_user_id)
     return _agent_profile_schema(profile)
 
 
@@ -283,19 +308,26 @@ async def update_agent_profile(
 )
 async def get_agent_profile_versions(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
 
     versions = db.query(AgentProfileVersionTable).filter(
         AgentProfileVersionTable.agent_profile_id == id,
-        AgentProfileVersionTable.owner_user_id == current_user.id,
+        AgentProfileVersionTable.owner_user_id == owner_user_id,
     ).order_by(AgentProfileVersionTable.version.desc()).all()
     return [_agent_profile_version_schema(version) for version in versions]
 
@@ -309,12 +341,19 @@ async def get_agent_profile_versions(
 async def restore_agent_profile_version(
     id: str,
     version_id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -323,15 +362,16 @@ async def restore_agent_profile_version(
     version = db.query(AgentProfileVersionTable).filter(
         AgentProfileVersionTable.id == version_id,
         AgentProfileVersionTable.agent_profile_id == id,
-        AgentProfileVersionTable.owner_user_id == current_user.id,
+        AgentProfileVersionTable.owner_user_id == owner_user_id,
     ).first()
     if not version:
         raise HTTPException(status_code=404, detail="Agent profile version not found")
 
     restored = AgentProfileSchema.model_validate(version.snapshot)
-    _validate_agent_profile_links(db, restored, current_user.id, id)
+    _validate_agent_profile_links(db, restored, owner_user_id, id)
 
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    profile.workspace_id = workspace.id
     profile.name = restored.name
     profile.description = restored.description
     profile.system_prompt = restored.systemPrompt
@@ -361,7 +401,7 @@ async def restore_agent_profile_version(
 
     db.commit()
     db.refresh(profile)
-    _invalidate_runtime_caches(id, current_user.id)
+    _invalidate_runtime_caches(id, owner_user_id)
     return _agent_profile_schema(profile)
 
 
@@ -377,12 +417,19 @@ async def restore_agent_profile_version(
 async def create_agent_share_link(
     id: str,
     share_data: AgentShareLinkRequest,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -391,7 +438,7 @@ async def create_agent_share_link(
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     existing = db.query(AgentShareLinkTable).filter(
         AgentShareLinkTable.agent_profile_id == id,
-        AgentShareLinkTable.owner_user_id == current_user.id,
+        AgentShareLinkTable.owner_user_id == owner_user_id,
     ).first()
     include_options = share_data.include.model_dump(mode="json")
     if existing:
@@ -402,7 +449,7 @@ async def create_agent_share_link(
         share = AgentShareLinkTable(
             id=f"share-{uuid.uuid4()}",
             token=secrets.token_urlsafe(24),
-            owner_user_id=current_user.id,
+            owner_user_id=owner_user_id,
             agent_profile_id=id,
             include_options=include_options,
             created_at=now,
@@ -570,12 +617,19 @@ async def import_agent_share(
 )
 async def export_agent_profile_toml(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -583,13 +637,13 @@ async def export_agent_profile_toml(
     form_ids = list(profile.form_ids or [])
     forms = db.query(FormTable).filter(
         FormTable.id.in_(form_ids),
-        FormTable.owner_user_id == current_user.id,
+        FormTable.owner_user_id == owner_user_id,
     ).all() if form_ids else []
     records_by_form_id = {}
     for form in forms:
         records_by_form_id[form.id] = db.query(FormRecordTable).filter(
             FormRecordTable.form_id == form.id,
-            FormRecordTable.owner_user_id == current_user.id,
+            FormRecordTable.owner_user_id == owner_user_id,
         ).all()
 
     return PlainTextResponse(
@@ -611,9 +665,12 @@ async def export_agent_profile_toml(
 )
 async def import_agent_profiles_toml(
     import_data: AgentConfigTomlImportRequest,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     data = parse_agent_config_toml(import_data.toml)
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     id_map: dict[str, dict[str, str]] = {
@@ -641,7 +698,8 @@ async def import_agent_profiles_toml(
             })
         db.add(FormTable(
             id=target_id,
-            owner_user_id=current_user.id,
+            owner_user_id=owner_user_id,
+            workspace_id=workspace.id,
             name=str(raw_form.get("name") or source_id),
             description=str(raw_form.get("description") or ""),
             category=str(raw_form.get("category") or "").strip(),
@@ -664,7 +722,8 @@ async def import_agent_profiles_toml(
             db.add(FormRecordTable(
                 id=_new_resource_id("record"),
                 form_id=target_id,
-                owner_user_id=current_user.id,
+                owner_user_id=owner_user_id,
+                workspace_id=workspace.id,
                 data=record_data,
                 created_at=now,
                 updated_at=now,
@@ -702,7 +761,8 @@ async def import_agent_profiles_toml(
 
         profile = AgentProfileTable(
             id=target_id,
-            owner_user_id=current_user.id,
+            owner_user_id=owner_user_id,
+            workspace_id=workspace.id,
             name=str(raw_agent.get("name") or source_id),
             description=str(raw_agent.get("description") or ""),
             system_prompt=str(raw_agent.get("systemPrompt") or ""),
@@ -736,7 +796,7 @@ async def import_agent_profiles_toml(
     db.commit()
     for profile in imported_profiles:
         db.refresh(profile)
-        _invalidate_runtime_caches(profile.id, current_user.id)
+        _invalidate_runtime_caches(profile.id, owner_user_id)
 
     return AgentConfigTomlImportResponse(
         agents=[_agent_profile_schema(profile) for profile in imported_profiles],
@@ -752,22 +812,29 @@ async def import_agent_profiles_toml(
 )
 async def delete_agent_profile(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(
+            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_(None),
+        ),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
     _reject_system_agent_profile(profile)
-    _remove_agent_profile_links(db, current_user.id, "agent_ids", [id])
+    _remove_agent_profile_links(db, owner_user_id, "agent_ids", [id])
     db.query(AgentShareLinkTable).filter(
         AgentShareLinkTable.agent_profile_id == id,
-        AgentShareLinkTable.owner_user_id == current_user.id,
+        AgentShareLinkTable.owner_user_id == owner_user_id,
     ).delete()
     db.delete(profile)
     db.commit()
-    _invalidate_runtime_caches(id, current_user.id)
+    _invalidate_runtime_caches(id, owner_user_id)
     return {"status": "success", "message": f"Agent profile {id} deleted"}

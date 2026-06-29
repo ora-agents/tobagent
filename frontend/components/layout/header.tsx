@@ -9,6 +9,7 @@ import { useT, useI18n } from "@/lib/i18n"
 import { isSystemAgentProfile, type AgentProfile } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useAuth } from "@/components/providers/auth-provider"
 
 const AGENT_SWITCHER_ORDER_KEY = "agent-switcher-order"
 const COLLAPSED_AGENT_LIMIT = 3
@@ -52,6 +53,7 @@ export function Header({
 }: HeaderProps) {
   const t = useT()
   const { locale } = useI18n()
+  const { workspaces, activeWorkspaceId, setActiveWorkspaceId } = useAuth()
 
   const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
   const visibleAgentProfiles = agentProfiles.filter((profile) => !profile.isHidden)
@@ -271,6 +273,22 @@ export function Header({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+          {workspaces.length > 1 && (
+            <select
+              value={activeWorkspaceId ?? ""}
+              onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
+              className="h-9 max-w-36 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30 sm:max-w-44"
+              aria-label={locale === "zh" ? "选择工作间" : "Select workspace"}
+              title={locale === "zh" ? "选择工作间" : "Select workspace"}
+            >
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           {/* Shared agent copy button */}
           {onCopySharedAgent && (
             <NavActionButton

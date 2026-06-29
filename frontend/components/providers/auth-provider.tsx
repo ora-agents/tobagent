@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { LANGGRAPH_API_URL } from '@/lib/constants/api'
 import { useT, type Translations } from '@/lib/i18n'
 
@@ -18,11 +18,27 @@ export interface User {
   createdAt: string
 }
 
+export interface Workspace {
+  id: string
+  name: string
+  ownerUserId: string
+  currentUserRole: 'owner' | 'admin' | 'member'
+  createdAt: string
+  updatedAt: string
+}
+
 interface AuthContextType {
   user: User | null
   userId: string | null
   loading: boolean
   error: string | null
+  workspaces: Workspace[]
+  activeWorkspace: Workspace | null
+  activeWorkspaceId: string | null
+  workspaceHeaders: Record<string, string>
+  canManageWorkspace: boolean
+  refreshWorkspaces: () => Promise<void>
+  setActiveWorkspaceId: (workspaceId: string | null) => void
   login: (username: string, password: string) => Promise<void>
   register: (username: string, password: string, email?: string) => Promise<void>
   logout: () => void
@@ -49,6 +65,7 @@ export function useAuth() {
 // ============================================================================
 
 const USER_SESSION_KEY = 'chat-langchain-auth-user'
+const WORKSPACE_SESSION_KEY = 'chat-langchain-active-workspace'
 
 function authFieldLabel(field: string | undefined, t: Translations) {
   switch (field) {
@@ -148,6 +165,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [activeWorkspaceIdState, setActiveWorkspaceIdState] = useState<string | null>(null)
 
   // 1. Initialize user session from localStorage
   useEffect(() => {
@@ -170,6 +189,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
+
+  const setActiveWorkspaceId = useCallback((workspaceId: string | null) => {
+    setActiveWorkspaceIdState(workspaceId)
+    if (typeof window === 'undefined') return
+    if (workspaceId) {
+      localStorage.setItem(WORKSPACE_SESSION_KEY, workspaceId)
+    } else {
+      localStorage.removeItem(WORKSPACE_SESSION_KEY)
+    }
+  }, [])
+
+  const refreshWorkspaces = useCallback(async () => {
+    if (!user) {
+      setWorkspaces([])
+      setActiveWorkspaceIdState(null)
+      return
+    }
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/workspaces`, {
+      headers: { Authorization: `Bearer ${user.id}` },
+    })
+    if (!resp.ok) return
+    const data = (await resp.json()) as Workspace[]
+    setWorkspaces(data)
+    const saved = typeof window !== 'undefined'
+      ? localStorage.getItem(WORKSPACE_SESSION_KEY)
+      : null
+    const nextWorkspaceId =
+      (saved && data.some((workspace) => workspace.id === saved) ? saved : null)
+      || data[0]?.id
+      || null
+    setActiveWorkspaceId(nextWorkspaceId)
+  }, [setActiveWorkspaceId, user])
+
+  useEffect(() => {
+    void refreshWorkspaces().catch((err) => {
+      console.error('[Auth] Failed to load workspaces:', err)
+    })
+  }, [refreshWorkspaces])
 
   // 2. Login function
   const login = useCallback(async (username: string, password: string) => {
@@ -224,7 +281,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // 4. Logout function
   const logout = useCallback(() => {
     setUser(null)
+    setWorkspaces([])
+    setActiveWorkspaceIdState(null)
     localStorage.removeItem(USER_SESSION_KEY)
+    localStorage.removeItem(WORKSPACE_SESSION_KEY)
     console.info('[Auth] Logged out successfully')
   }, [])
 
@@ -270,12 +330,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Compute final userId. Anonymous access is intentionally disabled.
   const userId = user ? user.id : null
+  const activeWorkspace = useMemo(
+    () => workspaces.find((workspace) => workspace.id === activeWorkspaceIdState) ?? null,
+    [activeWorkspaceIdState, workspaces],
+  )
+  const workspaceHeaders = useMemo(
+    (): Record<string, string> => activeWorkspace ? { 'X-Workspace-ID': activeWorkspace.id } : {},
+    [activeWorkspace],
+  )
+  const canManageWorkspace = activeWorkspace?.currentUserRole === 'owner' || activeWorkspace?.currentUserRole === 'admin'
 
   const contextValue: AuthContextType = {
     user,
     userId,
     loading,
     error,
+    workspaces,
+    activeWorkspace,
+    activeWorkspaceId: activeWorkspace?.id ?? null,
+    workspaceHeaders,
+    canManageWorkspace,
+    refreshWorkspaces,
+    setActiveWorkspaceId,
     login,
     register,
     logout,

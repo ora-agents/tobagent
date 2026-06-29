@@ -25,6 +25,7 @@ from src.api.schemas import (
     UserResponse,
     UserUpdateRequest,
 )
+from src.api.workspace_utils import ensure_default_workspace
 from src.utils.db import UserApiKeyTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
 
@@ -71,6 +72,7 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     db.refresh(user)
 
     ensure_default_skills(db, user.id)
+    ensure_default_workspace(db, user)
     db.commit()
     
     return UserResponse(

@@ -113,6 +113,7 @@ def _create_agent_profile_version(
         id=str(uuid.uuid4()),
         agent_profile_id=profile.id,
         owner_user_id=profile.owner_user_id,
+        workspace_id=getattr(profile, "workspace_id", None),
         version=next_version,
         snapshot=_agent_profile_snapshot(profile),
         created_at=created_at or datetime.now(UTC).isoformat().replace("+00:00", "Z"),

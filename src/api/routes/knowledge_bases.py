@@ -5,6 +5,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -14,6 +15,11 @@ from src.api.services import (
     _kb_schema,
     _remove_agent_profile_links,
     _schema_files,
+)
+from src.api.workspace_utils import (
+    get_active_workspace,
+    get_workspace_header,
+    require_workspace_manager,
 )
 from src.utils.db import AgentProfileTable, KnowledgeBaseTable, UserTable, get_db
 
@@ -32,16 +38,21 @@ router = APIRouter(tags=["knowledge-bases"])
     description="Lists system knowledge bases and knowledge bases owned by the authenticated user.",
 )
 async def get_knowledge_bases(
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from sqlalchemy import or_
-
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     kbs = db.query(KnowledgeBaseTable).filter(
         or_(
-            KnowledgeBaseTable.owner_user_id == current_user.id,
+            KnowledgeBaseTable.owner_user_id == owner_user_id,
             KnowledgeBaseTable.owner_user_id.is_(None),
-        )
+        ),
+        or_(
+            KnowledgeBaseTable.workspace_id == workspace.id,
+            KnowledgeBaseTable.workspace_id.is_(None),
+        ),
     ).order_by(KnowledgeBaseTable.owner_user_id.isnot(None), KnowledgeBaseTable.name).all()
     return [_kb_schema(k) for k in kbs]
 
@@ -54,9 +65,12 @@ async def get_knowledge_bases(
 )
 async def create_knowledge_base(
     kb_data: KnowledgeBaseSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     existing = db.query(KnowledgeBaseTable).filter(KnowledgeBaseTable.id == kb_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Knowledge Base already exists")
@@ -65,7 +79,8 @@ async def create_knowledge_base(
     db_files = [{"name": f.name, "size": f.size, "uploadedAt": f.uploadedAt} for f in kb_data.files]
     new_kb = KnowledgeBaseTable(
         id=kb_data.id,
-        owner_user_id=current_user.id,
+        owner_user_id=owner_user_id,
+        workspace_id=workspace.id,
         name=kb_data.name,
         description=kb_data.description,
         files=db_files,
@@ -76,7 +91,7 @@ async def create_knowledge_base(
     db.add(new_kb)
     db.commit()
     db.refresh(new_kb)
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
     return _kb_schema(new_kb)
 
 
@@ -89,25 +104,30 @@ async def create_knowledge_base(
 async def update_knowledge_base(
     id: str,
     kb_data: KnowledgeBaseSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == id,
-        KnowledgeBaseTable.owner_user_id == current_user.id,
+        KnowledgeBaseTable.owner_user_id == owner_user_id,
+        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
     
     db_files = [{"name": f.name, "size": f.size, "uploadedAt": f.uploadedAt} for f in kb_data.files]
     kb.name = kb_data.name
+    kb.workspace_id = workspace.id
     kb.description = kb_data.description
     kb.files = db_files
     kb.updated_at = kb_data.updatedAt
     
     db.commit()
     db.refresh(kb)
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
     return _kb_schema(kb)
 
 
@@ -118,12 +138,16 @@ async def update_knowledge_base(
 )
 async def delete_knowledge_base(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == id,
-        KnowledgeBaseTable.owner_user_id == current_user.id,
+        KnowledgeBaseTable.owner_user_id == owner_user_id,
+        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -145,10 +169,10 @@ async def delete_knowledge_base(
     from src.config_bundle.storage import delete_knowledge_base_documents
 
     delete_knowledge_base_documents(id)
-    _remove_agent_profile_links(db, current_user.id, "knowledge_base_ids", [id])
+    _remove_agent_profile_links(db, owner_user_id, "knowledge_base_ids", [id])
     db.delete(kb)
     db.commit()
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
     return {"status": "success", "message": f"Knowledge base {id} and associated LanceDB table deleted"}
 
 
@@ -193,6 +217,7 @@ async def upload_kb_document(
     file: UploadFile = File(...),
     chunk_size: int = Form(default=512),
     chunk_overlap: int = Form(default=64),
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -201,9 +226,12 @@ async def upload_kb_document(
     Extracts text, splits into chunks, embeds and saves to LanceDB.
     Also records file metadata under the KB in PostgreSQL.
     """
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == kb_id,
-        KnowledgeBaseTable.owner_user_id == current_user.id,
+        KnowledgeBaseTable.owner_user_id == owner_user_id,
+        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -256,12 +284,13 @@ async def upload_kb_document(
             })
         
         kb.files = files_list
+        kb.workspace_id = workspace.id
         kb.import_status = "ready"
         kb.import_error = None
         kb.updated_at = datetime.utcnow().isoformat() + "Z"
         db.commit()
         db.refresh(kb)
-        _invalidate_runtime_caches(owner_user_id=current_user.id)
+        _invalidate_runtime_caches(owner_user_id=owner_user_id)
 
         return {
             "kb_id": kb_id,
@@ -292,6 +321,7 @@ async def upload_kb_document(
 async def delete_kb_file(
     kb_id: str,
     filename: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -299,9 +329,12 @@ async def delete_kb_file(
     
     Removes vector data from LanceDB and deletes metadata from PostgreSQL.
     """
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == kb_id,
-        KnowledgeBaseTable.owner_user_id == current_user.id,
+        KnowledgeBaseTable.owner_user_id == owner_user_id,
+        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -321,10 +354,11 @@ async def delete_kb_file(
         updated_files = [f for f in files_list if f["name"] != filename]
         
         kb.files = updated_files
+        kb.workspace_id = workspace.id
         kb.updated_at = datetime.utcnow().isoformat() + "Z"
         db.commit()
         db.refresh(kb)
-        _invalidate_runtime_caches(owner_user_id=current_user.id)
+        _invalidate_runtime_caches(owner_user_id=owner_user_id)
 
         return {
             "status": "success",
@@ -361,6 +395,7 @@ async def upload_document(
     file: UploadFile = File(...),
     chunk_size: int = Form(default=512),
     chunk_overlap: int = Form(default=64),
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -369,9 +404,12 @@ async def upload_document(
     Accepts plain text, markdown, and PDF files.
     Splits into chunks, embeds, and stores in LanceDB.
     """
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     agent_profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == agent_id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(AgentProfileTable.workspace_id == workspace.id, AgentProfileTable.workspace_id.is_(None)),
     ).first()
     if not agent_profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -415,13 +453,17 @@ async def upload_document(
 )
 async def rag_status(
     agent_id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
     """Return the number of documents in the agent's RAG knowledge base."""
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     agent_profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == agent_id,
-        AgentProfileTable.owner_user_id == current_user.id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        or_(AgentProfileTable.workspace_id == workspace.id, AgentProfileTable.workspace_id.is_(None)),
     ).first()
     if not agent_profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")

@@ -9,6 +9,11 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
+from src.api.workspace_utils import (
+    get_active_workspace,
+    get_workspace_header,
+    require_workspace_manager,
+)
 from src.config_bundle.bundle import (
     build_export_bundle,
     execute_import,
@@ -36,10 +41,12 @@ router = APIRouter(prefix="/api/config-bundles", tags=["config-bundles"])
 @router.post("/export", summary="Export a TOB configuration bundle")
 async def export_config_bundle(
     request: BundleExportRequest,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    raw, warnings = build_export_bundle(db, request, current_user.id)
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    raw, warnings = build_export_bundle(db, request, workspace.owner_user_id)
     filename = "tob-config.tobconfig"
     headers = {
         "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
@@ -55,12 +62,14 @@ async def export_config_bundle(
 )
 async def inspect_config_bundle(
     file: UploadFile = File(...),
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
     inspection_id = f"inspection-{uuid.uuid4()}"
     response, entry = inspect_bundle(
-        db, await file.read(), current_user.id, inspection_id
+        db, await file.read(), workspace.owner_user_id, inspection_id
     )
     put_inspection(inspection_id, entry)
     return response
@@ -73,13 +82,15 @@ async def inspect_config_bundle(
 )
 async def import_config_bundle(
     request: BundleImportRequest,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    entry = get_inspection(request.inspectionId, current_user.id)
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    entry = get_inspection(request.inspectionId, workspace.owner_user_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Inspection not found or expired")
-    response, jobs = execute_import(db, entry, request, current_user.id)
+    response, jobs = execute_import(db, entry, request, workspace.owner_user_id)
     delete_inspection(request.inspectionId)
     start_index_jobs(jobs)
     return response
@@ -92,9 +103,12 @@ async def import_config_bundle(
 )
 async def get_config_bundle_job(
     job_id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
+    db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    job = get_job(job_id, current_user.id)
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    job = get_job(job_id, workspace.owner_user_id)
     if not job:
         raise HTTPException(status_code=404, detail="Import job not found")
     return BundleJobResponse(

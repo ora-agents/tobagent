@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -18,6 +19,11 @@ from src.api.services import (
     _form_record_schema,
     _form_schema,
     _remove_agent_profile_links,
+)
+from src.api.workspace_utils import (
+    get_active_workspace,
+    get_workspace_header,
+    require_workspace_manager,
 )
 from src.utils.db import FormRecordTable, FormTable, UserTable, get_db
 from src.utils.form_hooks import trigger_form_hooks
@@ -93,16 +99,22 @@ def _project_record(record: FormRecordTable, fields: list[str]) -> FormRecordTab
 
 @router.get("/api/forms", response_model=list[FormSchema], summary="List forms")
 async def list_forms(
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    forms = db.query(FormTable).filter(FormTable.owner_user_id == current_user.id).all()
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    forms = db.query(FormTable).filter(
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+    ).all()
     return [
         _form_schema(
             form,
             db.query(FormRecordTable).filter(
                 FormRecordTable.form_id == form.id,
-                FormRecordTable.owner_user_id == current_user.id,
+                FormRecordTable.owner_user_id == owner_user_id,
             ).count(),
         )
         for form in forms
@@ -117,18 +129,22 @@ async def list_forms(
 )
 async def get_form(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     form = db.query(FormTable).filter(
         FormTable.id == id,
-        FormTable.owner_user_id == current_user.id,
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
     record_count = db.query(FormRecordTable).filter(
         FormRecordTable.form_id == id,
-        FormRecordTable.owner_user_id == current_user.id,
+        FormRecordTable.owner_user_id == owner_user_id,
     ).count()
     return _form_schema(form, record_count)
 
@@ -136,14 +152,18 @@ async def get_form(
 @router.post("/api/forms", response_model=FormSchema, summary="Create a form")
 async def create_form(
     form_data: FormSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     if db.query(FormTable).filter(FormTable.id == form_data.id).first():
         raise HTTPException(status_code=400, detail="Form already exists")
     form = FormTable(
         id=form_data.id,
-        owner_user_id=current_user.id,
+        owner_user_id=owner_user_id,
+        workspace_id=workspace.id,
         name=form_data.name,
         description=form_data.description,
         category=form_data.category.strip(),
@@ -162,16 +182,21 @@ async def create_form(
 async def update_form(
     id: str,
     form_data: FormSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     form = db.query(FormTable).filter(
         FormTable.id == id,
-        FormTable.owner_user_id == current_user.id,
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
     form.name = form_data.name
+    form.workspace_id = workspace.id
     form.description = form_data.description
     form.category = form_data.category.strip()
     form.fields = [field.model_dump(mode="json") for field in form_data.fields]
@@ -185,19 +210,23 @@ async def update_form(
 @router.delete("/api/forms/{id}", summary="Delete a form")
 async def delete_form(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     form = db.query(FormTable).filter(
         FormTable.id == id,
-        FormTable.owner_user_id == current_user.id,
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
-    _remove_agent_profile_links(db, current_user.id, "form_ids", [id])
+    _remove_agent_profile_links(db, owner_user_id, "form_ids", [id])
     db.query(FormRecordTable).filter(
         FormRecordTable.form_id == id,
-        FormRecordTable.owner_user_id == current_user.id,
+        FormRecordTable.owner_user_id == owner_user_id,
     ).delete()
     db.delete(form)
     db.commit()
@@ -218,19 +247,23 @@ async def list_form_records(
     filter_field: str = Query(default="", alias="filterField"),
     filter_value: str = Query(default="", alias="filterValue"),
     filter_op: str = Query(default="contains", alias="filterOp"),
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     form = db.query(FormTable).filter(
         FormTable.id == id,
-        FormTable.owner_user_id == current_user.id,
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
 
     records = db.query(FormRecordTable).filter(
         FormRecordTable.form_id == id,
-        FormRecordTable.owner_user_id == current_user.id,
+        FormRecordTable.owner_user_id == owner_user_id,
     ).order_by(FormRecordTable.created_at.desc()).all()
     filtered = [
         record
@@ -270,10 +303,17 @@ async def list_form_records(
 async def create_form_record(
     id: str,
     record_data: FormRecordWriteSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    form = db.query(FormTable).filter(FormTable.id == id, FormTable.owner_user_id == current_user.id).first()
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    form = db.query(FormTable).filter(
+        FormTable.id == id,
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+    ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
     now = _now()
@@ -281,7 +321,8 @@ async def create_form_record(
     record = FormRecordTable(
         id=record_data.id or f"record-{uuid.uuid4()}",
         form_id=id,
-        owner_user_id=current_user.id,
+        owner_user_id=owner_user_id,
+        workspace_id=workspace.id,
         data=new_data,
         created_at=record_data.createdAt or now,
         updated_at=record_data.updatedAt or now,
@@ -303,19 +344,23 @@ async def update_form_record(
     form_id: str,
     record_id: str,
     record_data: FormRecordWriteSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     record = db.query(FormRecordTable).filter(
         FormRecordTable.id == record_id,
         FormRecordTable.form_id == form_id,
-        FormRecordTable.owner_user_id == current_user.id,
+        FormRecordTable.owner_user_id == owner_user_id,
     ).first()
     if not record:
         raise HTTPException(status_code=404, detail="Form record not found")
     form = db.query(FormTable).filter(
         FormTable.id == form_id,
-        FormTable.owner_user_id == current_user.id,
+        FormTable.owner_user_id == owner_user_id,
+        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -333,13 +378,16 @@ async def update_form_record(
 async def delete_form_record(
     form_id: str,
     record_id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     record = db.query(FormRecordTable).filter(
         FormRecordTable.id == record_id,
         FormRecordTable.form_id == form_id,
-        FormRecordTable.owner_user_id == current_user.id,
+        FormRecordTable.owner_user_id == owner_user_id,
     ).first()
     if not record:
         raise HTTPException(status_code=404, detail="Form record not found")

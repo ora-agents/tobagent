@@ -31,6 +31,7 @@ from src.api.routes.models import router as models_router
 from src.api.routes.robot import router as robot_router
 from src.api.routes.skills import router as skills_router
 from src.api.routes.traces import router as traces_router
+from src.api.routes.workspaces import router as workspaces_router
 from src.api.voice_proxy import voice_router
 from src.utils.voice_telemetry import init_voice_telemetry
 
@@ -171,6 +172,7 @@ app = FastAPI(
     openapi_tags=[
         {"name": "system", "description": "Service health, root metadata, and utility endpoints."},
         {"name": "auth", "description": "User registration, login, profile settings, and API keys."},
+        {"name": "workspaces", "description": "Workspace membership, roles, and change approval."},
         {"name": "agent-profiles", "description": "Custom agent profile CRUD, version restore, and share import."},
         {"name": "forms", "description": "Custom structured forms and records exposed to configured agents."},
         {"name": "knowledge-bases", "description": "Knowledge base metadata, document upload, and RAG status."},
@@ -201,6 +203,7 @@ app.include_router(auth_router)
 app.include_router(models_router)
 app.include_router(robot_router)
 app.include_router(client_profiles_router)
+app.include_router(workspaces_router)
 app.include_router(config_bundles_router)
 app.include_router(agent_profiles_router)
 app.include_router(forms_router)

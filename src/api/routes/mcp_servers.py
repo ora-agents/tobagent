@@ -2,6 +2,7 @@
 # ruff: noqa: D103
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -10,6 +11,11 @@ from src.api.services import (
     _invalidate_runtime_caches,
     _mcp_schema,
     _remove_agent_profile_links,
+)
+from src.api.workspace_utils import (
+    get_active_workspace,
+    get_workspace_header,
+    require_workspace_manager,
 )
 from src.utils.db import McpServerTable, UserTable, get_db
 
@@ -27,11 +33,15 @@ router = APIRouter(tags=["mcp-servers"])
     description="Lists MCP server configurations owned by the authenticated user.",
 )
 async def get_mcp_servers(
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     servers = db.query(McpServerTable).filter(
-        McpServerTable.owner_user_id == current_user.id
+        McpServerTable.owner_user_id == owner_user_id,
+        or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
     ).all()
     return [_mcp_schema(s) for s in servers]
 
@@ -44,9 +54,12 @@ async def get_mcp_servers(
 )
 async def create_mcp_server(
     server_data: McpServerSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     # Check duplicate
     existing = db.query(McpServerTable).filter(McpServerTable.id == server_data.id).first()
     if existing:
@@ -56,7 +69,8 @@ async def create_mcp_server(
 
     new_server = McpServerTable(
         id=server_data.id,
-        owner_user_id=current_user.id,
+        owner_user_id=owner_user_id,
+        workspace_id=workspace.id,
         name=server_data.name,
         type="streamable_http",
         url=server_data.url,
@@ -77,7 +91,7 @@ async def create_mcp_server(
         McpPoolManager.clear_cache()
     except Exception:
         pass
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
         
     return _mcp_schema(new_server)
 
@@ -91,12 +105,16 @@ async def create_mcp_server(
 async def update_mcp_server(
     id: str,
     server_data: McpServerSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     server = db.query(McpServerTable).filter(
         McpServerTable.id == id,
-        McpServerTable.owner_user_id == current_user.id,
+        McpServerTable.owner_user_id == owner_user_id,
+        or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
     ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
@@ -104,6 +122,7 @@ async def update_mcp_server(
     capabilities = await _discover_capabilities(server_data)
 
     server.name = server_data.name
+    server.workspace_id = workspace.id
     server.type = "streamable_http"
     server.url = server_data.url
     server.headers = server_data.headers
@@ -121,7 +140,7 @@ async def update_mcp_server(
         McpPoolManager.clear_cache()
     except Exception:
         pass
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
 
     return _mcp_schema(server)
 
@@ -156,17 +175,21 @@ async def _discover_capabilities(server_data: McpServerSchema) -> dict[str, list
 )
 async def delete_mcp_server(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     server = db.query(McpServerTable).filter(
         McpServerTable.id == id,
-        McpServerTable.owner_user_id == current_user.id,
+        McpServerTable.owner_user_id == owner_user_id,
+        or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
     ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
     
-    _remove_agent_profile_links(db, current_user.id, "mcp_ids", [id])
+    _remove_agent_profile_links(db, owner_user_id, "mcp_ids", [id])
     db.delete(server)
     db.commit()
     
@@ -176,6 +199,6 @@ async def delete_mcp_server(
         McpPoolManager.clear_cache()
     except Exception:
         pass
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
 
     return {"status": "success", "message": f"MCP Server {id} deleted"}

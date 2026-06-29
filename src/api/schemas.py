@@ -58,6 +58,81 @@ class CreateUserApiKeyResponse(UserApiKeySchema):
     apiKey: str
 
 
+WorkspaceRole = Literal["owner", "admin", "member"]
+WorkspaceChangeStatus = Literal["pending", "approved", "rejected", "applied"]
+WorkspaceChangeAction = Literal["create", "update", "delete"]
+WorkspaceTargetType = Literal[
+    "agent_profile",
+    "skill",
+    "knowledge_base",
+    "mcp_server",
+    "form",
+]
+
+
+class WorkspaceMemberSchema(BaseModel):
+    userId: str
+    username: str | None = None
+    role: WorkspaceRole
+    status: str = "active"
+    createdAt: str
+    updatedAt: str
+
+
+class WorkspaceSchema(BaseModel):
+    id: str
+    name: str
+    ownerUserId: str
+    currentUserRole: WorkspaceRole
+    createdAt: str
+    updatedAt: str
+
+
+class WorkspaceCreateRequest(BaseModel):
+    name: str
+
+
+class WorkspaceUpdateRequest(BaseModel):
+    name: str
+
+
+class WorkspaceMemberUpsertRequest(BaseModel):
+    userId: str | None = None
+    username: str | None = None
+    role: Literal["admin", "member"] = "member"
+
+
+class WorkspaceMemberRoleUpdateRequest(BaseModel):
+    role: Literal["admin", "member"]
+
+
+class WorkspaceChangeRequestCreate(BaseModel):
+    targetType: WorkspaceTargetType
+    targetId: str | None = None
+    action: WorkspaceChangeAction
+    payload: dict = Field(default_factory=dict)
+
+
+class WorkspaceChangeRequestReview(BaseModel):
+    note: str | None = None
+
+
+class WorkspaceChangeRequestSchema(BaseModel):
+    id: str
+    workspaceId: str
+    requesterUserId: str
+    requesterUsername: str | None = None
+    targetType: WorkspaceTargetType
+    targetId: str | None = None
+    action: WorkspaceChangeAction
+    payload: dict = Field(default_factory=dict)
+    status: WorkspaceChangeStatus
+    reviewerUserId: str | None = None
+    reviewNote: str | None = None
+    createdAt: str
+    reviewedAt: str | None = None
+
+
 class AgentShareOptions(BaseModel):
     """Optional linked resources to include in an agent share link."""
 

@@ -2,6 +2,7 @@
 # ruff: noqa: D103
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -10,6 +11,11 @@ from src.api.services import (
     _invalidate_runtime_caches,
     _remove_agent_profile_links,
     _skill_schema,
+)
+from src.api.workspace_utils import (
+    get_active_workspace,
+    get_workspace_header,
+    require_workspace_manager,
 )
 from src.utils.db import SkillTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
@@ -29,13 +35,19 @@ router = APIRouter(tags=["skills"])
     description="Lists prompt-based skills owned by the authenticated user, creating defaults when needed.",
 )
 async def get_skills(
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    ensure_default_skills(db, current_user.id)
+    workspace, _member = get_active_workspace(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    ensure_default_skills(db, owner_user_id)
     db.commit()
 
-    skills = db.query(SkillTable).filter(SkillTable.owner_user_id == current_user.id).all()
+    skills = db.query(SkillTable).filter(
+        SkillTable.owner_user_id == owner_user_id,
+        or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
+    ).all()
     return [_skill_schema(s) for s in skills]
 
 
@@ -47,9 +59,12 @@ async def get_skills(
 )
 async def create_skill(
     skill_data: SkillSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     existing = db.query(SkillTable).filter(SkillTable.id == skill_data.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Skill already exists")
@@ -65,7 +80,8 @@ async def create_skill(
 
     new_skill = SkillTable(
         id=skill_data.id,
-        owner_user_id=current_user.id,
+        owner_user_id=owner_user_id,
+        workspace_id=workspace.id,
         name=skill_name,
         description=skill_description,
         content=skill_data.content,
@@ -75,7 +91,7 @@ async def create_skill(
     db.add(new_skill)
     db.commit()
     db.refresh(new_skill)
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
     return _skill_schema(new_skill)
 
 
@@ -88,12 +104,16 @@ async def create_skill(
 async def update_skill(
     id: str,
     skill_data: SkillSchema,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     skill = db.query(SkillTable).filter(
         SkillTable.id == id,
-        SkillTable.owner_user_id == current_user.id,
+        SkillTable.owner_user_id == owner_user_id,
+        or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
     ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
@@ -108,13 +128,14 @@ async def update_skill(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     skill.name = skill_name
+    skill.workspace_id = workspace.id
     skill.description = skill_description
     skill.content = skill_data.content
     skill.updated_at = skill_data.updatedAt
     
     db.commit()
     db.refresh(skill)
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
     return _skill_schema(skill)
 
 
@@ -125,17 +146,21 @@ async def update_skill(
 )
 async def delete_skill(
     id: str,
+    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
     skill = db.query(SkillTable).filter(
         SkillTable.id == id,
-        SkillTable.owner_user_id == current_user.id,
+        SkillTable.owner_user_id == owner_user_id,
+        or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
     ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
-    _remove_agent_profile_links(db, current_user.id, "skill_ids", [id])
+    _remove_agent_profile_links(db, owner_user_id, "skill_ids", [id])
     db.delete(skill)
     db.commit()
-    _invalidate_runtime_caches(owner_user_id=current_user.id)
+    _invalidate_runtime_caches(owner_user_id=owner_user_id)
     return {"status": "success", "message": f"Skill {id} deleted"}

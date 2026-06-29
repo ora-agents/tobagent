@@ -114,6 +114,48 @@ class UserApiKeyTable(Base):
     last_used_at = Column(String(50), nullable=True)
 
 
+class WorkspaceTable(Base):
+    """Workspace permission boundary for shared agent configuration."""
+    __tablename__ = "workspaces"
+
+    id = Column(String(255), primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    owner_user_id = Column(String(255), index=True, nullable=False)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
+class WorkspaceMemberTable(Base):
+    """User membership and role within a workspace."""
+    __tablename__ = "workspace_members"
+
+    id = Column(String(255), primary_key=True, index=True)
+    workspace_id = Column(String(255), index=True, nullable=False)
+    user_id = Column(String(255), index=True, nullable=False)
+    role = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, default="active")
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
+class WorkspaceChangeRequestTable(Base):
+    """Pending changes submitted by non-admin workspace members."""
+    __tablename__ = "workspace_change_requests"
+
+    id = Column(String(255), primary_key=True, index=True)
+    workspace_id = Column(String(255), index=True, nullable=False)
+    requester_user_id = Column(String(255), index=True, nullable=False)
+    target_type = Column(String(50), nullable=False)
+    target_id = Column(String(255), nullable=True)
+    action = Column(String(20), nullable=False)
+    payload = Column(JSON, nullable=False, default=dict)
+    status = Column(String(20), nullable=False, default="pending")
+    reviewer_user_id = Column(String(255), nullable=True)
+    review_note = Column(Text, nullable=True)
+    created_at = Column(String(50), nullable=False)
+    reviewed_at = Column(String(50), nullable=True)
+
+
 
 class AgentProfileTable(Base):
     """Configurable Agent Profiles."""
@@ -121,6 +163,7 @@ class AgentProfileTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     owner_user_id = Column(String(255), index=True, nullable=True)
+    workspace_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
@@ -167,6 +210,7 @@ class AgentProfileVersionTable(Base):
     id = Column(String(255), primary_key=True, index=True)
     agent_profile_id = Column(String(255), index=True, nullable=False)
     owner_user_id = Column(String(255), index=True, nullable=False)
+    workspace_id = Column(String(255), index=True, nullable=True)
     version = Column(Integer, nullable=False)
     snapshot = Column(JSON, nullable=False)
     created_at = Column(String(50), nullable=False)
@@ -204,6 +248,7 @@ class SkillTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     owner_user_id = Column(String(255), index=True, nullable=True)
+    workspace_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     content = Column(Text, nullable=False)
@@ -217,6 +262,7 @@ class McpServerTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     owner_user_id = Column(String(255), index=True, nullable=True)
+    workspace_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     type = Column(String(50), nullable=False)  # Always "streamable_http"; kept for compatibility.
     url = Column(String(2048), nullable=True)
@@ -235,6 +281,7 @@ class FormTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     owner_user_id = Column(String(255), index=True, nullable=False)
+    workspace_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     category = Column(String(255), nullable=False, default="")
@@ -252,6 +299,7 @@ class FormRecordTable(Base):
     id = Column(String(255), primary_key=True, index=True)
     form_id = Column(String(255), index=True, nullable=False)
     owner_user_id = Column(String(255), index=True, nullable=False)
+    workspace_id = Column(String(255), index=True, nullable=True)
     data = Column(JSON, nullable=False, default=dict)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
@@ -264,6 +312,7 @@ class KnowledgeBaseTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     owner_user_id = Column(String(255), index=True, nullable=True)
+    workspace_id = Column(String(255), index=True, nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     # files is a JSON list storing files uploaded to this KB,
@@ -377,6 +426,13 @@ def ensure_database_schema() -> None:
             "imported_from_agent_profile_id VARCHAR(255)",
         ),
         ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),
+        ("agent_profiles", "workspace_id", "workspace_id VARCHAR(255)"),
+        ("agent_profile_versions", "workspace_id", "workspace_id VARCHAR(255)"),
+        ("skills", "workspace_id", "workspace_id VARCHAR(255)"),
+        ("knowledge_bases", "workspace_id", "workspace_id VARCHAR(255)"),
+        ("mcp_servers", "workspace_id", "workspace_id VARCHAR(255)"),
+        ("forms", "workspace_id", "workspace_id VARCHAR(255)"),
+        ("form_records", "workspace_id", "workspace_id VARCHAR(255)"),
     ]
 
     for table_name, column_name, column_sql in migrations:
