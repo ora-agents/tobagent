@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TOB Agent",
+  "version": "0.1.0",
+  "identifier": "cn.wsiri.tobagent",
+  "build": {
+    "beforeDevCommand": "bun run dev:desktop",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "bun run build:desktop",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TOB Agent",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "resources": {
+      "../../desktop/dist/bin": "bin",
+      "../../assets": "assets",
+      "../../models": "models"
+    }
+  }
+}

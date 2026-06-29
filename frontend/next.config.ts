@@ -34,7 +34,8 @@ if (process.env.ALLOWED_DEV_ORIGINS) {
 }
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  output: process.env.NEXT_OUTPUT_MODE === "export" ? "export" : "standalone",
+  trailingSlash: process.env.NEXT_OUTPUT_MODE === "export",
   turbopack: {
     root: rootDir,
   },

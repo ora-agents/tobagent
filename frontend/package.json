@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "next dev",
     "dev:local": "next dev -H 0.0.0.0",
+    "dev:desktop": "cross-env NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2025 next dev",
     "dev:remote": "next dev -p 3001",
     "build": "next build",
+    "build:desktop": "cross-env NEXT_OUTPUT_MODE=export NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2025 next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -80,6 +84,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "cross-env": "^10.1.0",
+    "@tauri-apps/cli": "^2.8.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",

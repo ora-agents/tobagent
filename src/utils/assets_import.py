@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 import mimetypes
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -29,7 +30,7 @@ from src.utils.document_loader import load_document_bytes
 
 logger = logging.getLogger(__name__)
 
-ASSETS_DIR = Path(__file__).parents[2] / "assets"
+ASSETS_DIR = Path(os.getenv("TOB_ASSETS_DIR", Path(__file__).parents[2] / "assets"))
 DEFAULT_AGENT_ID_PREFIX = "default_"
 DEFAULT_AGENT_GRAPH_ID = "agent_builder"
 DEFAULT_AGENT_NAME = "平台智能体"

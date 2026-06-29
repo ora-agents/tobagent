@@ -5,6 +5,7 @@
 	check-backend-port check-frontend-port check-ports \
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
+	desktop desktop-backend desktop-frontend desktop-tauri \
 	update-assets refresh-assets \
 	lint-actions \
 	test-agent-sdk
@@ -179,6 +180,34 @@ install-frontend:
 
 install-backend:
 	uv sync
+
+desktop: desktop-backend desktop-frontend desktop-tauri
+
+desktop-backend:
+	@if [ "$$(uname -s)" = "Linux" ] && ! command -v patchelf >/dev/null 2>&1; then \
+		echo "Nuitka standalone builds on Linux require patchelf. Install it first, for example: sudo apt install patchelf"; \
+		exit 1; \
+	fi
+	uv run python -m nuitka \
+		--standalone \
+		--assume-yes-for-downloads \
+		--output-dir=desktop/dist \
+		--output-filename=tobagent-backend \
+		--include-data-dir=assets=assets \
+		--include-data-dir=models=models \
+		desktop/backend_entry.py
+	mkdir -p desktop/dist/bin
+	if [ -f desktop/dist/backend_entry.dist/tobagent-backend.exe ]; then \
+		cp desktop/dist/backend_entry.dist/tobagent-backend.exe desktop/dist/bin/tobagent-backend.exe; \
+	else \
+		cp desktop/dist/backend_entry.dist/tobagent-backend desktop/dist/bin/tobagent-backend; \
+	fi
+
+desktop-frontend:
+	cd frontend && bun run build:desktop
+
+desktop-tauri:
+	cd frontend && bun run tauri:build
 
 # Rebuild bundled assets/ knowledge bases and remove stale asset KB records.
 # Usage:
