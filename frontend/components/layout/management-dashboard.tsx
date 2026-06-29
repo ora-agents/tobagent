@@ -33,6 +33,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -103,6 +104,7 @@ import {
   type McpTransport,
 } from "@/components/layout/management-dashboard/types"
 import { ConfigBundleDialog } from "@/components/layout/management-dashboard/config-bundle-dialog"
+import { WorkspaceManagerDialog } from "@/components/layout/management-dashboard/workspace-manager-dialog"
 
 // ---------------------------------------------------------------------------
 // Properties Interface
@@ -228,6 +230,7 @@ export function ManagementDashboard({
   const { user, activeWorkspace, canManageWorkspace, workspaceHeaders } = useAuth()
   const [hasRobotEnvironment, setHasRobotEnvironment] = useState(false)
   const [configBundleMode, setConfigBundleMode] = useState<"import" | "export" | null>(null)
+  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false)
   const [configBundleInitialSelection, setConfigBundleInitialSelection] = useState<{
     agents?: string[]
     skills?: string[]
@@ -2003,6 +2006,14 @@ export function ManagementDashboard({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setWorkspaceDialogOpen(true)}
+            className="gap-1.5 rounded-lg"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            {locale === "zh" ? "工作间" : "Workspace"}
+          </Button>
           {renderHeaderConfigActions()}
           <Button
             variant="outline"
@@ -2044,6 +2055,11 @@ export function ManagementDashboard({
         authHeaders={authHeaders}
         resources={configBundleResources}
         initialSelection={configBundleInitialSelection}
+      />
+      <WorkspaceManagerDialog
+        open={workspaceDialogOpen}
+        onOpenChange={setWorkspaceDialogOpen}
+        locale={locale}
       />
 
       {/* 2. Main Content Area */}
