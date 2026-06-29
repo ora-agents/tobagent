@@ -58,7 +58,7 @@ export function Header({
   const agentLabel = selectedAgentProfile?.name ?? (locale === "zh" ? "未选择角色" : "No active role")
   const visibleAgentProfiles = agentProfiles.filter((profile) => !profile.isHidden)
   const canSwitchAgents = !!onAgentProfileChange && visibleAgentProfiles.length > 0
-  const canOpenAgentSettings = canManageWorkspace && !!onOpenAgentSettings && !!selectedAgentProfile && !isSystemAgentProfile(selectedAgentProfile)
+  const canOpenAgentSettings = !!onOpenAgentSettings && !!selectedAgentProfile && !isSystemAgentProfile(selectedAgentProfile)
   const [isAgentListExpanded, setIsAgentListExpanded] = useState(false)
   const [orderedAgentIds, setOrderedAgentIds] = useState<string[]>([])
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null)
