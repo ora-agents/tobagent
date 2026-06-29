@@ -149,6 +149,36 @@ def _normalize_observation(observation: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _extract_observations(value: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Return normalized observations from Langfuse response variants."""
+    dumped = _dump_model(value)
+    meta: dict[str, Any] = {}
+
+    if isinstance(dumped, list):
+        candidates = dumped
+    elif isinstance(dumped, dict):
+        raw_meta = dumped.get("meta")
+        if isinstance(raw_meta, dict):
+            meta = raw_meta
+
+        data = dumped.get("data")
+        if isinstance(data, list):
+            candidates = data
+        else:
+            observations = dumped.get("observations")
+            candidates = observations if isinstance(observations, list) else []
+    else:
+        candidates = []
+
+    observations = [
+        _normalize_observation(observation)
+        for observation in candidates
+        if isinstance(observation, dict)
+    ]
+    observations.sort(key=lambda item: str(item.get("start_time") or item.get("startTime") or ""))
+    return observations, meta
+
+
 def _trace_source(trace: dict[str, Any], owned_shared_thread_ids: set[str]) -> TraceSource:
     metadata = _combined_metadata(trace)
     source_type = str(metadata.get("source_type") or "").lower()
@@ -495,6 +525,7 @@ async def read_trace(
 
     observations: list[dict[str, Any]] = []
     observations_meta: dict[str, Any] = {}
+    tried_default_observation_query = False
     try:
         observation_response = await _call_langfuse(
             client.api.observations.get_many,
@@ -502,15 +533,42 @@ async def read_trace(
             fields="core,basic,io,usage,model,metadata",
             limit=100,
         )
-        dumped_observations = _dump_model(observation_response)
-        observations = [
-            _normalize_observation(observation)
-            for observation in dumped_observations.get("data", [])
-            if isinstance(observation, dict)
-        ]
-        observations_meta = dumped_observations.get("meta", {})
+        observations, observations_meta = _extract_observations(observation_response)
     except Exception as exc:
         logger.warning("Failed to fetch Langfuse observations for %s: %s", trace_id, exc)
+        tried_default_observation_query = True
+        try:
+            observation_response = await _call_langfuse(
+                client.api.observations.get_many,
+                trace_id=trace_id,
+                limit=100,
+            )
+            observations, observations_meta = _extract_observations(observation_response)
+        except Exception as fallback_exc:
+            logger.warning(
+                "Failed to fetch Langfuse observations without field selection for %s: %s",
+                trace_id,
+                fallback_exc,
+            )
+
+    if not observations and not tried_default_observation_query:
+        try:
+            observation_response = await _call_langfuse(
+                client.api.observations.get_many,
+                trace_id=trace_id,
+                limit=100,
+            )
+            observations, observations_meta = _extract_observations(observation_response)
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch empty Langfuse observations without field selection for %s: %s",
+                trace_id,
+                exc,
+            )
+
+    if not observations:
+        embedded_observations, _ = _extract_observations(trace)
+        observations = embedded_observations
 
     return TraceDetailResponse(
         trace=trace,

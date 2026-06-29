@@ -1,6 +1,7 @@
 """Tests for Langfuse trace browser helpers."""
 
 from src.api.routes.traces import (
+    _extract_observations,
     _may_read_trace,
     _normalize_observation,
     _trace_session_id,
@@ -62,3 +63,34 @@ def test_normalize_observation_accepts_langfuse_v4_camel_case_fields():
     assert normalized["usage_details"] == {"input": 1}
     assert normalized["cost_details"] == {"total": 0.1}
     assert normalized["total_cost"] == 0.1
+
+
+def test_extract_observations_accepts_paginated_langfuse_response():
+    response = {
+        "data": [
+            {"id": "obs-2", "traceId": "trace-1", "startTime": "2026-06-26T10:00:02Z"},
+            {"id": "obs-1", "traceId": "trace-1", "startTime": "2026-06-26T10:00:01Z"},
+        ],
+        "meta": {"hasNextPage": False},
+    }
+
+    observations, meta = _extract_observations(response)
+
+    assert [observation["id"] for observation in observations] == ["obs-1", "obs-2"]
+    assert observations[0]["trace_id"] == "trace-1"
+    assert meta == {"hasNextPage": False}
+
+
+def test_extract_observations_accepts_trace_embedded_observations():
+    trace = {
+        "id": "trace-1",
+        "observations": [
+            {"id": "obs-1", "traceId": "trace-1", "startTime": "2026-06-26T10:00:01Z"}
+        ],
+    }
+
+    observations, meta = _extract_observations(trace)
+
+    assert len(observations) == 1
+    assert observations[0]["trace_id"] == "trace-1"
+    assert meta == {}
