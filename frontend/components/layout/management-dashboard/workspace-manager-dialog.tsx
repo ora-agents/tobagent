@@ -53,7 +53,7 @@ const roleLabels: Record<Locale, Record<WorkspaceRole, string>> = {
   zh: {
     owner: "拥有者",
     admin: "管理员",
-    member: "普通用户",
+    member: "成员",
   },
   en: {
     owner: "Owner",
@@ -376,9 +376,8 @@ export function WorkspaceManagerDialog({
               )}
               <div className="divide-y divide-border rounded-lg border border-border">
                 {members.map((member) => {
-                  const self = member.userId === user?.id
-                  const canRequestSelfRoleChange = self && activeRole === "member"
-                  const locked = member.role === "owner" || (!canManageWorkspace && !canRequestSelfRoleChange)
+                  const canRequestRoleChange = activeRole === "member" && member.role !== "owner"
+                  const locked = member.role === "owner" || (!canManageWorkspace && !canRequestRoleChange)
                   const roleSelectTitle = activeRole === "owner"
                     ? (zh ? "直接修改角色" : "Change role")
                     : (zh ? "提交角色修改审批" : "Submit role change for approval")
