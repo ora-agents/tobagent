@@ -20,6 +20,7 @@ import {
   Square,
   Upload,
   Waves,
+  Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -51,6 +52,7 @@ import {
   useVoiceprintRecorder,
   SPEAKER_AUDIO_ACCEPT,
 } from "@/lib/hooks/use-voiceprint-recorder"
+import { WorkspaceManagerDialog } from "@/components/layout/management-dashboard/workspace-manager-dialog"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,6 +108,7 @@ interface NavSection {
 const NAV_SECTIONS: NavSection[] = [
   { id: "section-display", icon: Accessibility, labelZh: "优化显示", labelEn: "Display" },
   { id: "section-profile", icon: User, labelZh: "基本信息", labelEn: "Profile" },
+  { id: "section-workspace", icon: Building2, labelZh: "工作区", labelEn: "Workspace" },
   { id: "section-prefs", icon: Settings2, labelZh: "通用偏好", labelEn: "Preferences" },
   { id: "section-safety", icon: Shield, labelZh: "安全选项", labelEn: "Safety" },
   { id: "section-voiceprint", icon: Waves, labelZh: "声纹管理", labelEn: "Voiceprints" },
@@ -127,7 +130,7 @@ export function UserSettingsPage({
   onClearAllConversations,
   conversationCount,
 }: UserSettingsPageProps) {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, activeWorkspace, canManageWorkspace } = useAuth()
   const { locale } = useI18n()
   const zh = locale === "zh"
 
@@ -154,6 +157,7 @@ export function UserSettingsPage({
   const [clearConversationsConfirmText, setClearConversationsConfirmText] = useState("")
   const [clearConversationsLoading, setClearConversationsLoading] = useState(false)
   const [clearConversationsStatus, setClearConversationsStatus] = useState<string | null>(null)
+  const [workspaceManagerOpen, setWorkspaceManagerOpen] = useState(false)
 
   // ---- Voiceprint state ----
   const [newVoiceprintName, setNewVoiceprintName] = useState("")
@@ -666,6 +670,40 @@ export function UserSettingsPage({
               />
             </PageSection>
 
+            {/* ============ Section: Workspace ============ */}
+            <PageSection
+              id="section-workspace"
+              ref={registerSectionRef("section-workspace")}
+              density={sectionDensity}
+            >
+              <PageSectionTitle icon={Building2} compact={sectionTitleCompact}>
+                {zh ? "工作区" : "Workspace"}
+              </PageSectionTitle>
+
+              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary sm:flex-row sm:items-center sm:justify-between`}>
+                <div className="min-w-0">
+                  <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
+                    {activeWorkspace?.name || (zh ? "未选择工作区" : "No active workspace")}
+                  </div>
+                  <div className={`${elderOptimized ? "mt-2 text-base leading-7" : "mt-1 text-xs leading-relaxed"} text-muted-foreground`}>
+                    {zh
+                      ? `当前角色：${canManageWorkspace ? "管理员/拥有者" : "普通成员"}。工作区成员和审批在这里管理。`
+                      : `Current role: ${canManageWorkspace ? "manager" : "member"}. Manage workspace members and approvals here.`}
+                  </div>
+                </div>
+                <ActionButton
+                  type="button"
+                  variant="outline"
+                  size={elderOptimized ? "lg" : "sm"}
+                  onClick={() => setWorkspaceManagerOpen(true)}
+                  className="shrink-0 gap-1.5 rounded-lg"
+                >
+                  <Building2 className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />
+                  {zh ? "管理工作区" : "Manage workspace"}
+                </ActionButton>
+              </div>
+            </PageSection>
+
             {/* ============ Section: Preferences ============ */}
             <PageSection
               id="section-prefs"
@@ -965,7 +1003,12 @@ export function UserSettingsPage({
           </main>
         </ScrollArea>
       </div>
-    </AppShell>
+      </AppShell>
+      <WorkspaceManagerDialog
+        open={workspaceManagerOpen}
+        onOpenChange={setWorkspaceManagerOpen}
+        locale={locale as "zh" | "en"}
+      />
 
     <Dialog
       open={clearConversationsOpen}

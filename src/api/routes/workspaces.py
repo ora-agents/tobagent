@@ -501,9 +501,41 @@ def _apply_simple_metadata_change(
     _invalidate_runtime_caches(owner_user_id=workspace.owner_user_id)
 
 
+def _apply_workspace_member_change(
+    db: Session,
+    workspace: WorkspaceTable,
+    reviewer: WorkspaceMemberTable,
+    change: WorkspaceChangeRequestTable,
+    now: str,
+) -> None:
+    if change.action != "update":
+        raise HTTPException(status_code=400, detail="Workspace member changes only support update")
+    user_id = change.target_id or change.payload.get("userId")
+    role = change.payload.get("role")
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise HTTPException(status_code=400, detail="targetId is required")
+    if role not in {"admin", "member"}:
+        raise HTTPException(status_code=400, detail="Invalid workspace member role")
+    if user_id == workspace.owner_user_id:
+        raise HTTPException(status_code=400, detail="Owner role cannot be changed here")
+    if role == "admin" and reviewer.role != "owner":
+        raise HTTPException(status_code=403, detail="Only the owner can approve admin role changes")
+
+    member = db.query(WorkspaceMemberTable).filter(
+        WorkspaceMemberTable.workspace_id == workspace.id,
+        WorkspaceMemberTable.user_id == user_id,
+        WorkspaceMemberTable.status == "active",
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Workspace member not found")
+    member.role = role
+    member.updated_at = now
+
+
 def _apply_change_request(
     db: Session,
     workspace: WorkspaceTable,
+    reviewer: WorkspaceMemberTable,
     change: WorkspaceChangeRequestTable,
     now: str,
 ) -> None:
@@ -513,6 +545,8 @@ def _apply_change_request(
         _apply_skill_change(db, workspace, change, now)
     elif change.target_type in {"knowledge_base", "mcp_server"}:
         _apply_simple_metadata_change(db, workspace, change, now)
+    elif change.target_type == "workspace_member":
+        _apply_workspace_member_change(db, workspace, reviewer, change, now)
     else:
         raise HTTPException(status_code=400, detail="This change target cannot be applied yet")
 
@@ -525,7 +559,7 @@ async def approve_workspace_change_request(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    workspace, _ = require_workspace_manager(db, current_user, workspace_id)
+    workspace, reviewer = require_workspace_manager(db, current_user, workspace_id)
     change = db.query(WorkspaceChangeRequestTable).filter(
         WorkspaceChangeRequestTable.id == request_id,
         WorkspaceChangeRequestTable.workspace_id == workspace_id,
@@ -535,7 +569,7 @@ async def approve_workspace_change_request(
     if change.status != "pending":
         raise HTTPException(status_code=400, detail="Change request is already reviewed")
     now = utc_now()
-    _apply_change_request(db, workspace, change, now)
+    _apply_change_request(db, workspace, reviewer, change, now)
     change.status = "applied"
     change.reviewer_user_id = current_user.id
     change.review_note = review.note

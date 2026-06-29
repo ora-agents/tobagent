@@ -861,8 +861,9 @@ def _load_workspace_agent_profile(
     if not workspace_id:
         return _load_owned_agent_profile(agent_id, owner_user_id)
     try:
-        from sqlalchemy import or_
+        from sqlalchemy import and_, or_
 
+        from src.utils.assets_import import DEFAULT_AGENT_GRAPH_ID
         from src.utils.db import AgentProfileTable, SessionLocal
 
         db = SessionLocal()
@@ -872,7 +873,13 @@ def _load_workspace_agent_profile(
                 AgentProfileTable.owner_user_id == owner_user_id,
                 or_(
                     AgentProfileTable.workspace_id == workspace_id,
-                    AgentProfileTable.workspace_id.is_(None),
+                    and_(
+                        AgentProfileTable.workspace_id.is_(None),
+                        or_(
+                            AgentProfileTable.graph_id.is_(None),
+                            AgentProfileTable.graph_id != DEFAULT_AGENT_GRAPH_ID,
+                        ),
+                    ),
                 ),
             ).first()
         finally:

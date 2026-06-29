@@ -68,6 +68,7 @@ const targetLabels: Record<string, { zh: string; en: string }> = {
   knowledge_base: { zh: "知识库", en: "Knowledge base" },
   mcp_server: { zh: "MCP 服务", en: "MCP server" },
   form: { zh: "表单", en: "Form" },
+  workspace_member: { zh: "工作区成员", en: "Workspace member" },
 }
 
 function headers(userId: string, workspaceId?: string | null) {
@@ -196,13 +197,36 @@ export function WorkspaceManagerDialog({
     setBusy(`role-${member.userId}`)
     setError("")
     try {
-      const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/members/${member.userId}`, {
-        method: "PATCH",
-        headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+      const response = activeRole === "owner"
+        ? await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/members/${member.userId}`, {
+            method: "PATCH",
+            headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+            body: JSON.stringify({ role }),
+          })
+        : await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/change-requests`, {
+            method: "POST",
+            headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+            body: JSON.stringify({
+              targetType: "workspace_member",
+              targetId: member.userId,
+              action: "update",
+              payload: {
+                userId: member.userId,
+                username: member.username,
+                name: member.username || member.userId,
+                role,
+                previousRole: member.role,
+              },
+            }),
       })
       if (!response.ok) throw new Error(await response.text())
       await loadMembers()
+      if (activeRole !== "owner") {
+        setTab("requests")
+        await loadChanges()
+      } else if (tab === "requests") {
+        await loadChanges()
+      }
       await refreshWorkspaces()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -353,7 +377,11 @@ export function WorkspaceManagerDialog({
               <div className="divide-y divide-border rounded-lg border border-border">
                 {members.map((member) => {
                   const self = member.userId === user?.id
-                  const locked = member.role === "owner" || self || !canManageWorkspace
+                  const canRequestSelfRoleChange = self && activeRole === "member"
+                  const locked = member.role === "owner" || (!canManageWorkspace && !canRequestSelfRoleChange)
+                  const roleSelectTitle = activeRole === "owner"
+                    ? (zh ? "直接修改角色" : "Change role")
+                    : (zh ? "提交角色修改审批" : "Submit role change for approval")
                   return (
                     <div key={member.userId} className="grid gap-3 p-3 sm:grid-cols-[1fr_160px_auto] sm:items-center">
                       <div className="min-w-0">
@@ -364,9 +392,10 @@ export function WorkspaceManagerDialog({
                         value={member.role}
                         disabled={locked || (member.role === "admin" && activeRole !== "owner")}
                         onChange={(event) => updateMemberRole(member, event.target.value as "admin" | "member")}
+                        title={roleSelectTitle}
                         className="h-9 rounded-lg bg-muted px-3 text-sm outline-none disabled:opacity-60"
                       >
-                        <option value="owner">{roleLabels[locale].owner}</option>
+                        <option value="owner" disabled>{roleLabels[locale].owner}</option>
                         <option value="admin">{roleLabels[locale].admin}</option>
                         <option value="member">{roleLabels[locale].member}</option>
                       </select>

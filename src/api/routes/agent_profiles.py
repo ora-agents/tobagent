@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -150,19 +150,28 @@ async def get_agent_profiles(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    from src.utils.assets_import import ensure_default_agent_profile
+    from src.utils.assets_import import (
+        DEFAULT_AGENT_GRAPH_ID,
+        ensure_default_agent_profile,
+    )
 
     workspace, _member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     ensure_default_skills(db, owner_user_id)
-    ensure_default_agent_profile(db, owner_user_id)
+    ensure_default_agent_profile(db, owner_user_id, workspace_id=workspace.id)
     db.commit()
 
     profiles = db.query(AgentProfileTable).filter(
         AgentProfileTable.owner_user_id == owner_user_id,
         or_(
             AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
+            and_(
+                AgentProfileTable.workspace_id.is_(None),
+                or_(
+                    AgentProfileTable.graph_id.is_(None),
+                    AgentProfileTable.graph_id != DEFAULT_AGENT_GRAPH_ID,
+                ),
+            ),
         ),
     ).all()
     return [_agent_profile_schema(p) for p in profiles]

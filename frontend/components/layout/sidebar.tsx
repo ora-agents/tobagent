@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2, Shield } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
@@ -13,7 +13,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { AuthPanel } from "./auth-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getThreadSource } from "@/lib/utils/thread-source"
-import { WorkspaceManagerDialog } from "@/components/layout/management-dashboard/workspace-manager-dialog"
 
 const DEFAULT_ADMIN_URL = "http://114.55.10.54:8000/static/admin.html"
 
@@ -201,7 +200,6 @@ export const Sidebar = memo(function Sidebar({
   const [searchQuery, setSearchQuery] = useState('')
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isConfigOpen, setIsConfigOpen] = useState(true)
-  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false)
   const isAgentAppSidebar = variant === "agentApp"
   const isConfigView = currentView === "skills" || currentView === "agents" || currentView === "knowledge" || currentView === "forms" || currentView === "mcp"
 
@@ -240,10 +238,6 @@ export const Sidebar = memo(function Sidebar({
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('')
-  }, [])
-
-  const handleOpenWorkspace = useCallback(() => {
-    setIsWorkspaceOpen(true)
   }, [])
 
   // Memoize renderThreadGroup to prevent recreation on every render
@@ -424,13 +418,6 @@ export const Sidebar = memo(function Sidebar({
             </div>
           )}
           <button
-            onClick={handleOpenWorkspace}
-            className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-            title={locale === "zh" ? "工作间" : "Workspace"}
-          >
-            <Shield className="w-5 h-5" />
-          </button>
-          <button
             onClick={openAdminDashboard}
             className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             title={t.backend}
@@ -472,7 +459,6 @@ export const Sidebar = memo(function Sidebar({
           <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
         </div>
       </aside>
-      <WorkspaceManagerDialog open={isWorkspaceOpen} onOpenChange={setIsWorkspaceOpen} locale={locale} />
       </>
     )
   }
@@ -654,13 +640,6 @@ export const Sidebar = memo(function Sidebar({
           </div>
         )}
         <button
-          onClick={handleOpenWorkspace}
-          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground group"
-        >
-          <Shield className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
-          <span className="truncate">{locale === "zh" ? "工作间" : "Workspace"}</span>
-        </button>
-        <button
           onClick={() => {
             onMobileClose?.()
             openAdminDashboard()
@@ -714,7 +693,6 @@ export const Sidebar = memo(function Sidebar({
 
       <AuthPanel open={isAuthOpen} onOpenChange={setIsAuthOpen} />
     </aside>
-    <WorkspaceManagerDialog open={isWorkspaceOpen} onOpenChange={setIsWorkspaceOpen} locale={locale} />
     </>
   )
 })

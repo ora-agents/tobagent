@@ -69,6 +69,13 @@ def default_agent_profile_id(owner_user_id: str) -> str:
     return f"{DEFAULT_AGENT_ID_PREFIX}{_owner_hash(owner_user_id)}"
 
 
+def default_workspace_agent_profile_id(owner_user_id: str, workspace_id: str | None) -> str:
+    """Return the stable platform-agent id for a specific workspace."""
+    if not workspace_id:
+        return default_agent_profile_id(owner_user_id)
+    return f"{DEFAULT_AGENT_ID_PREFIX}{_owner_hash(owner_user_id)}_{_owner_hash(workspace_id)}"
+
+
 def is_default_agent_profile_id(agent_id: str) -> bool:
     """Return whether an agent profile id represents an editable default agent."""
     return agent_id == "default" or agent_id.startswith(DEFAULT_AGENT_ID_PREFIX)
@@ -302,18 +309,21 @@ def ensure_default_agent_profile(
     db: Session,
     owner_user_id: str,
     knowledge_base_ids: list[str] | None = None,
+    workspace_id: str | None = None,
 ) -> AgentProfileTable:
     """Create or update the editable default agent profile for a user."""
+    profile_id = default_workspace_agent_profile_id(owner_user_id, workspace_id)
     profile = db.query(AgentProfileTable).filter(
-        AgentProfileTable.id == default_agent_profile_id(owner_user_id),
+        AgentProfileTable.id == profile_id,
         AgentProfileTable.owner_user_id == owner_user_id,
     ).first()
     now = _now_iso()
 
     if profile is None:
         profile = AgentProfileTable(
-            id=default_agent_profile_id(owner_user_id),
+            id=profile_id,
             owner_user_id=owner_user_id,
+            workspace_id=workspace_id,
             name=DEFAULT_AGENT_NAME,
             description=DEFAULT_AGENT_DESCRIPTION,
             system_prompt=DEFAULT_AGENT_PROMPT,
@@ -337,6 +347,7 @@ def ensure_default_agent_profile(
             "system_prompt": DEFAULT_AGENT_PROMPT,
             "graph_id": DEFAULT_AGENT_GRAPH_ID,
             "enabled_tools": DEFAULT_AGENT_TOOLS,
+            "workspace_id": workspace_id,
         }
         for field_name, desired_value in desired_values.items():
             if getattr(profile, field_name, None) != desired_value:

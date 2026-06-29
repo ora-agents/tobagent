@@ -67,6 +67,7 @@ WorkspaceTargetType = Literal[
     "knowledge_base",
     "mcp_server",
     "form",
+    "workspace_member",
 ]
 
 

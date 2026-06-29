@@ -166,3 +166,66 @@ def test_member_change_request_is_applied_by_owner(client):
 
     listed = client.get("/api/agent-profiles", headers=_auth("user-member", workspace_id))
     assert "agent-1" in [agent["id"] for agent in listed.json()]
+
+
+def test_workspace_member_role_change_request_is_applied_by_owner(client):
+    created = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "Team"},
+    )
+    workspace_id = created.json()["id"]
+    client.post(
+        f"/api/workspaces/{workspace_id}/members",
+        headers=_auth("user-owner"),
+        json={"username": "member", "role": "member"},
+    )
+
+    change = client.post(
+        f"/api/workspaces/{workspace_id}/change-requests",
+        headers=_auth("user-member", workspace_id),
+        json={
+            "targetType": "workspace_member",
+            "targetId": "user-member",
+            "action": "update",
+            "payload": {"userId": "user-member", "role": "admin"},
+        },
+    )
+    assert change.status_code == 200
+
+    approved = client.post(
+        f"/api/workspaces/{workspace_id}/change-requests/{change.json()['id']}/approve",
+        headers=_auth("user-owner", workspace_id),
+        json={"note": "ok"},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "applied"
+
+    members = client.get(
+        f"/api/workspaces/{workspace_id}/members",
+        headers=_auth("user-owner", workspace_id),
+    ).json()
+    member = next(item for item in members if item["userId"] == "user-member")
+    assert member["role"] == "admin"
+
+
+def test_platform_agent_is_scoped_to_active_workspace(client):
+    first = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "First"},
+    ).json()["id"]
+    second = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "Second"},
+    ).json()["id"]
+
+    first_agents = client.get("/api/agent-profiles", headers=_auth("user-owner", first)).json()
+    second_agents = client.get("/api/agent-profiles", headers=_auth("user-owner", second)).json()
+    first_platform = [agent for agent in first_agents if agent["graphId"] == "agent_builder"]
+    second_platform = [agent for agent in second_agents if agent["graphId"] == "agent_builder"]
+
+    assert len(first_platform) == 1
+    assert len(second_platform) == 1
+    assert first_platform[0]["id"] != second_platform[0]["id"]
