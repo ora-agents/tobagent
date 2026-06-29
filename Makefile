@@ -188,20 +188,7 @@ desktop-backend:
 		echo "Nuitka standalone builds on Linux require patchelf. Install it first, for example: sudo apt install patchelf"; \
 		exit 1; \
 	fi
-	uv run python -m nuitka \
-		--standalone \
-		--assume-yes-for-downloads \
-		--output-dir=desktop/dist \
-		--output-filename=tobagent-backend \
-		--include-data-dir=assets=assets \
-		--include-data-dir=models=models \
-		desktop/backend_entry.py
-	mkdir -p desktop/dist/bin
-	if [ -f desktop/dist/backend_entry.dist/tobagent-backend.exe ]; then \
-		cp desktop/dist/backend_entry.dist/tobagent-backend.exe desktop/dist/bin/tobagent-backend.exe; \
-	else \
-		cp desktop/dist/backend_entry.dist/tobagent-backend desktop/dist/bin/tobagent-backend; \
-	fi
+	uv run python scripts/build_desktop_backend.py
 
 desktop-frontend:
 	cd frontend && bun run build:desktop

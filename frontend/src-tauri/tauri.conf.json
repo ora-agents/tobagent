@@ -28,8 +28,7 @@
     "targets": "all",
     "resources": {
       "../../desktop/dist/bin": "bin",
-      "../../assets": "assets",
-      "../../models": "models"
+      "../../desktop/dist/resources": "."
     }
   }
 }

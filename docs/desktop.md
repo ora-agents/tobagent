@@ -29,6 +29,10 @@ cd frontend && bun run build:desktop
 The Tauri app starts the bundled backend binary from `bin/tobagent-backend` or
 `bin/tobagent-backend.exe` on `127.0.0.1:2025`.
 
+`scripts/build_desktop_backend.py` includes `assets/` and `models/` only when
+those directories exist. This keeps CI builds working when local model files are
+not checked into the repository.
+
 The desktop backend entrypoint sets local defaults before importing the app:
 
 - `DATABASE_URL` points to a SQLite file in the user's app data directory.
@@ -59,3 +63,9 @@ sudo apt install patchelf
 
 Windows desktop builds should be run on Windows so Tauri produces a Windows
 installer and Nuitka emits `tobagent-backend.exe`.
+
+## GitHub Actions
+
+The `Build desktop app` workflow builds the Windows desktop bundle on
+`windows-latest` and uploads `frontend/src-tauri/target/release/bundle/**` as an
+artifact. Run it manually from GitHub Actions, or push a `desktop-v*` tag.
