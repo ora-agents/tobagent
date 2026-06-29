@@ -25,7 +25,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "rpm"],
+    "icon": [
+      "../app/icon.png"
+    ],
     "resources": {
       "../../desktop/dist/bin": "bin",
       "../../desktop/dist/resources": "."

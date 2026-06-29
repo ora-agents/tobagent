@@ -18,6 +18,9 @@ The target runs:
 2. `make desktop-frontend` to export the Next.js UI to `frontend/out`.
 3. `make desktop-tauri` to build the Tauri desktop bundle.
 
+On Linux/WSL the default Tauri bundle targets are `.deb` and `.rpm`. AppImage
+packaging is intentionally skipped until the project has square icon assets.
+
 For a faster frontend-only check:
 
 ```bash
