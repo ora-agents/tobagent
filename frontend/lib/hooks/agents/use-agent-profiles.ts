@@ -29,7 +29,7 @@ function saveSelectedId(id: string | null) {
 }
 
 export function useAgentProfiles() {
-  const { user, workspaceHeaders, activeWorkspaceId } = useAuth()
+  const { user, workspaceHeaders, activeWorkspaceId, canManageWorkspace } = useAuth()
   const [profiles, setProfiles] = useState<AgentProfile[]>([])
   const [selectedId, setSelectedIdState] = useState<string | null>(null)
   const [profilesLoaded, setProfilesLoaded] = useState(false)
@@ -100,7 +100,7 @@ export function useAgentProfiles() {
   const createProfile = useCallback(async (
     data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">
   ): Promise<AgentProfile | null> => {
-    if (!LANGGRAPH_API_URL || !user) return null
+    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
     const now = new Date().toISOString()
     const newProfile: AgentProfile = {
       ...data,
@@ -124,10 +124,10 @@ export function useAgentProfiles() {
       console.error("Failed to persist new agent profile to PostgreSQL", err)
     }
     return null
-  }, [user, workspaceHeaders])
+  }, [user, workspaceHeaders, canManageWorkspace])
 
   const updateProfile = useCallback(async (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => {
-    if (!LANGGRAPH_API_URL || !user) return null
+    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
     const target = profiles.find(p => p.id === id)
     if (!target) return null
 
@@ -152,7 +152,7 @@ export function useAgentProfiles() {
       console.error(`Failed to update agent profile ${id} in PostgreSQL`, err)
     }
     return null
-  }, [profiles, user, workspaceHeaders])
+  }, [profiles, user, workspaceHeaders, canManageWorkspace])
 
   const fetchProfileVersions = useCallback(async (id: string): Promise<AgentProfileVersion[]> => {
     if (!LANGGRAPH_API_URL || !user) return []
@@ -171,7 +171,7 @@ export function useAgentProfiles() {
   }, [user, workspaceHeaders])
 
   const restoreProfileVersion = useCallback(async (id: string, versionId: string): Promise<AgentProfile | null> => {
-    if (!LANGGRAPH_API_URL || !user) return null
+    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
 
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions/${versionId}/restore`, {
@@ -187,13 +187,13 @@ export function useAgentProfiles() {
       console.error(`Failed to restore agent profile ${id} version ${versionId}`, err)
     }
     return null
-  }, [user, workspaceHeaders])
+  }, [user, workspaceHeaders, canManageWorkspace])
 
   const createShareLink = useCallback(async (
     id: string,
     include: AgentShareOptions,
   ): Promise<AgentShareLink | null> => {
-    if (!LANGGRAPH_API_URL || !user) return null
+    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
 
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/share`, {
@@ -208,7 +208,7 @@ export function useAgentProfiles() {
       console.error(`Failed to create share link for agent profile ${id}`, err)
     }
     return null
-  }, [user, workspaceHeaders])
+  }, [user, workspaceHeaders, canManageWorkspace])
 
   const importShareLink = useCallback(async (
     token: string,
@@ -259,7 +259,7 @@ export function useAgentProfiles() {
   const importTomlConfig = useCallback(async (
     toml: string,
   ): Promise<AgentConfigTomlImportResponse | null> => {
-    if (!LANGGRAPH_API_URL || !user) return null
+    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
 
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/import.toml`, {
@@ -281,10 +281,10 @@ export function useAgentProfiles() {
       console.error("Failed to import TOML agent configuration", err)
     }
     return null
-  }, [user, workspaceHeaders])
+  }, [user, workspaceHeaders, canManageWorkspace])
 
   const deleteProfile = useCallback(async (id: string) => {
-    if (!LANGGRAPH_API_URL || !user) return
+    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return
 
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
@@ -301,7 +301,7 @@ export function useAgentProfiles() {
     } catch (err) {
       console.error(`Failed to delete agent profile ${id} from PostgreSQL`, err)
     }
-  }, [user, workspaceHeaders])
+  }, [user, workspaceHeaders, canManageWorkspace])
 
   const selectedProfile = selectedId
     ? visibleProfiles.find(p => p.id === selectedId) ?? null

@@ -371,6 +371,14 @@ export function ManagementDashboard({
   const [newWakeWord, setNewWakeWord] = useState("")
   const activeEditingAgentId = selectedAgentId
 
+  useEffect(() => {
+    if (canManageWorkspace) return
+    setIsEditingAgent(false)
+    setIsCreatingAgent(false)
+    onEditAgentChange?.(null)
+    onCreateChange?.(false)
+  }, [canManageWorkspace, onCreateChange, onEditAgentChange])
+
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
   // ---------------------------------------------------------------------------
@@ -686,6 +694,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateAgent = useCallback(() => {
+    if (!canManageWorkspace) return
     onCreateChange?.(true)
     setSelectedAgentId(null)
     setIsCreatingAgent(true)
@@ -718,9 +727,10 @@ export function ManagementDashboard({
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }, [onCreateChange, onEditAgentChange])
+  }, [canManageWorkspace, onCreateChange, onEditAgentChange])
 
   const handleStartEditAgent = (profile: AgentProfile) => {
+    if (!canManageWorkspace) return
     onCreateChange?.(false)
     setSelectedAgentId(profile.id)
     setIsEditingAgent(true)
@@ -771,6 +781,7 @@ export function ManagementDashboard({
   }
 
   const handleCreateAgentShare = async (id: string) => {
+    if (!canManageWorkspace) return
     setSharingAgentId(id)
     try {
       const share = await createAgentShareLink(id, shareOptions)
@@ -794,7 +805,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveAgent = () => {
-    if (!agentForm.name.trim()) return
+    if (!canManageWorkspace || !agentForm.name.trim()) return
 
     const enabledTools = [
       ...agentForm.enabledTools.filter(
@@ -860,6 +871,7 @@ export function ManagementDashboard({
   }
 
   const handleDeleteAgent = (id: string) => {
+    if (!canManageWorkspace) return
     deleteAgentProfile(id)
     setDeleteConfirmId(null)
     setSelectedAgentId(null)
@@ -874,7 +886,7 @@ export function ManagementDashboard({
   }
 
   const handleRestoreAgentVersion = async (versionId: string) => {
-    if (!selectedAgentId) return
+    if (!canManageWorkspace || !selectedAgentId) return
 
     setRestoringVersionId(versionId)
     try {

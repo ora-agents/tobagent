@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import type { ClientProfile } from "@/lib/hooks"
-import { Client } from "@langchain/langgraph-sdk"
 import type { Message, ImageAttachment } from "@/lib/types"
 import { createUserMessage, generateMessageId, extractAttachmentsFromContent, extractTextFromContent } from "@/lib/utils/chat"
 import { truncate } from "@/lib/utils/string"
 import { useStreamHandler, useChatState } from "@/lib/hooks/chat"
 import { useUserId } from "@/lib/hooks/auth"
+import { createLangGraphClient } from "@/lib/api/langgraph-client"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useFileUpload } from "@/lib/hooks/files"
 import { useVoiceAgent } from "@/lib/hooks/files/use-voice-agent"
@@ -17,7 +17,7 @@ import { ChatInput } from "./chat-input"
 import { VoiceMiniPanel } from "./features/voice-mini-panel"
 import type { AgentConfig } from "@/components/layout/agent-settings"
 import type { AgentProfile } from "@/lib/types/agent-profiles"
-import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
+import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import {
   INPUT_TOO_LONG_MESSAGE,
   MAX_INPUT_CHARS,
@@ -79,7 +79,7 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   const t = useT()
   const userId = useUserId()
-  const { user: authUser } = useAuth()
+  const { user: authUser, workspaceHeaders } = useAuth()
   // ============================================================================
   // State Management
   // ============================================================================
@@ -263,16 +263,8 @@ export function ChatInterface({
       return null
     }
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${userId}`,
-    }
-
-    return new Client({
-      apiUrl: LANGGRAPH_API_URL,
-      apiKey: LANGSMITH_API_KEY,
-      defaultHeaders: headers,
-    })
-  }, [userId])
+    return createLangGraphClient(userId, workspaceHeaders)
+  }, [userId, workspaceHeaders])
 
   // Memoize user metadata to prevent unnecessary re-renders
   const userEmail = useMemo(

@@ -20,7 +20,10 @@ import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
  * const threads = await client.threads.search({ metadata: { user_id: userId } })
  * ```
  */
-export function createLangGraphClient(userId: string | undefined): Client {
+export function createLangGraphClient(
+  userId: string | undefined,
+  extraHeaders: Record<string, string> = {},
+): Client {
   if (!userId) {
     throw new Error(
       "User ID required for authentication. Ensure user is logged in before making requests."
@@ -29,6 +32,7 @@ export function createLangGraphClient(userId: string | undefined): Client {
 
   const headers: Record<string, string> = {
     Authorization: `Bearer ${userId}`,
+    ...extraHeaders,
   }
 
   // Optional public app key for deployments that set LANGGRAPH_AUTH_SECRET.
