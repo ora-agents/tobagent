@@ -117,7 +117,6 @@ function DashboardContent() {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [chatSessionKey, setChatSessionKey] = useState(0)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
-  const [elderOptimized, setElderOptimized] = useState(false)
   const [userVoiceprints, setUserVoiceprints] = useState<import("@/components/layout/user-settings-page").UserVoiceprint[]>([])
 
   // Agent profiles (custom configurable agents)
@@ -303,13 +302,7 @@ function DashboardContent() {
     fetchAvailableModels().then(setAvailableModels)
   }, [])
 
-  useEffect(() => {
-    setElderOptimized(localStorage.getItem(STORAGE_KEYS.ELDER_OPTIMIZED_DISPLAY) === "true")
-  }, [])
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ELDER_OPTIMIZED_DISPLAY, String(elderOptimized))
-  }, [elderOptimized])
 
   // Fetch user voiceprints
   useEffect(() => {
@@ -746,7 +739,7 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className={`flex h-dvh bg-background ${isDedicatedAgentApp ? "text-foreground" : ""} ${elderOptimized ? "elder-optimized-ui" : ""}`}>
+      <div className={`flex h-dvh bg-background ${isDedicatedAgentApp ? "text-foreground" : ""}`}>
         {!isDedicatedAgentApp && (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
@@ -849,8 +842,6 @@ function DashboardContent() {
           <UserSettingsPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
-            elderOptimized={elderOptimized}
-            onElderOptimizedChange={setElderOptimized}
             voiceprints={userVoiceprints}
             onVoiceprintsChange={setUserVoiceprints}
             onClearAllConversations={handleClearAllConversations}
