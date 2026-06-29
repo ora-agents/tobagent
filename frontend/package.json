@@ -13,6 +13,7 @@
     "start": "next start",
     "lint": "next lint",
     "tauri:dev": "tauri dev",
+    "tauri:dev:attach": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "tauri:build": "tauri build"
   },
   "dependencies": {
