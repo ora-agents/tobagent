@@ -124,6 +124,14 @@ async def update_skill(
     workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     if member.role not in MANAGER_ROLES:
+        existing_skill = db.query(SkillTable).filter(
+            SkillTable.id == id,
+            SkillTable.owner_user_id == owner_user_id,
+            or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
+        ).first()
+        payload = skill_data.model_dump(mode="json")
+        if existing_skill:
+            payload["previousValues"] = _skill_schema(existing_skill).model_dump(mode="json")
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,
@@ -131,7 +139,7 @@ async def update_skill(
             target_type="skill",
             target_id=id,
             action="update",
-            payload=skill_data.model_dump(mode="json"),
+            payload=payload,
         )
         return _workspace_change_request_schema(db, change)
     skill = db.query(SkillTable).filter(

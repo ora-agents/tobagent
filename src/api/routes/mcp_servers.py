@@ -125,6 +125,14 @@ async def update_mcp_server(
     workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     if member.role not in MANAGER_ROLES:
+        existing_server = db.query(McpServerTable).filter(
+            McpServerTable.id == id,
+            McpServerTable.owner_user_id == owner_user_id,
+            or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
+        ).first()
+        payload = server_data.model_dump(mode="json")
+        if existing_server:
+            payload["previousValues"] = _mcp_schema(existing_server).model_dump(mode="json")
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,
@@ -132,7 +140,7 @@ async def update_mcp_server(
             target_type="mcp_server",
             target_id=id,
             action="update",
-            payload=server_data.model_dump(mode="json"),
+            payload=payload,
         )
         return _workspace_change_request_schema(db, change)
     server = db.query(McpServerTable).filter(

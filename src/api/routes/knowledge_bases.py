@@ -129,6 +129,14 @@ async def update_knowledge_base(
     workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     if member.role not in MANAGER_ROLES:
+        existing_kb = db.query(KnowledgeBaseTable).filter(
+            KnowledgeBaseTable.id == id,
+            KnowledgeBaseTable.owner_user_id == owner_user_id,
+            or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
+        ).first()
+        payload = kb_data.model_dump(mode="json")
+        if existing_kb:
+            payload["previousValues"] = _kb_schema(existing_kb).model_dump(mode="json")
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,
@@ -136,7 +144,7 @@ async def update_knowledge_base(
             target_type="knowledge_base",
             target_id=id,
             action="update",
-            payload=kb_data.model_dump(mode="json"),
+            payload=payload,
         )
         return _workspace_change_request_schema(db, change)
     kb = db.query(KnowledgeBaseTable).filter(

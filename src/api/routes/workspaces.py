@@ -196,6 +196,8 @@ async def update_workspace(
     if not name:
         raise HTTPException(status_code=400, detail="Workspace name is required")
     if member.role not in MANAGER_ROLES:
+        payload = request.model_dump(mode="json")
+        payload["previousValues"] = {"name": workspace.name}
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,
@@ -203,7 +205,7 @@ async def update_workspace(
             target_type="workspace",
             target_id=workspace.id,
             action="update",
-            payload=request.model_dump(mode="json"),
+            payload=payload,
         )
         return _change_request_schema(db, change)
     workspace.name = name

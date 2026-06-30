@@ -204,6 +204,14 @@ async def update_form(
     workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     if member.role not in MANAGER_ROLES:
+        existing_form = db.query(FormTable).filter(
+            FormTable.id == id,
+            FormTable.owner_user_id == owner_user_id,
+            or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        ).first()
+        payload = form_data.model_dump(mode="json")
+        if existing_form:
+            payload["previousValues"] = _form_schema(existing_form).model_dump(mode="json")
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,
@@ -211,7 +219,7 @@ async def update_form(
             target_type="form",
             target_id=id,
             action="update",
-            payload=form_data.model_dump(mode="json"),
+            payload=payload,
         )
         return _workspace_change_request_schema(db, change)
     form = db.query(FormTable).filter(
@@ -421,6 +429,7 @@ async def update_form_record(
         payload = record_data.model_dump(mode="json")
         payload["id"] = record_id
         payload["formId"] = form_id
+        payload["previousValues"] = _form_record_schema(record).model_dump(mode="json")
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,

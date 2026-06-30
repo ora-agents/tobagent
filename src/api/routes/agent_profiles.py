@@ -280,6 +280,17 @@ async def update_agent_profile(
     workspace, member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     if member.role not in MANAGER_ROLES:
+        existing_profile = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id == id,
+            AgentProfileTable.owner_user_id == owner_user_id,
+            or_(
+                AgentProfileTable.workspace_id == workspace.id,
+                AgentProfileTable.workspace_id.is_(None),
+            ),
+        ).first()
+        payload = profile_data.model_dump(mode="json")
+        if existing_profile:
+            payload["previousValues"] = _agent_profile_schema(existing_profile).model_dump(mode="json")
         change = create_workspace_change_request_row(
             db,
             workspace_id=workspace.id,
@@ -287,7 +298,7 @@ async def update_agent_profile(
             target_type="agent_profile",
             target_id=id,
             action="update",
-            payload=profile_data.model_dump(mode="json"),
+            payload=payload,
         )
         return _workspace_change_request_schema(db, change)
     profile = db.query(AgentProfileTable).filter(
