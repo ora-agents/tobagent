@@ -704,7 +704,7 @@ export const Sidebar = memo(function Sidebar({
           }}
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground group"
         >
-          <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
+          <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate">{t.backend}</span>
         </Button>
         <Button variant="unstyled"
@@ -712,9 +712,9 @@ export const Sidebar = memo(function Sidebar({
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
         >
           {mounted && resolvedTheme === "dark" ? (
-            <Sun className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+            <Sun className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           ) : (
-            <Moon className="w-4 h-4 flex-shrink-0 text-muted-foreground/80" />
+            <Moon className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           )}
           <span className="truncate">
             {mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
