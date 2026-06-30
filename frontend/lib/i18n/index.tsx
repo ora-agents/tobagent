@@ -122,6 +122,9 @@ const zh = {
   configuration: "配置",
   expandConfiguration: "展开配置",
   collapseConfiguration: "收起配置",
+  development: "开发",
+  expandDevelopment: "展开开发",
+  collapseDevelopment: "收起开发",
   backend: "后台管理",
   developerManual: "开发手册",
 
@@ -429,6 +432,9 @@ const en = {
   configuration: "Configuration",
   expandConfiguration: "Expand configuration",
   collapseConfiguration: "Collapse configuration",
+  development: "Development",
+  expandDevelopment: "Expand development",
+  collapseDevelopment: "Collapse development",
   backend: "Backend",
   developerManual: "Developer Manual",
 

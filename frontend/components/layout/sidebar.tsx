@@ -200,8 +200,10 @@ export const Sidebar = memo(function Sidebar({
   const [searchQuery, setSearchQuery] = useState('')
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isConfigOpen, setIsConfigOpen] = useState(true)
+  const [isDevelopmentOpen, setIsDevelopmentOpen] = useState(true)
   const isAgentAppSidebar = variant === "agentApp"
   const isConfigView = currentView === "skills" || currentView === "agents" || currentView === "knowledge" || currentView === "forms" || currentView === "mcp"
+  const isDevelopmentView = currentView === "developer-manual" || currentView === "traces"
 
   // Filter threads based on search query
   const filteredThreads = useMemo(() => {
@@ -418,33 +420,50 @@ export const Sidebar = memo(function Sidebar({
             </div>
           )}
           <Button variant="unstyled"
+            onClick={() => setIsDevelopmentOpen((open) => !open)}
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+              isDevelopmentView
+                ? "bg-primary-soft text-primary dark:bg-sidebar-accent dark:text-sidebar-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            }`}
+            title={isDevelopmentOpen ? t.collapseDevelopment : t.expandDevelopment}
+            aria-label={isDevelopmentOpen ? t.collapseDevelopment : t.expandDevelopment}
+            aria-expanded={isDevelopmentOpen}
+          >
+            <Code2 className="w-5 h-5" />
+          </Button>
+          {isDevelopmentOpen && (
+            <div className="flex flex-col items-center gap-3.5">
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("developer-manual")}
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "developer-manual"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                }`}
+                title={t.developerManual}
+              >
+                <BookOpenText className="w-5 h-5" />
+              </Button>
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("traces")}
+                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "traces"
+                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                }`}
+                title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
+              >
+                <Sparkles className="w-5 h-5" />
+              </Button>
+            </div>
+          )}
+          <Button variant="unstyled"
             onClick={openAdminDashboard}
             className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             title={t.backend}
           >
             <LayoutDashboard className="w-5 h-5" />
-          </Button>
-          <Button variant="unstyled"
-            onClick={() => handleViewChange("developer-manual")}
-            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
-              currentView === "developer-manual"
-                ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
-                : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-            }`}
-            title={t.developerManual}
-          >
-            <BookOpenText className="w-5 h-5" />
-          </Button>
-          <Button variant="unstyled"
-            onClick={() => handleViewChange("traces")}
-            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
-              currentView === "traces"
-                ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
-                : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-            }`}
-            title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
-          >
-            <Code2 className="w-5 h-5" />
           </Button>
           <Button variant="unstyled"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
@@ -640,6 +659,45 @@ export const Sidebar = memo(function Sidebar({
           </div>
         )}
         <Button variant="unstyled"
+          onClick={() => setIsDevelopmentOpen((open) => !open)}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+            isDevelopmentView
+              ? "bg-primary-soft text-primary font-medium dark:bg-sidebar-accent dark:text-sidebar-foreground"
+              : "text-sidebar-foreground hover:bg-sidebar-accent"
+          }`}
+          aria-expanded={isDevelopmentOpen}
+        >
+          <Code2 className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+          <span className="truncate flex-1 text-left">{t.development}</span>
+          <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isDevelopmentOpen ? "rotate-180" : ""}`} />
+        </Button>
+        {isDevelopmentOpen && (
+          <div className="flex flex-col gap-1 pl-3">
+            <Button variant="unstyled"
+              onClick={() => handleViewChange("developer-manual")}
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                currentView === "developer-manual"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+              }`}
+            >
+              <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+              <span className="truncate">{t.developerManual}</span>
+            </Button>
+            <Button variant="unstyled"
+              onClick={() => handleViewChange("traces")}
+              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                currentView === "traces"
+                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+              }`}
+            >
+              <Sparkles className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+              <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
+            </Button>
+          </div>
+        )}
+        <Button variant="unstyled"
           onClick={() => {
             onMobileClose?.()
             openAdminDashboard()
@@ -648,28 +706,6 @@ export const Sidebar = memo(function Sidebar({
         >
           <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.backend}</span>
-        </Button>
-        <Button variant="unstyled"
-          onClick={() => handleViewChange("developer-manual")}
-          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
-            currentView === "developer-manual"
-              ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
-              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
-          }`}
-        >
-          <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
-          <span className="truncate">{t.developerManual}</span>
-        </Button>
-        <Button variant="unstyled"
-          onClick={() => handleViewChange("traces")}
-          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
-            currentView === "traces"
-              ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
-              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
-          }`}
-        >
-          <Code2 className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
-          <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
         </Button>
         <Button variant="unstyled"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
