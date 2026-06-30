@@ -21,7 +21,11 @@ def skill_category_key(skill: SkillTable) -> str:
         frontmatter, _body = parse_skill_markdown(skill.content or "")
     except SkillValidationError:
         frontmatter = {}
-    raw_category = frontmatter.get("category", "")
+    metadata = frontmatter.get("metadata")
+    raw_category = ""
+    if isinstance(metadata, dict):
+        raw_category = metadata.get("category", "")
+    raw_category = raw_category or frontmatter.get("category", "")
     return normalize_category_key(
         str(raw_category or ""),
         uncategorized_key=UNCATEGORIZED_SKILL_CATEGORY,

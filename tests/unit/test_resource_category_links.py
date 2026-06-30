@@ -5,7 +5,10 @@ from src.utils.resource_categories import resolve_form_ids, resolve_skill_ids
 def test_resolve_skill_ids_includes_current_category_members():
     skills = [
         SkillTable(id="skill-a", content="---\nname: A\ndescription: A\ncategory: sales\n---\n# A"),
-        SkillTable(id="skill-b", content="---\nname: B\ndescription: B\ncategory: Sales\n---\n# B"),
+        SkillTable(
+            id="skill-b",
+            content="---\nname: B\ndescription: B\nmetadata:\n  category: Sales\n---\n# B",
+        ),
         SkillTable(id="skill-c", content="---\nname: C\ndescription: C\ncategory: support\n---\n# C"),
     ]
 
