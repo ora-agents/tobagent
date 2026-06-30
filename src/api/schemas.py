@@ -24,6 +24,7 @@ class UserRegisterRequest(BaseModel):
     username: str
     phone: str
     code: str
+    password: str
 
     @field_validator("phone")
     @classmethod
@@ -35,16 +36,25 @@ class UserRegisterRequest(BaseModel):
 
     @field_validator("code")
     @classmethod
-    def validate_code(cls, value: str) -> str:
+    def validate_code(cls, value: str | None) -> str | None:
         code = value.strip()
         if not re.fullmatch(SMS_CODE_PATTERN, code):
             raise ValueError("Invalid verification code")
         return code
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        password = value.strip()
+        if len(password) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        return password
 
 
 class UserLoginRequest(BaseModel):
     phone: str
-    code: str
+    code: str | None = None
+    password: str | None = None
 
     @field_validator("phone")
     @classmethod
@@ -57,15 +67,27 @@ class UserLoginRequest(BaseModel):
     @field_validator("code")
     @classmethod
     def validate_code(cls, value: str) -> str:
+        if value is None:
+            return value
         code = value.strip()
         if not re.fullmatch(SMS_CODE_PATTERN, code):
             raise ValueError("Invalid verification code")
         return code
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        password = value.strip()
+        if not password:
+            raise ValueError("Invalid password")
+        return password
+
 
 class SmsCodeRequest(BaseModel):
     phone: str
-    purpose: Literal["register", "login", "sensitive"] = "login"
+    purpose: Literal["register", "login", "sensitive", "bind_phone", "reset_password"] = "login"
 
     @field_validator("phone")
     @classmethod
@@ -82,7 +104,7 @@ class SmsCodeResponse(BaseModel):
 
 class SmsCodeVerifyRequest(BaseModel):
     phone: str
-    purpose: Literal["sensitive"] = "sensitive"
+    purpose: Literal["sensitive", "reset_password"] = "sensitive"
     code: str
 
     @field_validator("phone")
@@ -120,6 +142,57 @@ class UserResponse(BaseModel):
     preferences: str | None = None
     safetyEnabled: bool = False
     createdAt: str
+
+
+class UserBindPhoneRequest(BaseModel):
+    phone: str
+    code: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        phone = _normalize_phone(value)
+        if not re.fullmatch(PHONE_PATTERN, phone):
+            raise ValueError("Invalid phone number")
+        return phone
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        code = value.strip()
+        if not re.fullmatch(SMS_CODE_PATTERN, code):
+            raise ValueError("Invalid verification code")
+        return code
+
+
+class UserPasswordUpdateRequest(BaseModel):
+    phone: str
+    code: str
+    password: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        phone = _normalize_phone(value)
+        if not re.fullmatch(PHONE_PATTERN, phone):
+            raise ValueError("Invalid phone number")
+        return phone
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        code = value.strip()
+        if not re.fullmatch(SMS_CODE_PATTERN, code):
+            raise ValueError("Invalid verification code")
+        return code
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        password = value.strip()
+        if len(password) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        return password
 
 
 class UserApiKeySchema(BaseModel):

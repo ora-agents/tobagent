@@ -15,6 +15,7 @@ from src.api.deps import (
     get_current_user,
     hash_api_key,
     hash_password,
+    verify_password,
 )
 from src.api.schemas import (
     CreateUserApiKeyRequest,
@@ -23,14 +24,32 @@ from src.api.schemas import (
     SmsCodeResponse,
     SmsCodeVerifyRequest,
     UserApiKeySchema,
+    UserBindPhoneRequest,
     UserLoginRequest,
+    UserPasswordUpdateRequest,
     UserRegisterRequest,
     UserResponse,
     UserUpdateRequest,
 )
 from src.api.sms_verification import consume_sms_code, issue_sms_code
 from src.api.workspace_utils import ensure_default_workspace
-from src.utils.db import UserApiKeyTable, UserTable, get_db
+from src.utils.db import (
+    AgentProfileTable,
+    AgentProfileVersionTable,
+    AgentShareLinkTable,
+    FormRecordTable,
+    FormTable,
+    KnowledgeBaseTable,
+    McpServerTable,
+    SkillTable,
+    UserApiKeyTable,
+    UserTable,
+    UserVoiceprintTable,
+    WorkspaceChangeRequestTable,
+    WorkspaceMemberTable,
+    WorkspaceTable,
+    get_db,
+)
 from src.utils.default_skills import ensure_default_skills
 
 router = APIRouter(tags=["auth"])
@@ -59,6 +78,18 @@ def _user_response(user: UserTable) -> UserResponse:
     )
 
 
+def _current_user_from_authorization(authorization: str | None, db: Session) -> UserTable:
+    credential = _extract_bearer_user_id(authorization)
+    api_key = db.query(UserApiKeyTable).filter(
+        UserApiKeyTable.key_hash == hash_api_key(credential),
+    ).first()
+    user_id = api_key.owner_user_id if api_key else credential
+    current_user = db.query(UserTable).filter(UserTable.id == user_id).first()
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Invalid user")
+    return current_user
+
+
 @router.post(
     "/api/auth/sms-code",
     response_model=SmsCodeResponse,
@@ -78,15 +109,15 @@ async def send_sms_code(
         existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
         if not existing_user:
             raise HTTPException(status_code=404, detail="Phone is not registered")
+    elif req.purpose == "bind_phone":
+        current_user = _current_user_from_authorization(authorization, db)
+        if current_user.phone:
+            raise HTTPException(status_code=400, detail="Phone already bound")
+        existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Phone already exists")
     else:
-        credential = _extract_bearer_user_id(authorization)
-        api_key = db.query(UserApiKeyTable).filter(
-            UserApiKeyTable.key_hash == hash_api_key(credential),
-        ).first()
-        user_id = api_key.owner_user_id if api_key else credential
-        current_user = db.query(UserTable).filter(UserTable.id == user_id).first()
-        if not current_user:
-            raise HTTPException(status_code=401, detail="Invalid user")
+        current_user = _current_user_from_authorization(authorization, db)
         if current_user.phone != req.phone:
             raise HTTPException(status_code=403, detail="Cannot verify another account")
 
@@ -134,7 +165,7 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     # Generate UUID and a random nice avatar color
     user_id = f"user-{uuid.uuid4()}"
     avatar_color = secrets.choice(AVATAR_COLORS)
-    hashed_pwd = hash_password(secrets.token_urlsafe(32))
+    hashed_pwd = hash_password(req.password)
     
     user = UserTable(
         id=user_id,
@@ -166,8 +197,14 @@ async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid phone or verification code")
 
-    consume_sms_code(db, req.phone, "login", req.code)
-    db.commit()
+    if req.password is not None:
+        if not user.password_hash or not verify_password(req.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid phone or password")
+    elif req.code is not None:
+        consume_sms_code(db, req.phone, "login", req.code)
+        db.commit()
+    else:
+        raise HTTPException(status_code=400, detail="Password or verification code is required")
 
     return _user_response(user)
 
@@ -188,6 +225,111 @@ async def get_user_profile(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return _user_response(user)
+
+
+@router.post(
+    "/api/auth/users/{user_id}/phone",
+    response_model=UserResponse,
+    summary="Bind a phone number",
+    description="Binds a phone number to the authenticated account after SMS verification.",
+)
+async def bind_user_phone(
+    user_id: str,
+    req: UserBindPhoneRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    _require_same_user(current_user, user_id)
+    if current_user.phone:
+        raise HTTPException(status_code=400, detail="Phone already bound")
+    existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Phone already exists")
+
+    consume_sms_code(db, req.phone, "bind_phone", req.code)
+    current_user.phone = req.phone
+    db.commit()
+    db.refresh(current_user)
+    return _user_response(current_user)
+
+
+@router.post(
+    "/api/auth/users/{user_id}/password",
+    response_model=SmsCodeResponse,
+    summary="Change password",
+    description="Updates the authenticated account password after verifying a code sent to the bound phone.",
+)
+async def update_user_password(
+    user_id: str,
+    req: UserPasswordUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    _require_same_user(current_user, user_id)
+    if not current_user.phone:
+        raise HTTPException(status_code=400, detail="Phone is not bound")
+    if current_user.phone != req.phone:
+        raise HTTPException(status_code=403, detail="Cannot verify another account")
+
+    consume_sms_code(db, req.phone, "reset_password", req.code)
+    current_user.password_hash = hash_password(req.password)
+    db.commit()
+    return SmsCodeResponse(ok=True)
+
+
+@router.delete(
+    "/api/auth/users/{user_id}",
+    response_model=SmsCodeResponse,
+    summary="Delete the current account",
+    description="Deletes the authenticated account and directly owned workspace configuration data.",
+)
+async def delete_user_account(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    _require_same_user(current_user, user_id)
+
+    owned_workspaces = db.query(WorkspaceTable.id).filter(
+        WorkspaceTable.owner_user_id == current_user.id,
+    ).all()
+    owned_workspace_ids = [row[0] for row in owned_workspaces]
+
+    for table in (
+        AgentProfileVersionTable,
+        AgentShareLinkTable,
+        AgentProfileTable,
+        SkillTable,
+        McpServerTable,
+        FormRecordTable,
+        FormTable,
+        KnowledgeBaseTable,
+        UserVoiceprintTable,
+        UserApiKeyTable,
+    ):
+        db.query(table).filter(table.owner_user_id == current_user.id).delete(synchronize_session=False)
+
+    if owned_workspace_ids:
+        db.query(WorkspaceChangeRequestTable).filter(
+            WorkspaceChangeRequestTable.workspace_id.in_(owned_workspace_ids),
+        ).delete(synchronize_session=False)
+        db.query(WorkspaceMemberTable).filter(
+            WorkspaceMemberTable.workspace_id.in_(owned_workspace_ids),
+        ).delete(synchronize_session=False)
+
+    db.query(WorkspaceChangeRequestTable).filter(
+        WorkspaceChangeRequestTable.requester_user_id == current_user.id,
+    ).delete(synchronize_session=False)
+    db.query(WorkspaceMemberTable).filter(
+        WorkspaceMemberTable.user_id == current_user.id,
+    ).delete(synchronize_session=False)
+    db.query(WorkspaceTable).filter(
+        WorkspaceTable.owner_user_id == current_user.id,
+    ).delete(synchronize_session=False)
+
+    db.delete(current_user)
+    db.commit()
+    return SmsCodeResponse(ok=True)
 
 
 @router.put(
