@@ -458,7 +458,7 @@ export function FormFieldDesigner({
                   type="button"
                   variant="ghost"
                   onClick={() => addField(item.type)}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-background px-3 text-sm shadow-depth-xs transition hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg bg-background px-3 text-sm shadow-depth-xs transition hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20 dark:hover:bg-sidebar-accent dark:hover:text-foreground"
                 >
                   <Icon className="h-4 w-4" />
                   <span>{locale === "zh" ? item.zh : item.en}</span>
@@ -471,10 +471,10 @@ export function FormFieldDesigner({
         <div className="rounded-xl bg-muted/35 p-3">
           <ScrollArea
             className="rounded-lg bg-background shadow-depth-xs"
-            contentClassName="min-w-[860px]"
+            contentClassName="min-w-[640px] sm:min-w-[760px] lg:min-w-[860px]"
             scrollbars="horizontal"
           >
-            <div className="grid" style={{ gridTemplateColumns: `56px repeat(${Math.max(displayFields.length, 1)}, minmax(180px, 1fr))` }}>
+            <div className="grid" style={{ gridTemplateColumns: `44px repeat(${Math.max(displayFields.length, 1)}, minmax(140px, 1fr))` }}>
               <div className="sticky left-0 z-20 flex items-center bg-muted px-3 py-3 text-xs font-semibold text-muted-foreground">#</div>
               {displayFields.length > 0 ? displayFields.map(field => {
                 const isSystemField = SYSTEM_FORM_FIELD_IDS.has(field.id)
@@ -494,8 +494,8 @@ export function FormFieldDesigner({
                     }}
                     className={`group min-w-0 border-l px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/20 ${
                       isSelected
-                        ? "border-primary/20 bg-primary-soft text-primary"
-                        : "border-border/50 bg-muted hover:bg-primary/10"
+                        ? "border-primary/20 bg-primary-soft text-primary dark:border-primary/50 dark:bg-sidebar-accent dark:text-foreground"
+                        : "border-border/50 bg-muted hover:bg-primary/10 dark:hover:bg-sidebar-accent"
                     }`}
                   >
                       <div className="flex min-w-0 items-start justify-between gap-2">
@@ -511,7 +511,7 @@ export function FormFieldDesigner({
                                 {getFieldTypeLabel(field.type, locale)}
                               </span>
                               {field.required && (
-                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary dark:bg-primary dark:text-primary-foreground">
                                   {locale === "zh" ? "必填" : "Required"}
                                 </span>
                               )}
@@ -574,7 +574,7 @@ export function FormFieldDesigner({
                 )}
               </div>
           </ScrollArea>
-          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <span>{locale === "zh" ? `${definition.fields.length} 个自定义字段，${SYSTEM_FORM_FIELDS.length} 个系统字段` : `${definition.fields.length} custom fields, ${SYSTEM_FORM_FIELDS.length} system fields`}</span>
             <span>{locale === "zh" ? "系统字段固定在记录末尾" : "System fields stay at the end"}</span>
           </div>

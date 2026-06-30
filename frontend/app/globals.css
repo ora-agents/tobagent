@@ -228,6 +228,8 @@ img {
 .prompt-mdx-editor {
   display: flex;
   flex-direction: column;
+  max-width: 100%;
+  min-width: 0;
   overflow: visible;
   border-radius: 0.5rem;
   background: var(--secondary);
@@ -242,8 +244,26 @@ img {
   --baseBorderHover: var(--muted-foreground);
   --baseText: var(--muted-foreground);
   --baseTextContrast: var(--foreground);
+  --baseBase: var(--card);
   --accentText: var(--primary);
+  --prompt-mdx-active-bg: var(--primary-soft);
+  --prompt-mdx-active-text: var(--primary);
   --prompt-mdx-toolbar-sticky-top: 0px;
+}
+
+.dark .prompt-mdx-editor.mdxeditor,
+.dark .prompt-mdx-editor {
+  --baseBgActive: var(--card);
+  --baseText: var(--muted-foreground);
+  --baseTextContrast: var(--foreground);
+  --baseBase: var(--card);
+  --prompt-mdx-active-bg: var(--primary);
+  --prompt-mdx-active-text: var(--primary-foreground);
+}
+
+.prompt-mdx-editor *,
+.prompt-mdx-toolbar * {
+  box-sizing: border-box;
 }
 
 .prompt-mdx-editor.mdxeditor:focus-within,
@@ -259,7 +279,7 @@ img {
   z-index: 20;
   display: flex;
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
   width: 100%;
@@ -268,8 +288,7 @@ img {
   padding: 0.375rem;
   border-radius: 0.5rem 0.5rem 0 0;
   background: var(--muted);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
 }
 
 .prompt-mdx-editor .mdxeditor-root-contenteditable {
@@ -285,6 +304,7 @@ img {
   flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
+  max-width: 100%;
   flex: 0 0 auto;
   gap: 0.25rem;
   white-space: nowrap;
@@ -309,7 +329,8 @@ img {
   align-items: center;
   justify-content: center;
   border-radius: 0.375rem;
-  color: var(--foreground);
+  background: transparent;
+  color: var(--foreground) !important;
   line-height: 1;
 }
 
@@ -319,9 +340,114 @@ img {
 }
 
 .prompt-mdx-editor .mdxeditor-toolbar button[data-state="on"],
-.mdxeditor-toolbar.prompt-mdx-toolbar button[data-state="on"] {
-  background: var(--primary-soft);
-  color: var(--primary);
+.mdxeditor-toolbar.prompt-mdx-toolbar button[data-state="on"],
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-pressed="true"],
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-pressed="true"] {
+  background: var(--prompt-mdx-active-bg);
+  color: var(--prompt-mdx-active-text) !important;
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar [class*="_toolbarModeSwitch_"],
+.prompt-mdx-editor .mdxeditor-toolbar [class*="_diffSourceToggle_"],
+.mdxeditor-toolbar.prompt-mdx-toolbar [class*="_toolbarModeSwitch_"],
+.mdxeditor-toolbar.prompt-mdx-toolbar [class*="_diffSourceToggle_"] {
+  border-color: var(--border);
+  background: var(--secondary);
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar [class*="_toolbarModeSwitch_"] button,
+.prompt-mdx-editor .mdxeditor-toolbar [class*="_diffSourceToggle_"] button,
+.mdxeditor-toolbar.prompt-mdx-toolbar [class*="_toolbarModeSwitch_"] button,
+.mdxeditor-toolbar.prompt-mdx-toolbar [class*="_diffSourceToggle_"] button {
+  color: var(--foreground) !important;
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar [class*="_toolbarModeSwitch_"] button[data-state="on"],
+.prompt-mdx-editor .mdxeditor-toolbar [class*="_diffSourceToggle_"] button[data-state="on"],
+.mdxeditor-toolbar.prompt-mdx-toolbar [class*="_toolbarModeSwitch_"] button[data-state="on"],
+.mdxeditor-toolbar.prompt-mdx-toolbar [class*="_diffSourceToggle_"] button[data-state="on"] {
+  background: var(--prompt-mdx-active-bg);
+  color: var(--prompt-mdx-active-text) !important;
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Rich text"],
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Source mode"],
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Rich text"],
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Source mode"] {
+  background: transparent !important;
+  color: var(--foreground) !important;
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Rich text"][data-state="on"],
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Source mode"][data-state="on"],
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Rich text"][data-state="on"],
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Source mode"][data-state="on"] {
+  background: var(--prompt-mdx-active-bg) !important;
+  color: var(--prompt-mdx-active-text) !important;
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Rich text"] > span,
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Source mode"] > span,
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Rich text"] > span,
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Source mode"] > span,
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Rich text"] svg,
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Source mode"] svg,
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Rich text"] svg,
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Source mode"] svg {
+  color: inherit !important;
+}
+
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Rich text"] svg *,
+.prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Source mode"] svg *,
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Rich text"] svg *,
+.mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Source mode"] svg * {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.dark .prompt-mdx-editor .mdxeditor-toolbar [class*="_toolbarModeSwitch_"],
+.dark .prompt-mdx-editor .mdxeditor-toolbar [class*="_diffSourceToggle_"],
+.dark .mdxeditor-toolbar.prompt-mdx-toolbar [class*="_toolbarModeSwitch_"],
+.dark .mdxeditor-toolbar.prompt-mdx-toolbar [class*="_diffSourceToggle_"] {
+  border-color: var(--border) !important;
+  background: var(--secondary) !important;
+}
+
+.dark .prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Rich text"]:not([data-state="on"]),
+.dark .prompt-mdx-editor .mdxeditor-toolbar button[aria-label="Source mode"]:not([data-state="on"]),
+.dark .mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Rich text"]:not([data-state="on"]),
+.dark .mdxeditor-toolbar.prompt-mdx-toolbar button[aria-label="Source mode"]:not([data-state="on"]) {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+}
+
+.dark [class*="_tooltipContent_"] {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 10px 24px color-mix(in srgb, #000 38%, transparent);
+}
+
+.dark [class*="_tooltipContent_"] svg {
+  fill: var(--card) !important;
+}
+
+.dark .prompt-mdx-editor .mdxeditor-diff-source-wrapper,
+.dark .prompt-mdx-editor .mdxeditor-rich-text-editor,
+.dark .prompt-mdx-editor .mdxeditor-source-editor,
+.dark .prompt-mdx-editor .cm-sourceView,
+.dark .prompt-mdx-editor .cm-editor,
+.dark .prompt-mdx-editor .cm-scroller,
+.dark .prompt-mdx-editor .cm-content,
+.dark .prompt-mdx-editor .cm-gutters {
+  background: var(--secondary) !important;
+  color: var(--foreground) !important;
+}
+
+.dark .prompt-mdx-editor .cm-line,
+.dark .prompt-mdx-editor .cm-activeLine,
+.dark .prompt-mdx-editor .cm-activeLineGutter {
+  background: transparent !important;
+  color: var(--foreground) !important;
 }
 
 .prompt-mdx-editor .mdxeditor-toolbar div[role="separator"],
@@ -338,7 +464,7 @@ img {
 .mdxeditor-toolbar.prompt-mdx-toolbar [role="combobox"] {
   display: inline-flex;
   min-width: 7.5rem;
-  width: auto;
+  width: min(100%, 9.5rem);
   height: 2.125rem;
   align-items: center;
   justify-content: space-between;
@@ -391,7 +517,7 @@ img {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
-  color: currentColor;
+  color: currentColor !important;
 }
 
 .prompt-mdx-content {
