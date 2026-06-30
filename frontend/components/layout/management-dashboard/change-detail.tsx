@@ -74,6 +74,10 @@ const WORKSPACE_MEMBER_FIELDS: FieldDef[] = [
   { key: "role", label: { zh: "角色", en: "Role" }, type: "text" },
 ]
 
+const WORKSPACE_FIELDS: FieldDef[] = [
+  { key: "name", label: { zh: "名称", en: "Name" }, type: "text" },
+]
+
 const SKILL_FIELDS: FieldDef[] = [
   { key: "name", label: { zh: "名称", en: "Name" }, type: "text" },
   { key: "description", label: { zh: "描述", en: "Description" }, type: "longtext" },
@@ -91,12 +95,27 @@ const MCP_SERVER_FIELDS: FieldDef[] = [
   { key: "url", label: { zh: "URL", en: "URL" }, type: "text" },
 ]
 
+const FORM_FIELDS: FieldDef[] = [
+  { key: "name", label: { zh: "名称", en: "Name" }, type: "text" },
+  { key: "description", label: { zh: "描述", en: "Description" }, type: "longtext" },
+  { key: "category", label: { zh: "分类", en: "Category" }, type: "text" },
+  { key: "fields", label: { zh: "字段", en: "Fields" }, type: "json" },
+  { key: "hooks", label: { zh: "Hooks", en: "Hooks" }, type: "json" },
+]
+
+const FORM_RECORD_FIELDS: FieldDef[] = [
+  { key: "data", label: { zh: "记录数据", en: "Record data" }, type: "json" },
+]
+
 const FIELD_REGISTRY: Record<string, FieldDef[]> = {
   agent_profile: AGENT_PROFILE_FIELDS,
+  workspace: WORKSPACE_FIELDS,
   workspace_member: WORKSPACE_MEMBER_FIELDS,
   skill: SKILL_FIELDS,
   knowledge_base: KNOWLEDGE_BASE_FIELDS,
   mcp_server: MCP_SERVER_FIELDS,
+  form: FORM_FIELDS,
+  form_record: FORM_RECORD_FIELDS,
 }
 
 /* ------------------------------------------------------------------ */
@@ -109,6 +128,8 @@ const targetLabels: Record<string, Record<Locale, string>> = {
   knowledge_base: { zh: "知识库", en: "Knowledge base" },
   mcp_server: { zh: "MCP 服务", en: "MCP server" },
   form: { zh: "表单", en: "Form" },
+  form_record: { zh: "表单记录", en: "Form record" },
+  workspace: { zh: "工作间", en: "Workspace" },
   workspace_member: { zh: "工作区成员", en: "Workspace member" },
 }
 
@@ -356,10 +377,12 @@ export function ChangeDetail({ change, locale, actions }: ChangeDetailProps) {
 
   const fields = FIELD_REGISTRY[change.targetType] ?? []
   const payload = change.payload ?? {}
+  const hasPreviousValues = Object.keys(previousValues).length > 0
+  const renderAsCreate = (isCreate && !hasPreviousValues) || isDelete
 
   // Collect changed field keys for the summary badge
   const changedCount = fields.filter((f) => {
-    if (isCreate || isDelete) return true
+    if (renderAsCreate) return true
     const oldVal = previousValues[f.key]
     const newVal = payload[f.key]
     return JSON.stringify(oldVal) !== JSON.stringify(newVal)
@@ -390,7 +413,7 @@ export function ChangeDetail({ change, locale, actions }: ChangeDetailProps) {
             </span>
             <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{actionLabel}</span>
             <span className="truncate text-sm font-medium">{name}</span>
-            {!isCreate && !isDelete && changedCount > 0 && (
+            {!renderAsCreate && changedCount > 0 && (
               <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
                 {changedCount} {zh ? "项变更" : changedCount === 1 ? "change" : "changes"}
               </span>
@@ -426,7 +449,7 @@ export function ChangeDetail({ change, locale, actions }: ChangeDetailProps) {
                     oldValue={oldVal}
                     newValue={newVal}
                     locale={locale}
-                    isCreate={isCreate || isDelete}
+                    isCreate={renderAsCreate}
                   />
                 )
               })}

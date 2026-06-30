@@ -425,6 +425,9 @@ export function ManagementDashboard({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
   const activeEditingAgentId = selectedAgentId
+  const submitConfigLabel = canManageWorkspace
+    ? t.save
+    : (locale === "zh" ? "提交审批" : "Submit for approval")
 
   const handlePendingChangeResponse = useCallback(() => {
     window.alert(locale === "zh" ? "已提交审批，审批通过后生效。" : "Submitted for approval. Changes apply after approval.")
@@ -2021,7 +2024,7 @@ export function ManagementDashboard({
               disabled={!mcpForm.name.trim() || isSavingMcp}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {isSavingMcp ? t.mcpDiscovering : t.save}
+              {isSavingMcp ? t.mcpDiscovering : submitConfigLabel}
             </Button>
             <Button
               variant="ghost"
@@ -2062,8 +2065,10 @@ export function ManagementDashboard({
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
               {agentLinkedResourceCreateContext?.type === "skill"
-                ? (locale === "zh" ? "保存并关联" : "Save and link")
-                : t.save}
+                ? canManageWorkspace
+                  ? (locale === "zh" ? "保存并关联" : "Save and link")
+                  : submitConfigLabel
+                : submitConfigLabel}
             </Button>
             <Button
               variant="ghost"
@@ -2107,7 +2112,7 @@ export function ManagementDashboard({
               disabled={!agentForm.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {canManageWorkspace ? t.save : (locale === "zh" ? "提交审批" : "Submit for approval")}
+              {submitConfigLabel}
             </Button>
             <Button
               variant="ghost"
@@ -2145,7 +2150,7 @@ export function ManagementDashboard({
               disabled={!kbForm.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
-              {t.save}
+              {submitConfigLabel}
             </Button>
             <Button
               variant="ghost"
@@ -2186,8 +2191,10 @@ export function ManagementDashboard({
               className="bg-primary text-primary-foreground hover:bg-primary-active rounded-lg cursor-pointer"
             >
               {agentLinkedResourceCreateContext?.type === "form"
-                ? (locale === "zh" ? "保存并关联" : "Save and link")
-                : t.save}
+                ? canManageWorkspace
+                  ? (locale === "zh" ? "保存并关联" : "Save and link")
+                  : submitConfigLabel
+                : submitConfigLabel}
             </Button>
             <Button
               variant="ghost"
