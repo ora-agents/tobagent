@@ -193,6 +193,41 @@ def test_member_change_request_is_applied_by_owner(client):
     assert "agent-1" in [agent["id"] for agent in listed.json()]
 
 
+def test_member_agent_update_change_request_includes_previous_values(client):
+    created = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "Team"},
+    )
+    workspace_id = created.json()["id"]
+    client.post(
+        f"/api/workspaces/{workspace_id}/members",
+        headers=_auth("user-owner"),
+        json={"username": "member", "role": "member"},
+    )
+    owner_created = client.post(
+        "/api/agent-profiles",
+        headers=_auth("user-owner", workspace_id),
+        json=_agent_payload(),
+    )
+    assert owner_created.status_code == 200
+
+    payload = _agent_payload()
+    payload["name"] = "Support v2"
+    change = client.put(
+        "/api/agent-profiles/agent-1",
+        headers=_auth("user-member", workspace_id),
+        json=payload,
+    )
+
+    assert change.status_code == 200
+    body = change.json()
+    assert body["status"] == "pending"
+    assert body["action"] == "update"
+    assert body["payload"]["name"] == "Support v2"
+    assert body["payload"]["previousValues"]["name"] == "Support"
+
+
 def test_workspace_member_role_change_request_is_applied_by_owner(client):
     created = client.post(
         "/api/workspaces",
@@ -232,6 +267,80 @@ def test_workspace_member_role_change_request_is_applied_by_owner(client):
     ).json()
     member = next(item for item in members if item["userId"] == "user-member")
     assert member["role"] == "admin"
+
+
+def test_member_form_update_change_request_includes_previous_values(client):
+    created = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "Team"},
+    )
+    workspace_id = created.json()["id"]
+    client.post(
+        f"/api/workspaces/{workspace_id}/members",
+        headers=_auth("user-owner"),
+        json={"username": "member", "role": "member"},
+    )
+    form = client.post(
+        "/api/forms",
+        headers=_auth("user-owner", workspace_id),
+        json=_form_payload(),
+    )
+    assert form.status_code == 200
+
+    payload = _form_payload()
+    payload["name"] = "Orders v2"
+    change = client.put(
+        "/api/forms/form-1",
+        headers=_auth("user-member", workspace_id),
+        json=payload,
+    )
+
+    assert change.status_code == 200
+    body = change.json()
+    assert body["status"] == "pending"
+    assert body["action"] == "update"
+    assert body["payload"]["name"] == "Orders v2"
+    assert body["payload"]["previousValues"]["name"] == "Orders"
+
+
+def test_member_form_record_update_change_request_includes_previous_values(client):
+    created = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "Team"},
+    )
+    workspace_id = created.json()["id"]
+    client.post(
+        f"/api/workspaces/{workspace_id}/members",
+        headers=_auth("user-owner"),
+        json={"username": "member", "role": "member"},
+    )
+    form = client.post(
+        "/api/forms",
+        headers=_auth("user-owner", workspace_id),
+        json=_form_payload(),
+    )
+    assert form.status_code == 200
+    record = client.post(
+        "/api/forms/form-1/records",
+        headers=_auth("user-owner", workspace_id),
+        json={"id": "record-1", "data": {"customer": "Acme"}},
+    )
+    assert record.status_code == 200
+
+    change = client.put(
+        "/api/forms/form-1/records/record-1",
+        headers=_auth("user-member", workspace_id),
+        json={"id": "record-1", "data": {"customer": "Beta"}},
+    )
+
+    assert change.status_code == 200
+    body = change.json()
+    assert body["status"] == "pending"
+    assert body["action"] == "update"
+    assert body["payload"]["data"] == {"customer": "Beta"}
+    assert body["payload"]["previousValues"]["data"] == {"customer": "Acme"}
 
 
 def test_member_form_record_change_request_is_applied_by_owner(client):
