@@ -524,7 +524,7 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                 </a>
               )}
             </div>
-            <ScrollArea className="h-full min-h-0">
+            <ScrollArea className="min-h-0 flex-1">
               {!selectedTrace ? (
                 <div className="p-4 sm:p-6">
                   <EmptyState icon={<Code2 className="h-8 w-8" />} title={labels.empty} />

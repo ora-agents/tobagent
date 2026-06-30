@@ -34,7 +34,7 @@ function ScrollArea({
         ref={viewportRef}
         data-slot="scroll-area-viewport"
         className={cn(
-          "focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1",
+          "focus-visible:ring-ring/50 size-full max-h-[inherit] max-w-[inherit] rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1",
           scrollbars === "vertical" &&
             "[&>div]:!block [&>div]:w-full [&>div]:min-w-0",
           viewportClassName

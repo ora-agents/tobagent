@@ -14,7 +14,7 @@ function ListPanel({ title, action, children, className, contentClassName, ...pr
   return (
     <aside
       className={cn(
-        "flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col border-b border-border/50 bg-background/50 md:max-h-none md:w-[300px] md:border-b-0 md:border-r",
+        "flex max-h-[42dvh] min-h-0 w-full flex-shrink-0 flex-col overflow-hidden border-b border-border/50 bg-background/50 md:max-h-none md:w-[300px] md:border-b-0 md:border-r",
         className
       )}
       {...props}
