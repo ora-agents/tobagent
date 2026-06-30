@@ -1,5 +1,6 @@
 use std::{
     env,
+    io,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
@@ -54,10 +55,11 @@ fn start_backend(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let resource_dir = app.path().resource_dir().ok();
     let Some(backend) = find_backend(resource_dir.as_deref()) else {
-        eprintln!(
-            "TOB Agent desktop backend was not found. Set TOB_DESKTOP_BACKEND_BIN for dev, or run `make desktop-backend` before packaging."
-        );
-        return Ok(());
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "TOB Agent desktop backend was not found. Set TOB_DESKTOP_BACKEND_BIN for dev, or run `make desktop-backend` before packaging.",
+        )
+        .into());
     };
 
     let app_data_dir = app.path().app_data_dir()?;
