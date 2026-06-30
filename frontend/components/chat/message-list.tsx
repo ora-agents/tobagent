@@ -1,6 +1,7 @@
 import { memo, useMemo, useEffect, useRef, useState, useCallback } from "react"
 import type { Message } from "@/lib/types"
 import { MessageItem } from "./message-item"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { ArrowDown } from "lucide-react"
@@ -435,13 +436,13 @@ export const MessageList = memo(function MessageList({
       </ScrollArea>
 
       {showScrollButton && !isLoadingThread && (
-        <button
+        <Button variant="unstyled"
           onClick={scrollToBottom}
           className="scroll-button fixed bottom-[calc(7.5rem+env(safe-area-inset-bottom))] right-3 z-40 rounded-full bg-primary p-3 text-primary-foreground shadow-depth-hover transition-colors hover:bg-primary-active active:bg-primary-active sm:right-8"
           aria-label={t.scrollBottom}
         >
           <ArrowDown className="w-5 h-5" />
-        </button>
+        </Button>
       )}
     </>
   )

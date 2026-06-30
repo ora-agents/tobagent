@@ -112,44 +112,44 @@ const UserProfileSection = memo(function UserProfileSection({
   if (!user) {
     if (isCollapsed) {
       return (
-        <button
+        <Button variant="unstyled"
           onClick={onOpenAuth}
           className="p-2.5 rounded-lg text-muted-foreground hover:bg-sidebar-accent/30 hover:text-foreground transition-all duration-200 cursor-pointer"
           title="Sign In"
         >
           <User className="w-5 h-5" />
-        </button>
+        </Button>
       )
     }
     return (
-      <button
+      <Button variant="unstyled"
         onClick={onOpenAuth}
         className="flex items-center justify-center gap-2 px-3 py-2 text-sm w-full font-medium rounded-lg text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground shadow-depth-xs hover:shadow-depth-hover transition-all duration-200 cursor-pointer"
       >
         <LogIn className="w-4 h-4" />
         <span>Sign In</span>
-      </button>
+      </Button>
     )
   }
 
   if (isCollapsed) {
     return (
       <div className="flex flex-col items-center">
-        <button
+        <Button variant="unstyled"
           onClick={onOpenSettings}
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm hover:opacity-80 transition-all duration-200 cursor-pointer"
           style={{ backgroundColor: user.avatarColor || '#164199' }}
           title={`${user.username} (${locale === "zh" ? "设置" : "Settings"})`}
         >
           {user.username.charAt(0).toUpperCase()}
-        </button>
+        </Button>
       </div>
     )
   }
 
   return (
     <div className="flex items-center justify-between p-2 rounded-lg bg-sidebar-accent/25 gap-3 group/profile">
-      <button
+      <Button variant="unstyled"
         onClick={onOpenSettings}
         className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-80 transition-all duration-200 cursor-pointer text-left"
       >
@@ -163,14 +163,14 @@ const UserProfileSection = memo(function UserProfileSection({
           <span className="text-sm font-semibold truncate text-foreground">{user.username}</span>
           <span className="text-[10px] text-muted-foreground truncate">{user.phone || 'No phone'}</span>
         </div>
-      </button>
-      <button
+      </Button>
+      <Button variant="unstyled"
         onClick={logout}
         className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-200 cursor-pointer"
         title="Sign Out"
       >
         <LogOut className="w-4 h-4" />
-      </button>
+      </Button>
     </div>
   )
 })
@@ -283,12 +283,12 @@ export const Sidebar = memo(function Sidebar({
                     </div>
                   )}
                 </div>
-                <button
+                <Button variant="unstyled"
                   onClick={(e) => handleDeleteThread(thread.thread_id, e)}
                   className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 rounded-md hover:bg-destructive/10"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
-                </button>
+                </Button>
               </div>
             )
           })}
@@ -307,7 +307,7 @@ export const Sidebar = memo(function Sidebar({
               <PanelLeft className="w-5 h-5" />
             </Button>
             {onNewChat && (
-              <button
+              <Button variant="unstyled"
                 type="button"
                 onClick={onNewChat}
                 className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground dark:hover:bg-primary dark:hover:text-primary-foreground"
@@ -315,18 +315,18 @@ export const Sidebar = memo(function Sidebar({
                 aria-label={t.newChat}
               >
                 <Sparkles className="w-5 h-5" />
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex flex-col items-center gap-3.5 pb-6">
-            <button
+            <Button variant="unstyled"
               onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
               className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
               title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
             >
               {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
+            </Button>
             <div className="w-8 h-1 rounded-full bg-sidebar-accent/40 my-1 flex-shrink-0" />
             <UserProfileSection isCollapsed={true} onOpenAuth={() => setIsAuthOpen(true)} onOpenSettings={() => handleViewChange("settings")} />
           </div>
@@ -345,7 +345,7 @@ export const Sidebar = memo(function Sidebar({
 
         {/* Collapsed bottom shortcuts */}
         <div className="flex flex-col items-center gap-3.5 pb-6">
-          <button
+          <Button variant="unstyled"
             onClick={() => setIsConfigOpen((open) => !open)}
             className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               isConfigView
@@ -357,10 +357,10 @@ export const Sidebar = memo(function Sidebar({
             aria-expanded={isConfigOpen}
           >
             <Settings className="w-5 h-5" />
-          </button>
+          </Button>
           {isConfigOpen && (
             <div className="flex flex-col items-center gap-3.5">
-              <button
+              <Button variant="unstyled"
                 onClick={() => handleViewChange("skills")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "skills"
@@ -370,8 +370,8 @@ export const Sidebar = memo(function Sidebar({
                 title={t.skills}
               >
                 <Wrench className="w-5 h-5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleViewChange("agents")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "agents"
@@ -381,8 +381,8 @@ export const Sidebar = memo(function Sidebar({
                 title={t.agents}
               >
                 <Bot className="w-5 h-5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleViewChange("knowledge")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "knowledge"
@@ -392,8 +392,8 @@ export const Sidebar = memo(function Sidebar({
                 title={t.knowledgeBase}
               >
                 <Database className="w-5 h-5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleViewChange("forms")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "forms"
@@ -403,8 +403,8 @@ export const Sidebar = memo(function Sidebar({
                 title={locale === "zh" ? "表单" : "Forms"}
               >
                 <TableProperties className="w-5 h-5" />
-              </button>
-              <button
+              </Button>
+              <Button variant="unstyled"
                 onClick={() => handleViewChange("mcp")}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
                   currentView === "mcp"
@@ -414,17 +414,17 @@ export const Sidebar = memo(function Sidebar({
                 title={t.mcpServers}
               >
                 <Cpu className="w-5 h-5" />
-              </button>
+              </Button>
             </div>
           )}
-          <button
+          <Button variant="unstyled"
             onClick={openAdminDashboard}
             className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             title={t.backend}
           >
             <LayoutDashboard className="w-5 h-5" />
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => handleViewChange("developer-manual")}
             className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               currentView === "developer-manual"
@@ -434,8 +434,8 @@ export const Sidebar = memo(function Sidebar({
             title={t.developerManual}
           >
             <BookOpenText className="w-5 h-5" />
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => handleViewChange("traces")}
             className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
               currentView === "traces"
@@ -445,14 +445,14 @@ export const Sidebar = memo(function Sidebar({
             title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
           >
             <Code2 className="w-5 h-5" />
-          </button>
-          <button
+          </Button>
+          <Button variant="unstyled"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
             title={mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
           >
             {mounted && resolvedTheme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          </Button>
           
           <div className="w-8 h-1 rounded-full bg-sidebar-accent/40 my-1 flex-shrink-0" />
           
@@ -510,14 +510,14 @@ export const Sidebar = memo(function Sidebar({
             className="h-10 rounded-lg bg-muted pl-10 pr-8 text-sm hover:bg-sidebar-accent"
           />
           {searchQuery && (
-            <button
+            <Button variant="unstyled"
               type="button"
               onClick={handleClearSearch}
               className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10 text-muted-foreground/60 hover:text-foreground transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 rounded-full p-0.5 hover:bg-muted/50"
               aria-label="Clear search"
             >
               <X className="w-4 h-4" />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -567,7 +567,7 @@ export const Sidebar = memo(function Sidebar({
       {/* Bottom Management Navigation */}
       {!isAgentAppSidebar && (
       <div className="flex flex-shrink-0 flex-col gap-1 px-3 py-2">
-        <button
+        <Button variant="unstyled"
           onClick={() => setIsConfigOpen((open) => !open)}
           className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             isConfigView
@@ -579,10 +579,10 @@ export const Sidebar = memo(function Sidebar({
           <Settings className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate flex-1 text-left">{t.configuration}</span>
           <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
-        </button>
+        </Button>
         {isConfigOpen && (
           <div className="flex flex-col gap-1 pl-3">
-            <button
+            <Button variant="unstyled"
               onClick={() => handleViewChange("skills")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "skills"
@@ -592,8 +592,8 @@ export const Sidebar = memo(function Sidebar({
             >
               <Wrench className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.skills}</span>
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => handleViewChange("agents")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "agents"
@@ -603,8 +603,8 @@ export const Sidebar = memo(function Sidebar({
             >
               <Bot className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.agents}</span>
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => handleViewChange("knowledge")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "knowledge"
@@ -614,8 +614,8 @@ export const Sidebar = memo(function Sidebar({
             >
               <Database className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.knowledgeBase}</span>
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => handleViewChange("forms")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "forms"
@@ -625,8 +625,8 @@ export const Sidebar = memo(function Sidebar({
             >
               <TableProperties className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{locale === "zh" ? "表单" : "Forms"}</span>
-            </button>
-            <button
+            </Button>
+            <Button variant="unstyled"
               onClick={() => handleViewChange("mcp")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
                 currentView === "mcp"
@@ -636,10 +636,10 @@ export const Sidebar = memo(function Sidebar({
             >
               <Cpu className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.mcpServers}</span>
-            </button>
+            </Button>
           </div>
         )}
-        <button
+        <Button variant="unstyled"
           onClick={() => {
             onMobileClose?.()
             openAdminDashboard()
@@ -648,8 +648,8 @@ export const Sidebar = memo(function Sidebar({
         >
           <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-muted-foreground/80 group-hover:text-primary" />
           <span className="truncate">{t.backend}</span>
-        </button>
-        <button
+        </Button>
+        <Button variant="unstyled"
           onClick={() => handleViewChange("developer-manual")}
           className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             currentView === "developer-manual"
@@ -659,8 +659,8 @@ export const Sidebar = memo(function Sidebar({
         >
           <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate">{t.developerManual}</span>
-        </button>
-        <button
+        </Button>
+        <Button variant="unstyled"
           onClick={() => handleViewChange("traces")}
           className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
             currentView === "traces"
@@ -670,8 +670,8 @@ export const Sidebar = memo(function Sidebar({
         >
           <Code2 className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
           <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
-        </button>
-        <button
+        </Button>
+        <Button variant="unstyled"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
         >
@@ -683,7 +683,7 @@ export const Sidebar = memo(function Sidebar({
           <span className="truncate">
             {mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
           </span>
-        </button>
+        </Button>
       </div>
       )}
 

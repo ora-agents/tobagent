@@ -46,6 +46,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue
@@ -2390,7 +2391,7 @@ export function ManagementDashboard({
                     return (
                       <div key={group.key} className="space-y-1.5">
                         <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
-                          <button
+                          <Button variant="unstyled"
                             type="button"
                             onClick={() => toggleCollapsedFormCategory(group.key)}
                             className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
@@ -2398,7 +2399,7 @@ export function ManagementDashboard({
                           >
                             {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                             <span className="truncate">{group.label}</span>
-                          </button>
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"
@@ -2425,21 +2426,21 @@ export function ManagementDashboard({
                             actions={
                               deleteConfirmId === form.id ? (
                                 <>
-                                  <button onClick={() => handleDeleteForm(form.id)} className="p-1 rounded text-destructive hover:bg-destructive/10" title={t.confirmDelete}>
+                                  <Button variant="unstyled" onClick={() => handleDeleteForm(form.id)} className="p-1 rounded text-destructive hover:bg-destructive/10" title={t.confirmDelete}>
                                     <Check className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button onClick={() => setDeleteConfirmId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" title={t.cancel}>
+                                  </Button>
+                                  <Button variant="unstyled" onClick={() => setDeleteConfirmId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" title={t.cancel}>
                                     <X className="w-3.5 h-3.5" />
-                                  </button>
+                                  </Button>
                                 </>
                               ) : (
                                 <>
-                                  <button onClick={() => handleStartEditForm(form)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80" title={locale === "zh" ? "编辑" : "Edit"}>
+                                  <Button variant="unstyled" onClick={() => handleStartEditForm(form)} className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80" title={locale === "zh" ? "编辑" : "Edit"}>
                                     <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button onClick={() => setDeleteConfirmId(form.id)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10" title={t.delete}>
+                                  </Button>
+                                  <Button variant="unstyled" onClick={() => setDeleteConfirmId(form.id)} className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10" title={t.delete}>
                                     <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  </Button>
                                 </>
                               )
                             }
@@ -2574,37 +2575,37 @@ export function ManagementDashboard({
                     actions={
                       deleteConfirmId === mcp.id ? (
                         <>
-                          <button
+                          <Button variant="unstyled"
                             onClick={() => handleDeleteMcp(mcp.id)}
                             className="p-1 rounded text-destructive hover:bg-destructive/10"
                             title={t.confirmDelete}
                           >
                             <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                          </Button>
+                          <Button variant="unstyled"
                             onClick={() => setDeleteConfirmId(null)}
                             className="p-1 rounded text-muted-foreground hover:bg-muted"
                             title={t.cancel}
                           >
                             <X className="w-3.5 h-3.5" />
-                          </button>
+                          </Button>
                         </>
                       ) : (
                         <>
-                          <button
+                          <Button variant="unstyled"
                             onClick={() => handleStartEditMcp(mcp)}
                             className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
                             title={t.editAgent.replace(t.agent, "").trim()}
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
+                          </Button>
+                          <Button variant="unstyled"
                             onClick={() => setDeleteConfirmId(mcp.id)}
                             className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             title={t.delete}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          </Button>
                         </>
                       )
                     }
@@ -2794,7 +2795,7 @@ export function ManagementDashboard({
                       return (
                         <div key={group.key} className="space-y-1.5">
                           <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
-                            <button
+                            <Button variant="unstyled"
                               type="button"
                               onClick={() => toggleCollapsedSkillCategory(group.key)}
                               className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
@@ -2802,7 +2803,7 @@ export function ManagementDashboard({
                             >
                               {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
                               <span className="truncate">{group.label}</span>
-                            </button>
+                            </Button>
                             <Button
                               type="button"
                               variant="ghost"
@@ -2844,37 +2845,37 @@ export function ManagementDashboard({
                               >
                                 {deleteConfirmId === skill.id ? (
                                   <>
-                                    <button
+                                    <Button variant="unstyled"
                                       onClick={() => handleDeleteSkill(skill.id)}
                                       className="p-1 rounded text-destructive hover:bg-destructive/10"
                                       title={t.confirmDeleteTitle}
                                     >
                                       <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button variant="unstyled"
                                       onClick={() => setDeleteConfirmId(null)}
                                       className="p-1 rounded text-muted-foreground hover:bg-muted"
                                       title={t.cancelTitle}
                                     >
                                       <X className="w-3.5 h-3.5" />
-                                    </button>
+                                    </Button>
                                   </>
                                 ) : (
                                   <>
-                                    <button
+                                    <Button variant="unstyled"
                                       onClick={() => handleStartEditSkill(skill)}
                                       className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
                                       title={t.editTitle}
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
+                                    </Button>
+                                    <Button variant="unstyled"
                                       onClick={() => setDeleteConfirmId(skill.id)}
                                       className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                       title={t.deleteTitle}
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    </Button>
                                   </>
                                 )}
                               </div>
@@ -3076,37 +3077,37 @@ export function ManagementDashboard({
                       >
                         {deleteConfirmId === profile.id ? (
                           <>
-                            <button
+                            <Button variant="unstyled"
                               onClick={() => handleDeleteAgent(profile.id)}
                               className="p-1 rounded text-destructive hover:bg-destructive/10"
                               title={t.confirmDeleteTitle}
                             >
                               <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="unstyled"
                               onClick={() => setDeleteConfirmId(null)}
                               className="p-1 rounded text-muted-foreground hover:bg-muted"
                               title={t.cancelTitle}
                             >
                               <X className="w-3.5 h-3.5" />
-                            </button>
+                            </Button>
                           </>
                         ) : (
                           <>
-                            <button
+                            <Button variant="unstyled"
                               onClick={() => handleStartEditAgent(profile)}
                               className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
                               title={t.editTitle}
                             >
                               <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button variant="unstyled"
                               onClick={() => setDeleteConfirmId(profile.id)}
                               className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                               title={t.deleteTitle}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            </Button>
                           </>
                         )}
                       </div>
@@ -3168,12 +3169,14 @@ export function ManagementDashboard({
                             <SelectValue placeholder={locale === "zh" ? "选择角色模板" : "Select role template"} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="custom">{locale === "zh" ? "自定义角色" : "Custom role"}</SelectItem>
-                            {ROLE_TEMPLATES.map((template) => (
-                              <SelectItem key={template.id} value={template.id}>
-                                {locale === "zh" ? template.nameZh : template.nameEn}
-                              </SelectItem>
-                            ))}
+                            <SelectGroup>
+                              <SelectItem value="custom">{locale === "zh" ? "自定义角色" : "Custom role"}</SelectItem>
+                              {ROLE_TEMPLATES.map((template) => (
+                                <SelectItem key={template.id} value={template.id}>
+                                  {locale === "zh" ? template.nameZh : template.nameEn}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                         {agentForm.roleTemplateId && (
@@ -3197,11 +3200,13 @@ export function ManagementDashboard({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {locale === "zh" ? label.zh : label.en}
-                                </SelectItem>
-                              ))}
+                              <SelectGroup>
+                                {Object.entries(PERSONA_STYLE_LABELS).map(([value, label]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {locale === "zh" ? label.zh : label.en}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                         </div>
@@ -3216,11 +3221,13 @@ export function ManagementDashboard({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => (
-                                <SelectItem key={value} value={value}>
-                                  {locale === "zh" ? label.zh : label.en}
-                                </SelectItem>
-                              ))}
+                              <SelectGroup>
+                                {Object.entries(BOUNDARY_MODE_LABELS).map(([value, label]) => (
+                                  <SelectItem key={value} value={value}>
+                                    {locale === "zh" ? label.zh : label.en}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                         </div>
@@ -3235,11 +3242,13 @@ export function ManagementDashboard({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {TTS_VOICES.map((voice) => (
-                                <SelectItem key={voice.voice} value={voice.voice}>
-                                  {voice.nameZh} · {voice.voice}
-                                </SelectItem>
-                              ))}
+                              <SelectGroup>
+                                {TTS_VOICES.map((voice) => (
+                                  <SelectItem key={voice.voice} value={voice.voice}>
+                                    {voice.nameZh} · {voice.voice}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
                             </SelectContent>
                           </Select>
                           <p className="text-[11px] text-muted-foreground truncate">
@@ -3418,11 +3427,13 @@ export function ManagementDashboard({
                                 <SelectValue placeholder={locale === "zh" ? "选择一个声纹" : "Select a voiceprint"} />
                               </SelectTrigger>
                               <SelectContent>
-                                {userVoiceprints.map((vp) => (
-                                  <SelectItem key={vp.id} value={vp.id}>
-                                    {vp.name}
-                                  </SelectItem>
-                                ))}
+                                <SelectGroup>
+                                  {userVoiceprints.map((vp) => (
+                                    <SelectItem key={vp.id} value={vp.id}>
+                                      {vp.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
                               </SelectContent>
                             </Select>
                           ) : (
@@ -3495,7 +3506,7 @@ export function ManagementDashboard({
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs border border-primary/20"
                             >
                               {word}
-                              <button
+                              <Button variant="unstyled"
                                 type="button"
                                 onClick={() => setAgentForm(prev => ({
                                   ...prev,
@@ -3504,7 +3515,7 @@ export function ManagementDashboard({
                                 className="hover:text-destructive transition-colors"
                               >
                                 <X className="w-3 h-3" />
-                              </button>
+                              </Button>
                             </span>
                           ))}
                         </div>
@@ -3591,7 +3602,7 @@ export function ManagementDashboard({
                                   <div className="text-xs font-medium truncate">{kb.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">{kb.files?.length || 0} {kb.files?.length === 1 ? t.file.toLowerCase() : t.filesLabel}</div>
                                 </div>
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "knowledge", item: kb })}
                                   className={linkedResourceJumpButtonClassName}
@@ -3603,7 +3614,7 @@ export function ManagementDashboard({
                                     : (locale === "zh" ? `编辑知识库配置：${kb.name}` : `Edit knowledge base configuration: ${kb.name}`)}
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
-                                </button>
+                                </Button>
                               </div>
                             )
                           }) : (
@@ -3656,7 +3667,7 @@ export function ManagementDashboard({
                           return (
                             <div key={group.key} className="space-y-1.5">
                               <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={() => toggleCollapsedAgentSkillCategory(group.key)}
                                   className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
@@ -3664,7 +3675,7 @@ export function ManagementDashboard({
                                 >
                                   {collapsed ? <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
                                   <span className="truncate">{group.label}</span>
-                                </button>
+                                </Button>
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -3704,7 +3715,7 @@ export function ManagementDashboard({
                                           <div className="text-xs font-medium truncate">{sk.name}</div>
                                           <div className="text-[10px] text-muted-foreground truncate">{sk.description || t.noDescription}</div>
                                         </div>
-                                        <button
+                                        <Button variant="unstyled"
                                           type="button"
                                           onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "skill", item: sk })}
                                           className={linkedResourceJumpButtonClassName}
@@ -3712,7 +3723,7 @@ export function ManagementDashboard({
                                           aria-label={locale === "zh" ? `编辑技能配置：${sk.name}` : `Edit skill configuration: ${sk.name}`}
                                         >
                                           <ArrowUpRight className="h-3.5 w-3.5" />
-                                        </button>
+                                        </Button>
                                       </div>
                                     )
                                   })}
@@ -3771,7 +3782,7 @@ export function ManagementDashboard({
                                   <div className="text-xs font-medium truncate">{mcp.name}</div>
                                   <div className="text-[10px] text-muted-foreground truncate">Streamable HTTP | {mcp.url}</div>
                                 </div>
-                                <button
+                                <Button variant="unstyled"
                                   type="button"
                                   onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "mcp", item: mcp })}
                                   className={linkedResourceJumpButtonClassName}
@@ -3779,7 +3790,7 @@ export function ManagementDashboard({
                                   aria-label={locale === "zh" ? `编辑 MCP 配置：${mcp.name}` : `Edit MCP configuration: ${mcp.name}`}
                                 >
                                   <ArrowUpRight className="h-3.5 w-3.5" />
-                                </button>
+                                </Button>
                               </div>
                             )
                           }) : (
@@ -3825,7 +3836,7 @@ export function ManagementDashboard({
                             return (
                               <div key={group.key} className="space-y-1.5">
                                 <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
-                                  <button
+                                  <Button variant="unstyled"
                                     type="button"
                                     onClick={() => toggleCollapsedAgentFormCategory(group.key)}
                                     className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left"
@@ -3833,7 +3844,7 @@ export function ManagementDashboard({
                                   >
                                     {collapsed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
                                     <span className="truncate">{group.label}</span>
-                                  </button>
+                                  </Button>
                                   <Button
                                     type="button"
                                     variant="ghost"
@@ -3896,7 +3907,7 @@ export function ManagementDashboard({
                                                 ] as Array<[FormRecordPermission, string]>).map(([permission, label]) => {
                                                   const selected = (agentForm.formPermissions[form.id] || ["read"]).includes(permission)
                                                   return (
-                                                    <button
+                                                    <Button variant="unstyled"
                                                       key={permission}
                                                       type="button"
                                                       onClick={(event) => {
@@ -3923,13 +3934,13 @@ export function ManagementDashboard({
                                                       aria-pressed={selected}
                                                     >
                                                       {label}
-                                                    </button>
+                                                    </Button>
                                                   )
                                                 })}
                                               </div>
                                             )}
                                           </div>
-                                          <button
+                                          <Button variant="unstyled"
                                             type="button"
                                             onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "form", item: form })}
                                             className={linkedResourceJumpButtonClassName}
@@ -3937,7 +3948,7 @@ export function ManagementDashboard({
                                             aria-label={locale === "zh" ? `编辑表单配置：${form.name}` : `Edit form configuration: ${form.name}`}
                                           >
                                             <ArrowUpRight className="h-3.5 w-3.5" />
-                                          </button>
+                                          </Button>
                                         </div>
                                       )
                                     })}
@@ -3999,7 +4010,7 @@ export function ManagementDashboard({
                                     <div className="text-xs font-medium truncate">{agent.name}</div>
                                     <div className="text-[10px] text-muted-foreground truncate">{agent.description || (locale === "zh" ? "无描述" : "No description")}</div>
                                   </div>
-                                  <button
+                                  <Button variant="unstyled"
                                     type="button"
                                     onClick={(event) => handleOpenLinkedResourceEditor(event, { type: "agent", item: agent })}
                                     className={linkedResourceJumpButtonClassName}
@@ -4007,7 +4018,7 @@ export function ManagementDashboard({
                                     aria-label={locale === "zh" ? `编辑角色配置：${agent.name}` : `Edit role configuration: ${agent.name}`}
                                   >
                                     <ArrowUpRight className="h-3.5 w-3.5" />
-                                  </button>
+                                  </Button>
                                 </div>
                               )
                             }) : (
@@ -4130,7 +4141,7 @@ export function ManagementDashboard({
                             ["agents", locale === "zh" ? "多角色" : "Roles"],
                             ["forms", locale === "zh" ? "表单" : "Forms"],
                           ] as [keyof AgentShareOptions, string][]).map(([key, label]) => (
-                            <button
+                            <Button variant="unstyled"
                               key={key}
                               type="button"
                               onClick={() => toggleShareOption(key)}
@@ -4142,7 +4153,7 @@ export function ManagementDashboard({
                                 {shareOptions[key] && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
                               </span>
                               <span className="truncate">{label}</span>
-                            </button>
+                            </Button>
                           ))}
                         </div>
 
@@ -4551,37 +4562,37 @@ export function ManagementDashboard({
                           >
                             {deleteConfirmId === kb.id ? (
                               <>
-                                <button
+                                <Button variant="unstyled"
                                   onClick={() => handleDeleteKB(kb.id)}
                                   className="p-1 rounded text-destructive hover:bg-destructive/10"
                                   title={t.confirmDeleteTitle}
                                 >
                                   <Check className="w-3.5 h-3.5" />
-                                </button>
-                                <button
+                                </Button>
+                                <Button variant="unstyled"
                                   onClick={() => setDeleteConfirmId(null)}
                                   className="p-1 rounded text-muted-foreground hover:bg-muted"
                                   title={t.cancelTitle}
                                 >
                                   <X className="w-3.5 h-3.5" />
-                                </button>
+                                </Button>
                               </>
                             ) : (
                               <>
-                                <button
+                                <Button variant="unstyled"
                                   onClick={() => handleStartEditKB(kb)}
                                   className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80"
                                   title={t.editTitle}
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button
+                                </Button>
+                                <Button variant="unstyled"
                                   onClick={() => setDeleteConfirmId(kb.id)}
                                   className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                   title={t.deleteTitle}
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                </Button>
                               </>
                             )}
                           </div>
@@ -4685,7 +4696,7 @@ export function ManagementDashboard({
                             <Upload className="w-4 h-4" />
                             {uploadingFile ? t.uploading : t.uploadDoc}
                           </Button>
-                          <input
+                          <Input
                             ref={fileInputRef}
                             type="file"
                             accept=".pdf,.docx,.txt,.md,.markdown,.csv"
@@ -4724,13 +4735,13 @@ export function ManagementDashboard({
                                   </div>
                                 </div>
                                 {!selectedKB.isSystem && (
-                                  <button
+                                  <Button variant="unstyled"
                                     onClick={() => handleDeleteKBFile(file.name)}
                                     className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                                     title={t.deleteDocumentTitle}
                                   >
                                     <X className="w-4 h-4" />
-                                  </button>
+                                  </Button>
                                 )}
                               </div>
                             ))}

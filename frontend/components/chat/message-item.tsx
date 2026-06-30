@@ -214,7 +214,7 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
         <span className="truncate font-mono text-[11px] font-medium uppercase tracking-normal text-[#a09d96]">
           {language || "text"}
         </span>
-        <button
+        <Button variant="unstyled"
           onClick={handleCopyCode}
           className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#1f1e1b] px-2 text-xs font-medium text-[#faf9f5] transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/25"
           aria-label="Copy code to clipboard"
@@ -231,7 +231,7 @@ const CodeBlock = memo(({ codeString, language }: { codeString: string; language
               {t.copy}
             </>
           )}
-        </button>
+        </Button>
       </div>
       <SyntaxHighlighter
         language={language}
@@ -632,7 +632,7 @@ export const MessageItem = memo(function MessageItem({
                       )}
                     </div>
                     {shouldCollapseUserMessage && (
-                      <button
+                      <Button variant="unstyled"
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
@@ -643,7 +643,7 @@ export const MessageItem = memo(function MessageItem({
                       >
                         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isUserMessageExpanded ? "rotate-180" : ""}`} />
                         {isUserMessageExpanded ? t.collapseMessage : t.expandMessage}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}

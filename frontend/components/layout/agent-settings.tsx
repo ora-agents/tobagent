@@ -14,6 +14,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -215,12 +216,12 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Repositories{isPublicOnly && ' (public only)'}</Label>
                 <div className="flex gap-2 text-[10px]">
-                  <button type="button" onClick={() => updateRepos(getAllPaths(includePrivate))} className="text-primary hover:underline">
+                  <Button variant="unstyled" type="button" onClick={() => updateRepos(getAllPaths(includePrivate))} className="text-primary hover:underline">
                     Select all
-                  </button>
-                  <button type="button" onClick={() => updateRepos([])} className="text-muted-foreground hover:underline">
+                  </Button>
+                  <Button variant="unstyled" type="button" onClick={() => updateRepos([])} className="text-muted-foreground hover:underline">
                     Clear
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="space-y-2">
@@ -235,14 +236,14 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
                       <div className="flex items-center gap-2 mb-1 text-[10px]">
                         <span className="font-medium text-muted-foreground">{label}</span>
                         {anySelected && (
-                          <button type="button" onClick={() => deselectCategory(category)} className="text-primary/70 hover:text-primary hover:underline">
+                          <Button variant="unstyled" type="button" onClick={() => deselectCategory(category)} className="text-primary/70 hover:text-primary hover:underline">
                             clear
-                          </button>
+                          </Button>
                         )}
                         {!allSelected && (
-                          <button type="button" onClick={() => selectCategory(category)} className="text-primary/70 hover:text-primary hover:underline">
+                          <Button variant="unstyled" type="button" onClick={() => selectCategory(category)} className="text-primary/70 hover:text-primary hover:underline">
                             all
-                          </button>
+                          </Button>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5">
@@ -281,16 +282,18 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
                 <SelectValue placeholder={modelsLoading ? t.loadingModels : t.selectModel} />
               </SelectTrigger>
               <SelectContent>
-                {lockedModel && !availableModels.includes(lockedModel as ModelOption) && (
-                  <SelectItem value={lockedModel}>
-                    {getModelDisplayName(lockedModel as ModelOption)}
-                  </SelectItem>
-                )}
-                {availableModels.map((modelId) => (
-                  <SelectItem key={modelId} value={modelId}>
-                    {getModelDisplayName(modelId)}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {lockedModel && !availableModels.includes(lockedModel as ModelOption) && (
+                    <SelectItem value={lockedModel}>
+                      {getModelDisplayName(lockedModel as ModelOption)}
+                    </SelectItem>
+                  )}
+                  {availableModels.map((modelId) => (
+                    <SelectItem key={modelId} value={modelId}>
+                      {getModelDisplayName(modelId)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </div>

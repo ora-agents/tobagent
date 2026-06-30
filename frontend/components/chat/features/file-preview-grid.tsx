@@ -7,6 +7,7 @@
 
 import type { ImageAttachment } from "@/lib/types"
 import { useT } from "@/lib/i18n"
+import { Button } from "@/components/ui/button"
 
 interface FilePreviewGridProps {
   files: ImageAttachment[]
@@ -80,7 +81,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
       )}
 
       {/* Remove button - always visible on mobile, hover on desktop */}
-      <button
+      <Button variant="unstyled"
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -103,7 +104,7 @@ function FilePreviewCard({ file, onRemove }: { file: ImageAttachment; onRemove: 
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
-      </button>
+      </Button>
     </div>
   )
 }

@@ -28,11 +28,13 @@ import {
   Webhook,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FormField } from "@/components/ui/form-field"
 import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -451,15 +453,16 @@ export function FormFieldDesigner({
             {FORM_FIELD_TYPES.map(item => {
               const Icon = item.icon
               return (
-                <button
+                <Button
                   key={item.type}
                   type="button"
+                  variant="ghost"
                   onClick={() => addField(item.type)}
                   className="inline-flex h-9 items-center gap-2 rounded-lg bg-background px-3 text-sm shadow-depth-xs transition hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20"
                 >
                   <Icon className="h-4 w-4" />
                   <span>{locale === "zh" ? item.zh : item.en}</span>
-                </button>
+                </Button>
               )
             })}
           </div>
@@ -518,8 +521,10 @@ export function FormFieldDesigner({
                         </div>
                         {!isSystemField && (
                           <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-                            <button
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon-sm"
                               onClick={(event) => {
                                 event.stopPropagation()
                                 moveField(field.id, -1)
@@ -529,9 +534,11 @@ export function FormFieldDesigner({
                               title={locale === "zh" ? "左移" : "Move left"}
                             >
                               <ArrowUp className="h-3.5 w-3.5 -rotate-90" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon-sm"
                               onClick={(event) => {
                                 event.stopPropagation()
                                 moveField(field.id, 1)
@@ -541,9 +548,11 @@ export function FormFieldDesigner({
                               title={locale === "zh" ? "右移" : "Move right"}
                             >
                               <ArrowDown className="h-3.5 w-3.5 -rotate-90" />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
+                              variant="ghost"
+                              size="icon-sm"
                               onClick={(event) => {
                                 event.stopPropagation()
                                 removeField(field.id)
@@ -552,7 +561,7 @@ export function FormFieldDesigner({
                               title={locale === "zh" ? "删除字段" : "Delete field"}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -605,14 +614,16 @@ export function FormFieldDesigner({
                           <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">{hook.id}</div>
                         </div>
                       </div>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => removeHook(hook.id)}
                         className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         title={locale === "zh" ? "删除 Hook" : "Delete hook"}
                       >
                         <Trash2 className="h-4 w-4" />
-                      </button>
+                      </Button>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <FormField label={locale === "zh" ? "条件关系" : "Condition logic"}>
@@ -621,8 +632,10 @@ export function FormFieldDesigner({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">{locale === "zh" ? "全部满足" : "All conditions"}</SelectItem>
-                            <SelectItem value="any">{locale === "zh" ? "任一满足" : "Any condition"}</SelectItem>
+                            <SelectGroup>
+                              <SelectItem value="all">{locale === "zh" ? "全部满足" : "All conditions"}</SelectItem>
+                              <SelectItem value="any">{locale === "zh" ? "任一满足" : "Any condition"}</SelectItem>
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       </FormField>
@@ -646,9 +659,11 @@ export function FormFieldDesigner({
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {definition.fields.map(field => (
-                                      <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
-                                    ))}
+                                    <SelectGroup>
+                                      {definition.fields.map(field => (
+                                        <SelectItem key={field.id} value={field.id}>{field.label || field.id}</SelectItem>
+                                      ))}
+                                    </SelectGroup>
                                   </SelectContent>
                                 </Select>
                               </FormField>
@@ -658,10 +673,12 @@ export function FormFieldDesigner({
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="regex">{locale === "zh" ? "正则" : "Regex"}</SelectItem>
-                                    <SelectItem value="value">{locale === "zh" ? "指定值" : "Exact"}</SelectItem>
-                                    <SelectItem value="empty">{locale === "zh" ? "为空" : "Empty"}</SelectItem>
-                                    <SelectItem value="not_empty">{locale === "zh" ? "不为空" : "Not empty"}</SelectItem>
+                                    <SelectGroup>
+                                      <SelectItem value="regex">{locale === "zh" ? "正则" : "Regex"}</SelectItem>
+                                      <SelectItem value="value">{locale === "zh" ? "指定值" : "Exact"}</SelectItem>
+                                      <SelectItem value="empty">{locale === "zh" ? "为空" : "Empty"}</SelectItem>
+                                      <SelectItem value="not_empty">{locale === "zh" ? "不为空" : "Not empty"}</SelectItem>
+                                    </SelectGroup>
                                   </SelectContent>
                                 </Select>
                               </FormField>
@@ -681,9 +698,11 @@ export function FormFieldDesigner({
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {valueOptions.map(option => (
-                                        <SelectItem key={option} value={option}>{option}</SelectItem>
-                                      ))}
+                                      <SelectGroup>
+                                        {valueOptions.map(option => (
+                                          <SelectItem key={option} value={option}>{option}</SelectItem>
+                                        ))}
+                                      </SelectGroup>
                                     </SelectContent>
                                   </Select>
                                 </FormField>
@@ -701,14 +720,16 @@ export function FormFieldDesigner({
                                 </div>
                               )}
                               <div className="flex items-end">
-                                <button
+                                <Button
                                   type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
                                   onClick={() => removeHookCondition(hook.id, conditionIndex)}
                                   className="mb-1 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                                   title={locale === "zh" ? "删除条件" : "Delete condition"}
                                 >
                                   <Trash2 className="h-4 w-4" />
-                                </button>
+                                </Button>
                               </div>
                             </div>
                           )
@@ -720,9 +741,11 @@ export function FormFieldDesigner({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="POST">POST</SelectItem>
-                            <SelectItem value="PUT">PUT</SelectItem>
-                            <SelectItem value="PATCH">PATCH</SelectItem>
+                            <SelectGroup>
+                              <SelectItem value="POST">POST</SelectItem>
+                              <SelectItem value="PUT">PUT</SelectItem>
+                              <SelectItem value="PATCH">PATCH</SelectItem>
+                            </SelectGroup>
                           </SelectContent>
                         </Select>
                       </FormField>
@@ -734,23 +757,25 @@ export function FormFieldDesigner({
                         />
                         <div className="flex min-w-0 flex-wrap gap-1.5">
                           {definition.fields.map(field => (
-                            <button
+                            <Button
                               key={field.id}
                               type="button"
+                              variant="ghost"
                               onClick={() => appendHookUrlVariable(hook, `{{${field.id}}}`)}
                               className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground transition hover:bg-primary-soft hover:text-primary"
                               title={field.label || field.id}
                             >
                               {`{{${field.id}}}`}
-                            </button>
+                            </Button>
                           ))}
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={() => appendHookUrlVariable(hook, "{{record.id}}")}
                             className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground transition hover:bg-primary-soft hover:text-primary"
                           >
                             {"{{record.id}}"}
-                          </button>
+                          </Button>
                         </div>
                       </FormField>
                       <FormField
@@ -762,9 +787,10 @@ export function FormFieldDesigner({
                           {definition.fields.map(field => {
                             const selected = (hook.payloadFieldIds || []).includes(field.id)
                             return (
-                              <button
+                              <Button
                                 key={field.id}
                                 type="button"
+                                variant="ghost"
                                 onClick={() => toggleHookPayloadField(hook, field.id)}
                                 className={`rounded-md px-2 py-1 text-xs transition ${
                                   selected
@@ -773,18 +799,16 @@ export function FormFieldDesigner({
                                 }`}
                               >
                                 {field.label || field.id}
-                              </button>
+                              </Button>
                             )
                           })}
                         </div>
                       </FormField>
                       <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm md:col-span-2">
                         <span>{locale === "zh" ? "启用" : "Enabled"}</span>
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={hook.enabled}
-                          onChange={(event) => updateHook(hook.id, { enabled: event.target.checked })}
-                          className="h-4 w-4 accent-primary"
+                          onCheckedChange={(checked) => updateHook(hook.id, { enabled: checked === true })}
                         />
                       </label>
                       <FormField
@@ -792,9 +816,11 @@ export function FormFieldDesigner({
                         description={locale === "zh" ? "实际请求会使用触发时的记录值；URL 中的字段变量会单独替换到 API 地址。" : "The real request uses the record values at trigger time. URL variables are rendered into the API URL separately."}
                         className="md:col-span-2"
                       >
-                        <pre className="max-h-72 overflow-auto rounded-lg bg-muted/55 p-3 text-xs leading-relaxed">
-                          <code>{JSON.stringify(buildHookPayloadPreview(hook, definition.fields), null, 2)}</code>
-                        </pre>
+                        <ScrollArea className="max-h-72 rounded-lg bg-muted/55" scrollbars="both">
+                          <pre className="p-3 text-xs leading-relaxed">
+                            <code>{JSON.stringify(buildHookPayloadPreview(hook, definition.fields), null, 2)}</code>
+                          </pre>
+                        </ScrollArea>
                       </FormField>
                     </div>
                   </div>
@@ -825,14 +851,16 @@ export function FormFieldDesigner({
                     <Lock className="h-4 w-4" />
                   </div>
                 ) : (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => removeField(selectedField.id)}
                     className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     title={locale === "zh" ? "删除字段" : "Delete field"}
                   >
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </Button>
                 )}
               </div>
               <div className="rounded-lg bg-background p-3">
@@ -876,22 +904,22 @@ export function FormFieldDesigner({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {FORM_FIELD_TYPES.map(item => (
-                        <SelectItem key={item.type} value={item.type}>
-                          {locale === "zh" ? item.zh : item.en}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        {FORM_FIELD_TYPES.map(item => (
+                          <SelectItem key={item.type} value={item.type}>
+                            {locale === "zh" ? item.zh : item.en}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                 </FormField>
                 <label className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/70 px-3 py-2 text-sm">
                   <span>{locale === "zh" ? "必填" : "Required"}</span>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selectedField.required}
-                    onChange={(event) => updateField(selectedField.id, { required: event.target.checked })}
+                    onCheckedChange={(checked) => updateField(selectedField.id, { required: checked === true })}
                     disabled={isSelectedSystemField}
-                    className="h-4 w-4 accent-primary"
                   />
                 </label>
               </div>
@@ -943,11 +971,9 @@ function EditableRecordCell({ field, value, error, onCommit }: EditableRecordCel
 
   if (field.type === "boolean") {
     return (
-      <input
-        type="checkbox"
+      <Checkbox
         checked={Boolean(value)}
-        onChange={(event) => onCommit(event.target.checked)}
-        className="h-4 w-4 accent-primary"
+        onCheckedChange={(checked) => onCommit(checked === true)}
         title={error}
       />
     )
@@ -955,22 +981,30 @@ function EditableRecordCell({ field, value, error, onCommit }: EditableRecordCel
 
   if (field.type === "select") {
     return (
-      <select
-        value={String(value ?? "")}
-        onChange={(event) => onCommit(event.target.value)}
-        title={error}
-        className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:ring-0 ${error ? "bg-destructive/10 text-destructive" : ""}`}
+      <Select
+        value={String(value ?? "") || "__empty"}
+        onValueChange={(nextValue) => onCommit(nextValue === "__empty" ? "" : nextValue)}
       >
-        <option value=""></option>
-        {field.options.map(option => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
+        <SelectTrigger
+          title={error}
+          className={`h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none focus:ring-0 ${error ? "bg-destructive/10 text-destructive" : ""}`}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="__empty">&nbsp;</SelectItem>
+            {field.options.map(option => (
+              <SelectItem key={option} value={option}>{option}</SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
     )
   }
 
   return (
-    <input
+    <Input
       type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
       value={String(draft)}
       onChange={(event) => setDraft(event.target.value)}

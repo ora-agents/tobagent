@@ -4,6 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Check, ChevronLeft, ChevronRight, Copy, GripVertical, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { type AgentConfig } from "./agent-settings"
 import { useT, useI18n } from "@/lib/i18n"
 import { isSystemAgentProfile, type AgentProfile } from "@/lib/types/agent-profiles"
@@ -274,19 +282,27 @@ export function Header({
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           {workspaces.length > 1 && (
-            <select
+            <Select
               value={activeWorkspaceId ?? ""}
-              onChange={(event) => setActiveWorkspaceId(event.target.value || null)}
-              className="h-9 max-w-36 rounded-lg border border-border bg-background px-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30 sm:max-w-44"
-              aria-label={locale === "zh" ? "选择工作间" : "Select workspace"}
-              title={locale === "zh" ? "选择工作间" : "Select workspace"}
+              onValueChange={(value) => setActiveWorkspaceId(value || null)}
             >
-              {workspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>
-                  {workspace.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                className="h-9 max-w-36 border border-border bg-background px-2 text-foreground focus-visible:ring-primary/30 sm:max-w-44"
+                aria-label={locale === "zh" ? "选择工作间" : "Select workspace"}
+                title={locale === "zh" ? "选择工作间" : "Select workspace"}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {workspaces.map((workspace) => (
+                    <SelectItem key={workspace.id} value={workspace.id}>
+                      {workspace.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           )}
 
           {/* Shared agent copy button */}

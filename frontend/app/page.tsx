@@ -11,6 +11,7 @@ import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
+import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -771,7 +772,7 @@ function DashboardContent() {
         )}
         {isMobileSidebarOpen && (
           <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="菜单">
-            <button
+            <Button variant="unstyled"
               type="button"
               className="absolute inset-0 bg-foreground/35"
               onClick={() => setIsMobileSidebarOpen(false)}

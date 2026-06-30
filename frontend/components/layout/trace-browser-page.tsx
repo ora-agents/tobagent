@@ -153,9 +153,11 @@ function TraceBadge({ source }: { source: TraceSource }) {
 
 function JsonBlock({ value, className }: { value: unknown; className?: string }) {
   return (
-    <pre className={cn("max-h-72 overflow-auto rounded-lg bg-muted p-3 font-mono text-xs leading-relaxed text-foreground", className)}>
-      {stringify(value)}
-    </pre>
+    <ScrollArea className={cn("max-h-72 rounded-lg bg-muted", className)} scrollbars="both">
+      <pre className="p-3 font-mono text-xs leading-relaxed text-foreground">
+        {stringify(value)}
+      </pre>
+    </ScrollArea>
   )
 }
 
@@ -338,9 +340,10 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                 const Icon = option.icon
                 const active = source === option.value
                 return (
-                  <button
+                  <Button
                     key={option.value}
                     type="button"
+                    variant="ghost"
                     onClick={() => setSource(option.value)}
                     className={cn(
                       "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors",
@@ -349,7 +352,7 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {locale === "zh" ? option.zh : option.en}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
@@ -410,9 +413,10 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                     const active = trace.id === selectedTraceId
                     const traceSource = sourceForTrace(trace)
                     return (
-                      <button
+                      <Button
                         key={trace.id}
                         type="button"
+                        variant="ghost"
                         onClick={() => setSelectedTraceId(trace.id)}
                         className={cn(
                           "block w-full rounded-lg px-3 py-2 text-left transition-colors",
@@ -436,7 +440,7 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                           <span>{formatDuration(trace.latency)}</span>
                           <span>{formatCost(trace.total_cost)}</span>
                         </div>
-                      </button>
+                      </Button>
                     )
                   })
                 )}

@@ -6,6 +6,7 @@
  */
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { LoaderCircle, Plus, SendHorizontal, Square } from "lucide-react"
 import { FilePreviewGrid } from "./features/file-preview-grid"
@@ -152,7 +153,7 @@ export function ChatInput({
                 )}
                 <div className="flex items-end gap-1.5 px-2 py-1.5 sm:gap-2 sm:px-3">
                   {/* Hidden File Input */}
-                  <input
+                  <Input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*,.py,.js,.ts,.tsx,.jsx,.java,.cpp,.c,.h,.cs,.go,.rs,.rb,.php,.sh,.bash,.yaml,.yml,.json,.xml,.html,.css,.md,.txt,.log,.sql,.graphql,.r,.swift,.kt,.scala,.har"

@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
 /* ------------------------------------------------------------------ */
@@ -182,13 +184,13 @@ function LongText({ text, locale: _locale }: { text: string; locale: Locale }) {
   return (
     <span>
       <span className="whitespace-pre-wrap">{expanded ? text : `${text.slice(0, threshold)}…`}</span>
-      <button
+      <Button variant="unstyled"
         type="button"
         onClick={() => setExpanded(!expanded)}
         className="ml-1 text-xs text-primary underline-offset-2 hover:underline"
       >
         {expanded ? "收起" : "展开"}
-      </button>
+      </Button>
     </span>
   )
 }
@@ -320,9 +322,11 @@ function RenderValue({
     }
     case "json":
       return (
-        <pre className="max-h-32 overflow-auto rounded bg-muted p-2 text-xs">
-          {JSON.stringify(value, null, 2)}
-        </pre>
+        <ScrollArea className="max-h-32 rounded bg-muted" scrollbars="both">
+          <pre className="p-2 text-xs">
+            {JSON.stringify(value, null, 2)}
+          </pre>
+        </ScrollArea>
       )
     default: {
       // For workspace_member role, show translated label
@@ -369,7 +373,7 @@ export function ChangeDetail({ change, locale, actions }: ChangeDetailProps) {
   return (
     <div className="rounded-lg border border-border">
       {/* Header — always visible, click to expand */}
-      <button
+      <Button variant="unstyled"
         type="button"
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-2 p-3 text-left transition-colors hover:bg-muted/50"
@@ -405,7 +409,7 @@ export function ChangeDetail({ change, locale, actions }: ChangeDetailProps) {
             </span>
           </div>
         </div>
-      </button>
+      </Button>
 
       {/* Expanded detail */}
       {expanded && (

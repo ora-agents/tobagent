@@ -14,6 +14,15 @@ import {
 } from "@/components/ui/dialog"
 import { SettingsSwitch } from "@/components/ui/settings-switch"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 
 type ResourceKey = "agents" | "skills" | "knowledgeBases" | "mcpServers" | "forms"
@@ -266,8 +275,10 @@ export function ConfigBundleDialog({
                 return (
                   <div key={key} className="overflow-hidden rounded-xl border border-border/60">
                     <div className="flex items-center gap-2 bg-secondary/60 p-2">
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => setExpanded(current => {
                           const next = new Set(current)
                           if (next.has(key)) next.delete(key)
@@ -277,9 +288,10 @@ export function ConfigBundleDialog({
                         className="rounded p-1 hover:bg-muted"
                       >
                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => toggleCategory(key)}
                         className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left text-sm"
                       >
@@ -290,7 +302,7 @@ export function ConfigBundleDialog({
                         <span className={`flex h-4 w-4 items-center justify-center rounded border ${allSelected ? "border-primary bg-primary" : "border-muted-foreground/40"}`}>
                           {allSelected && <Check className="h-3 w-3 text-primary-foreground" />}
                         </span>
-                      </button>
+                      </Button>
                     </div>
                     {isExpanded && (
                       <ScrollArea className="h-44">
@@ -300,9 +312,10 @@ export function ConfigBundleDialog({
                         ) : resources[key].map(item => {
                           const checked = selection[key].includes(item.id)
                           return (
-                            <button
+                            <Button
                               key={item.id}
                               type="button"
+                              variant="ghost"
                               onClick={() => toggleResource(key, item.id)}
                               className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
                             >
@@ -311,7 +324,7 @@ export function ConfigBundleDialog({
                               </span>
                               <span className="min-w-0 flex-1 truncate">{item.name}</span>
                               <span className="max-w-48 truncate font-mono text-[10px] text-muted-foreground">{item.id}</span>
-                            </button>
+                            </Button>
                           )
                         })}
                       </div>
@@ -364,15 +377,21 @@ export function ConfigBundleDialog({
             </div>
             <label className="grid gap-1.5 text-sm">
               <span className="font-medium">{zh ? "全部文件的冲突策略" : "Conflict policy for all files"}</span>
-              <select
+              <Select
                 value={policy}
-                onChange={event => setPolicy(event.target.value as ConflictPolicy)}
-                className="h-10 rounded-lg border border-border bg-background px-3"
+                onValueChange={(value) => setPolicy(value as ConflictPolicy)}
               >
-                <option value="copy">{zh ? "创建副本（默认）" : "Create copies (default)"}</option>
-                <option value="overwrite">{zh ? "覆盖当前账户资源" : "Overwrite owned resources"}</option>
-                <option value="skip">{zh ? "跳过冲突" : "Skip conflicts"}</option>
-              </select>
+                <SelectTrigger className="h-10 w-full border border-border bg-background px-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="copy">{zh ? "创建副本（默认）" : "Create copies (default)"}</SelectItem>
+                    <SelectItem value="overwrite">{zh ? "覆盖当前账户资源" : "Overwrite owned resources"}</SelectItem>
+                    <SelectItem value="skip">{zh ? "跳过冲突" : "Skip conflicts"}</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </label>
             {(totals.conflicts > 0 || totals.missing > 0 || inspections.some(item => item.inspection.warnings.length > 0)) && (
               <div className="space-y-1 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
@@ -385,17 +404,18 @@ export function ConfigBundleDialog({
             )}
           </div>
         ) : (
-          <button
+          <Button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            variant="outline"
             className="flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-secondary/50 text-sm hover:bg-secondary"
           >
             {busy ? <LoaderCircle className="h-6 w-6 animate-spin text-primary" /> : <Download className="h-6 w-6 text-primary" />}
             {zh ? "选择一个或多个配置包" : "Choose one or more configuration bundles"}
-          </button>
+          </Button>
         )}
 
-        <input
+        <Input
           ref={fileInputRef}
           type="file"
           multiple

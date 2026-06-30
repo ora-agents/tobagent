@@ -245,7 +245,7 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
               {zh ? "手册目录" : "Manual"}
             </div>
             {sections.map(({ id, icon: Icon, title }) => (
-              <button
+              <Button variant="unstyled"
                 key={id}
                 onClick={() => scrollToSection(id)}
                 className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm transition-colors md:w-full ${
@@ -256,7 +256,7 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
               >
                 <Icon className="h-4 w-4 flex-shrink-0" />
                 <span className="truncate">{title}</span>
-              </button>
+              </Button>
             ))}
           </nav>
           </ScrollArea>

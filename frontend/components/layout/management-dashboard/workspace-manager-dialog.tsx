@@ -13,6 +13,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
 import { useAuth, type Workspace } from "@/components/providers/auth-provider"
 import { cn } from "@/lib/utils"
@@ -280,9 +289,10 @@ export function WorkspaceManagerDialog({
             ["members", zh ? "成员" : "Members"],
             ["requests", zh ? "审批" : "Requests"],
           ].map(([key, label]) => (
-            <button
+            <Button
               key={key}
               type="button"
+              variant="ghost"
               onClick={() => setTab(key as typeof tab)}
               className={cn(
                 "h-8 flex-1 rounded-md px-3 text-sm transition-colors",
@@ -290,7 +300,7 @@ export function WorkspaceManagerDialog({
               )}
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -300,7 +310,7 @@ export function WorkspaceManagerDialog({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <ScrollArea className="min-h-0 flex-1" contentClassName="pr-1">
           {tab === "workspaces" && (
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -345,15 +355,21 @@ export function WorkspaceManagerDialog({
                     onChange={(event) => setMemberUsername(event.target.value)}
                     placeholder={zh ? "用户名" : "Username"}
                   />
-                  <select
+                  <Select
                     value={memberRole}
-                    onChange={(event) => setMemberRole(event.target.value as "admin" | "member")}
+                    onValueChange={(value) => setMemberRole(value as "admin" | "member")}
                     disabled={!canAssignAdmin}
-                    className="h-9 rounded-lg bg-muted px-3 text-sm outline-none"
                   >
-                    <option value="member">{roleLabels[locale].member}</option>
-                    <option value="admin">{roleLabels[locale].admin}</option>
-                  </select>
+                    <SelectTrigger className="h-9 w-full bg-muted px-3">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="member">{roleLabels[locale].member}</SelectItem>
+                        <SelectItem value="admin">{roleLabels[locale].admin}</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                   <Button onClick={addMember} disabled={busy === "add-member" || !memberUsername.trim()}>
                     {busy === "add-member" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
                     {zh ? "添加" : "Add"}
@@ -373,17 +389,22 @@ export function WorkspaceManagerDialog({
                         <div className="truncate text-sm font-medium">{member.username || member.userId}</div>
                         <div className="mt-1 truncate text-xs text-muted-foreground">{member.userId}</div>
                       </div>
-                      <select
+                      <Select
                         value={member.role}
                         disabled={locked || (member.role === "admin" && activeRole !== "owner")}
-                        onChange={(event) => updateMemberRole(member, event.target.value as "admin" | "member")}
-                        title={roleSelectTitle}
-                        className="h-9 rounded-lg bg-muted px-3 text-sm outline-none disabled:opacity-60"
+                        onValueChange={(value) => updateMemberRole(member, value as "admin" | "member")}
                       >
-                        <option value="owner" disabled>{roleLabels[locale].owner}</option>
-                        <option value="admin">{roleLabels[locale].admin}</option>
-                        <option value="member">{roleLabels[locale].member}</option>
-                      </select>
+                        <SelectTrigger className="h-9 w-full bg-muted px-3 disabled:opacity-60" title={roleSelectTitle}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="owner" disabled>{roleLabels[locale].owner}</SelectItem>
+                            <SelectItem value="admin">{roleLabels[locale].admin}</SelectItem>
+                            <SelectItem value="member">{roleLabels[locale].member}</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <Button
                         variant="outline"
                         size="icon"
@@ -447,7 +468,7 @@ export function WorkspaceManagerDialog({
               )}
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
