@@ -418,8 +418,7 @@ export const MessageList = memo(function MessageList({
             const isNearToolMessage = message.role === "tool" || previousMessage?.role === "tool"
             const showAssistantActions =
               message.role !== "assistant" ||
-              !nextMessage ||
-              nextMessage.role === "user"
+              nextMessage?.role !== "assistant"
             return (
               <div
                 key={message.id}

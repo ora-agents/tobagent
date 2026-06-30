@@ -262,9 +262,16 @@ function replaceAssistantResponseMessages(
   assistantMessages: Message[]
 ): Message[] {
   const syntheticPrefix = `${assistantMessageId}-values-`
-  const insertIndex = messages.findIndex((message) => message.id === assistantMessageId)
+  const streamPrefix = `${assistantMessageId}-stream-`
+  const toolPrefix = `${assistantMessageId}-tool-`
+  const isPreviousResponseMessage = (message: Message) =>
+    message.id === assistantMessageId ||
+    message.id.startsWith(syntheticPrefix) ||
+    message.id.startsWith(streamPrefix) ||
+    message.id.startsWith(toolPrefix)
+  const insertIndex = messages.findIndex(isPreviousResponseMessage)
   const withoutPreviousValues = messages.filter(
-    (message) => message.id !== assistantMessageId && !message.id.startsWith(syntheticPrefix)
+    (message) => !isPreviousResponseMessage(message)
   )
 
   if (insertIndex < 0) {
@@ -277,6 +284,50 @@ function replaceAssistantResponseMessages(
     ...assistantMessages,
     ...withoutPreviousValues.slice(boundedInsertIndex),
   ]
+}
+
+function toDisplayResponseMessages(
+  displayMessages: any[],
+  assistantMessageId: string,
+  finalAssistantCheckpointId: string | undefined,
+  currentUserCheckpointId: string | undefined
+): Message[] {
+  let assistantSegmentIndex = 0
+  let hasSeenTool = false
+  let hasSeenAssistant = false
+
+  return displayMessages.map((msg: any, index: number): Message => {
+    const role = isToolMessage(msg) ? "tool" : "assistant"
+    const content = getDisplayText(msg.content)
+    let id: string
+
+    if (role === "tool") {
+      hasSeenTool = true
+      id = `${assistantMessageId}-tool-${msg.tool_call_id || msg.id || index}`
+    } else if (!hasSeenAssistant && !hasSeenTool) {
+      hasSeenAssistant = true
+      id = assistantMessageId
+    } else {
+      hasSeenAssistant = true
+      assistantSegmentIndex += 1
+      id = hasSeenTool
+        ? `${assistantMessageId}-stream-${assistantSegmentIndex}`
+        : `${assistantMessageId}-values-${msg.id || index}`
+    }
+
+    return {
+      id,
+      role,
+      content,
+      timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+      isThinking: true,
+      runId: msg.run_id,
+      checkpointId: index === displayMessages.length - 1 ? finalAssistantCheckpointId : undefined,
+      parentCheckpointId: currentUserCheckpointId,
+      toolName: msg.name,
+      toolCallId: msg.tool_call_id,
+    }
+  })
 }
 
 function upsertStreamedToolMessage(
@@ -831,24 +882,12 @@ export function useStreamHandler({
       // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
         const displayMessages = findDisplayMessagesAfterUser(data.messages, userContent)
-        const nextResponseMessages = displayMessages.map((msg: any, index: number): Message => {
-          const role = isToolMessage(msg) ? "tool" : "assistant"
-          const content = getDisplayText(msg.content)
-          return {
-            id: index === 0
-              ? assistantMessageId
-              : `${assistantMessageId}-values-${msg.id || index}`,
-            role,
-            content,
-            timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-            isThinking: true,
-            runId: msg.run_id,
-            checkpointId: index === displayMessages.length - 1 ? finalAssistantCheckpointId : undefined,
-            parentCheckpointId: currentUserCheckpointId,
-            toolName: msg.name,
-            toolCallId: msg.tool_call_id,
-          }
-        })
+        const nextResponseMessages = toDisplayResponseMessages(
+          displayMessages,
+          assistantMessageId,
+          finalAssistantCheckpointId,
+          currentUserCheckpointId
+        )
         const finalContent = nextResponseMessages
           .filter((message) => message.role === "assistant")
           .map((message) => message.content)
