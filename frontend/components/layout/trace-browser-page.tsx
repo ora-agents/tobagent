@@ -89,6 +89,78 @@ function stringify(value: unknown, maxLength?: number) {
   return `${text.slice(0, maxLength - 1)}...`
 }
 
+function compactText(value: string) {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+function messageContentToText(content: unknown): string {
+  if (typeof content === "string") return compactText(content)
+  if (Array.isArray(content)) {
+    return compactText(
+      content
+        .map((part) => {
+          if (typeof part === "string") return part
+          if (!part || typeof part !== "object") return ""
+          const record = part as Record<string, unknown>
+          return typeof record.text === "string"
+            ? record.text
+            : typeof record.content === "string"
+              ? record.content
+              : ""
+        })
+        .filter(Boolean)
+        .join(" "),
+    )
+  }
+  return ""
+}
+
+function roleFromMessage(message: Record<string, unknown>) {
+  if (typeof message.role === "string") return message.role
+  if (typeof message.type === "string") return message.type
+  if (typeof message._getType === "string") return message._getType
+  return ""
+}
+
+function extractMessages(value: unknown): Record<string, unknown>[] {
+  if (!value || typeof value !== "object") return []
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractMessages(item))
+  }
+  const record = value as Record<string, unknown>
+  const messages = Array.isArray(record.messages) ? record.messages : Array.isArray(record.message) ? record.message : null
+  if (messages) {
+    return messages.filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item))
+  }
+  return []
+}
+
+function traceInputSummary(value: unknown, maxLength = 160) {
+  const messages = extractMessages(value)
+  const userMessage = [...messages].reverse().find((message) => {
+    const role = roleFromMessage(message).toLowerCase()
+    return role === "user" || role === "human"
+  })
+  const anyMessage = [...messages].reverse().find((message) => messageContentToText(message.content))
+  const messageText = userMessage
+    ? messageContentToText(userMessage.content)
+    : anyMessage
+      ? messageContentToText(anyMessage.content)
+      : ""
+
+  let text = messageText
+  if (!text && typeof value === "string") text = compactText(value)
+  if (!text && value && typeof value === "object" && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>
+    const candidates = [record.input, record.query, record.prompt, record.text, record.content]
+    const candidate = candidates.find((item) => typeof item === "string" && compactText(item).length > 0)
+    if (typeof candidate === "string") text = compactText(candidate)
+  }
+  if (!text) text = compactText(stringify(value))
+  if (text === "-") return text
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text
+}
+
 function combinedMetadata(trace: LangfuseTrace) {
   const traceMetadata = trace.metadata || {}
   const localThreadMetadata =
@@ -124,9 +196,11 @@ function traceDisplayName(trace: LangfuseTrace) {
   const metadata = combinedMetadata(trace)
   const agentName = typeof metadata.agent_name === "string" ? metadata.agent_name.trim() : ""
   const threadTitle = typeof metadata.title === "string" ? metadata.title.trim() : ""
+  const inputTitle = traceInputSummary(trace.input, 48)
   const traceName = typeof trace.name === "string" ? trace.name.trim() : ""
   if (agentName) return agentName
   if (threadTitle) return threadTitle
+  if (inputTitle && inputTitle !== "-") return inputTitle
   if (traceName && !["generic_agent", "generic-agent"].includes(traceName)) return traceName
   return trace.id
 }
@@ -416,10 +490,10 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                       <Button
                         key={trace.id}
                         type="button"
-                        variant="ghost"
+                        variant="unstyled"
                         onClick={() => setSelectedTraceId(trace.id)}
                         className={cn(
-                          "block w-full rounded-lg px-3 py-2 text-left transition-colors",
+                          "block h-auto w-full whitespace-normal rounded-lg px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
                           active ? "bg-primary-soft text-primary" : "hover:bg-muted",
                         )}
                       >
@@ -427,7 +501,7 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-semibold text-foreground">{traceDisplayName(trace)}</div>
                             <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                              {stringify(trace.input, 160)}
+                              {traceInputSummary(trace.input)}
                             </div>
                           </div>
                           <TraceBadge source={traceSource} />
