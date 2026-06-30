@@ -104,6 +104,7 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   { id: "section-profile", icon: User, labelZh: "基本信息", labelEn: "Profile" },
+  { id: "section-account-security", icon: KeyRound, labelZh: "账号安全", labelEn: "Account Security" },
   { id: "section-workspace", icon: Building2, labelZh: "工作区", labelEn: "Workspace" },
   { id: "section-prefs", icon: Settings2, labelZh: "通用偏好", labelEn: "Preferences" },
   { id: "section-safety", icon: Shield, labelZh: "安全选项", labelEn: "Safety" },
@@ -125,7 +126,7 @@ export function UserSettingsPage({
   conversationCount,
 }: UserSettingsPageProps) {
   const elderOptimized = false
-  const { user, updateProfile, activeWorkspace, canManageWorkspace } = useAuth()
+  const { user, updateProfile, sendSmsCode, bindPhone, changePassword, deleteAccount, activeWorkspace, canManageWorkspace } = useAuth()
   const { locale } = useI18n()
   const zh = locale === "zh"
 
@@ -153,6 +154,21 @@ export function UserSettingsPage({
   const [clearConversationsLoading, setClearConversationsLoading] = useState(false)
   const [clearConversationsStatus, setClearConversationsStatus] = useState<string | null>(null)
   const [workspaceManagerOpen, setWorkspaceManagerOpen] = useState(false)
+  const [bindPhoneValue, setBindPhoneValue] = useState("")
+  const [bindPhoneCode, setBindPhoneCode] = useState("")
+  const [bindPhoneSending, setBindPhoneSending] = useState(false)
+  const [bindPhoneLoading, setBindPhoneLoading] = useState(false)
+  const [bindPhoneCooldown, setBindPhoneCooldown] = useState(0)
+  const [passwordCode, setPasswordCode] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmNewPassword, setConfirmNewPassword] = useState("")
+  const [passwordCodeSending, setPasswordCodeSending] = useState(false)
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [passwordCooldown, setPasswordCooldown] = useState(0)
+  const [accountSecurityStatus, setAccountSecurityStatus] = useState<string | null>(null)
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState("")
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false)
 
   // ---- Voiceprint state ----
   const [newVoiceprintName, setNewVoiceprintName] = useState("")
@@ -209,6 +225,18 @@ export function UserSettingsPage({
       return () => clearTimeout(timer)
     }
   }, [saved])
+
+  useEffect(() => {
+    if (bindPhoneCooldown <= 0) return
+    const timer = setTimeout(() => setBindPhoneCooldown((value) => Math.max(0, value - 1)), 1000)
+    return () => clearTimeout(timer)
+  }, [bindPhoneCooldown])
+
+  useEffect(() => {
+    if (passwordCooldown <= 0) return
+    const timer = setTimeout(() => setPasswordCooldown((value) => Math.max(0, value - 1)), 1000)
+    return () => clearTimeout(timer)
+  }, [passwordCooldown])
 
   // ---- Auto-save (debounced) ----
   useEffect(() => {
@@ -470,8 +498,98 @@ export function UserSettingsPage({
     setTimeout(() => setCopied(false), 1500)
   }
 
+  const normalizePhoneInput = (value: string) => value.trim().replace(/\s+/g, "").replace(/-/g, "")
+
+  const handleSendBindPhoneCode = async () => {
+    const normalized = normalizePhoneInput(bindPhoneValue)
+    if (!normalized) {
+      setError(zh ? "请先输入手机号" : "Please enter a phone number first")
+      return
+    }
+    setError(null)
+    setBindPhoneSending(true)
+    try {
+      await sendSmsCode(normalized, "bind_phone")
+      setBindPhoneCooldown(60)
+      setAccountSecurityStatus(zh ? "验证码已发送" : "Verification code sent")
+    } catch (err: any) {
+      setError(err.message || (zh ? "验证码发送失败" : "Failed to send verification code"))
+    } finally {
+      setBindPhoneSending(false)
+    }
+  }
+
+  const handleBindPhone = async () => {
+    const normalized = normalizePhoneInput(bindPhoneValue)
+    if (!normalized || !bindPhoneCode.trim()) {
+      setError(zh ? "请填写手机号和验证码" : "Please enter the phone number and verification code")
+      return
+    }
+    setError(null)
+    setBindPhoneLoading(true)
+    try {
+      await bindPhone(normalized, bindPhoneCode.trim())
+      setBindPhoneValue("")
+      setBindPhoneCode("")
+      setAccountSecurityStatus(zh ? "手机号已绑定" : "Phone number bound")
+    } catch (err: any) {
+      setError(err.message || (zh ? "绑定手机号失败" : "Failed to bind phone number"))
+    } finally {
+      setBindPhoneLoading(false)
+    }
+  }
+
+  const handleSendPasswordCode = async () => {
+    if (!user?.phone) return
+    setError(null)
+    setPasswordCodeSending(true)
+    try {
+      await sendSmsCode(user.phone, "reset_password")
+      setPasswordCooldown(60)
+      setAccountSecurityStatus(zh ? "验证码已发送到绑定手机号" : "Verification code sent to your bound phone")
+    } catch (err: any) {
+      setError(err.message || (zh ? "验证码发送失败" : "Failed to send verification code"))
+    } finally {
+      setPasswordCodeSending(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!user?.phone) {
+      setError(zh ? "请先绑定手机号" : "Bind a phone number first")
+      return
+    }
+    if (!passwordCode.trim() || !newPassword.trim() || !confirmNewPassword.trim()) {
+      setError(zh ? "请填写验证码和新密码" : "Please enter the code and new password")
+      return
+    }
+    if (newPassword.trim().length < 6) {
+      setError(zh ? "密码至少需要 6 个字符。" : "Password must be at least 6 characters.")
+      return
+    }
+    if (newPassword.trim() !== confirmNewPassword.trim()) {
+      setError(zh ? "两次输入的密码不一致。" : "Passwords do not match.")
+      return
+    }
+    setError(null)
+    setPasswordLoading(true)
+    try {
+      await changePassword(user.phone, passwordCode.trim(), newPassword.trim())
+      setPasswordCode("")
+      setNewPassword("")
+      setConfirmNewPassword("")
+      setAccountSecurityStatus(zh ? "密码已修改" : "Password changed")
+    } catch (err: any) {
+      setError(err.message || (zh ? "修改密码失败" : "Failed to change password"))
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
+
   const clearConversationsPhrase = zh ? "清空所有对话" : "CLEAR ALL CONVERSATIONS"
   const clearConversationsConfirmed = clearConversationsConfirmText.trim() === clearConversationsPhrase
+  const deleteAccountPhrase = zh ? "注销账号" : "DELETE MY ACCOUNT"
+  const deleteAccountConfirmed = deleteAccountConfirmText.trim() === deleteAccountPhrase
 
   const handleClearAllConversations = async () => {
     if (!clearConversationsConfirmed) return
@@ -494,6 +612,19 @@ export function UserSettingsPage({
       setError(err.message || (zh ? "清空对话失败，请重试" : "Failed to clear conversations, please try again"))
     } finally {
       setClearConversationsLoading(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!deleteAccountConfirmed) return
+    setError(null)
+    setDeleteAccountLoading(true)
+    try {
+      await deleteAccount()
+      window.location.href = "/login"
+    } catch (err: any) {
+      setError(err.message || (zh ? "注销账号失败，请重试" : "Failed to delete account, please try again"))
+      setDeleteAccountLoading(false)
     }
   }
 
@@ -637,6 +768,131 @@ export function UserSettingsPage({
                 labelClassName={elderOptimized ? "text-base" : undefined}
                 className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary`}
               />
+            </PageSection>
+
+            {/* ============ Section: Account Security ============ */}
+            <PageSection
+              id="section-account-security"
+              ref={registerSectionRef("section-account-security")}
+              density={sectionDensity}
+            >
+              <PageSectionTitle icon={KeyRound} compact={sectionTitleCompact}>
+                {zh ? "账号安全" : "Account Security"}
+              </PageSectionTitle>
+
+              {accountSecurityStatus && (
+                <StatusNotice tone="success" className={elderOptimized ? "p-4 text-base" : undefined}>
+                  {accountSecurityStatus}
+                </StatusNotice>
+              )}
+
+              {!user.phone && (
+                <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary`}>
+                  <div>
+                    <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
+                      {zh ? "绑定手机号" : "Bind phone number"}
+                    </div>
+                    <div className={`${elderOptimized ? "mt-2 text-base leading-7" : "mt-1 text-xs leading-relaxed"} text-muted-foreground`}>
+                      {zh ? "当前账号尚未绑定手机号。绑定后可通过短信验证码修改密码。" : "This account has no phone number yet. Bind one to change your password by SMS code."}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={bindPhoneValue}
+                      onChange={(e) => setBindPhoneValue(e.target.value)}
+                      placeholder={zh ? "输入手机号" : "Phone number"}
+                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                    />
+                    <ActionButton
+                      type="button"
+                      variant="outline"
+                      onClick={handleSendBindPhoneCode}
+                      disabled={bindPhoneSending || bindPhoneCooldown > 0}
+                      className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
+                    >
+                      {bindPhoneSending && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+                      {bindPhoneCooldown > 0 ? `${bindPhoneCooldown}s` : (zh ? "获取验证码" : "Send code")}
+                    </ActionButton>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={bindPhoneCode}
+                      onChange={(e) => setBindPhoneCode(e.target.value)}
+                      inputMode="numeric"
+                      placeholder={zh ? "短信验证码" : "Verification code"}
+                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                    />
+                    <ActionButton
+                      type="button"
+                      variant="default"
+                      onClick={handleBindPhone}
+                      disabled={bindPhoneLoading || !bindPhoneValue.trim() || !bindPhoneCode.trim()}
+                      className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
+                    >
+                      {bindPhoneLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+                      {zh ? "绑定手机号" : "Bind phone"}
+                    </ActionButton>
+                  </div>
+                </div>
+              )}
+
+              {user.phone && (
+                <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary`}>
+                  <div>
+                    <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
+                      {zh ? "修改密码" : "Change password"}
+                    </div>
+                    <div className={`${elderOptimized ? "mt-2 text-base leading-7" : "mt-1 text-xs leading-relaxed"} text-muted-foreground`}>
+                      {zh ? `验证码会发送到绑定手机号 ${user.phone}。` : `The verification code will be sent to ${user.phone}.`}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={passwordCode}
+                      onChange={(e) => setPasswordCode(e.target.value)}
+                      inputMode="numeric"
+                      placeholder={zh ? "短信验证码" : "Verification code"}
+                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                    />
+                    <ActionButton
+                      type="button"
+                      variant="outline"
+                      onClick={handleSendPasswordCode}
+                      disabled={passwordCodeSending || passwordCooldown > 0}
+                      className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
+                    >
+                      {passwordCodeSending && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+                      {passwordCooldown > 0 ? `${passwordCooldown}s` : (zh ? "获取验证码" : "Send code")}
+                    </ActionButton>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder={zh ? "新密码" : "New password"}
+                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                    />
+                    <Input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder={zh ? "确认新密码" : "Confirm new password"}
+                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                    />
+                  </div>
+                  <ActionButton
+                    type="button"
+                    variant="default"
+                    onClick={handleChangePassword}
+                    disabled={passwordLoading || !passwordCode.trim() || !newPassword.trim() || !confirmNewPassword.trim()}
+                    className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} self-start rounded-lg gap-1.5`}
+                  >
+                    {passwordLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+                    {zh ? "修改密码" : "Change password"}
+                  </ActionButton>
+                </div>
+              )}
             </PageSection>
 
             {/* ============ Section: Workspace ============ */}
@@ -797,7 +1053,7 @@ export function UserSettingsPage({
                 />
 
                 {/* Hidden file input */}
-                <input
+                <Input
                   ref={audioInputRef}
                   type="file"
                   accept={SPEAKER_AUDIO_ACCEPT}
@@ -964,6 +1220,34 @@ export function UserSettingsPage({
                   {zh ? "清空对话" : "Clear conversations"}
                 </Button>
               </div>
+
+              <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-destructive/10 sm:flex-row sm:items-center sm:justify-between`}>
+                <div className="min-w-0">
+                  <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-destructive`}>
+                    {zh ? "注销账号" : "Delete account"}
+                  </div>
+                  <div className={`${elderOptimized ? "text-base mt-2 leading-7" : "text-xs mt-1 leading-relaxed"} text-muted-foreground`}>
+                    {zh
+                      ? "将永久删除当前账号、API Key、角色配置、知识库、表单、MCP 配置、声纹和拥有的工作区数据。"
+                      : "Permanently deletes this account, API keys, agent profiles, knowledge bases, forms, MCP configs, voiceprints, and owned workspace data."}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size={elderOptimized ? "lg" : "sm"}
+                  onClick={() => setDeleteAccountOpen(true)}
+                  disabled={deleteAccountLoading}
+                  className="shrink-0 gap-1.5 rounded-lg"
+                >
+                  {deleteAccountLoading ? (
+                    <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />
+                  ) : (
+                    <Trash2 className={elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} />
+                  )}
+                  {zh ? "注销账号" : "Delete account"}
+                </Button>
+              </div>
             </PageSection>
 
             {/* Bottom spacing */}
@@ -1038,6 +1322,70 @@ export function UserSettingsPage({
           >
             {clearConversationsLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
             {zh ? "永久清空" : "Clear permanently"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog
+      open={deleteAccountOpen}
+      onOpenChange={(open) => {
+        if (deleteAccountLoading) return
+        setDeleteAccountOpen(open)
+        if (!open) {
+          setDeleteAccountConfirmText("")
+        }
+      }}
+    >
+      <DialogContent className={elderOptimized ? "sm:max-w-xl p-7" : "sm:max-w-lg"}>
+        <DialogHeader>
+          <DialogTitle className={`${elderOptimized ? "text-2xl" : "text-lg"} flex items-center gap-2 text-destructive`}>
+            <AlertCircle className={elderOptimized ? "w-6 h-6" : "w-5 h-5"} />
+            {zh ? "确认注销账号" : "Confirm account deletion"}
+          </DialogTitle>
+          <DialogDescription className={elderOptimized ? "text-base leading-7" : "text-sm leading-6"}>
+            {zh
+              ? "此操作会永久删除当前账号及其直接拥有的数据，删除后无法恢复。"
+              : "This permanently deletes this account and directly owned data. It cannot be undone."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label htmlFor="delete-account-confirm" className={`${elderOptimized ? "text-base" : "text-xs"} font-semibold text-muted-foreground`}>
+            {zh ? "请输入以下文字进行确认：" : "Type this phrase to confirm:"}
+          </Label>
+          <div className={`${elderOptimized ? "text-base px-4 py-3" : "text-sm px-3 py-2"} rounded-lg border border-destructive/20 bg-destructive/5 font-mono text-destructive`}>
+            {deleteAccountPhrase}
+          </div>
+          <Input
+            id="delete-account-confirm"
+            value={deleteAccountConfirmText}
+            onChange={(e) => setDeleteAccountConfirmText(e.target.value)}
+            disabled={deleteAccountLoading}
+            className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} rounded-lg border-border/60 bg-background`}
+            autoComplete="off"
+          />
+        </div>
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setDeleteAccountOpen(false)}
+            disabled={deleteAccountLoading}
+            className={elderOptimized ? "h-12 px-5 text-base" : ""}
+          >
+            {zh ? "取消" : "Cancel"}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDeleteAccount}
+            disabled={!deleteAccountConfirmed || deleteAccountLoading}
+            className={`${elderOptimized ? "h-12 px-5 text-base" : ""} gap-1.5`}
+          >
+            {deleteAccountLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+            {zh ? "永久注销" : "Delete permanently"}
           </Button>
         </DialogFooter>
       </DialogContent>

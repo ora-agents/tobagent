@@ -40,10 +40,13 @@ interface AuthContextType {
   canManageWorkspace: boolean
   refreshWorkspaces: () => Promise<void>
   setActiveWorkspaceId: (workspaceId: string | null) => void
-  sendSmsCode: (phone: string, purpose: 'login' | 'register' | 'sensitive') => Promise<void>
-  login: (phone: string, code: string) => Promise<void>
-  register: (username: string, phone: string, code: string) => Promise<void>
+  sendSmsCode: (phone: string, purpose: 'login' | 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => Promise<void>
+  login: (phone: string, credential: string, method?: 'password' | 'sms') => Promise<void>
+  register: (username: string, phone: string, code: string, password: string) => Promise<void>
   logout: () => void
+  bindPhone: (phone: string, code: string) => Promise<User>
+  changePassword: (phone: string, code: string, password: string) => Promise<void>
+  deleteAccount: () => Promise<void>
   clearError: () => void
   updateProfile: (data: Partial<Pick<User, 'username' | 'email' | 'preferences' | 'safetyEnabled'>>) => Promise<User>
 }
@@ -94,7 +97,7 @@ function localizeAuthMessage(message: string, t: Translations, fallback: string)
     return fallback
   }
 
-  if (normalized === 'Invalid username or password') {
+  if (normalized === 'Invalid username or password' || normalized === 'Invalid phone or password') {
     return t.authErrorInvalidCredentials
   }
 
@@ -112,6 +115,14 @@ function localizeAuthMessage(message: string, t: Translations, fallback: string)
 
   if (normalized === 'Phone is not registered') {
     return t.authErrorPhoneNotRegistered
+  }
+
+  if (normalized === 'Phone already bound') {
+    return t.authErrorPhoneAlreadyBound
+  }
+
+  if (normalized === 'Phone is not bound') {
+    return t.authErrorPhoneNotBound
   }
 
   if (normalized === 'Please wait before requesting another code') {
@@ -250,12 +261,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [refreshWorkspaces])
 
-  const sendSmsCode = useCallback(async (phone: string, purpose: 'login' | 'register' | 'sensitive') => {
+  const sendSmsCode = useCallback(async (phone: string, purpose: 'login' | 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => {
     setError(null)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (user) {
+        headers.Authorization = `Bearer ${user.id}`
+      }
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/sms-code`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ phone, purpose }),
       })
 
@@ -267,16 +282,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.smsCodeSendFailed))
       throw err
     }
-  }, [t])
+  }, [t, user])
 
   // 2. Login function
-  const login = useCallback(async (phone: string, code: string) => {
+  const login = useCallback(async (phone: string, credential: string, method: 'password' | 'sms' = 'password') => {
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify(method === 'password' ? { phone, password: credential } : { phone, code: credential }),
       })
 
       if (!resp.ok) {
@@ -295,13 +310,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [t])
 
   // 3. Register function
-  const register = useCallback(async (username: string, phone: string, code: string) => {
+  const register = useCallback(async (username: string, phone: string, code: string, password: string) => {
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, phone, code }),
+        body: JSON.stringify({ username, phone, code, password }),
       })
 
       if (!resp.ok) {
@@ -328,6 +343,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(WORKSPACE_SESSION_KEY)
     console.info('[Auth] Logged out successfully')
   }, [])
+
+  const bindPhone = useCallback(async (phone: string, code: string): Promise<User> => {
+    if (!user) throw new Error(t.notLoggedIn)
+    setError(null)
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}/phone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
+      body: JSON.stringify({ phone, code }),
+    })
+    if (!resp.ok) {
+      const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
+      setError(message)
+      throw new Error(message)
+    }
+    const updatedUser = (await resp.json()) as User
+    setUser(updatedUser)
+    localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser))
+    return updatedUser
+  }, [user, t])
+
+  const changePassword = useCallback(async (phone: string, code: string, password: string): Promise<void> => {
+    if (!user) throw new Error(t.notLoggedIn)
+    setError(null)
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
+      body: JSON.stringify({ phone, code, password }),
+    })
+    if (!resp.ok) {
+      const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
+      setError(message)
+      throw new Error(message)
+    }
+  }, [user, t])
+
+  const deleteAccount = useCallback(async (): Promise<void> => {
+    if (!user) throw new Error(t.notLoggedIn)
+    setError(null)
+    const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${user.id}` },
+    })
+    if (!resp.ok) {
+      const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
+      setError(message)
+      throw new Error(message)
+    }
+    logout()
+  }, [logout, user, t])
 
   // 5. Update profile function
   const updateProfile = useCallback(async (
@@ -397,6 +461,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
+    bindPhone,
+    changePassword,
+    deleteAccount,
     clearError,
     updateProfile,
   }
