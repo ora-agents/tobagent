@@ -15,13 +15,13 @@ export interface ProcessStep {
 }
 
 /**
- * Represents a chat message from either user or assistant.
+ * Represents a chat message from the conversation transcript.
  * Contains metadata for streaming, tool calls, and tracing.
  */
 export interface Message {
   // Core properties
   id: string
-  role: "user" | "assistant"
+  role: "user" | "assistant" | "tool"
   content: string
   timestamp: Date
 
@@ -29,6 +29,8 @@ export interface Message {
   images?: ImageAttachment[]
 
   // Tool execution
+  toolName?: string
+  toolCallId?: string
   toolCalls?: ToolCall[]
   subgraphOutputs?: SubgraphOutput[]
 

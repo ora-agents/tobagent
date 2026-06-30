@@ -6,7 +6,6 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { AnimatedThinking } from "./animations/animated-thinking"
 import type { Message, ToolCall } from "@/lib/types"
 import { useState, useMemo, useCallback, memo, useRef, useEffect } from "react"
 import { useT } from "@/lib/i18n"
@@ -154,8 +153,8 @@ const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall
   const hasOutput = tool.output !== undefined && tool.output !== null && outputValue.length > 0
 
   return (
-    <details className="group/tool-call overflow-hidden rounded-lg bg-secondary text-xs text-foreground open:bg-card">
-      <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20">
+    <details className="group/tool-call overflow-hidden rounded-md bg-secondary text-xs text-foreground open:bg-card">
+      <summary className="flex min-h-8 cursor-pointer list-none items-center gap-2 px-3 py-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20">
         <Settings className="h-3.5 w-3.5 shrink-0 text-primary" />
         <span className="shrink-0 font-mono text-[13px] font-semibold text-foreground">
           {tool.name}
@@ -185,7 +184,7 @@ const ToolCallPreview = memo(function ToolCallPreview({ tool }: { tool: ToolCall
           </pre>
         )}
         {hasOutput && (
-          <pre className="mt-3 pt-3 whitespace-pre-wrap break-words text-muted-foreground">
+          <pre className="mt-3 whitespace-pre-wrap break-words pt-3 text-muted-foreground">
             {outputValue}
           </pre>
         )}
@@ -268,6 +267,7 @@ interface MessageItemProps {
   isLastAssistant: boolean
   isRegenerating: boolean
   copiedId: string | null
+  showAssistantActions?: boolean
   onCopy: (content: string, messageId: string) => void
   onRegenerate: () => void
   onEditAndRerun?: (messageId: string, newContent: string) => void
@@ -278,6 +278,7 @@ export const MessageItem = memo(function MessageItem({
   isLastAssistant,
   isRegenerating,
   copiedId,
+  showAssistantActions = true,
   onCopy,
   onRegenerate,
   onEditAndRerun,
@@ -288,6 +289,17 @@ export const MessageItem = memo(function MessageItem({
   const [isUserMessageExpanded, setIsUserMessageExpanded] = useState(false)
   const [useAndroidWebViewLayout, setUseAndroidWebViewLayout] = useState(false)
   const userEditTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const isToolMessage = message.role === "tool"
+  const toolMessageCall = useMemo<ToolCall | null>(() => {
+    if (!isToolMessage) return null
+
+    return {
+      id: message.toolCallId || message.id,
+      name: message.toolName || "tool",
+      args: {},
+      output: message.content,
+    }
+  }, [isToolMessage, message.content, message.id, message.toolCallId, message.toolName])
 
   const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && onEditAndRerun) {
@@ -336,42 +348,12 @@ export const MessageItem = memo(function MessageItem({
   // Reset counter before each render so code blocks get consistent indices
   codeBlockIndexRef.current = 0
 
-  // Control the open state of the Process details panel.
-  // - While thinking: keep open.
-  // - When thinking transitions to done AND we have process steps: keep open so
-  //   the user can see the result without having to click.
-  // - The user can still manually toggle by clicking the <summary>.
-  const hasProcessContent = !!(message.processSteps && message.processSteps.length > 0)
-  const hasTextProcessSteps = !!message.processSteps?.some(step => step.type === "text" && step.content)
-  const showProcessDetailsPanel = !!message.isThinking || hasTextProcessSteps
   const userMessageLineCount = typeof message.content === "string" ? message.content.split(/\r\n|\r|\n/).length : 0
   const shouldCollapseUserMessage =
     message.role === "user" &&
     !isEditingUserMessage &&
     typeof message.content === "string" &&
     (message.content.length > USER_MESSAGE_COLLAPSE_CHAR_LIMIT || userMessageLineCount > USER_MESSAGE_COLLAPSE_LINE_LIMIT)
-
-  const [detailsOpen, setDetailsOpen] = useState(
-    () => !!message.isThinking || hasProcessContent
-  )
-
-  // Sync open state when isThinking changes:
-  // - thinking starts  → open
-  // - thinking ends    → stay open if there is content to show
-  const prevIsThinkingRef = useRef(message.isThinking)
-  useEffect(() => {
-    const wasThinking = prevIsThinkingRef.current
-    prevIsThinkingRef.current = message.isThinking
-    if (message.isThinking) {
-      // Agent started (re-)thinking — open the panel
-      setDetailsOpen(true)
-    } else if (wasThinking && !message.isThinking) {
-      // Thinking just finished — keep open so the user sees the process result
-      if (message.processSteps && message.processSteps.length > 0) {
-        setDetailsOpen(true)
-      }
-    }
-  }, [message.isThinking, message.processSteps])
 
   // Memoize markdown components to prevent button remounting during streaming
   const markdownComponents = useMemo(() => ({
@@ -486,57 +468,6 @@ export const MessageItem = memo(function MessageItem({
             contain: 'layout style paint',
           }}
         >
-          {/* Process panel - only shown when there are intermediate process steps */}
-          {message.role === "assistant" && message.processSteps && message.processSteps.length > 0 && !showProcessDetailsPanel && (
-            <div className="mb-3 space-y-2">
-              {message.processSteps.map((step, idx) => {
-                if (step.type === "tool" && step.tool) {
-                  return <ToolCallPreview key={`ps-${idx}-${step.tool.id}`} tool={step.tool} />
-                }
-                return null
-              })}
-            </div>
-          )}
-
-          {message.role === "assistant" && message.processSteps && message.processSteps.length > 0 && showProcessDetailsPanel && (
-            <details
-              open={detailsOpen}
-              onToggle={(e) => setDetailsOpen((e.currentTarget as HTMLDetailsElement).open)}
-              className="mb-3 rounded-lg bg-secondary px-3 py-2 text-xs"
-            >
-              <summary className="cursor-pointer flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors marker:text-muted-foreground">
-                {message.isThinking && (
-                  <span className="relative flex h-2.5 w-2.5 shrink-0">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-primary/35 animate-ping" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                  </span>
-                )}
-                <span>
-                  {message.isThinking ? <AnimatedThinking /> : <span className="font-medium">Process</span>}
-                </span>
-              </summary>
-              {message.processSteps && message.processSteps.length > 0 && (
-                <div className="mt-3 space-y-3">
-                  {message.processSteps.map((step, idx) => {
-                    if (step.type === "text" && step.content) {
-                      return (
-                        <div key={`ps-${idx}`} className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {step.content}
-                        </div>
-                      )
-                    } else if (step.type === "tool" && step.tool) {
-                      const tool = step.tool
-                      return (
-                        <ToolCallPreview key={`ps-${idx}-${tool.id}`} tool={tool} />
-                      )
-                    }
-                    return null
-                  })}
-                </div>
-              )}
-            </details>
-          )}
-
           {message.role === "user" ? (
               <div className="space-y-2">
                 {/* File attachments - uniform grid layout */}
@@ -650,6 +581,9 @@ export const MessageItem = memo(function MessageItem({
               </div>
           ) : (
             <div className="relative">
+              {toolMessageCall ? (
+                <ToolCallPreview tool={toolMessageCall} />
+              ) : (
               <div
                 className="chat-selectable-text prose prose-sm max-w-none break-words text-sm leading-relaxed transition-opacity duration-200 ease-out dark:prose-invert [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
                 style={{
@@ -668,12 +602,13 @@ export const MessageItem = memo(function MessageItem({
                   </ReactMarkdown>
               ) : null}
               </div>
+              )}
 
             </div>
           )}
         </div>
 
-        {message.role === "assistant" && (
+        {message.role === "assistant" && showAssistantActions && (
           <>
             <div className="flex gap-1 sm:gap-2 items-center flex-wrap">
               {!message.isThinking && (

@@ -410,12 +410,20 @@ export const MessageList = memo(function MessageList({
         onViewportScroll={handleScroll}
         viewportClassName="relative scroll-smooth [contain:layout_style_paint] [will-change:scroll-position]"
       >
-        <div className="mx-auto w-full max-w-4xl space-y-5 px-3 py-4 sm:space-y-6 sm:px-6 sm:py-8">
+        <div className="mx-auto w-full max-w-4xl px-3 py-4 sm:px-6 sm:py-8">
           {isLoadingThread && messages.length === 0 ? historySkeleton : messages.map((message, idx) => {
             const isLastMessage = idx === messages.length - 1
+            const previousMessage = messages[idx - 1]
+            const nextMessage = messages[idx + 1]
+            const isNearToolMessage = message.role === "tool" || previousMessage?.role === "tool"
+            const showAssistantActions =
+              message.role !== "assistant" ||
+              !nextMessage ||
+              nextMessage.role === "user"
             return (
               <div
                 key={message.id}
+                className={idx === 0 ? undefined : isNearToolMessage ? "mt-2" : "mt-5 sm:mt-6"}
                 style={{
                   animation: isLastMessage && message.role === 'user' ? 'slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'none',
                 }}
@@ -425,6 +433,7 @@ export const MessageList = memo(function MessageList({
                 isLastAssistant={message.id === lastAssistantId}
                 isRegenerating={isRegenerating}
                 copiedId={copiedId}
+                showAssistantActions={showAssistantActions}
                 onCopy={onCopy}
                 onRegenerate={onRegenerate}
                 onEditAndRerun={onEditAndRerun}

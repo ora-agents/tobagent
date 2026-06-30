@@ -54,11 +54,33 @@ interface QueuedMessage {
   threadId: string
 }
 
-const toLangGraphMessages = (messages: Message[]) =>
-  messages.map((message) => ({
-    role: message.role,
-    content: message.content,
-  }))
+const isLangGraphInputMessage = (
+  message: Message
+): message is Message & { role: "user" | "assistant" } =>
+  message.role === "user" || message.role === "assistant"
+
+const toLangGraphMessages = (
+  messages: Message[]
+): Array<{ role: "user" | "assistant"; content: unknown }> =>
+  messages
+    .filter(isLangGraphInputMessage)
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+
+const extractDisplayTextFromContent = (content: unknown): string => {
+  const text = extractTextFromContent(content)
+  if (text) return text
+  if (content === undefined || content === null) return ""
+  if (typeof content === "string") return content
+
+  try {
+    return JSON.stringify(content, null, 2)
+  } catch {
+    return String(content)
+  }
+}
 
 export function ChatInterface({
   threadId,
@@ -450,17 +472,6 @@ export function ChatInterface({
           console.warn("Failed to load checkpoint metadata for thread history:", error)
         }
 
-        // Build a map of tool outputs from ToolMessages
-        const toolOutputsById = new Map<string, string>()
-        threadMessages.forEach((msg: any) => {
-          if (msg.type === "tool" && msg.tool_call_id) {
-            toolOutputsById.set(
-              msg.tool_call_id,
-              typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
-            )
-          }
-        })
-
         const convertedMessages: Message[] = []
         
         threadMessages.forEach((msg: any, idx: number) => {
@@ -478,76 +489,45 @@ export function ChatInterface({
               timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
               images: attachments.length > 0 ? attachments : undefined,
             })
+          } else if (msgType === "tool") {
+            const content = extractDisplayTextFromContent(msg.content)
+            if (!content.trim()) return
+
+            convertedMessages.push({
+              id: msg.id || `history-${currentThreadId}-${idx}-tool`,
+              role: "tool",
+              content,
+              timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+              toolName: msg.name,
+              toolCallId: msg.tool_call_id,
+            })
           } else if (msgType === "ai" || msgType === "assistant") {
-            const content = extractTextFromContent(msg.content)
+            const content = extractDisplayTextFromContent(msg.content)
+            if (!content.trim()) return
+
             const role = "assistant"
             const messageId = msg.id || `history-${currentThreadId}-${idx}-ai`
             const checkpointInfo =
               checkpointsByMessageId.get(messageId) ||
               checkpointsByContent.get(`${role}:${content}`)
 
-            const lastMsg = convertedMessages[convertedMessages.length - 1]
-            
-            if (lastMsg && lastMsg.role === "assistant") {
-              // Merge into previous assistant message
-              if (!lastMsg.processSteps) lastMsg.processSteps = []
-              
-              if (lastMsg.content.trim() && lastMsg.content !== content) {
-                lastMsg.processSteps.push({ type: "text", content: lastMsg.content })
-              }
-              
-              if (msg.tool_calls && msg.tool_calls.length > 0) {
-                msg.tool_calls.forEach((tc: any) => {
-                   const tool = {
-                     ...tc,
-                     output: tc.output || toolOutputsById.get(tc.id)
-                   }
-                   lastMsg.processSteps!.push({ type: "tool", tool })
-                   if (!lastMsg.toolCalls) lastMsg.toolCalls = []
-                   lastMsg.toolCalls.push(tool)
-                })
-              }
-              
-              lastMsg.content = content
-              if (msg.run_id) lastMsg.runId = msg.run_id
-              if (msg.response_metadata?.thinking_duration) lastMsg.thinkingDuration = msg.response_metadata.thinking_duration
-            } else {
-              // Create new assistant message
-              const newMsg: Message = {
-                id: messageId,
-                role: "assistant",
-                content: content,
-                timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-                runId: msg.run_id,
-                checkpointId: checkpointInfo?.checkpointId,
-                parentCheckpointId: checkpointInfo?.parentCheckpointId,
-                thinkingDuration: msg.response_metadata?.thinking_duration,
-                toolCalls: [],
-                processSteps: [],
-                images: msg.images,
-              }
-              
-              if (msg.tool_calls && msg.tool_calls.length > 0) {
-                msg.tool_calls.forEach((tc: any) => {
-                   const tool = {
-                     ...tc,
-                     output: tc.output || toolOutputsById.get(tc.id)
-                   }
-                   newMsg.processSteps!.push({ type: "tool", tool })
-                   newMsg.toolCalls!.push(tool)
-                })
-              }
-              
-              convertedMessages.push(newMsg)
-            }
+            convertedMessages.push({
+              id: messageId,
+              role: "assistant",
+              content,
+              timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+              runId: msg.run_id,
+              checkpointId: checkpointInfo?.checkpointId,
+              parentCheckpointId: checkpointInfo?.parentCheckpointId,
+              thinkingDuration: msg.response_metadata?.thinking_duration,
+              images: msg.images,
+            })
           }
         })
         
         const finalMessages = convertedMessages.filter(msg => 
           msg.role === "user" || 
-          msg.content.trim().length > 0 || 
-          (msg.processSteps && msg.processSteps.length > 0) ||
-          (msg.toolCalls && msg.toolCalls.length > 0)
+          msg.content.trim().length > 0
         )
 
         console.log(`SUCCESS: Loaded ${finalMessages.length} messages from thread history`)

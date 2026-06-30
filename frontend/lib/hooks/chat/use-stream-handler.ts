@@ -85,6 +85,11 @@ function isAssistantMessage(msg: any): boolean {
   return role === "ai" || role === "assistant"
 }
 
+function isToolMessage(msg: any): boolean {
+  const role = msg?.type || msg?.role
+  return role === "tool"
+}
+
 function hasToolCalls(msg: any): boolean {
   return Array.isArray(msg?.tool_calls) && msg.tool_calls.length > 0
 }
@@ -127,6 +132,19 @@ function getChunkText(chunk: any): string {
   if (typeof chunk.delta === "string") return chunk.delta
   if (typeof chunk.token === "string") return chunk.token
   return ""
+}
+
+function getDisplayText(content: unknown): string {
+  const text = extractTextFromContent(content)
+  if (text) return text
+  if (content === undefined || content === null) return ""
+  if (typeof content === "string") return content
+
+  try {
+    return JSON.stringify(content, null, 2)
+  } catch {
+    return String(content)
+  }
 }
 
 function mergeStreamedContent(currentContent: string, streamedContent: string): string {
@@ -211,7 +229,7 @@ function applyToolOutput(
   }
 }
 
-function findFinalAssistantMessage(messages: any[], userContent: string): any | undefined {
+function findDisplayMessagesAfterUser(messages: any[], userContent: string): any[] {
   let lastUserIndex = -1
   let foundCurrentUser = !userContent
 
@@ -227,14 +245,88 @@ function findFinalAssistantMessage(messages: any[], userContent: string): any | 
     }
   }
 
-  if (!foundCurrentUser) return undefined
+  if (!foundCurrentUser) return []
 
   const candidates = lastUserIndex >= 0 ? messages.slice(lastUserIndex + 1) : messages
-  return [...candidates].reverse().find((msg: any) =>
-    isAssistantMessage(msg) &&
-    !hasToolCalls(msg) &&
-    extractTextFromContent(msg.content).trim()
+  return candidates.filter((msg: any) =>
+    (
+      (isAssistantMessage(msg) && getDisplayText(msg.content).trim()) ||
+      (isToolMessage(msg) && getDisplayText(msg.content).trim())
+    )
   )
+}
+
+function replaceAssistantResponseMessages(
+  messages: Message[],
+  assistantMessageId: string,
+  assistantMessages: Message[]
+): Message[] {
+  const syntheticPrefix = `${assistantMessageId}-values-`
+  const insertIndex = messages.findIndex((message) => message.id === assistantMessageId)
+  const withoutPreviousValues = messages.filter(
+    (message) => message.id !== assistantMessageId && !message.id.startsWith(syntheticPrefix)
+  )
+
+  if (insertIndex < 0) {
+    return [...withoutPreviousValues, ...assistantMessages]
+  }
+
+  const boundedInsertIndex = Math.min(insertIndex, withoutPreviousValues.length)
+  return [
+    ...withoutPreviousValues.slice(0, boundedInsertIndex),
+    ...assistantMessages,
+    ...withoutPreviousValues.slice(boundedInsertIndex),
+  ]
+}
+
+function upsertStreamedToolMessage(
+  messages: Message[],
+  assistantMessageId: string,
+  tool: ToolCall
+): Message[] {
+  const messageId = `${assistantMessageId}-tool-${tool.id}`
+  const content = getDisplayText(tool.output ?? tool.args)
+  const existingIndex = messages.findIndex((message) => message.id === messageId)
+  const toolMessage: Message = {
+    id: messageId,
+    role: "tool",
+    content,
+    timestamp: new Date(),
+    isThinking: tool.output === undefined,
+    toolName: tool.name,
+    toolCallId: tool.id,
+  }
+
+  if (existingIndex >= 0) {
+    return messages.map((message) =>
+      message.id === messageId
+        ? {
+            ...message,
+            ...toolMessage,
+            timestamp: message.timestamp,
+          }
+        : message
+    )
+  }
+
+  const insertIndex = messages.findIndex((message) => message.id === assistantMessageId)
+  if (insertIndex < 0) {
+    return [...messages, toolMessage]
+  }
+
+  let boundedInsertIndex = insertIndex + 1
+  while (
+    boundedInsertIndex < messages.length &&
+    messages[boundedInsertIndex].id.startsWith(`${assistantMessageId}-`)
+  ) {
+    boundedInsertIndex += 1
+  }
+
+  return [
+    ...messages.slice(0, boundedInsertIndex),
+    toolMessage,
+    ...messages.slice(boundedInsertIndex),
+  ]
 }
 
 // ============================================================================
@@ -458,12 +550,18 @@ export function useStreamHandler({
       const recursionLimit = agentConfig?.recursionLimit ?? 100
 
       let assistantContent = ""
+      let activeAssistantMessageId = assistantMessageId
+      let activeAssistantSegmentContent = ""
       let assistantToolCalls: ToolCall[] = []
       let assistantProcessSteps: ProcessStep[] = []
       let runId: string | undefined = undefined
       let hasSeenNewResponse = false
+      let hasStreamedToolMessages = false
+      let shouldStartAssistantSegmentAfterTool = false
+      let streamedAssistantSegmentIndex = 0
       let currentUserCheckpointId: string | undefined = options?.checkpointId
       let finalAssistantCheckpointId: string | undefined
+      let orderedResponseMessagesFromValues: Message[] = []
 
       const isCustomProfile = !!agentProfile
       const agentType = agentProfile?.graphId?.trim() || "generic_agent"
@@ -600,6 +698,14 @@ export function useStreamHandler({
         }
       }
 
+      const queueStreamedToolMessage = (tool: ToolCall) => {
+        hasStreamedToolMessages = true
+        shouldStartAssistantSegmentAfterTool = true
+        queueMessageUpdate((prev) =>
+          upsertStreamedToolMessage(prev, assistantMessageId, tool)
+        )
+      }
+
       for await (const chunk of streamResponse) {
         // Check if user requested interrupt
         if (shouldInterruptRef?.current) {
@@ -678,6 +784,10 @@ export function useStreamHandler({
                         assistantToolCalls,
                         [toolCall]
                       )
+                      const tool = assistantToolCalls.find((item) => item.id === toolCall.id)
+                      if (tool) {
+                        queueStreamedToolMessage(tool)
+                      }
                     }
                   }
                 })
@@ -707,6 +817,10 @@ export function useStreamHandler({
                   )
                   assistantToolCalls = nextState.toolCalls
                   assistantProcessSteps = nextState.processSteps
+                  const tool = assistantToolCalls.find((item) => item.id === msg.tool_call_id)
+                  if (tool) {
+                    queueStreamedToolMessage(tool)
+                  }
                 }
               }
             })
@@ -716,35 +830,54 @@ export function useStreamHandler({
       // Handle "values" mode - final state with complete output
       // IMPORTANT: Skip subgraph events to avoid showing subagent content in main chat
       if (eventType === "values" && !isSubgraphEvent && data?.messages && Array.isArray(data.messages)) {
-        const finalAIMessage = findFinalAssistantMessage(data.messages, userContent)
-
-        const finalContent = finalAIMessage?.content ? extractTextFromContent(finalAIMessage.content) : ""
+        const displayMessages = findDisplayMessagesAfterUser(data.messages, userContent)
+        const nextResponseMessages = displayMessages.map((msg: any, index: number): Message => {
+          const role = isToolMessage(msg) ? "tool" : "assistant"
+          const content = getDisplayText(msg.content)
+          return {
+            id: index === 0
+              ? assistantMessageId
+              : `${assistantMessageId}-values-${msg.id || index}`,
+            role,
+            content,
+            timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+            isThinking: true,
+            runId: msg.run_id,
+            checkpointId: index === displayMessages.length - 1 ? finalAssistantCheckpointId : undefined,
+            parentCheckpointId: currentUserCheckpointId,
+            toolName: msg.name,
+            toolCallId: msg.tool_call_id,
+          }
+        })
+        const finalContent = nextResponseMessages
+          .filter((message) => message.role === "assistant")
+          .map((message) => message.content)
+          .filter(Boolean)
+          .join("\n\n")
+        const displayContent = nextResponseMessages
+          .map((message) => `${message.role}:${message.content}`)
+          .join("\n\n")
 
         // Use final values as the authoritative fallback. This keeps the UI
         // populated when the server emits no main-agent token tuples while
         // still ignoring metadata-free partial aggregates.
-        if (finalContent && finalContent !== assistantContent) {
+        if (
+          nextResponseMessages.length > 0 &&
+          displayContent &&
+          (displayContent !== orderedResponseMessagesFromValues.map((message) => `${message.role}:${message.content}`).join("\n\n") ||
+            nextResponseMessages.length !== orderedResponseMessagesFromValues.length)
+        ) {
           const delta = finalContent.slice(assistantContent.length)
           assistantContent = finalContent
+          orderedResponseMessagesFromValues = nextResponseMessages
 
           if (delta && onTextChunk) {
             onTextChunk(delta)
           }
 
           queueMessageUpdate((prev) => {
-            const baseMessage: Message = {
-              id: assistantMessageId,
-              role: "assistant",
-              content: assistantContent,
-              timestamp: new Date(),
-              isThinking: true,
-            }
-
-            const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
-            return updateMessageInList(withMessage, assistantMessageId, {
-              content: assistantContent,
-              isThinking: true,
-            })
+            const withMessage = ensureMessageExists(prev, assistantMessageId, nextResponseMessages[0])
+            return replaceAssistantResponseMessages(withMessage, assistantMessageId, nextResponseMessages)
           })
         }
       }
@@ -777,6 +910,16 @@ export function useStreamHandler({
             const nextAssistantContent = mergeStreamedContent(assistantContent, streamedContent)
             const delta = nextAssistantContent.slice(assistantContent.length)
             assistantContent = nextAssistantContent
+            if (shouldStartAssistantSegmentAfterTool) {
+              streamedAssistantSegmentIndex += 1
+              activeAssistantMessageId = `${assistantMessageId}-stream-${streamedAssistantSegmentIndex}`
+              activeAssistantSegmentContent = ""
+              shouldStartAssistantSegmentAfterTool = false
+            }
+            activeAssistantSegmentContent = mergeStreamedContent(
+              activeAssistantSegmentContent,
+              streamedContent
+            )
             hasSeenNewResponse = true // Mark that we've seen new content
 
             // Notify TTS with the new text delta
@@ -784,18 +927,20 @@ export function useStreamHandler({
               onTextChunk(delta)
             }
 
+            const segmentMessageId = activeAssistantMessageId
+            const segmentContent = activeAssistantSegmentContent
             queueMessageUpdate((prev) => {
               const baseMessage: Message = {
-                id: assistantMessageId,
+                id: segmentMessageId,
                 role: "assistant",
-                content: assistantContent,
+                content: segmentContent,
                 timestamp: new Date(),
                 isThinking: true,
               }
 
-              const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
-              return updateMessageInList(withMessage, assistantMessageId, {
-                content: assistantContent,
+              const withMessage = ensureMessageExists(prev, segmentMessageId, baseMessage)
+              return updateMessageInList(withMessage, segmentMessageId, {
+                content: segmentContent,
                 isThinking: true,
               })
             })
@@ -826,6 +971,12 @@ export function useStreamHandler({
                 const newTools = msg.tool_calls.filter((toolCall: any) => !isSubagentToolName(toolCall.name))
                 if (newTools.length > 0) {
                   assistantToolCalls = mergeToolCalls(assistantToolCalls, newTools)
+                  newTools.forEach((toolCall: any) => {
+                    const tool = assistantToolCalls.find((item) => item.id === toolCall.id)
+                    if (tool) {
+                      queueStreamedToolMessage(tool)
+                    }
+                  })
                   assistantProcessSteps = syncProcessStepTools(
                     assistantProcessSteps,
                     assistantToolCalls
@@ -862,6 +1013,12 @@ export function useStreamHandler({
               )
               assistantToolCalls = nextState.toolCalls
               assistantProcessSteps = nextState.processSteps
+              const updatedTool = assistantToolCalls.find(
+                (item) => item.id === msg.tool_call_id
+              )
+              if (updatedTool) {
+                queueStreamedToolMessage(updatedTool)
+              }
               if (
                 !assistantProcessSteps.some(
                   (step) => step.type === "tool" && step.tool?.id === msg.tool_call_id
@@ -881,26 +1038,6 @@ export function useStreamHandler({
           })
         }
 
-        if (assistantProcessSteps.length > 0 || assistantToolCalls.length > 0) {
-          queueMessageUpdate((prev) => {
-            const baseMessage: Message = {
-              id: assistantMessageId,
-              role: "assistant",
-              content: "",
-              timestamp: new Date(),
-              toolCalls: assistantToolCalls,
-              processSteps: assistantProcessSteps,
-              isThinking: true,
-            }
-
-            const withMessage = ensureMessageExists(prev, assistantMessageId, baseMessage)
-            return updateMessageInList(withMessage, assistantMessageId, {
-              toolCalls: assistantToolCalls,
-              processSteps: assistantProcessSteps,
-              isThinking: true,
-            })
-          })
-        }
       }
     }
 
@@ -918,17 +1055,61 @@ export function useStreamHandler({
         ? Date.now() - existing.thinkingStartTime
         : undefined
 
-      // Use whichever processSteps/toolCalls source is more complete:
-      // prefer the locally-accumulated ones (assistantProcessSteps/assistantToolCalls)
-      // but fall back to whatever is already on the message if we somehow have more there.
-      const finalProcessSteps =
-        assistantProcessSteps.length > 0
-          ? assistantProcessSteps
-          : (existing?.processSteps ?? [])
-      const finalToolCalls =
-        assistantToolCalls.length > 0
-          ? assistantToolCalls
-          : (existing?.toolCalls ?? [])
+      if (orderedResponseMessagesFromValues.length > 0) {
+        const finalOrderedMessages = orderedResponseMessagesFromValues.map((message, index) => ({
+          ...message,
+          isThinking: false,
+          thinkingDuration: index === 0 ? thinkingDuration : message.thinkingDuration,
+          runId: message.runId || runId,
+          checkpointId:
+            index === orderedResponseMessagesFromValues.length - 1
+              ? finalAssistantCheckpointId || message.checkpointId
+              : message.checkpointId,
+          parentCheckpointId: message.parentCheckpointId || currentUserCheckpointId,
+          subgraphOutputs: undefined,
+          wasInterrupted,
+        }))
+        return replaceAssistantResponseMessages(prev, assistantMessageId, finalOrderedMessages)
+      }
+
+      if (hasStreamedToolMessages) {
+        let lastAssistantIndex = -1
+        prev.forEach((message, index) => {
+          if (
+            message.role === "assistant" &&
+            (message.id === assistantMessageId || message.id.startsWith(`${assistantMessageId}-stream-`))
+          ) {
+            lastAssistantIndex = index
+          }
+        })
+
+        return prev.map((m, index) => {
+          if (m.id === assistantMessageId || m.id.startsWith(`${assistantMessageId}-stream-`)) {
+            return {
+              ...m,
+              isThinking: false,
+              thinkingDuration: m.id === assistantMessageId ? thinkingDuration : m.thinkingDuration,
+              runId: m.runId || runId,
+              checkpointId: index === lastAssistantIndex ? finalAssistantCheckpointId : m.checkpointId,
+              parentCheckpointId: m.parentCheckpointId || currentUserCheckpointId,
+              processSteps: undefined,
+              toolCalls: undefined,
+              subgraphOutputs: undefined,
+              wasInterrupted,
+            }
+          }
+
+          if (m.id.startsWith(`${assistantMessageId}-tool-`)) {
+            return {
+              ...m,
+              isThinking: false,
+              wasInterrupted,
+            }
+          }
+
+          return m
+        })
+      }
 
       return prev.map((m) =>
         m.id === assistantMessageId
@@ -942,8 +1123,8 @@ export function useStreamHandler({
               runId,
               checkpointId: finalAssistantCheckpointId,
               parentCheckpointId: currentUserCheckpointId,
-              processSteps: finalProcessSteps.length > 0 ? finalProcessSteps : m.processSteps,
-              toolCalls: finalToolCalls.length > 0 ? finalToolCalls : m.toolCalls,
+              processSteps: undefined,
+              toolCalls: undefined,
               subgraphOutputs: undefined,
               wasInterrupted,
             }
