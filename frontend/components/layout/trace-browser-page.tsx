@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ElementType } from "react"
 import {
   AlertCircle,
-  ArrowLeft,
   Bot,
   Clock3,
   Code2,
@@ -19,6 +18,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/empty-state"
 import { Input } from "@/components/ui/input"
+import { ListItem } from "@/components/ui/list-item"
+import { ListPanel } from "@/components/ui/list-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
@@ -387,25 +388,7 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex shrink-0 flex-col gap-4 border-b border-border/60 px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" onClick={onBackToChat} aria-label={labels.back} title={labels.back}>
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <h1 className="text-xl font-semibold text-foreground">{labels.title}</h1>
-                <p className="mt-0.5 text-sm text-muted-foreground">{labels.subtitle}</p>
-              </div>
-            </div>
-          </div>
-          <Button variant="outline" onClick={loadTraces} disabled={loadingList} className="gap-2">
-            {loadingList ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            {labels.refresh}
-          </Button>
-        </div>
-
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border/60 px-4 py-3 sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="min-w-0 flex-1">
             <div className="mb-1 text-xs font-semibold text-muted-foreground">{locale === "zh" ? "来源" : "Source"}</div>
@@ -448,8 +431,12 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
             <span className="mb-1 block text-xs font-semibold text-muted-foreground">{labels.to}</span>
             <Input type="datetime-local" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </label>
+          <Button variant="outline" onClick={loadTraces} disabled={loadingList} className="w-full gap-2 lg:w-auto">
+            {loadingList ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+            {labels.refresh}
+          </Button>
         </div>
-      </header>
+      </div>
 
       {error && (
         <div className="mx-4 mt-4 flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive sm:mx-6">
@@ -471,60 +458,58 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
           <EmptyState icon={<Search className="h-8 w-8" />} title={labels.empty} description={labels.emptyDesc} />
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-[390px_minmax(0,1fr)]">
-          <section className="min-h-0 border-r border-border/60">
-            <div className="flex h-11 items-center justify-between px-4 text-sm font-semibold text-foreground sm:px-6">
-              <span>{labels.list}</span>
-              <span className="text-xs font-medium text-muted-foreground">{traces.length}</span>
-            </div>
-            <ScrollArea className="h-[calc(100vh-245px)] lg:h-[calc(100vh-205px)]">
-              <div className="space-y-1 px-3 pb-4">
-                {loadingList && traces.length === 0 ? (
-                  <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    Loading
-                  </div>
-                ) : (
-                  traces.map((trace) => {
-                    const active = trace.id === selectedTraceId
-                    const traceSource = sourceForTrace(trace)
-                    return (
-                      <Button
-                        key={trace.id}
-                        type="button"
-                        variant="unstyled"
-                        onClick={() => setSelectedTraceId(trace.id)}
-                        className={cn(
-                          "block h-auto w-full whitespace-normal rounded-lg px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35",
-                          active ? "bg-primary-soft text-primary" : "hover:bg-muted",
-                        )}
-                      >
-                        <div className="flex items-start gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold text-foreground">{traceDisplayName(trace)}</div>
-                            <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                              {traceInputSummary(trace.input)}
-                            </div>
-                          </div>
-                          <TraceBadge source={traceSource} />
-                        </div>
-                        <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            {formatDate(trace.timestamp)}
-                          </span>
-                          <span>{formatDuration(trace.latency)}</span>
-                          <span>{formatCost(trace.total_cost)}</span>
-                        </div>
-                      </Button>
-                    )
-                  })
-                )}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+          <ListPanel
+            title={labels.list}
+            action={<span className="text-xs font-medium text-muted-foreground">{traces.length}</span>}
+            className="border-border/40 bg-background/30 lg:w-[390px]"
+            contentClassName="gap-2"
+          >
+            {loadingList && traces.length === 0 ? (
+              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                Loading
               </div>
-            </ScrollArea>
-          </section>
+            ) : (
+              traces.map((trace) => {
+                const active = trace.id === selectedTraceId
+                const traceSource = sourceForTrace(trace)
+                return (
+                  <ListItem
+                    key={trace.id}
+                    selected={active}
+                    title={traceDisplayName(trace)}
+                    description={traceInputSummary(trace.input)}
+                    titleClassName={active ? "text-primary" : undefined}
+                    descriptionClassName={cn(
+                      "line-clamp-2 whitespace-normal leading-relaxed",
+                      active ? "text-foreground" : undefined,
+                    )}
+                    onSelect={() => setSelectedTraceId(trace.id)}
+                    actions={<TraceBadge source={traceSource} />}
+                    actionsClassName="top-3 translate-y-0 md:pointer-events-auto md:opacity-100"
+                    className={cn(
+                      "pr-3 sm:pr-20",
+                      active
+                        ? "border-transparent bg-primary-soft text-primary"
+                        : "hover:bg-muted",
+                    )}
+                  >
+                    <div className={cn("mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs", active ? "text-primary" : "text-muted-foreground")}>
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <Clock3 className="h-3.5 w-3.5" />
+                        {formatDate(trace.timestamp)}
+                      </span>
+                      <span>{formatDuration(trace.latency)}</span>
+                      <span>{formatCost(trace.total_cost)}</span>
+                    </div>
+                  </ListItem>
+                )
+              })
+            )}
+          </ListPanel>
 
-          <section className="min-h-0">
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex h-11 items-center justify-between border-b border-border/60 px-4 text-sm font-semibold text-foreground sm:px-6">
               <span>{labels.details}</span>
               {selectedTrace?.html_path && (
@@ -539,7 +524,7 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                 </a>
               )}
             </div>
-            <ScrollArea className="h-[calc(100vh-245px)] lg:h-[calc(100vh-205px)]">
+            <ScrollArea className="h-full min-h-0">
               {!selectedTrace ? (
                 <div className="p-4 sm:p-6">
                   <EmptyState icon={<Code2 className="h-8 w-8" />} title={labels.empty} />

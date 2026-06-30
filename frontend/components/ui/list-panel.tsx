@@ -7,9 +7,10 @@ interface ListPanelProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "tit
   title: React.ReactNode
   action?: React.ReactNode
   children: React.ReactNode
+  contentClassName?: string
 }
 
-function ListPanel({ title, action, children, className, ...props }: ListPanelProps) {
+function ListPanel({ title, action, children, className, contentClassName, ...props }: ListPanelProps) {
   return (
     <aside
       className={cn(
@@ -25,7 +26,7 @@ function ListPanel({ title, action, children, className, ...props }: ListPanelPr
         {action}
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-2 p-3">{children}</div>
+        <div className={cn("flex flex-col gap-2 p-3", contentClassName)}>{children}</div>
       </ScrollArea>
     </aside>
   )

@@ -6,6 +6,8 @@ interface ListItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "titl
   selected?: boolean
   title: React.ReactNode
   description?: React.ReactNode
+  titleClassName?: string
+  descriptionClassName?: string
   icon?: React.ReactNode
   meta?: React.ReactNode
   actions?: React.ReactNode
@@ -17,6 +19,8 @@ function ListItem({
   selected = false,
   title,
   description,
+  titleClassName,
+  descriptionClassName,
   icon,
   meta,
   actions,
@@ -58,9 +62,9 @@ function ListItem({
     >
       {icon && <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{title}</span>
+        <span className={cn("block truncate text-sm font-semibold", titleClassName)}>{title}</span>
         {description && (
-          <span className="mt-1 block truncate text-xs text-muted-foreground">{description}</span>
+          <span className={cn("mt-1 block truncate text-xs text-muted-foreground", descriptionClassName)}>{description}</span>
         )}
         {meta && <span className="mt-2 flex flex-wrap gap-1">{meta}</span>}
         {children}
