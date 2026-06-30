@@ -421,7 +421,9 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                     onClick={() => setSource(option.value)}
                     className={cn(
                       "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors",
-                      active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-background",
+                      active
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                        : "text-foreground hover:bg-background hover:text-foreground",
                     )}
                   >
                     <Icon className="h-3.5 w-3.5" />
