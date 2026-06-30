@@ -835,6 +835,17 @@ class DynamicConfigMiddleware(AgentMiddleware):
             )
 
         # ---- User preferences injection ----
+        additional_system_prompt = getattr(ctx, "additional_system_prompt", "")
+        if isinstance(additional_system_prompt, str) and additional_system_prompt.strip():
+            system_prompt += (
+                "\n\n## Additional Runtime Instructions\n"
+                "The calling application supplied these extra system instructions "
+                "for this run. Apply them together with the saved agent profile "
+                "unless they conflict with higher-priority safety, authentication, "
+                "or tool-access constraints:\n"
+                f"{additional_system_prompt.strip()}\n"
+            )
+
         user_preferences = getattr(ctx, "user_preferences", "") or ""
         if user_preferences.strip():
             system_prompt += (

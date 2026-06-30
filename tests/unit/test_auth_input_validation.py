@@ -178,6 +178,31 @@ def test_validate_config_accepts_context_agent_id(monkeypatch):
     assert context["user_id"] == "user-1"
 
 
+def test_validate_config_accepts_additional_system_prompt(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    context = {
+        "agent_id": "agent-1",
+        "additional_system_prompt": "Prefer concise JSON.",
+    }
+
+    validate_config({}, context=context, owner_user_id="user-1", require_agent_id=True)
+
+    assert context["additional_system_prompt"] == "Prefer concise JSON."
+
+
+def test_validate_config_rejects_non_string_additional_system_prompt(monkeypatch):
+    monkeypatch.setattr("src.api.auth._load_owned_agent_profile", lambda *_args: object())
+
+    context = {
+        "agent_id": "agent-1",
+        "additional_system_prompt": {"unsafe": "shape"},
+    }
+
+    with pytest.raises(Auth.exceptions.HTTPException):
+        validate_config({}, context=context, owner_user_id="user-1", require_agent_id=True)
+
+
 @pytest.mark.anyio
 async def test_authenticate_carries_workspace_header(monkeypatch):
     monkeypatch.delenv("LANGGRAPH_AUTH_SECRET", raising=False)

@@ -651,6 +651,18 @@ def content_has_image(content) -> bool:
     return False
 
 
+def _validate_additional_system_prompt(context: dict) -> None:
+    """Validate optional per-run system instructions."""
+    additional_system_prompt = context.get("additional_system_prompt")
+    if additional_system_prompt is not None and not isinstance(
+        additional_system_prompt,
+        str,
+    ):
+        raise Auth.exceptions.HTTPException(
+            422, "additional_system_prompt must be a string"
+        )
+
+
 def validate_config(
     config: dict | None,
     *,
@@ -682,6 +694,7 @@ def validate_config(
             raise Auth.exceptions.HTTPException(
                 422, f"Unrecognized model input: {type(requested_model)}"
             )
+        _validate_additional_system_prompt(context)
         return
     if not isinstance(config, dict):
         raise Auth.exceptions.HTTPException(
@@ -706,11 +719,13 @@ def validate_config(
 
     requested_model = context.get("model")
     if requested_model is None:
+        _validate_additional_system_prompt(context)
         return
     if not isinstance(requested_model, str) or not requested_model.strip():
         raise Auth.exceptions.HTTPException(
             422, f"Unrecognized model input: {type(requested_model)}"
         )
+    _validate_additional_system_prompt(context)
 
 
 def validate_agent_context(

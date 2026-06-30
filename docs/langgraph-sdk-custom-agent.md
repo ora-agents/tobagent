@@ -113,6 +113,9 @@ uv run python scripts/langgraph_sdk_external_call.py \
 # 指定模型
 --model "gpt-4o"
 
+# 追加本次调用的系统提示词，不覆盖已保存 agent 提示词
+--additional-system-prompt "本次回答请只返回 JSON。"
+
 # 注入用户偏好
 --user-preferences "回答尽量简洁，使用中文。"
 
@@ -443,6 +446,7 @@ input_payload = {
 context = {
     "agent_id": "用户自定义 agent id",
     "model": "可选模型名",
+    "additional_system_prompt": "可选，本次调用追加到 agent 系统提示词后的额外系统指令",
     "user_preferences": "可选用户偏好",
     "safety_enabled": True,
 }
@@ -464,6 +468,7 @@ config = {
 - `metadata.agent_id` 主要用于观测、thread 归类和兼容兜底；真正驱动自定义 agent 的是 `context.agent_id`。
 - 最后一条 message 必须是 `user` 或 `human`。
 - 普通外部调用必须传 `context.agent_id`。
+- 如需本次调用追加系统指令，使用 `context.additional_system_prompt`；它会追加到已保存 agent profile 的系统提示词后面，不会覆盖原提示词。
 
 ## 临时覆盖 agent 配置
 

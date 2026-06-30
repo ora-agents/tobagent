@@ -81,6 +81,10 @@ class GenericAgentContext(BaseModel):
         default="",
         description="User's general preferences injected into the system prompt.",
     )
+    additional_system_prompt: str = Field(
+        default="",
+        description="Per-run system instructions appended after the saved agent prompt.",
+    )
     safety_enabled: bool = Field(
         default=False,
         description="When true, agent must confirm before executing dangerous actions.",

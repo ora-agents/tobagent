@@ -193,6 +193,10 @@ async def main() -> None:
     parser.add_argument("--agent-id", default=os.getenv("TOB_AGENT_ID", DEFAULT_AGENT_PROFILE_ID))
     parser.add_argument("--message", default="你是什么智能体？")
     parser.add_argument("--model", default=os.getenv("TOB_MODEL", ""))
+    parser.add_argument(
+        "--additional-system-prompt",
+        default=os.getenv("TOB_ADDITIONAL_SYSTEM_PROMPT", ""),
+    )
     parser.add_argument("--user-preferences", default=os.getenv("TOB_USER_PREFERENCES", ""))
     parser.add_argument("--safety-enabled", action="store_true")
     parser.add_argument("--thread-id", default="")
@@ -262,6 +266,8 @@ async def main() -> None:
     }
     if args.model:
         context["model"] = args.model
+    if args.additional_system_prompt:
+        context["additional_system_prompt"] = args.additional_system_prompt
     if args.user_preferences:
         context["user_preferences"] = args.user_preferences
     if args.safety_enabled:
