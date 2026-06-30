@@ -18,6 +18,7 @@ import { isSystemAgentProfile, type AgentProfile } from "@/lib/types/agent-profi
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAuth } from "@/components/providers/auth-provider"
+import { WorkspaceNotifications } from "@/components/layout/workspace-notifications"
 
 const AGENT_SWITCHER_ORDER_KEY = "agent-switcher-order"
 const COLLAPSED_AGENT_LIMIT = 3
@@ -281,6 +282,8 @@ export function Header({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+          <WorkspaceNotifications />
+
           {workspaces.length > 1 && (
             <Select
               value={activeWorkspaceId ?? ""}
