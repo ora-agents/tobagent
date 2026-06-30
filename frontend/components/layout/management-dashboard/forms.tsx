@@ -364,6 +364,44 @@ export function FormFieldDesigner({
     updateHooks((definition.hooks || []).map(hook => hook.id === hookId ? { ...hook, ...changes } : hook))
   }
 
+  const addHookHeader = (hookId: string) => {
+    updateHooks((definition.hooks || []).map(hook => {
+      if (hook.id !== hookId) return hook
+      const headers = hook.headers || {}
+      const baseKey = "X-Custom-Header"
+      let nextKey = baseKey
+      let suffix = 2
+      while (Object.prototype.hasOwnProperty.call(headers, nextKey)) {
+        nextKey = `${baseKey}-${suffix}`
+        suffix += 1
+      }
+      return { ...hook, headers: { ...headers, [nextKey]: "" } }
+    }))
+  }
+
+  const updateHookHeader = (
+    hookId: string,
+    headerIndex: number,
+    changes: { key?: string; value?: string },
+  ) => {
+    updateHooks((definition.hooks || []).map(hook => {
+      if (hook.id !== hookId) return hook
+      const entries = Object.entries(hook.headers || {})
+      const current = entries[headerIndex]
+      if (!current) return hook
+      entries[headerIndex] = [changes.key ?? current[0], changes.value ?? current[1]]
+      return { ...hook, headers: Object.fromEntries(entries) }
+    }))
+  }
+
+  const removeHookHeader = (hookId: string, headerIndex: number) => {
+    updateHooks((definition.hooks || []).map(hook => {
+      if (hook.id !== hookId) return hook
+      const entries = Object.entries(hook.headers || {}).filter((_, index) => index !== headerIndex)
+      return { ...hook, headers: Object.fromEntries(entries) }
+    }))
+  }
+
   const appendHookUrlVariable = (hook: CustomFormHook, variable: string) => {
     updateHook(hook.id, { url: `${hook.url || ""}${variable}` })
   }
@@ -779,6 +817,52 @@ export function FormFieldDesigner({
                         </div>
                       </FormField>
                       <FormField
+                        label={locale === "zh" ? "自定义请求头" : "Custom headers"}
+                        description={locale === "zh" ? "请求时会随 Hook 一起发送，空名称不会保存。" : "Headers are sent with the hook request. Empty names are not saved."}
+                        className="md:col-span-2"
+                      >
+                        <div className="flex flex-col gap-2 rounded-lg bg-muted/55 p-2">
+                          {Object.entries(hook.headers || {}).length > 0 ? (
+                            Object.entries(hook.headers || {}).map(([key, value], headerIndex) => (
+                              <div key={`${hook.id}_header_${headerIndex}`} className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_32px]">
+                                <Input
+                                  value={key}
+                                  onChange={(event) => updateHookHeader(hook.id, headerIndex, { key: event.target.value })}
+                                  placeholder="Authorization"
+                                  className="bg-background font-mono text-xs"
+                                />
+                                <Input
+                                  value={value}
+                                  onChange={(event) => updateHookHeader(hook.id, headerIndex, { value: event.target.value })}
+                                  placeholder="Bearer token"
+                                  className="bg-background font-mono text-xs"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => removeHookHeader(hook.id, headerIndex)}
+                                  className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                  title={locale === "zh" ? "删除请求头" : "Delete header"}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-md bg-background px-3 py-2 text-xs text-muted-foreground">
+                              {locale === "zh" ? "暂无自定义请求头" : "No custom headers"}
+                            </div>
+                          )}
+                          <div>
+                            <Button type="button" variant="outline" size="sm" onClick={() => addHookHeader(hook.id)} className="h-8 rounded-lg">
+                              <Plus className="h-3.5 w-3.5" />
+                              {locale === "zh" ? "添加请求头" : "Add header"}
+                            </Button>
+                          </div>
+                        </div>
+                      </FormField>
+                      <FormField
                         label={locale === "zh" ? "携带字段值" : "Payload fields"}
                         description={locale === "zh" ? "未选择时携带全部字段。" : "All fields are included when none are selected."}
                         className="md:col-span-2"
@@ -816,8 +900,8 @@ export function FormFieldDesigner({
                         description={locale === "zh" ? "实际请求会使用触发时的记录值；URL 中的字段变量会单独替换到 API 地址。" : "The real request uses the record values at trigger time. URL variables are rendered into the API URL separately."}
                         className="md:col-span-2"
                       >
-                        <ScrollArea className="max-h-72 rounded-lg bg-muted/55" scrollbars="both">
-                          <pre className="p-3 text-xs leading-relaxed">
+                        <ScrollArea className="h-72 min-w-0 rounded-lg bg-muted/55" contentClassName="min-w-max" scrollbars="both">
+                          <pre className="w-max min-w-full p-3 text-xs leading-relaxed">
                             <code>{JSON.stringify(buildHookPayloadPreview(hook, definition.fields), null, 2)}</code>
                           </pre>
                         </ScrollArea>

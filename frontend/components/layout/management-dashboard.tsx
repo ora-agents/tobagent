@@ -1666,7 +1666,11 @@ export function ManagementDashboard({
         value: firstCondition?.value || "",
         url: String(hook.url || "").trim(),
         method: (["POST", "PUT", "PATCH"].includes(hook.method) ? hook.method : "POST") as CustomFormHook["method"],
-        headers: hook.headers && typeof hook.headers === "object" ? hook.headers : {},
+        headers: Object.fromEntries(
+          Object.entries(hook.headers && typeof hook.headers === "object" ? hook.headers : {})
+            .map(([key, value]) => [String(key).trim(), String(value)])
+            .filter(([key]) => key)
+        ),
         payloadFieldIds: (hook.payloadFieldIds || []).map(item => String(item).trim()).filter(item => fieldIds.has(item)),
       }
     }).filter(hook => hook.conditions.some(condition => condition.fieldId || condition.pattern || condition.value) || hook.url)
