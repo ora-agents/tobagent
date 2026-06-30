@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "cn.wsiri.tobagent",
   "build": {
-    "beforeDevCommand": "bun run dev:desktop",
+    "beforeDevCommand": "bun run dev:desktop:if-needed",
     "devUrl": "http://localhost:3000",
     "beforeBuildCommand": "bun run build:desktop",
     "frontendDist": "../out"
