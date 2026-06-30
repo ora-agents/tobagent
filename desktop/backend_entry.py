@@ -99,7 +99,7 @@ def main() -> None:
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.getenv("TOB_BACKEND_PORT", "2025")),
+        default=int(os.getenv("TOB_BACKEND_PORT", "2026")),
     )
     args = parser.parse_args()
 

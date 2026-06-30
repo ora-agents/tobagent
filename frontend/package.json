@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "next dev",
     "dev:local": "next dev -H 0.0.0.0",
-    "dev:desktop": "cross-env NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2025 next dev",
+    "dev:desktop": "cross-env NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2026 next dev",
     "dev:remote": "next dev -p 3001",
     "build": "next build",
-    "build:desktop": "cross-env NEXT_OUTPUT_MODE=export NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2025 next build",
+    "build:desktop": "cross-env NEXT_OUTPUT_MODE=export NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2026 next build",
     "start": "next start",
     "lint": "next lint",
     "tauri:dev": "tauri dev",

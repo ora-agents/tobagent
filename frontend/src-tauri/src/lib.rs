@@ -9,7 +9,7 @@ use std::{
 
 use tauri::{Manager, RunEvent};
 
-const BACKEND_PORT: u16 = 2025;
+const BACKEND_PORT: u16 = 2026;
 
 struct BackendState {
     child: Mutex<Option<Child>>,
