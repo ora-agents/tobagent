@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from src.api.deps import hash_password, verify_password
 from src.api.fastapi_app import app
-from src.api.sms_verification import issue_sms_code
+from src.api.sms_verification import _sms_template_code_for_purpose, issue_sms_code
 from src.utils.db import (
     Base,
     SkillTable,
@@ -28,10 +28,10 @@ def auth_sms_client(monkeypatch):
     )
     Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    sent_codes: list[tuple[str, str]] = []
+    sent_codes: list[tuple[str, str, str]] = []
 
-    def fake_send(phone: str, code: str) -> None:
-        sent_codes.append((phone, code))
+    def fake_send(phone: str, code: str, purpose: str) -> None:
+        sent_codes.append((phone, code, purpose))
 
     monkeypatch.setattr("src.api.sms_verification._send_aliyun_sms", fake_send)
 
@@ -103,11 +103,44 @@ def test_password_login(auth_sms_client):
     assert login.status_code == 200
     assert login.json()["id"] == "user-password"
 
+
     bad_login = client.post(
         "/api/auth/login",
         json={"phone": "13800138009", "password": "wrong-password"},
     )
     assert bad_login.status_code == 401
+
+
+def test_sms_template_purpose_selection(auth_sms_client):
+    client, Session, sent_codes = auth_sms_client
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+    register = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138010", "purpose": "register"},
+    )
+    assert register.status_code == 200
+    assert sent_codes[-1][2] == "register"
+
+    with Session() as db:
+        db.add(UserTable(
+            id="user-reset-template",
+            username="reset-template",
+            phone="13800138011",
+            password_hash=hash_password("old-secret"),
+            created_at=now,
+        ))
+        db.commit()
+
+    reset = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138011", "purpose": "reset_password"},
+        headers={"Authorization": "Bearer user-reset-template"},
+    )
+    assert reset.status_code == 200
+    assert sent_codes[-1][2] == "reset_password"
+    assert _sms_template_code_for_purpose("register") == "SMS_509065002"
+    assert _sms_template_code_for_purpose("reset_password") == "SMS_508940009"
 
 
 def test_sms_login_consumes_code_once(auth_sms_client):

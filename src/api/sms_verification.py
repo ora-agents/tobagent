@@ -20,6 +20,10 @@ from src.utils.db import SmsVerificationCodeTable
 logger = logging.getLogger(__name__)
 
 SMS_TEMPLATE_CODE = os.getenv("ALIYUN_SMS_TEMPLATE_CODE", "SMS_509065002")
+SMS_RESET_PASSWORD_TEMPLATE_CODE = os.getenv(
+    "ALIYUN_SMS_RESET_PASSWORD_TEMPLATE_CODE",
+    "SMS_508940009",
+)
 SMS_ENDPOINT = os.getenv("ALIYUN_SMS_ENDPOINT", "https://dysmsapi.aliyuncs.com/")
 SMS_REGION_ID = os.getenv("ALIYUN_SMS_REGION_ID", "cn-hangzhou")
 SMS_CODE_TTL_SECONDS = int(os.getenv("SMS_CODE_TTL_SECONDS", "300"))
@@ -62,7 +66,13 @@ def _sign_aliyun_request(params: dict[str, str], access_key_secret: str) -> str:
     return base64.b64encode(digest).decode("ascii")
 
 
-def _send_aliyun_sms(phone: str, code: str) -> None:
+def _sms_template_code_for_purpose(purpose: str) -> str:
+    if purpose == "reset_password":
+        return SMS_RESET_PASSWORD_TEMPLATE_CODE
+    return SMS_TEMPLATE_CODE
+
+
+def _send_aliyun_sms(phone: str, code: str, purpose: str) -> None:
     access_key_id = os.getenv("ALIYUN_ACCESS_KEY_ID")
     access_key_secret = os.getenv("ALIYUN_ACCESS_KEY_SECRET")
     sign_name = os.getenv("ALIYUN_SMS_SIGN_NAME")
@@ -81,7 +91,7 @@ def _send_aliyun_sms(phone: str, code: str) -> None:
         "SignatureMethod": "HMAC-SHA1",
         "SignatureNonce": str(uuid.uuid4()),
         "SignatureVersion": "1.0",
-        "TemplateCode": SMS_TEMPLATE_CODE,
+        "TemplateCode": _sms_template_code_for_purpose(purpose),
         "TemplateParam": json.dumps({"code": code}, separators=(",", ":")),
         "Timestamp": _iso(_now()),
         "Version": "2017-05-25",
@@ -137,7 +147,7 @@ def issue_sms_code(db: Session, phone: str, purpose: str) -> None:
     db.commit()
 
     try:
-        _send_aliyun_sms(phone, code)
+        _send_aliyun_sms(phone, code, purpose)
     except Exception:
         row.consumed_at = _iso(_now())
         db.commit()
