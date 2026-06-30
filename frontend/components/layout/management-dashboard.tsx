@@ -2410,7 +2410,7 @@ export function ManagementDashboard({
           {activeTab === "forms" && (
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row">
               <ListPanel
-                title={locale === "zh" ? "表单" : "Forms"}
+                title={locale === "zh" ? "后台管理" : "Backend Admin"}
                 className="border-border/40 bg-background/30"
                 action={
                   <Button

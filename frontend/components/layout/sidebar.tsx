@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, LayoutDashboard, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2 } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
@@ -13,17 +13,6 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { AuthPanel } from "./auth-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getThreadSource } from "@/lib/utils/thread-source"
-
-const DEFAULT_ADMIN_URL = "http://114.55.10.54:8000/static/admin.html"
-
-function openAdminDashboard() {
-  const url = process.env.NEXT_PUBLIC_ADMIN_URL || DEFAULT_ADMIN_URL
-  if ((window as any).__TOB_ROBOT_ENV__?.enabled) {
-    window.location.assign(url)
-    return
-  }
-  window.open(url, "_blank", "noopener,noreferrer")
-}
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -402,7 +391,7 @@ export const Sidebar = memo(function Sidebar({
                     ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
                 }`}
-                title={locale === "zh" ? "表单" : "Forms"}
+                title={locale === "zh" ? "后台管理" : "Backend Admin"}
               >
                 <TableProperties className="w-5 h-5" />
               </Button>
@@ -458,13 +447,6 @@ export const Sidebar = memo(function Sidebar({
               </Button>
             </div>
           )}
-          <Button variant="unstyled"
-            onClick={openAdminDashboard}
-            className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-            title={t.backend}
-          >
-            <LayoutDashboard className="w-5 h-5" />
-          </Button>
           <Button variant="unstyled"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
@@ -643,7 +625,7 @@ export const Sidebar = memo(function Sidebar({
               }`}
             >
               <TableProperties className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
-              <span className="truncate">{locale === "zh" ? "表单" : "Forms"}</span>
+              <span className="truncate">{locale === "zh" ? "后台管理" : "Backend Admin"}</span>
             </Button>
             <Button variant="unstyled"
               onClick={() => handleViewChange("mcp")}
@@ -697,16 +679,6 @@ export const Sidebar = memo(function Sidebar({
             </Button>
           </div>
         )}
-        <Button variant="unstyled"
-          onClick={() => {
-            onMobileClose?.()
-            openAdminDashboard()
-          }}
-          className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground group"
-        >
-          <LayoutDashboard className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
-          <span className="truncate">{t.backend}</span>
-        </Button>
         <Button variant="unstyled"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
