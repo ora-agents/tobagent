@@ -57,7 +57,8 @@ export function AuthPanel({
     return () => window.clearTimeout(timer)
   }, [codeCooldown])
 
-  const normalizedPhone = phone.trim().replace(/\s+/g, '').replace(/-/g, '')
+  const accountInput = phone.trim()
+  const normalizedPhone = accountInput.replace(/\s+/g, '').replace(/-/g, '')
 
   const handleSendCode = async () => {
     setLocalError(null)
@@ -81,7 +82,7 @@ export function AuthPanel({
     setLocalError(null)
 
     if (
-      !normalizedPhone
+      ((activeTab === 'login' && loginMethod === 'password') ? !accountInput : !normalizedPhone)
       || (activeTab === 'login' && loginMethod === 'password' && !password.trim())
       || (activeTab === 'login' && loginMethod === 'sms' && !smsCode.trim())
       || (activeTab === 'register' && (!username.trim() || !smsCode.trim() || !password.trim() || !confirmPassword.trim()))
@@ -101,7 +102,7 @@ export function AuthPanel({
     setLoading(true)
     try {
       if (activeTab === 'login') {
-        await login(normalizedPhone, loginMethod === 'password' ? password.trim() : smsCode.trim(), loginMethod)
+        await login(loginMethod === 'password' ? accountInput : normalizedPhone, loginMethod === 'password' ? password.trim() : smsCode.trim(), loginMethod)
       } else {
         await register(username.trim(), normalizedPhone, smsCode.trim(), password.trim())
       }
@@ -185,13 +186,13 @@ export function AuthPanel({
 
           <div className="space-y-1.5">
             <Label htmlFor="phone" className="text-sm font-medium text-foreground">
-              {t.phone} <span className="text-destructive">*</span>
+              {activeTab === 'login' && loginMethod === 'password' ? t.accountOrPhone : t.phone} <span className="text-destructive">*</span>
             </Label>
             <Input
               id="phone"
-              type="tel"
-              inputMode="tel"
-              placeholder={t.enterPhone}
+              type={activeTab === 'login' && loginMethod === 'password' ? 'text' : 'tel'}
+              inputMode={activeTab === 'login' && loginMethod === 'password' ? 'text' : 'tel'}
+              placeholder={activeTab === 'login' && loginMethod === 'password' ? t.enterAccountOrPhone : t.enterPhone}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               disabled={loading}

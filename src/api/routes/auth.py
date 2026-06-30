@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import (
@@ -193,14 +194,23 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     description="Validates a phone SMS code and returns the user's profile metadata.",
 )
 async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
-    user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid phone or verification code")
-
     if req.password is not None:
+        account = req.account or req.phone
+        if not account:
+            raise HTTPException(status_code=400, detail="Account or phone is required")
+        user = db.query(UserTable).filter(
+            or_(UserTable.username == account, UserTable.phone == account),
+        ).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid account or password")
         if not user.password_hash or not verify_password(req.password, user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid phone or password")
+            raise HTTPException(status_code=401, detail="Invalid account or password")
     elif req.code is not None:
+        if not req.phone:
+            raise HTTPException(status_code=400, detail="Phone is required")
+        user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid phone or verification code")
         consume_sms_code(db, req.phone, "login", req.code)
         db.commit()
     else:

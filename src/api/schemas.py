@@ -52,17 +52,30 @@ class UserRegisterRequest(BaseModel):
 
 
 class UserLoginRequest(BaseModel):
-    phone: str
+    phone: str | None = None
+    account: str | None = None
     code: str | None = None
     password: str | None = None
 
     @field_validator("phone")
     @classmethod
-    def validate_phone(cls, value: str) -> str:
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         phone = _normalize_phone(value)
         if not re.fullmatch(PHONE_PATTERN, phone):
             raise ValueError("Invalid phone number")
         return phone
+
+    @field_validator("account")
+    @classmethod
+    def validate_account(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        account = value.strip()
+        if not account:
+            raise ValueError("Invalid account")
+        return account
 
     @field_validator("code")
     @classmethod

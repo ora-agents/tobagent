@@ -103,6 +103,12 @@ def test_password_login(auth_sms_client):
     assert login.status_code == 200
     assert login.json()["id"] == "user-password"
 
+    username_login = client.post(
+        "/api/auth/login",
+        json={"account": "password-user", "password": "secret123"},
+    )
+    assert username_login.status_code == 200
+    assert username_login.json()["id"] == "user-password"
 
     bad_login = client.post(
         "/api/auth/login",

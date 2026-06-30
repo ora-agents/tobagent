@@ -97,7 +97,7 @@ function localizeAuthMessage(message: string, t: Translations, fallback: string)
     return fallback
   }
 
-  if (normalized === 'Invalid username or password' || normalized === 'Invalid phone or password') {
+  if (normalized === 'Invalid username or password' || normalized === 'Invalid phone or password' || normalized === 'Invalid account or password') {
     return t.authErrorInvalidCredentials
   }
 
@@ -285,13 +285,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [t, user])
 
   // 2. Login function
-  const login = useCallback(async (phone: string, credential: string, method: 'password' | 'sms' = 'password') => {
+  const login = useCallback(async (accountOrPhone: string, credential: string, method: 'password' | 'sms' = 'password') => {
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(method === 'password' ? { phone, password: credential } : { phone, code: credential }),
+        body: JSON.stringify(method === 'password' ? { account: accountOrPhone, password: credential } : { phone: accountOrPhone, code: credential }),
       })
 
       if (!resp.ok) {
