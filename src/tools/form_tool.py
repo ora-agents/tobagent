@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from src.utils.db import AgentProfileTable, FormRecordTable, FormTable, SessionLocal
 from src.utils.form_hooks import trigger_form_hooks_sync
 from src.utils.form_permissions import has_form_permission, normalize_form_permissions
+from src.utils.form_records import FormRecordValidationError, normalize_form_record_data
 from src.utils.resource_categories import resolve_form_ids
 from src.utils.runtime_context import get_runtime_context_value
 
@@ -279,6 +280,13 @@ class ManageFormDataTool(BaseTool):
                 return f"Form '{form_id}' was not found."
 
             now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            if action in {"create", "update"}:
+                try:
+                    normalized_data = normalize_form_record_data(form.fields, data)
+                except FormRecordValidationError as exc:
+                    return f"Form record data does not match the form fields: {exc}"
+            else:
+                normalized_data = {}
             old_data: dict[str, Any] = {}
             trigger_hooks = False
             if action == "create":
@@ -286,7 +294,7 @@ class ManageFormDataTool(BaseTool):
                     id=f"record-{uuid.uuid4()}",
                     form_id=form_id,
                     owner_user_id=owner_user_id,
-                    data=data or {},
+                    data=normalized_data,
                     created_at=now,
                     updated_at=now,
                 )
@@ -304,7 +312,7 @@ class ManageFormDataTool(BaseTool):
                     return f"Form record '{record_id}' was not found."
                 if action == "update":
                     old_data = dict(record.data or {})
-                    record.data = data or {}
+                    record.data = normalized_data
                     record.updated_at = now
                     trigger_hooks = True
                 else:

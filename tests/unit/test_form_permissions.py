@@ -125,3 +125,66 @@ def test_manage_form_tool_enforces_action_permission(monkeypatch):
     assert "does not grant delete permission" in denied
     with session_factory() as session:
         assert session.query(FormRecordTable).count() == 1
+
+
+def test_manage_form_tool_validates_record_data_against_form_fields(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine)
+    now = datetime.now(UTC).isoformat()
+    with session_factory() as session:
+        session.add(FormTable(
+            id="orders",
+            owner_user_id="user-1",
+            name="Orders",
+            fields=[
+                {"id": "customer", "label": "Customer", "type": "text", "required": True, "options": []},
+                {"id": "amount", "label": "Amount", "type": "number", "required": False, "options": []},
+                {"id": "status", "label": "Status", "type": "select", "required": False, "options": ["new", "done"]},
+            ],
+            created_at=now,
+            updated_at=now,
+        ))
+        session.add(AgentProfileTable(
+            id="agent-1",
+            owner_user_id="user-1",
+            name="Order agent",
+            enabled_tools=[],
+            form_ids=["orders"],
+            form_permissions={"orders": ["create"]},
+            created_at=now,
+            updated_at=now,
+        ))
+        session.commit()
+
+    monkeypatch.setattr(form_tool, "SessionLocal", session_factory)
+    monkeypatch.setattr(
+        form_tool,
+        "get_runtime_context_value",
+        lambda key: {"agent_id": "agent-1", "user_id": "user-1"}[key],
+    )
+    tool = ManageFormDataTool()
+
+    created = tool._run(
+        action="create",
+        form_id="orders",
+        data={"customer": "Acme", "amount": "12.5", "status": "new"},
+    )
+    unknown = tool._run(
+        action="create",
+        form_id="orders",
+        data={"customer": "Acme", "unknown": "value"},
+    )
+    missing = tool._run(
+        action="create",
+        form_id="orders",
+        data={"amount": 3},
+    )
+
+    assert '"status": "success"' in created
+    assert "unknown field" in unknown
+    assert "Customer" in missing
+    with session_factory() as session:
+        records = session.query(FormRecordTable).all()
+        assert len(records) == 1
+        assert records[0].data == {"customer": "Acme", "amount": 12.5, "status": "new"}

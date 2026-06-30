@@ -30,6 +30,7 @@ from src.api.workspace_utils import (
 )
 from src.utils.db import FormRecordTable, FormTable, UserTable, get_db
 from src.utils.form_hooks import trigger_form_hooks
+from src.utils.form_records import FormRecordValidationError, normalize_form_record_data
 
 router = APIRouter(tags=["forms"])
 
@@ -366,7 +367,10 @@ async def create_form_record(
         )
         return _workspace_change_request_schema(db, change)
     now = _now()
-    new_data = record_data.data or {}
+    try:
+        new_data = normalize_form_record_data(form.fields, record_data.data)
+    except FormRecordValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     record = FormRecordTable(
         id=record_data.id or f"record-{uuid.uuid4()}",
         form_id=id,
@@ -428,7 +432,10 @@ async def update_form_record(
         )
         return _workspace_change_request_schema(db, change)
     old_data = dict(record.data or {})
-    new_data = record_data.data or {}
+    try:
+        new_data = normalize_form_record_data(form.fields, record_data.data)
+    except FormRecordValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     record.data = new_data
     record.updated_at = record_data.updatedAt or _now()
     db.commit()

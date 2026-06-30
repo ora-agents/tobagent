@@ -54,6 +54,7 @@ from src.utils.db import (
 )
 from src.utils.form_hooks import trigger_form_hooks
 from src.utils.form_permissions import normalize_form_permissions
+from src.utils.form_records import FormRecordValidationError, normalize_form_record_data
 from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
@@ -572,7 +573,10 @@ async def _apply_form_record_change(
         raise HTTPException(status_code=404, detail="Form record not found")
 
     old_data = dict(record.data or {}) if record else {}
-    new_data = data.data or {}
+    try:
+        new_data = normalize_form_record_data(form.fields, data.data)
+    except FormRecordValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not record:
         record = FormRecordTable(
             id=record_id,
