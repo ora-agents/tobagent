@@ -218,7 +218,7 @@ function groupFormsByCategory(forms: CustomForm[], uncategorizedLabel: string): 
 
   for (const form of forms) {
     const category = (form.category || "").trim()
-    const key = category ? category.toLowerCase() : UNCATEGORIZED_FORM_CATEGORY
+    const key = getFormCategoryKey(form)
     const existing = groups.get(key)
     if (existing) {
       existing.forms.push(form)
@@ -236,6 +236,20 @@ function groupFormsByCategory(forms: CustomForm[], uncategorizedLabel: string): 
     if (b.key === UNCATEGORIZED_FORM_CATEGORY) return -1
     return a.label.localeCompare(b.label)
   })
+}
+
+function getFormCategoryKey(form: Pick<CustomForm, "category">) {
+  const category = (form.category || "").trim()
+  return category ? category.toLowerCase() : UNCATEGORIZED_FORM_CATEGORY
+}
+
+function getLinkedFormsForAgent(agent: AgentProfile | null, allForms: CustomForm[]) {
+  if (!agent) return []
+
+  const explicitFormIds = new Set(agent.formIds || [])
+  const categoryIds = new Set(agent.formCategoryIds || [])
+
+  return allForms.filter(form => explicitFormIds.has(form.id) || categoryIds.has(getFormCategoryKey(form)))
 }
 
 export function ManagementDashboard({
@@ -1936,6 +1950,10 @@ export function ManagementDashboard({
   const selectedAgent = selectedAgentId
     ? agentProfiles.find(p => p.id === selectedAgentId && !isSystemAgentProfile(p)) || null
     : null
+  const selectedAgentLinkedForms = useMemo(
+    () => getLinkedFormsForAgent(selectedAgent, forms),
+    [forms, selectedAgent],
+  )
   const selectedKB = knowledgeBases.find(kb => kb.id === selectedKBId) || null
   const selectedMcp = mcpServers.find(m => m.id === selectedMcpId) || null
   const selectedForm = forms.find(form => form.id === selectedFormId) || null
@@ -3068,6 +3086,17 @@ export function ManagementDashboard({
                             {profile.mcpIds.length} MCP
                           </span>
                         )}
+                        {(() => {
+                          const linkedFormCount = getLinkedFormsForAgent(profile, forms).length
+                          if (linkedFormCount === 0) return null
+
+                          return (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/15 flex items-center gap-0.5">
+                              <TableProperties className="w-2.5 h-2.5" />
+                              {linkedFormCount} {locale === "zh" ? "表单" : "Forms"}
+                            </span>
+                          )
+                        })()}
                         {(profile as any).agentIds && (profile as any).agentIds.length > 0 && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/15 flex items-center gap-0.5">
                             <Bot className="w-2.5 h-2.5" />
@@ -4521,6 +4550,49 @@ export function ManagementDashboard({
                                     </div>
                                   </div>
                                 ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Linked Forms */}
+                        {selectedAgentLinkedForms.length > 0 && (
+                          <div className="space-y-2">
+                            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <TableProperties className="w-3.5 h-3.5 text-amber-500" />
+                              {locale === "zh" ? "已关联的表单数据" : "Linked Forms"}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {selectedAgentLinkedForms.map(form => {
+                                const explicitLinked = selectedAgent.formIds?.includes(form.id)
+                                const categoryLinked = selectedAgent.formCategoryIds?.includes(getFormCategoryKey(form))
+                                const permissions = selectedAgent.formPermissions?.[form.id] || (explicitLinked ? ["read"] : [])
+                                const permissionText = permissions.length > 0
+                                  ? permissions.map(permission => {
+                                    if (locale !== "zh") return permission
+                                    if (permission === "create") return "新增"
+                                    if (permission === "read") return "查询"
+                                    if (permission === "update") return "修改"
+                                    return "删除"
+                                  }).join(" / ")
+                                  : (locale === "zh" ? "分类关联" : "Category linked")
+
+                                return (
+                                  <div key={form.id} className="p-2.5 border border-amber-500/20 bg-amber-500/5 rounded-xl flex items-center gap-2.5">
+                                    <TableProperties className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-semibold text-foreground truncate">{form.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">
+                                        {form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"} · {permissionText}
+                                      </div>
+                                      {categoryLinked && !explicitLinked && (
+                                        <div className="text-[10px] text-muted-foreground truncate">
+                                          {locale === "zh" ? `来自分类：${form.category || "未分类"}` : `From category: ${form.category || "Uncategorized"}`}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         )}
