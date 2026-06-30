@@ -5,26 +5,30 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from src.api.deps import (
     AVATAR_COLORS,
+    _extract_bearer_user_id,
     _require_same_user,
     get_current_user,
     hash_api_key,
     hash_password,
-    verify_password,
 )
 from src.api.schemas import (
     CreateUserApiKeyRequest,
     CreateUserApiKeyResponse,
+    SmsCodeRequest,
+    SmsCodeResponse,
+    SmsCodeVerifyRequest,
     UserApiKeySchema,
     UserLoginRequest,
     UserRegisterRequest,
     UserResponse,
     UserUpdateRequest,
 )
+from src.api.sms_verification import consume_sms_code, issue_sms_code
 from src.api.workspace_utils import ensure_default_workspace
 from src.utils.db import UserApiKeyTable, UserTable, get_db
 from src.utils.default_skills import ensure_default_skills
@@ -42,28 +46,101 @@ def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
     )
 
 
+def _user_response(user: UserTable) -> UserResponse:
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        phone=user.phone,
+        email=user.email,
+        avatarColor=user.avatar_color,
+        preferences=getattr(user, 'preferences', None),
+        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
+        createdAt=user.created_at,
+    )
+
+
+@router.post(
+    "/api/auth/sms-code",
+    response_model=SmsCodeResponse,
+    summary="Send an SMS verification code",
+    description="Sends a short-lived verification code via Aliyun Dysmsapi SendSms.",
+)
+async def send_sms_code(
+    req: SmsCodeRequest,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+):
+    if req.purpose == "register":
+        existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Phone already exists")
+    elif req.purpose == "login":
+        existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+        if not existing_user:
+            raise HTTPException(status_code=404, detail="Phone is not registered")
+    else:
+        credential = _extract_bearer_user_id(authorization)
+        api_key = db.query(UserApiKeyTable).filter(
+            UserApiKeyTable.key_hash == hash_api_key(credential),
+        ).first()
+        user_id = api_key.owner_user_id if api_key else credential
+        current_user = db.query(UserTable).filter(UserTable.id == user_id).first()
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Invalid user")
+        if current_user.phone != req.phone:
+            raise HTTPException(status_code=403, detail="Cannot verify another account")
+
+    issue_sms_code(db, req.phone, req.purpose)
+    return SmsCodeResponse(ok=True)
+
+
+@router.post(
+    "/api/auth/sms-code/verify",
+    response_model=SmsCodeResponse,
+    summary="Verify an SMS code",
+    description="Consumes a verification code for sensitive operation confirmation.",
+)
+async def verify_sms_code(
+    req: SmsCodeVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    if current_user.phone != req.phone:
+        raise HTTPException(status_code=403, detail="Cannot verify another account")
+
+    consume_sms_code(db, req.phone, req.purpose, req.code)
+    db.commit()
+    return SmsCodeResponse(ok=True)
+
+
 @router.post(
     "/api/auth/register",
     response_model=UserResponse,
     summary="Register a user",
-    description="Creates a local user account and installs default skills for the new user.",
+    description="Creates a local user account after validating an SMS code.",
 )
 async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
     # Check if username already exists
     existing_user = db.query(UserTable).filter(UserTable.username == req.username).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already exists")
+
+    existing_phone = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+    if existing_phone:
+        raise HTTPException(status_code=400, detail="Phone already exists")
+
+    consume_sms_code(db, req.phone, "register", req.code)
     
     # Generate UUID and a random nice avatar color
     user_id = f"user-{uuid.uuid4()}"
     avatar_color = secrets.choice(AVATAR_COLORS)
-    hashed_pwd = hash_password(req.password)
+    hashed_pwd = hash_password(secrets.token_urlsafe(32))
     
     user = UserTable(
         id=user_id,
         username=req.username,
         password_hash=hashed_pwd,
-        email=req.email,
+        phone=req.phone,
         avatar_color=avatar_color,
         created_at=datetime.utcnow().isoformat(),
     )
@@ -75,37 +152,24 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     ensure_default_workspace(db, user)
     db.commit()
     
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
+    return _user_response(user)
 
 
 @router.post(
     "/api/auth/login",
     response_model=UserResponse,
     summary="Log in a user",
-    description="Validates username and password and returns the user's profile metadata.",
+    description="Validates a phone SMS code and returns the user's profile metadata.",
 )
 async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
-    user = db.query(UserTable).filter(UserTable.username == req.username).first()
-    if not user or not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+    user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid phone or verification code")
 
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
+    consume_sms_code(db, req.phone, "login", req.code)
+    db.commit()
+
+    return _user_response(user)
 
 
 @router.get(
@@ -123,15 +187,7 @@ async def get_user_profile(
     user = db.query(UserTable).filter(UserTable.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
+    return _user_response(user)
 
 
 @router.put(
@@ -164,15 +220,7 @@ async def update_user_profile(
     db.commit()
     db.refresh(user)
 
-    return UserResponse(
-        id=user.id,
-        username=user.username,
-        email=user.email,
-        avatarColor=user.avatar_color,
-        preferences=getattr(user, 'preferences', None),
-        safetyEnabled=getattr(user, 'safety_enabled', 'false') == 'true',
-        createdAt=user.created_at,
-    )
+    return _user_response(user)
 
 
 @router.get(

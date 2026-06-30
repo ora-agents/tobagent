@@ -91,7 +91,8 @@ class UserTable(Base):
 
     id = Column(String(255), primary_key=True, index=True)
     username = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)
+    phone = Column(String(32), unique=True, index=True, nullable=True)
     email = Column(String(255), nullable=True)
     avatar_color = Column(String(50), nullable=True)
     # User's general preferences / instructions injected into agent system prompt
@@ -112,6 +113,19 @@ class UserApiKeyTable(Base):
     key_prefix = Column(String(32), nullable=False)
     created_at = Column(String(50), nullable=False)
     last_used_at = Column(String(50), nullable=True)
+
+
+class SmsVerificationCodeTable(Base):
+    """Short-lived SMS verification codes for account and sensitive actions."""
+    __tablename__ = "sms_verification_codes"
+
+    id = Column(String(255), primary_key=True, index=True)
+    phone = Column(String(32), index=True, nullable=False)
+    purpose = Column(String(32), index=True, nullable=False)
+    code_hash = Column(String(64), nullable=False)
+    expires_at = Column(String(50), nullable=False)
+    consumed_at = Column(String(50), nullable=True)
+    created_at = Column(String(50), nullable=False)
 
 
 class WorkspaceTable(Base):
@@ -392,6 +406,7 @@ def ensure_database_schema() -> None:
         ("mcp_servers", "prompts", "prompts JSON"),
         ("users", "preferences", "preferences TEXT"),
         ("users", "safety_enabled", "safety_enabled VARCHAR(10) DEFAULT 'false'"),
+        ("users", "phone", "phone VARCHAR(32)"),
         ("agent_profiles", "wake_words", "wake_words JSON"),
         ("agent_profiles", "role_template_id", "role_template_id VARCHAR(100)"),
         ("agent_profiles", "persona_style", "persona_style VARCHAR(50)"),

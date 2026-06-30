@@ -11,6 +11,7 @@ import { useT, type Translations } from '@/lib/i18n'
 export interface User {
   id: string
   username: string
+  phone: string | null
   email: string | null
   avatarColor: string | null
   preferences: string | null
@@ -39,8 +40,9 @@ interface AuthContextType {
   canManageWorkspace: boolean
   refreshWorkspaces: () => Promise<void>
   setActiveWorkspaceId: (workspaceId: string | null) => void
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, password: string, email?: string) => Promise<void>
+  sendSmsCode: (phone: string, purpose: 'login' | 'register' | 'sensitive') => Promise<void>
+  login: (phone: string, code: string) => Promise<void>
+  register: (username: string, phone: string, code: string) => Promise<void>
   logout: () => void
   clearError: () => void
   updateProfile: (data: Partial<Pick<User, 'username' | 'email' | 'preferences' | 'safetyEnabled'>>) => Promise<User>
@@ -75,6 +77,10 @@ function authFieldLabel(field: string | undefined, t: Translations) {
       return t.password
     case 'email':
       return t.email
+    case 'phone':
+      return t.phone
+    case 'code':
+      return t.smsCode
     default:
       return t.authErrorField
   }
@@ -92,8 +98,24 @@ function localizeAuthMessage(message: string, t: Translations, fallback: string)
     return t.authErrorInvalidCredentials
   }
 
+  if (normalized === 'Invalid phone or verification code' || normalized === 'Invalid or expired verification code') {
+    return t.authErrorInvalidSmsCode
+  }
+
   if (normalized === 'Username already exists') {
     return t.authErrorUsernameExists
+  }
+
+  if (normalized === 'Phone already exists') {
+    return t.authErrorPhoneExists
+  }
+
+  if (normalized === 'Phone is not registered') {
+    return t.authErrorPhoneNotRegistered
+  }
+
+  if (normalized === 'Please wait before requesting another code') {
+    return t.authErrorSmsTooFrequent
   }
 
   if (normalized === 'Authentication required' || normalized === 'User login required') {
@@ -228,14 +250,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [refreshWorkspaces])
 
+  const sendSmsCode = useCallback(async (phone: string, purpose: 'login' | 'register' | 'sensitive') => {
+    setError(null)
+    try {
+      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/sms-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, purpose }),
+      })
+
+      if (!resp.ok) {
+        throw new Error(await getAuthErrorMessage(resp, t, t.smsCodeSendFailed))
+      }
+    } catch (err: any) {
+      console.error('[Auth] SMS code error:', err)
+      setError(localizeAuthMessage(err.message || '', t, t.smsCodeSendFailed))
+      throw err
+    }
+  }, [t])
+
   // 2. Login function
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (phone: string, code: string) => {
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ phone, code }),
       })
 
       if (!resp.ok) {
@@ -254,13 +295,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [t])
 
   // 3. Register function
-  const register = useCallback(async (username: string, password: string, email?: string) => {
+  const register = useCallback(async (username: string, phone: string, code: string) => {
     setError(null)
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, email }),
+        body: JSON.stringify({ username, phone, code }),
       })
 
       if (!resp.ok) {
@@ -352,6 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     canManageWorkspace,
     refreshWorkspaces,
     setActiveWorkspaceId,
+    sendSmsCode,
     login,
     register,
     logout,

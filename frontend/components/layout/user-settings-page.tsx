@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   User,
-  Mail,
+  Phone,
   Menu,
   Shield,
   Loader2,
@@ -131,14 +131,14 @@ export function UserSettingsPage({
 
   // ---- Form state ----
   const [username, setUsername] = useState("")
-  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
   const [preferences, setPreferences] = useState("")
   const [safetyEnabled, setSafetyEnabled] = useState(false)
   // ---- Auto-save state ----
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  const lastSavedRef = useRef<{ email: string; preferences: string; safetyEnabled: boolean } | null>(null)
+  const lastSavedRef = useRef<{ preferences: string; safetyEnabled: boolean } | null>(null)
 
   // ---- API keys state ----
   const [apiKeys, setApiKeys] = useState<UserApiKey[]>([])
@@ -169,13 +169,12 @@ export function UserSettingsPage({
   useEffect(() => {
     if (user) {
       setUsername(user.username || "")
-      setEmail(user.email || "")
+      setPhone(user.phone || "")
       setPreferences(user.preferences || "")
       setSafetyEnabled(user.safetyEnabled || false)
       setError(null)
       setSaved(false)
       lastSavedRef.current = {
-        email: user.email || "",
         preferences: user.preferences || "",
         safetyEnabled: user.safetyEnabled || false,
       }
@@ -217,7 +216,6 @@ export function UserSettingsPage({
     const last = lastSavedRef.current
     if (
       last &&
-      last.email === (email.trim() || "") &&
       last.preferences === (preferences.trim() || "") &&
       last.safetyEnabled === safetyEnabled
     ) {
@@ -229,13 +227,11 @@ export function UserSettingsPage({
       setSaving(true)
       try {
         const payload = {
-          email: email.trim() || null,
           preferences: preferences.trim() || null,
           safetyEnabled,
         }
         await updateProfile(payload)
         lastSavedRef.current = {
-          email: email.trim() || "",
           preferences: preferences.trim() || "",
           safetyEnabled,
         }
@@ -250,7 +246,7 @@ export function UserSettingsPage({
 
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, preferences, safetyEnabled, user])
+  }, [preferences, safetyEnabled, user])
 
   const registerSectionRef = useCallback((id: string) => (el: HTMLElement | null) => {
     if (el) {
@@ -627,15 +623,16 @@ export function UserSettingsPage({
                 className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary`}
               />
 
-              {/* Email */}
+              {/* Phone */}
               <InputField
-                id="settings-email"
-                label={zh ? "邮箱" : "Email"}
-                type="email"
-                placeholder={zh ? "输入邮箱地址" : "Enter email address"}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                leadingIcon={<Mail className={elderOptimized ? "w-5 h-5" : "w-4 h-4"} />}
+                id="settings-phone"
+                label={zh ? "手机号" : "Phone"}
+                type="tel"
+                placeholder={zh ? "手机号" : "Phone number"}
+                value={phone}
+                readOnly
+                disabled
+                leadingIcon={<Phone className={elderOptimized ? "w-5 h-5" : "w-4 h-4"} />}
                 fieldClassName={elderOptimized ? "space-y-2" : undefined}
                 labelClassName={elderOptimized ? "text-base" : undefined}
                 className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary`}

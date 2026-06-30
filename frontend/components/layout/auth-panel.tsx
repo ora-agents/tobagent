@@ -26,14 +26,15 @@ export function AuthPanel({
   onAuthenticated,
 }: AuthPanelProps) {
   const t = useT()
-  const { login, register, error, clearError } = useAuth()
+  const { login, register, sendSmsCode, error, clearError } = useAuth()
 
   const [internalTab, setInternalTab] = useState<'login' | 'register'>(mode ?? 'login')
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [smsCode, setSmsCode] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sendingCode, setSendingCode] = useState(false)
+  const [codeCooldown, setCodeCooldown] = useState(0)
   const [localError, setLocalError] = useState<string | null>(null)
   const activeTab = mode ?? internalTab
 
@@ -47,38 +48,51 @@ export function AuthPanel({
     setLocalError(null)
   }, [activeTab, open, clearError])
 
+  useEffect(() => {
+    if (codeCooldown <= 0) return
+    const timer = window.setTimeout(() => setCodeCooldown((value) => Math.max(0, value - 1)), 1000)
+    return () => window.clearTimeout(timer)
+  }, [codeCooldown])
+
+  const normalizedPhone = phone.trim().replace(/\s+/g, '').replace(/-/g, '')
+
+  const handleSendCode = async () => {
+    setLocalError(null)
+    if (!normalizedPhone) {
+      setLocalError(t.enterPhone)
+      return
+    }
+    setSendingCode(true)
+    try {
+      await sendSmsCode(normalizedPhone, activeTab)
+      setCodeCooldown(60)
+    } catch {
+      // AuthProvider owns the network error message.
+    } finally {
+      setSendingCode(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLocalError(null)
 
-    if (!username.trim() || !password) {
+    if (!normalizedPhone || !smsCode.trim() || (activeTab === 'register' && !username.trim())) {
       setLocalError(t.fillRequiredFields)
       return
-    }
-
-    if (activeTab === 'register') {
-      if (password !== confirmPassword) {
-        setLocalError(t.passwordsDoNotMatch)
-        return
-      }
-      if (password.length < 6) {
-        setLocalError(t.passwordMinLength)
-        return
-      }
     }
 
     setLoading(true)
     try {
       if (activeTab === 'login') {
-        await login(username.trim(), password)
+        await login(normalizedPhone, smsCode.trim())
       } else {
-        await register(username.trim(), password, email.trim() || undefined)
+        await register(username.trim(), normalizedPhone, smsCode.trim())
       }
       onOpenChange(false)
       setUsername('')
-      setPassword('')
-      setConfirmPassword('')
-      setEmail('')
+      setPhone('')
+      setSmsCode('')
       onAuthenticated?.()
     } catch (err: any) {
       // AuthProvider owns the network error message.
@@ -133,72 +147,74 @@ export function AuthPanel({
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="username" className="text-sm font-medium text-foreground">
-              {t.username} <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="username"
-              type="text"
-              placeholder={t.enterUsername}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={loading}
-              className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
-              required
-            />
-          </div>
-
           {activeTab === 'register' && (
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium text-foreground">
-                {t.email}
+              <Label htmlFor="username" className="text-sm font-medium text-foreground">
+                {t.username} <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="email"
-                type="email"
-                placeholder={t.enterEmailOptional}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-                className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
-              />
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-sm font-medium text-foreground">
-              {t.password} <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder={t.enterPassword}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-              className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
-              required
-            />
-          </div>
-
-          {activeTab === 'register' && (
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-                {t.confirmPassword} <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder={t.confirmPasswordPlaceholder}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                id="username"
+                type="text"
+                placeholder={t.enterUsername}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 disabled={loading}
                 className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
                 required
               />
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="phone" className="text-sm font-medium text-foreground">
+              {t.phone} <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              placeholder={t.enterPhone}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              disabled={loading}
+              className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="smsCode" className="text-sm font-medium text-foreground">
+              {t.smsCode} <span className="text-destructive">*</span>
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="smsCode"
+                type="text"
+                inputMode="numeric"
+                placeholder={t.enterSmsCode}
+                value={smsCode}
+                onChange={(e) => setSmsCode(e.target.value)}
+                disabled={loading}
+                className="h-11 min-w-0 flex-1 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
+                required
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={loading || sendingCode || codeCooldown > 0}
+                onClick={handleSendCode}
+                className="h-11 shrink-0 rounded-lg px-3 text-sm"
+              >
+                {sendingCode ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : codeCooldown > 0 ? (
+                  `${codeCooldown}s`
+                ) : (
+                  t.sendSmsCode
+                )}
+              </Button>
+            </div>
+          </div>
 
           <Button
             type="submit"

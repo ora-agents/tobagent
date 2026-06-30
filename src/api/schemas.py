@@ -1,9 +1,17 @@
 """Pydantic schemas for the FastAPI API surface."""
-# ruff: noqa: D101
+# ruff: noqa: D101,D102,D103
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+PHONE_PATTERN = r"^\+?\d{6,20}$"
+SMS_CODE_PATTERN = r"^\d{4,8}$"
+
+
+def _normalize_phone(value: str) -> str:
+    return value.strip().replace(" ", "").replace("-", "")
 
 
 class ClientProfileSchema(BaseModel):
@@ -14,13 +22,84 @@ class ClientProfileSchema(BaseModel):
 
 class UserRegisterRequest(BaseModel):
     username: str
-    password: str
-    email: str | None = None
+    phone: str
+    code: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        phone = _normalize_phone(value)
+        if not re.fullmatch(PHONE_PATTERN, phone):
+            raise ValueError("Invalid phone number")
+        return phone
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        code = value.strip()
+        if not re.fullmatch(SMS_CODE_PATTERN, code):
+            raise ValueError("Invalid verification code")
+        return code
 
 
 class UserLoginRequest(BaseModel):
-    username: str
-    password: str
+    phone: str
+    code: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        phone = _normalize_phone(value)
+        if not re.fullmatch(PHONE_PATTERN, phone):
+            raise ValueError("Invalid phone number")
+        return phone
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        code = value.strip()
+        if not re.fullmatch(SMS_CODE_PATTERN, code):
+            raise ValueError("Invalid verification code")
+        return code
+
+
+class SmsCodeRequest(BaseModel):
+    phone: str
+    purpose: Literal["register", "login", "sensitive"] = "login"
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        phone = _normalize_phone(value)
+        if not re.fullmatch(PHONE_PATTERN, phone):
+            raise ValueError("Invalid phone number")
+        return phone
+
+
+class SmsCodeResponse(BaseModel):
+    ok: bool = True
+
+
+class SmsCodeVerifyRequest(BaseModel):
+    phone: str
+    purpose: Literal["sensitive"] = "sensitive"
+    code: str
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        phone = _normalize_phone(value)
+        if not re.fullmatch(PHONE_PATTERN, phone):
+            raise ValueError("Invalid phone number")
+        return phone
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        code = value.strip()
+        if not re.fullmatch(SMS_CODE_PATTERN, code):
+            raise ValueError("Invalid verification code")
+        return code
 
 
 class UserUpdateRequest(BaseModel):
@@ -35,6 +114,7 @@ class UserUpdateRequest(BaseModel):
 class UserResponse(BaseModel):
     id: str
     username: str
+    phone: str | None = None
     email: str | None = None
     avatarColor: str | None = None
     preferences: str | None = None

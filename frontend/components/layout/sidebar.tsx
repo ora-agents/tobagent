@@ -161,7 +161,7 @@ const UserProfileSection = memo(function UserProfileSection({
         </div>
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-semibold truncate text-foreground">{user.username}</span>
-          <span className="text-[10px] text-muted-foreground truncate">{user.email || 'No email'}</span>
+          <span className="text-[10px] text-muted-foreground truncate">{user.phone || 'No phone'}</span>
         </div>
       </button>
       <button
