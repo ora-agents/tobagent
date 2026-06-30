@@ -181,7 +181,7 @@ jobs:
 
             local latest_tag base_version range bump commit candidate version tag existing
             latest_tag="$(latest_service_tag "$service")"
-            base_version="${latest_tag#${service}-v}"
+            base_version="${latest_tag#"${service}"-v}"
 
             if [[ -n "$latest_tag" ]]; then
               range="${latest_tag}..HEAD"
