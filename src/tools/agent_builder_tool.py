@@ -86,9 +86,11 @@ class ListConfigResourcesTool(BaseTool):
                         "enabledTools": row.enabled_tools or [],
                         "knowledgeBaseIds": row.knowledge_base_ids or [],
                         "skillIds": row.skill_ids or [],
+                        "skillCategoryIds": getattr(row, "skill_category_ids", None) or [],
                         "mcpIds": row.mcp_ids or [],
                         "agentIds": row.agent_ids or [],
                         "formIds": row.form_ids or [],
+                        "formCategoryIds": getattr(row, "form_category_ids", None) or [],
                         "formPermissions": normalize_form_permissions(
                             row.form_ids,
                             row.form_permissions,
@@ -195,9 +197,11 @@ class UpsertAgentProfileTool(BaseTool):
                     created_at=now,
                     knowledge_base_ids=[],
                     skill_ids=[],
+                    skill_category_ids=[],
                     mcp_ids=[],
                     agent_ids=[],
                     form_ids=[],
+                    form_category_ids=[],
                     form_permissions={},
                 )
                 db.add(profile)
@@ -476,8 +480,10 @@ class LinkAgentResourcesInput(BaseModel):
     agent_id: str
     knowledge_base_ids: list[str] = Field(default_factory=list)
     skill_ids: list[str] = Field(default_factory=list)
+    skill_category_ids: list[str] = Field(default_factory=list)
     mcp_ids: list[str] = Field(default_factory=list)
     form_ids: list[str] = Field(default_factory=list)
+    form_category_ids: list[str] = Field(default_factory=list)
     form_permissions: dict[str, list[Literal["create", "read", "update", "delete"]]] = Field(
         default_factory=dict,
         description="CRUD record permissions by form ID. Legacy form links default to read-only.",
@@ -534,6 +540,14 @@ class LinkAgentResourcesTool(BaseTool):
                 current = [] if mode == "replace" else list(getattr(profile, field) or [])
                 setattr(profile, field, list(dict.fromkeys([*current, *unique_ids])))
 
+            for field, ids in [
+                ("skill_category_ids", kwargs.get("skill_category_ids") or []),
+                ("form_category_ids", kwargs.get("form_category_ids") or []),
+            ]:
+                unique_ids = list(dict.fromkeys(str(item).strip().lower() for item in ids if str(item).strip()))
+                current = [] if mode == "replace" else list(getattr(profile, field) or [])
+                setattr(profile, field, list(dict.fromkeys([*current, *unique_ids])))
+
             requested_form_permissions = kwargs.get("form_permissions") or {}
             raw_form_permissions = (
                 requested_form_permissions
@@ -557,8 +571,10 @@ class LinkAgentResourcesTool(BaseTool):
                     "agentId": profile.id,
                     "knowledgeBaseIds": profile.knowledge_base_ids or [],
                     "skillIds": profile.skill_ids or [],
+                    "skillCategoryIds": getattr(profile, "skill_category_ids", None) or [],
                     "mcpIds": profile.mcp_ids or [],
                     "formIds": profile.form_ids or [],
+                    "formCategoryIds": getattr(profile, "form_category_ids", None) or [],
                     "formPermissions": profile.form_permissions or {},
                     "agentIds": profile.agent_ids or [],
                 }

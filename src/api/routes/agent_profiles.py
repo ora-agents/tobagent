@@ -235,9 +235,11 @@ async def create_agent_profile(
         enabled_tools=profile_data.enabledTools,
         knowledge_base_ids=profile_data.knowledgeBaseIds,
         skill_ids=profile_data.skillIds,
+        skill_category_ids=profile_data.skillCategoryIds,
         mcp_ids=profile_data.mcpIds,
         agent_ids=profile_data.agentIds,
         form_ids=profile_data.formIds,
+        form_category_ids=profile_data.formCategoryIds,
         form_permissions=normalize_form_permissions(
             profile_data.formIds,
             profile_data.formPermissions,
@@ -310,9 +312,11 @@ async def update_agent_profile(
     profile.enabled_tools = profile_data.enabledTools
     profile.knowledge_base_ids = profile_data.knowledgeBaseIds
     profile.skill_ids = profile_data.skillIds
+    profile.skill_category_ids = profile_data.skillCategoryIds
     profile.mcp_ids = profile_data.mcpIds
     profile.agent_ids = profile_data.agentIds
     profile.form_ids = profile_data.formIds
+    profile.form_category_ids = profile_data.formCategoryIds
     profile.form_permissions = normalize_form_permissions(
         profile_data.formIds,
         profile_data.formPermissions,
@@ -426,9 +430,11 @@ async def restore_agent_profile_version(
     profile.enabled_tools = restored.enabledTools
     profile.knowledge_base_ids = restored.knowledgeBaseIds
     profile.skill_ids = restored.skillIds
+    profile.skill_category_ids = restored.skillCategoryIds
     profile.mcp_ids = restored.mcpIds
     profile.agent_ids = restored.agentIds
     profile.form_ids = restored.formIds
+    profile.form_category_ids = restored.formCategoryIds
     profile.form_permissions = normalize_form_permissions(
         restored.formIds,
         restored.formPermissions,
@@ -620,9 +626,15 @@ async def import_agent_share(
         enabled_tools=copy.deepcopy(source_profile.enabled_tools or []),
         knowledge_base_ids=copied_ids["knowledgeBaseIds"],
         skill_ids=copied_ids["skillIds"],
+        skill_category_ids=copy.deepcopy(
+            getattr(source_profile, "skill_category_ids", None) or []
+        ) if include.skills else [],
         mcp_ids=copied_ids["mcpIds"],
         agent_ids=copied_ids["agentIds"],
         form_ids=copied_ids["formIds"],
+        form_category_ids=copy.deepcopy(
+            getattr(source_profile, "form_category_ids", None) or []
+        ) if include.forms else [],
         form_permissions={
             target_id: normalize_form_permissions(
                 source_profile.form_ids,
@@ -817,9 +829,11 @@ async def import_agent_profiles_toml(
             enabled_tools=list(raw_agent.get("enabledTools") or []),
             knowledge_base_ids=[],
             skill_ids=[],
+            skill_category_ids=list(raw_agent.get("skillCategoryIds") or []),
             mcp_ids=[],
             agent_ids=[],
             form_ids=form_ids,
+            form_category_ids=list(raw_agent.get("formCategoryIds") or []),
             form_permissions=normalize_form_permissions(form_ids, form_permissions),
             wake_words=list(raw_agent.get("wakeWords") or []),
             role_template_id=raw_agent.get("roleTemplateId") or None,

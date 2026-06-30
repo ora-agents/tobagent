@@ -33,6 +33,7 @@ from src.utils.db import (
 from src.utils.debug_logging import write_debug_event
 from src.utils.form_permissions import normalize_form_permissions
 from src.utils.mcp import McpPoolManager
+from src.utils.resource_categories import resolve_form_ids, resolve_skill_ids
 from src.utils.runtime_context import get_runtime_context_value
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,8 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     form_ids = getattr(agent_row, "form_ids", None)
     knowledge_base_ids = getattr(agent_row, "knowledge_base_ids", None)
     skill_ids = getattr(agent_row, "skill_ids", None)
+    skill_category_ids = getattr(agent_row, "skill_category_ids", None)
+    form_category_ids = getattr(agent_row, "form_category_ids", None)
     model = getattr(agent_row, "model", None)
     persona_style = getattr(agent_row, "persona_style", None)
     boundary_mode = getattr(agent_row, "boundary_mode", None)
@@ -67,6 +70,8 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "form_ids": list(form_ids) if isinstance(form_ids, list) else [],
         "knowledge_base_ids": list(knowledge_base_ids) if isinstance(knowledge_base_ids, list) else [],
         "skill_ids": list(skill_ids) if isinstance(skill_ids, list) else [],
+        "skill_category_ids": list(skill_category_ids) if isinstance(skill_category_ids, list) else [],
+        "form_category_ids": list(form_category_ids) if isinstance(form_category_ids, list) else [],
         "role_template_id": role_template_id if isinstance(role_template_id, str) else "",
         "persona_style": persona_style if isinstance(persona_style, str) else "",
         "boundary_mode": boundary_mode if isinstance(boundary_mode, str) else "",
@@ -405,12 +410,22 @@ def _load_agent_runtime_resources(
 
         profile_data = _extract_agent_data(agent_profile)
 
+        all_skill_rows = db.query(SkillTable).filter(
+            SkillTable.owner_user_id == owner_user_id,
+        ).all()
+        resolved_skill_ids = resolve_skill_ids(
+            all_skill_rows,
+            agent_profile.skill_ids,
+            getattr(agent_profile, "skill_category_ids", None),
+        )
         skill_rows = []
-        if agent_profile.skill_ids:
-            skill_rows = db.query(SkillTable).filter(
-                SkillTable.id.in_(agent_profile.skill_ids),
-                SkillTable.owner_user_id == owner_user_id,
-            ).all()
+        if resolved_skill_ids:
+            skill_by_id = {skill.id: skill for skill in all_skill_rows}
+            skill_rows = [
+                skill_by_id[skill_id]
+                for skill_id in resolved_skill_ids
+                if skill_id in skill_by_id
+            ]
 
         skills = [
             {
@@ -445,19 +460,26 @@ def _load_agent_runtime_resources(
             for kb in knowledge_base_rows
         ]
 
-        form_ids = list(agent_profile.form_ids or [])
+        all_form_rows = db.query(FormTable).filter(
+            FormTable.owner_user_id == owner_user_id,
+        ).all()
+        form_ids = resolve_form_ids(
+            all_form_rows,
+            agent_profile.form_ids,
+            getattr(agent_profile, "form_category_ids", None),
+        )
         form_permissions = normalize_form_permissions(
             form_ids,
             agent_profile.form_permissions,
         )
         form_rows = []
         if form_ids:
-            form_rows = db.query(FormTable).filter(
-                FormTable.id.in_(form_ids),
-                FormTable.owner_user_id == owner_user_id,
-            ).all()
+            form_by_id = {form.id: form for form in all_form_rows}
             order = {form_id: idx for idx, form_id in enumerate(form_ids)}
-            form_rows = sorted(form_rows, key=lambda form: order.get(form.id, len(order)))
+            form_rows = sorted(
+                [form_by_id[form_id] for form_id in form_ids if form_id in form_by_id],
+                key=lambda form: order.get(form.id, len(order)),
+            )
 
         forms = [
             {

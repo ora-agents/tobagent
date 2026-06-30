@@ -364,9 +364,11 @@ class AgentProfileSchema(BaseModel):
     enabledTools: list[str] = []
     knowledgeBaseIds: list[str] = []
     skillIds: list[str] = []
+    skillCategoryIds: list[str] = []
     mcpIds: list[str] = []
     agentIds: list[str] = []
     formIds: list[str] = []
+    formCategoryIds: list[str] = []
     formPermissions: dict[
         str,
         list[Literal["create", "read", "update", "delete"]],

@@ -698,6 +698,8 @@ def execute_import(
             row.system_prompt = item.get("systemPrompt")
             row.model = item.get("model")
             row.enabled_tools = list(item.get("enabledTools") or [])
+            row.skill_category_ids = list(item.get("skillCategoryIds") or [])
+            row.form_category_ids = list(item.get("formCategoryIds") or [])
             for field, resource_type in LINK_FIELDS.items():
                 mapped = []
                 map_key = ID_MAP_KEYS[resource_type]

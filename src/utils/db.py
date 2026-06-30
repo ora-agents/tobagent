@@ -189,12 +189,16 @@ class AgentProfileTable(Base):
     knowledge_base_ids = Column(JSON, nullable=True, default=list)
     # skill_ids is a JSON list of linked skills, e.g., ["skill_1", "skill_2"]
     skill_ids = Column(JSON, nullable=True, default=list)
+    # skill_category_ids is a JSON list of dynamic linked skill category keys.
+    skill_category_ids = Column(JSON, nullable=True, default=list)
     # mcp_ids is a JSON list of linked MCP servers, e.g., ["mcp_1", "mcp_2"]
     mcp_ids = Column(JSON, nullable=True, default=list)
     # agent_ids is a JSON list of linked other agents, e.g., ["agent_1", "agent_2"]
     agent_ids = Column(JSON, nullable=True, default=list)
     # form_ids is a JSON list of linked custom forms, e.g., ["form_1", "form_2"]
     form_ids = Column(JSON, nullable=True, default=list)
+    # form_category_ids is a JSON list of dynamic linked form category keys.
+    form_category_ids = Column(JSON, nullable=True, default=list)
     # Per-linked-form record permissions, e.g. {"form_1": ["create", "read"]}.
     form_permissions = Column(JSON, nullable=True, default=dict)
     # wake_words is a JSON list of wake word strings for KWS, e.g., ["小梯小梯", "hey assistant"]
@@ -394,11 +398,13 @@ def ensure_database_schema() -> None:
 
     migrations = [
         ("agent_profiles", "skill_ids", "skill_ids JSON"),
+        ("agent_profiles", "skill_category_ids", "skill_category_ids JSON"),
         ("agent_profiles", "model", "model VARCHAR(255)"),
         ("agent_profiles", "graph_id", "graph_id VARCHAR(100)"),
         ("agent_profiles", "mcp_ids", "mcp_ids JSON"),
         ("agent_profiles", "agent_ids", "agent_ids JSON"),
         ("agent_profiles", "form_ids", "form_ids JSON"),
+        ("agent_profiles", "form_category_ids", "form_category_ids JSON"),
         ("agent_profiles", "form_permissions", "form_permissions JSON"),
         ("mcp_servers", "headers", "headers JSON"),
         ("mcp_servers", "tools", "tools JSON"),

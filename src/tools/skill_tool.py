@@ -7,6 +7,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from src.utils.db import AgentProfileTable, SessionLocal, SkillTable
+from src.utils.resource_categories import resolve_skill_ids
 from src.utils.runtime_context import get_runtime_context_value
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,14 @@ class ReadSkillTool(BaseTool):
                     AgentProfileTable.owner_user_id == owner_user_id,
                 ).first()
                 if agent_profile:
-                    allowed_skill_ids = agent_profile.skill_ids or []
+                    skills = db.query(SkillTable).filter(
+                        SkillTable.owner_user_id == owner_user_id,
+                    ).all()
+                    allowed_skill_ids = resolve_skill_ids(
+                        skills,
+                        agent_profile.skill_ids,
+                        getattr(agent_profile, "skill_category_ids", None),
+                    )
 
             # 2. Check if the agent is restricted to certain skills
             if allowed_skill_ids is not None:

@@ -30,9 +30,11 @@ export interface AgentProfile {
   enabledTools: BuiltinToolId[]
   knowledgeBaseIds?: string[]
   skillIds?: string[]
+  skillCategoryIds?: string[]
   mcpIds?: string[]
   agentIds?: string[]
   formIds?: string[]
+  formCategoryIds?: string[]
   formPermissions?: Record<string, FormRecordPermission[]>
   wakeWords?: string[]
   roleTemplateId?: string | null

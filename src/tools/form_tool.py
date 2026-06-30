@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from src.utils.db import AgentProfileTable, FormRecordTable, FormTable, SessionLocal
 from src.utils.form_hooks import trigger_form_hooks_sync
 from src.utils.form_permissions import has_form_permission, normalize_form_permissions
+from src.utils.resource_categories import resolve_form_ids
 from src.utils.runtime_context import get_runtime_context_value
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,13 @@ class QueryFormDataTool(BaseTool):
         ).first()
         if not profile:
             return []
-        return normalize_form_permissions(profile.form_ids, profile.form_permissions)
+        forms = db.query(FormTable).filter(FormTable.owner_user_id == owner_user_id).all()
+        form_ids = resolve_form_ids(
+            forms,
+            profile.form_ids,
+            getattr(profile, "form_category_ids", None),
+        )
+        return normalize_form_permissions(form_ids, profile.form_permissions)
 
     def _run(
         self,
@@ -252,12 +259,13 @@ class ManageFormDataTool(BaseTool):
                 AgentProfileTable.id == agent_id,
                 AgentProfileTable.owner_user_id == owner_user_id,
             ).first()
-            if not profile or not has_form_permission(
-                profile.form_ids,
-                profile.form_permissions,
-                form_id,
-                action,
-            ):
+            forms = db.query(FormTable).filter(FormTable.owner_user_id == owner_user_id).all()
+            form_ids = resolve_form_ids(
+                forms,
+                profile.form_ids if profile else [],
+                getattr(profile, "form_category_ids", None) if profile else [],
+            )
+            if not profile or not has_form_permission(form_ids, profile.form_permissions, form_id, action):
                 return (
                     f"Form '{form_id}' is not linked to this agent or does not "
                     f"grant {action} permission."

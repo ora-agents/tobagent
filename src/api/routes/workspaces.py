@@ -411,9 +411,11 @@ def _apply_agent_profile_change(
     profile.enabled_tools = data.enabledTools
     profile.knowledge_base_ids = data.knowledgeBaseIds
     profile.skill_ids = data.skillIds
+    profile.skill_category_ids = data.skillCategoryIds
     profile.mcp_ids = data.mcpIds
     profile.agent_ids = data.agentIds
     profile.form_ids = data.formIds
+    profile.form_category_ids = data.formCategoryIds
     profile.form_permissions = normalize_form_permissions(data.formIds, data.formPermissions)
     profile.wake_words = data.wakeWords
     profile.role_template_id = data.roleTemplateId

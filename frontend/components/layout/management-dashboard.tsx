@@ -342,9 +342,11 @@ export function ManagementDashboard({
     enabledTools: BuiltinToolId[]
     knowledgeBaseIds: string[]
     skillIds: string[]
+    skillCategoryIds: string[]
     mcpIds: string[]
     agentIds: string[]
     formIds: string[]
+    formCategoryIds: string[]
     formPermissions: Record<string, FormRecordPermission[]>
     wakeWords: string[]
     roleTemplateId: string
@@ -363,9 +365,11 @@ export function ManagementDashboard({
     enabledTools: [],
     knowledgeBaseIds: [],
     skillIds: [],
+    skillCategoryIds: [],
     mcpIds: [],
     agentIds: [],
     formIds: [],
+    formCategoryIds: [],
     formPermissions: {},
     wakeWords: [],
     roleTemplateId: "",
@@ -857,9 +861,11 @@ export function ManagementDashboard({
       enabledTools: ["fetch"],
       knowledgeBaseIds: [],
       skillIds: [],
+      skillCategoryIds: [],
       mcpIds: [],
       agentIds: [],
       formIds: [],
+      formCategoryIds: [],
       formPermissions: {},
       wakeWords: [],
       roleTemplateId: "",
@@ -892,9 +898,11 @@ export function ManagementDashboard({
       enabledTools: profile.enabledTools,
       knowledgeBaseIds: profile.knowledgeBaseIds || [],
       skillIds: profile.skillIds || [],
+      skillCategoryIds: profile.skillCategoryIds || [],
       mcpIds: profile.mcpIds || [],
       agentIds: (profile as any).agentIds || [],
       formIds: profile.formIds || [],
+      formCategoryIds: profile.formCategoryIds || [],
       formPermissions: Object.fromEntries(
         (profile.formIds || []).map(formId => [
           formId,
@@ -984,9 +992,9 @@ export function ManagementDashboard({
         tool => tool !== "rag_search" && tool !== "query_form_data" && tool !== "manage_form_data"
       ),
       ...(agentForm.knowledgeBaseIds.length > 0 ? ["rag_search" as const] : []),
-      ...(Object.values(agentForm.formPermissions).some(permissions =>
+      ...((agentForm.formCategoryIds.length > 0 || Object.values(agentForm.formPermissions).some(permissions =>
         permissions.includes("read")
-      ) ? ["query_form_data" as const] : []),
+      )) ? ["query_form_data" as const] : []),
       ...(Object.values(agentForm.formPermissions).some(permissions =>
         permissions.some(permission => permission !== "read")
       ) ? ["manage_form_data" as const] : []),
@@ -1000,9 +1008,11 @@ export function ManagementDashboard({
       enabledTools,
       knowledgeBaseIds: agentForm.knowledgeBaseIds,
       skillIds: agentForm.skillIds,
+      skillCategoryIds: agentForm.skillCategoryIds,
       mcpIds: agentForm.mcpIds,
       agentIds: agentForm.agentIds,
       formIds: agentForm.formIds,
+      formCategoryIds: agentForm.formCategoryIds,
       formPermissions: agentForm.formPermissions,
       wakeWords: agentForm.wakeWords,
       roleTemplateId: agentForm.roleTemplateId || null,
@@ -3662,11 +3672,40 @@ export function ManagementDashboard({
                       >
                         {filteredAgentSkillCategoryGroups.length > 0 ? filteredAgentSkillCategoryGroups.map(group => {
                           const collapsed = collapsedAgentSkillCategories.has(group.key)
-                          const linkedCount = group.skills.filter(sk => agentForm.skillIds.includes(sk.id)).length
+                          const categoryLinked = agentForm.skillCategoryIds.includes(group.key)
+                          const linkedCount = categoryLinked
+                            ? group.skills.length
+                            : group.skills.filter(sk => agentForm.skillIds.includes(sk.id)).length
                           const createCategory = getCategoryValueForCreate(group.key, group.label, UNCATEGORIZED_SKILL_CATEGORY)
                           return (
                             <div key={group.key} className="space-y-1.5">
                               <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
+                                <Button variant="unstyled"
+                                  type="button"
+                                  onClick={() => {
+                                    const nextCategoryIds = categoryLinked
+                                      ? agentForm.skillCategoryIds.filter(id => id !== group.key)
+                                      : [...agentForm.skillCategoryIds, group.key]
+                                    const groupSkillIds = new Set(group.skills.map(skill => skill.id))
+                                    setAgentForm({
+                                      ...agentForm,
+                                      skillCategoryIds: nextCategoryIds,
+                                      skillIds: categoryLinked
+                                        ? agentForm.skillIds
+                                        : agentForm.skillIds.filter(id => !groupSkillIds.has(id)),
+                                    })
+                                  }}
+                                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+                                  title={locale === "zh" ? `关联整个${group.label}分类` : `Link entire ${group.label} category`}
+                                  aria-label={locale === "zh" ? `关联整个${group.label}分类` : `Link entire ${group.label} category`}
+                                  aria-pressed={categoryLinked}
+                                >
+                                  <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border transition-colors ${
+                                    categoryLinked ? "border-primary bg-primary" : "border-muted-foreground/35"
+                                  }`}>
+                                    {categoryLinked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                                  </span>
+                                </Button>
                                 <Button variant="unstyled"
                                   type="button"
                                   onClick={() => toggleCollapsedAgentSkillCategory(group.key)}
@@ -3694,12 +3733,13 @@ export function ManagementDashboard({
                               {!collapsed && (
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                   {group.skills.map((sk) => {
-                                    const linked = agentForm.skillIds.includes(sk.id)
+                                    const linked = categoryLinked || agentForm.skillIds.includes(sk.id)
                                     return (
                                       <div
                                         key={sk.id}
                                         className={linkedResourceItemClassName(linked)}
                                         onClick={() => {
+                                          if (categoryLinked) return
                                           const nextIds = linked
                                             ? agentForm.skillIds.filter(id => id !== sk.id)
                                             : [...agentForm.skillIds, sk.id]
@@ -3831,11 +3871,56 @@ export function ManagementDashboard({
                         >
                           {filteredAgentFormCategoryGroups.length > 0 ? filteredAgentFormCategoryGroups.map(group => {
                             const collapsed = collapsedAgentFormCategories.has(group.key)
-                            const linkedCount = group.forms.filter(form => agentForm.formIds.includes(form.id)).length
+                            const categoryLinked = agentForm.formCategoryIds.includes(group.key)
+                            const linkedCount = categoryLinked
+                              ? group.forms.length
+                              : group.forms.filter(form => agentForm.formIds.includes(form.id)).length
                             const createCategory = getCategoryValueForCreate(group.key, group.label, UNCATEGORIZED_FORM_CATEGORY)
                             return (
                               <div key={group.key} className="space-y-1.5">
                                 <div className="flex items-center gap-1 rounded-md text-xs font-semibold uppercase text-muted-foreground hover:bg-muted/60 hover:text-foreground">
+                                  <Button variant="unstyled"
+                                    type="button"
+                                    onClick={() => {
+                                      const nextCategoryIds = categoryLinked
+                                        ? agentForm.formCategoryIds.filter(id => id !== group.key)
+                                        : [...agentForm.formCategoryIds, group.key]
+                                      const groupFormIds = new Set(group.forms.map(form => form.id))
+                                      const nextFormIds = categoryLinked
+                                        ? agentForm.formIds
+                                        : agentForm.formIds.filter(id => !groupFormIds.has(id))
+                                      const nextPermissions = { ...agentForm.formPermissions }
+                                      if (!categoryLinked) {
+                                        for (const formId of groupFormIds) {
+                                          delete nextPermissions[formId]
+                                        }
+                                      }
+                                      const hasReadableForms = nextCategoryIds.length > 0 || Object.values(nextPermissions).some(permissions => permissions.includes("read"))
+                                      const hasManageableForms = Object.values(nextPermissions).some(permissions => permissions.some(permission => permission !== "read"))
+                                      const enabledTools = [
+                                        ...agentForm.enabledTools.filter(tool => tool !== "query_form_data" && tool !== "manage_form_data"),
+                                        ...(hasReadableForms ? ["query_form_data" as BuiltinToolId] : []),
+                                        ...(hasManageableForms ? ["manage_form_data" as BuiltinToolId] : []),
+                                      ]
+                                      setAgentForm({
+                                        ...agentForm,
+                                        formCategoryIds: nextCategoryIds,
+                                        formIds: nextFormIds,
+                                        formPermissions: nextPermissions,
+                                        enabledTools,
+                                      })
+                                    }}
+                                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+                                    title={locale === "zh" ? `关联整个${group.label}分类` : `Link entire ${group.label} category`}
+                                    aria-label={locale === "zh" ? `关联整个${group.label}分类` : `Link entire ${group.label} category`}
+                                    aria-pressed={categoryLinked}
+                                  >
+                                    <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border transition-colors ${
+                                      categoryLinked ? "border-primary bg-primary" : "border-muted-foreground/35"
+                                    }`}>
+                                      {categoryLinked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                                    </span>
+                                  </Button>
                                   <Button variant="unstyled"
                                     type="button"
                                     onClick={() => toggleCollapsedAgentFormCategory(group.key)}
@@ -3863,12 +3948,14 @@ export function ManagementDashboard({
                                 {!collapsed && (
                                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     {group.forms.map((form) => {
-                                      const linked = agentForm.formIds.includes(form.id)
+                                      const explicitLinked = agentForm.formIds.includes(form.id)
+                                      const linked = categoryLinked || explicitLinked
                                       return (
                                         <div
                                           key={form.id}
                                           className={linkedResourceItemClassName(linked)}
                                           onClick={() => {
+                                            if (categoryLinked) return
                                             const nextIds = linked
                                               ? agentForm.formIds.filter(id => id !== form.id)
                                               : [...agentForm.formIds, form.id]
@@ -3897,7 +3984,7 @@ export function ManagementDashboard({
                                           <div className="min-w-0 flex-1">
                                             <div className="text-xs font-medium truncate">{form.name}</div>
                                             <div className="text-[10px] text-muted-foreground truncate">{form.fields.length + SYSTEM_FORM_FIELDS.length} {locale === "zh" ? "字段" : "fields"} · {form.recordCount} {locale === "zh" ? "记录" : "records"}</div>
-                                            {linked && (
+                                            {explicitLinked && (
                                               <div className="mt-2 flex flex-wrap gap-1">
                                                 {([
                                                   ["create", locale === "zh" ? "增" : "Create"],

@@ -60,9 +60,11 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
         enabledTools=profile.enabled_tools or [],
         knowledgeBaseIds=profile.knowledge_base_ids or [],
         skillIds=profile.skill_ids or [],
+        skillCategoryIds=getattr(profile, "skill_category_ids", None) or [],
         mcpIds=profile.mcp_ids or [],
         agentIds=profile.agent_ids or [],
         formIds=profile.form_ids or [],
+        formCategoryIds=getattr(profile, "form_category_ids", None) or [],
         formPermissions=normalize_form_permissions(
             profile.form_ids,
             profile.form_permissions,
