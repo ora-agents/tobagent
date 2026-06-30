@@ -72,13 +72,22 @@ def _sms_template_code_for_purpose(purpose: str) -> str:
     return SMS_TEMPLATE_CODE
 
 
-def _send_aliyun_sms(phone: str, code: str, purpose: str) -> None:
+def _send_aliyun_template_sms(
+    phone: str,
+    template_code: str,
+    template_param: dict[str, str] | None = None,
+) -> None:
     access_key_id = os.getenv("ALIYUN_ACCESS_KEY_ID")
     access_key_secret = os.getenv("ALIYUN_ACCESS_KEY_SECRET")
     sign_name = os.getenv("ALIYUN_SMS_SIGN_NAME")
     if not all([access_key_id, access_key_secret, sign_name]):
         if os.getenv("SMS_DEV_LOG_CODE", "").lower() == "true":
-            logger.warning("SMS_DEV_LOG_CODE enabled; verification code for %s is %s", phone, code)
+            logger.warning(
+                "SMS_DEV_LOG_CODE enabled; skipped Aliyun template %s for %s with params %s",
+                template_code,
+                phone,
+                template_param or {},
+            )
             return
         raise HTTPException(status_code=500, detail="SMS service is not configured")
 
@@ -91,12 +100,13 @@ def _send_aliyun_sms(phone: str, code: str, purpose: str) -> None:
         "SignatureMethod": "HMAC-SHA1",
         "SignatureNonce": str(uuid.uuid4()),
         "SignatureVersion": "1.0",
-        "TemplateCode": _sms_template_code_for_purpose(purpose),
-        "TemplateParam": json.dumps({"code": code}, separators=(",", ":")),
+        "TemplateCode": template_code,
         "Timestamp": _iso(_now()),
         "Version": "2017-05-25",
         "SignName": sign_name,
     }
+    if template_param:
+        params["TemplateParam"] = json.dumps(template_param, separators=(",", ":"))
     params["Signature"] = _sign_aliyun_request(params, access_key_secret)
 
     try:
@@ -116,6 +126,14 @@ def _send_aliyun_sms(phone: str, code: str, purpose: str) -> None:
             status_code=502,
             detail=data.get("Message") or "SMS provider rejected request",
         )
+
+
+def _send_aliyun_sms(phone: str, code: str, purpose: str) -> None:
+    _send_aliyun_template_sms(
+        phone=phone,
+        template_code=_sms_template_code_for_purpose(purpose),
+        template_param={"code": code},
+    )
 
 
 def issue_sms_code(db: Session, phone: str, purpose: str) -> None:

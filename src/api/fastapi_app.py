@@ -30,6 +30,7 @@ from src.api.routes.mcp_servers import router as mcp_servers_router
 from src.api.routes.models import router as models_router
 from src.api.routes.robot import router as robot_router
 from src.api.routes.skills import router as skills_router
+from src.api.routes.sms_hooks import router as sms_hooks_router
 from src.api.routes.traces import router as traces_router
 from src.api.routes.workspaces import router as workspaces_router
 from src.api.voice_proxy import voice_router
@@ -188,6 +189,7 @@ app = FastAPI(
         {"name": "robot", "description": "Robot point management, SSE command stream, and command result callback."},
         {"name": "client-profiles", "description": "Lightweight client profile metadata used by the web UI."},
         {"name": "config-bundles", "description": "Unified configuration archive inspection, import, and export."},
+        {"name": "sms-hooks", "description": "External callback endpoints that trigger SMS notifications."},
         {"name": "langsmith", "description": "LangSmith run lookup and share helpers."},
         {"name": "traces", "description": "Read-only Langfuse trace browsing for agent conversations."},
     ],
@@ -213,6 +215,7 @@ app.include_router(config_bundles_router)
 app.include_router(agent_profiles_router)
 app.include_router(forms_router)
 app.include_router(skills_router)
+app.include_router(sms_hooks_router)
 app.include_router(knowledge_bases_router)
 app.include_router(mcp_servers_router)
 app.include_router(traces_router)
