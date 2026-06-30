@@ -10,126 +10,126 @@ export interface Skill {
 }
 
 export const DEFAULT_SKILL_TEMPLATE = `---
-name: my-skill
-description: Describe what this skill does and when to use it. Include clear trigger situations, major capabilities, and important constraints.
+name: 我的技能
+description: 描述这个技能的用途、触发场景、主要能力和重要约束。
 license: Apache-2.0
-compatibility: Requires Python 3.11+, bash, and internet access
+compatibility: 需要 Python 3.11+、bash 和可用的网络访问
 metadata:
-  author: your-org
+  author: 你的团队
   version: "1.0.0"
-  category: engineering
+  category: 业务流程
 allowed-tools: Bash Read Write Edit
 ---
 
-# Purpose
+# 目的
 
-This skill helps the agent perform a specific task reliably and consistently.
+这个技能帮助智能体稳定、一致地完成某类特定任务。
 
-Use this skill when:
-- The user asks for this exact kind of task.
-- The task matches the trigger conditions described in \`description\`.
-- The task requires the conventions, constraints, or workflows defined here.
+适合在以下情况使用：
+- 用户提出了与该技能直接相关的任务。
+- 任务符合 \`description\` 中描述的触发条件。
+- 任务需要遵循这里定义的流程、约束或输出格式。
 
-Do not use this skill when:
-- The request is unrelated.
-- The environment requirements are not available.
-- Another specialized skill is a better match.
+不适合在以下情况使用：
+- 用户请求与该技能无关。
+- 当前环境不满足该技能的运行要求。
+- 另一个更专门的技能更适合处理该任务。
 
-# Scope
+# 范围
 
-This skill is responsible for:
-- Task A
-- Task B
-- Task C
+该技能负责：
+- 任务 A
+- 任务 B
+- 任务 C
 
-This skill is not responsible for:
-- External approvals
-- Manual dashboard-only operations
-- Tasks requiring unsupported tools
+该技能不负责：
+- 外部审批
+- 只能在管理后台手动完成的操作
+- 需要未授权工具的任务
 
-# Inputs
+# 输入
 
-Expected inputs may include:
-- User goal
-- Source files
-- Environment constraints
-- Desired output format
+预期输入可能包括：
+- 用户目标
+- 源文件
+- 环境约束
+- 期望输出格式
 
-Before starting, confirm:
-1. What the user wants produced.
-2. Which files or inputs are available.
-3. Any constraints on tools, format, or style.
+开始前请确认：
+1. 用户希望产出什么结果。
+2. 哪些文件或输入已经可用。
+3. 是否有工具、格式或风格约束。
 
-# Workflow
+# 工作流程
 
-1. Understand the user's objective.
-2. Identify required files, parameters, and constraints.
-3. Choose the correct approach using the decision rules below.
-4. Execute the task in the required order.
-5. Validate the output.
-6. Return results in the expected format.
+1. 理解用户目标。
+2. 识别所需文件、参数和约束。
+3. 根据下方决策规则选择处理方式。
+4. 按必要顺序执行任务。
+5. 验证输出结果。
+6. 按期望格式返回结果。
 
-# Decision rules
+# 决策规则
 
-| Situation | Action |
+| 场景 | 动作 |
 |---|---|
-| Input is incomplete | Ask for the missing minimum details |
-| Multiple valid strategies exist | Choose the simplest one that satisfies constraints |
-| A required dependency is missing | Stop and explain what is missing |
-| A step is risky or destructive | Ask for confirmation first |
+| 输入不完整 | 追问完成任务所需的最少信息 |
+| 存在多种可行方案 | 选择满足约束的最简单方案 |
+| 缺少必要依赖 | 停止并说明缺少什么 |
+| 操作存在风险或破坏性 | 先请求确认 |
 
-# Constraints
+# 约束
 
-Always follow these rules:
-- Prefer deterministic, repeatable steps.
-- Do not assume unavailable tools.
-- Do not fabricate files, results, or external states.
-- Preserve user data unless explicitly told to modify it.
-- Surface blocking issues early.
+始终遵循以下规则：
+- 优先使用确定、可重复的步骤。
+- 不假设不可用工具存在。
+- 不编造文件、结果或外部状态。
+- 除非用户明确要求，否则保留用户数据。
+- 尽早说明阻塞问题。
 
-# Output requirements
+# 输出要求
 
-The final result should:
-- Match the requested format
-- Include only necessary explanation
-- Be validated before returning
-- Highlight any assumptions or limitations
+最终结果应当：
+- 符合用户要求的格式
+- 只包含必要解释
+- 在返回前完成验证
+- 标明重要假设或限制
 
-# Validation checklist
+# 验证清单
 
-Before finishing, verify:
-- The output is complete
-- The format is correct
-- The task requirements were satisfied
-- No forbidden action was taken
-- Any important caveats were stated
+结束前确认：
+- 输出完整
+- 格式正确
+- 已满足任务要求
+- 未执行禁止操作
+- 已说明重要注意事项
 
-# Edge cases
+# 边界情况
 
-Handle these carefully:
-- Missing inputs
-- Invalid file formats
-- Partial success
-- Conflicting user instructions
-- Unsupported environments
+谨慎处理以下情况：
+- 输入缺失
+- 文件格式无效
+- 部分成功
+- 用户指令冲突
+- 环境不支持
 
-# Common mistakes
+# 常见错误
 
-Avoid:
-- Using deprecated files or APIs
-- Skipping required validation
-- Choosing tools not allowed in this environment
-- Producing verbose output when concise output is expected
+避免：
+- 使用已废弃的文件或 API
+- 跳过必要验证
+- 选择当前环境不允许使用的工具
+- 在需要简洁输出时返回冗长内容
 
-# References
+# 参考资料
 
-For detailed guidance, see:
-- [Reference guide](references/REFERENCE.md)
-- [Examples](references/EXAMPLES.md)
+如需详细指导，请查看：
+- [参考指南](references/REFERENCE.md)
+- [示例](references/EXAMPLES.md)
 
-# Scripts
+# 脚本
 
-If needed, use:
+如有需要，可使用：
 - \`scripts/run.sh\`
 - \`scripts/process.py\`
 `
@@ -148,8 +148,8 @@ export function parseSkillFrontmatter(content: string) {
   }
   
   return {
-    name: name || "Untitled Skill",
-    description: description || "No description provided."
+    name: name || "未命名技能",
+    description: description || "暂无描述。"
   }
 }
 
@@ -297,7 +297,7 @@ function parseSkillBlocks(text: string): SkillSectionBlock[] {
       paragraphLines.push(current)
       index += 1
     }
-    blocks.push({ type: "paragraph", text: cleanSkillInlineText(paragraphLines.join(" ")) })
+    blocks.push({ type: "paragraph", text: cleanSkillInlineText(paragraphLines.join("\n")) })
   }
 
   return blocks
@@ -454,7 +454,7 @@ export function SkillStructuredView({
 
 function SkillBlockView({ block }: { block: SkillSectionBlock }) {
   if (block.type === "paragraph") {
-    return <p className="break-words text-sm leading-relaxed text-foreground/85">{block.text}</p>
+    return <p className="whitespace-pre-line break-words text-sm leading-relaxed text-foreground/85">{block.text}</p>
   }
 
   if (block.type === "list") {
