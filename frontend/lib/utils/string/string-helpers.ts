@@ -26,7 +26,7 @@ export const truncate = (text: string, max: number): string =>
 // Constants
 // ============================================================================
 
-import { LANGGRAPH_API_URL } from "../../constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import { DEFAULT_TITLE_MAX_LENGTH } from "../../constants/features"
 
 const DEFAULT_MAX_LENGTH = DEFAULT_TITLE_MAX_LENGTH
@@ -64,23 +64,15 @@ export async function generateThreadTitle({
   assistantResponse,
   maxLength = DEFAULT_MAX_LENGTH,
 }: TitleGenerationOptions): Promise<string> {
-  // Fallback: use truncated message if no API URL configured
-  if (!LANGGRAPH_API_URL) {
-    console.warn("No LangGraph API URL configured, using fallback title")
-    return truncateTitle(userMessage, maxLength)
-  }
-
   try {
-    const response = await fetch(`${LANGGRAPH_API_URL}/generate-title`, {
+    const response = await backendFetch("/generate-title", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+      anonymous: true,
+      json: {
         userMessage,
         assistantResponse,
         maxLength,
-      }),
+      },
     })
 
     if (!response.ok) {

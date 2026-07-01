@@ -1,5 +1,4 @@
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
-import { getDesktopSessionToken } from "@/lib/config/api-runtime"
+import { backendFetch, backendUrl } from "@/lib/api/backend-fetch"
 
 export type TraceSource = "all" | "main" | "agent_app" | "shared_agent_app" | "api_key"
 
@@ -74,11 +73,6 @@ async function readJson<T>(resp: Response): Promise<T> {
   return resp.json() as Promise<T>
 }
 
-function authHeaders(): HeadersInit | undefined {
-  const token = getDesktopSessionToken()
-  return token ? { Authorization: `Bearer ${token}` } : undefined
-}
-
 export async function fetchTraces(
   _userId: string,
   params: {
@@ -90,7 +84,7 @@ export async function fetchTraces(
     toTimestamp?: string
   } = {},
 ): Promise<TraceListResponse> {
-  const url = new URL(`${LANGGRAPH_API_URL}/api/traces`)
+  const url = new URL(backendUrl("/api/traces"))
   url.searchParams.set("source", params.source || "all")
   url.searchParams.set("limit", String(params.limit || 50))
   url.searchParams.set("page", String(params.page || 1))
@@ -98,17 +92,11 @@ export async function fetchTraces(
   if (params.fromTimestamp) url.searchParams.set("fromTimestamp", params.fromTimestamp)
   if (params.toTimestamp) url.searchParams.set("toTimestamp", params.toTimestamp)
 
-  const resp = await fetch(url.toString(), {
-    credentials: "include",
-    headers: authHeaders(),
-  })
+  const resp = await backendFetch(url.toString())
   return readJson<TraceListResponse>(resp)
 }
 
 export async function fetchTraceDetail(_userId: string, traceId: string): Promise<TraceDetailResponse> {
-  const resp = await fetch(`${LANGGRAPH_API_URL}/api/traces/${encodeURIComponent(traceId)}`, {
-    credentials: "include",
-    headers: authHeaders(),
-  })
+  const resp = await backendFetch(`/api/traces/${encodeURIComponent(traceId)}`)
   return readJson<TraceDetailResponse>(resp)
 }

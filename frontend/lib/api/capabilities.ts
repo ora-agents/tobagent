@@ -1,4 +1,4 @@
-import { getLangGraphApiUrl } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 
 export interface RuntimeCapabilities {
   smsAuth: boolean
@@ -23,9 +23,7 @@ export const DEFAULT_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
 }
 
 export async function fetchRuntimeCapabilities(): Promise<RuntimeCapabilities> {
-  const resp = await fetch(`${getLangGraphApiUrl()}/api/capabilities`, {
-    headers: { "Content-Type": "application/json" },
-  })
+  const resp = await backendFetch("/api/capabilities", { anonymous: true })
   if (!resp.ok) {
     throw new Error(`Failed to load capabilities: HTTP ${resp.status}`)
   }

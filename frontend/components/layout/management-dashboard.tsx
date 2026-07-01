@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import {
   Wrench,
   Bot,
@@ -298,6 +298,12 @@ export function ManagementDashboard({
     () => user ? { ...sessionHeaders, ...workspaceHeaders } : undefined,
     [sessionHeaders, user, workspaceHeaders],
   )
+  const apiFetch = useCallback((path: string, init: RequestInit = {}) => {
+    return backendFetch(path, {
+      authHeaders,
+      ...init,
+    })
+  }, [authHeaders])
   const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "forms" | "mcp">(initialTab)
 
   // ---------------------------------------------------------------------------
@@ -449,12 +455,12 @@ export function ManagementDashboard({
   // Load local data on Mount via Backend API
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
+    if (!authHeaders) return
 
     async function loadData() {
       // 1. Fetch Skills
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`, { headers: authHeaders })
+        const resp = await apiFetch("/api/skills")
         if (resp.ok) {
           const data = await resp.json()
           setSkills(data)
@@ -466,7 +472,7 @@ export function ManagementDashboard({
 
       // 2. Fetch Knowledge Bases
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, { headers: authHeaders })
+        const resp = await apiFetch("/api/knowledge-bases")
         if (resp.ok) {
           const data = await resp.json()
           setKnowledgeBases(data)
@@ -478,7 +484,7 @@ export function ManagementDashboard({
 
       // 3. Fetch MCP Servers
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, { headers: authHeaders })
+        const resp = await apiFetch("/api/mcp-servers")
         if (resp.ok) {
           const data = await resp.json()
           const servers = data.map((server: McpServer) => ({
@@ -494,7 +500,7 @@ export function ManagementDashboard({
 
       // 4. Fetch Forms
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms`, { headers: authHeaders })
+        const resp = await apiFetch("/api/forms")
         if (resp.ok) {
           const data = await resp.json()
           setForms(data)
@@ -506,24 +512,22 @@ export function ManagementDashboard({
     }
 
     loadData()
-  }, [authHeaders])
+  }, [apiFetch, authHeaders])
 
   useEffect(() => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !knowledgeBases.some(kb => kb.importStatus === "importing")) {
+    if (!authHeaders || !knowledgeBases.some(kb => kb.importStatus === "importing")) {
       return
     }
     const timer = window.setInterval(async () => {
       try {
-        const response = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, {
-          headers: authHeaders,
-        })
+        const response = await apiFetch("/api/knowledge-bases")
         if (response.ok) setKnowledgeBases(await response.json())
       } catch (err) {
         console.error("Failed to refresh knowledge base import status", err)
       }
     }, 3000)
     return () => window.clearInterval(timer)
-  }, [authHeaders, knowledgeBases])
+  }, [apiFetch, authHeaders, knowledgeBases])
 
   useEffect(() => {
     let cancelled = false
@@ -600,7 +604,7 @@ export function ManagementDashboard({
   }, [activeTab, editAgentIdOnOpen, agentProfiles])
 
   useEffect(() => {
-    if (!LANGGRAPH_API_URL || !authHeaders || activeTab !== "forms" || !selectedFormId) {
+    if (!authHeaders || activeTab !== "forms" || !selectedFormId) {
       setFormRecords([])
       setFormRecordTotal(0)
       setDirtyFormRecordIds(new Set())
@@ -613,9 +617,7 @@ export function ManagementDashboard({
       pageSize: "25",
     })
     if (recordQuery.trim()) params.set("q", recordQuery.trim())
-    fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records?${params.toString()}`, {
-      headers: authHeaders,
-    })
+    apiFetch(`/api/forms/${selectedFormId}/records?${params.toString()}`)
       .then(resp => resp.ok ? resp.json() : { records: [], total: 0 })
       .then(data => {
         setFormRecords(data.records || [])
@@ -629,7 +631,7 @@ export function ManagementDashboard({
         setDirtyFormRecordIds(new Set())
         setFormRecordValidationErrors({})
       })
-  }, [activeTab, authHeaders, selectedFormId, recordPage, recordQuery])
+  }, [activeTab, apiFetch, authHeaders, selectedFormId, recordPage, recordQuery])
 
   // ---------------------------------------------------------------------------
   // Skills Actions
@@ -732,7 +734,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveSkill = async () => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
+    if (!authHeaders) return
 
     const { name: parsedName, description: parsedDesc } = parseSkillFrontmatter(skillForm.content)
     const now = new Date().toISOString()
@@ -746,7 +748,7 @@ export function ManagementDashboard({
         updatedAt: now
       }
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills`, {
+        const resp = await apiFetch("/api/skills", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(newSkill),
@@ -790,7 +792,7 @@ export function ManagementDashboard({
         updatedAt: now
       }
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills/${selectedSkillId}`, {
+        const resp = await apiFetch(`/api/skills/${selectedSkillId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedSkill),
@@ -821,9 +823,9 @@ export function ManagementDashboard({
   }
 
   const handleDeleteSkill = async (id: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
+    if (!authHeaders) return
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/skills/${id}`, {
+      const resp = await apiFetch(`/api/skills/${id}`, {
         method: "DELETE",
         headers: authHeaders,
       })
@@ -982,14 +984,14 @@ export function ManagementDashboard({
     profile: AgentProfile,
     previousValues?: Record<string, unknown>,
   ) => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !activeWorkspace) return false
+    if (!authHeaders || !activeWorkspace) return false
 
     const payload: Record<string, unknown> = { ...profile }
     if (action === "update" && previousValues) {
       payload.previousValues = previousValues
     }
 
-    const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspace.id}/change-requests`, {
+    const response = await apiFetch(`/api/workspaces/${activeWorkspace.id}/change-requests`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({
@@ -1244,7 +1246,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveMcp = async () => {
-    if (!mcpForm.name.trim() || !LANGGRAPH_API_URL || !authHeaders) return
+    if (!mcpForm.name.trim() || !authHeaders) return
 
     // Parse headers
     let parsedHeaders = {}
@@ -1271,7 +1273,7 @@ export function ManagementDashboard({
           headers: parsedHeaders
         }
 
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers`, {
+        const resp = await apiFetch("/api/mcp-servers", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({
@@ -1303,7 +1305,7 @@ export function ManagementDashboard({
           updatedAt: now
         }
 
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${selectedMcpId}`, {
+        const resp = await apiFetch(`/api/mcp-servers/${selectedMcpId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedMcp)
@@ -1326,9 +1328,9 @@ export function ManagementDashboard({
   }
 
   const handleDeleteMcp = async (id: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
+    if (!authHeaders) return
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/mcp-servers/${id}`, {
+      const resp = await apiFetch(`/api/mcp-servers/${id}`, {
         method: "DELETE",
         headers: authHeaders,
       })
@@ -1385,7 +1387,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveKB = async () => {
-    if (!kbForm.name.trim() || !LANGGRAPH_API_URL || !authHeaders) return
+    if (!kbForm.name.trim() || !authHeaders) return
 
     const now = new Date().toISOString()
     if (isCreatingKB) {
@@ -1398,7 +1400,7 @@ export function ManagementDashboard({
         updatedAt: now
       }
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases`, {
+        const resp = await apiFetch("/api/knowledge-bases", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(newKB),
@@ -1428,7 +1430,7 @@ export function ManagementDashboard({
         updatedAt: now
       }
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}`, {
+        const resp = await apiFetch(`/api/knowledge-bases/${selectedKBId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify(updatedKB),
@@ -1449,11 +1451,11 @@ export function ManagementDashboard({
   }
 
   const handleDeleteKB = async (id: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
+    if (!authHeaders) return
     const target = knowledgeBases.find(kb => kb.id === id)
     if (target?.isSystem) return
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${id}`, {
+      const resp = await apiFetch(`/api/knowledge-bases/${id}`, {
         method: "DELETE",
         headers: authHeaders,
       })
@@ -1486,7 +1488,7 @@ export function ManagementDashboard({
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !selectedKBId || !LANGGRAPH_API_URL || !authHeaders) return
+    if (!file || !selectedKBId || !authHeaders) return
     const target = knowledgeBases.find(kb => kb.id === selectedKBId)
     if (target?.isSystem) return
 
@@ -1494,7 +1496,7 @@ export function ManagementDashboard({
     const form = new FormData()
     form.append("file", file)
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/upload`, {
+      const resp = await apiFetch(`/api/knowledge-bases/${selectedKBId}/upload`, {
         method: "POST",
         headers: authHeaders,
         body: form,
@@ -1516,11 +1518,11 @@ export function ManagementDashboard({
   }
 
   const handleDeleteKBFile = async (fileName: string) => {
-    if (!selectedKBId || !LANGGRAPH_API_URL || !authHeaders) return
+    if (!selectedKBId || !authHeaders) return
     const target = knowledgeBases.find(kb => kb.id === selectedKBId)
     if (target?.isSystem) return
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/knowledge-bases/${selectedKBId}/files/${encodeURIComponent(fileName)}`, {
+      const resp = await apiFetch(`/api/knowledge-bases/${selectedKBId}/files/${encodeURIComponent(fileName)}`, {
         method: "DELETE",
         headers: authHeaders,
       })
@@ -1709,7 +1711,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveForm = async () => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !formDefinition.name.trim()) return
+    if (!authHeaders || !formDefinition.name.trim()) return
     const fields = parseFormFields()
     if (!fields) return
     const hooks = parseFormHooks(fields)
@@ -1727,7 +1729,7 @@ export function ManagementDashboard({
         createdAt: now,
         updatedAt: now,
       }
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms`, {
+      const resp = await apiFetch("/api/forms", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(payload),
@@ -1749,7 +1751,7 @@ export function ManagementDashboard({
     } else if (isEditingForm && selectedFormId) {
       const target = forms.find(form => form.id === selectedFormId)
       if (!target) return
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}`, {
+      const resp = await apiFetch(`/api/forms/${selectedFormId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
@@ -1775,8 +1777,8 @@ export function ManagementDashboard({
   }
 
   const handleDeleteForm = async (id: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders) return
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${id}`, { method: "DELETE", headers: authHeaders })
+    if (!authHeaders) return
+    const resp = await apiFetch(`/api/forms/${id}`, { method: "DELETE", headers: authHeaders })
     if (resp.ok) {
       const saved = await resp.json().catch(() => null)
       if (isPendingChangeResponse(saved)) {
@@ -1837,7 +1839,7 @@ export function ManagementDashboard({
   }
 
   const handleSaveFormRecord = async (recordId: string) => {
-    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return false
+    if (!authHeaders || !selectedFormId) return false
     const selectedForm = forms.find(form => form.id === selectedFormId)
     const record = formRecords.find(item => item.id === recordId)
     if (!selectedForm || !record) return false
@@ -1857,10 +1859,10 @@ export function ManagementDashboard({
       id: isDraftRecord ? generateUUID() : record.id,
       updatedAt: new Date().toISOString(),
     }
-    const resp = await fetch(
+    const resp = await apiFetch(
       isDraftRecord
-        ? `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records`
-        : `${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${record.id}`,
+        ? `/api/forms/${selectedFormId}/records`
+        : `/api/forms/${selectedFormId}/records/${record.id}`,
       {
         method: isDraftRecord ? "POST" : "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders },
@@ -1914,8 +1916,8 @@ export function ManagementDashboard({
       })
       return
     }
-    if (!LANGGRAPH_API_URL || !authHeaders || !selectedFormId) return
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/forms/${selectedFormId}/records/${recordId}`, {
+    if (!authHeaders || !selectedFormId) return
+    const resp = await apiFetch(`/api/forms/${selectedFormId}/records/${recordId}`, {
       method: "DELETE",
       headers: authHeaders,
     })

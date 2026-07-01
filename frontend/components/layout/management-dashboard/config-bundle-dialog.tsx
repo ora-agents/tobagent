@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 
 type ResourceKey = "agents" | "skills" | "knowledgeBases" | "mcpServers" | "forms"
 type ConflictPolicy = "copy" | "overwrite" | "skip"
@@ -135,18 +135,17 @@ export function ConfigBundleDialog({
     setBusy(true)
     setError("")
     try {
-      const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/export`, {
+      const response = await backendFetch("/api/config-bundles/export", {
         method: "POST",
-        headers: { ...authHeaders, "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
+        authHeaders,
+        json: {
           selection,
           options: {
             includeDependencies,
             includeKnowledgeDocuments,
             includeFormRecords,
           },
-        }),
+        },
       })
       if (!response.ok) throw new Error(await response.text())
       const blob = await response.blob()
@@ -174,10 +173,9 @@ export function ConfigBundleDialog({
       for (const file of files) {
         const form = new FormData()
         form.append("file", file)
-        const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/inspect`, {
+        const response = await backendFetch("/api/config-bundles/inspect", {
           method: "POST",
-          headers: authHeaders,
-          credentials: "include",
+          authHeaders,
           body: form,
         })
         if (!response.ok) {
@@ -199,14 +197,13 @@ export function ConfigBundleDialog({
     setError("")
     try {
       for (const item of inspections) {
-        const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/import`, {
+        const response = await backendFetch("/api/config-bundles/import", {
           method: "POST",
-          headers: { ...authHeaders, "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
+          authHeaders,
+          json: {
             inspectionId: item.inspection.inspectionId,
             conflictPolicy: policy,
-          }),
+          },
         })
         if (!response.ok) {
           throw new Error(`${item.filename}: ${await response.text()}`)

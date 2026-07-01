@@ -9,7 +9,7 @@ import type {
   AgentSharePreview,
 } from "@/lib/types/agent-profiles"
 import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
-import { LANGGRAPH_API_URL } from "../../constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import { generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
 
@@ -40,20 +40,18 @@ export function useAgentProfiles() {
     setSelectedIdState(loadSelectedId())
     setMounted(true)
 
-    if (!LANGGRAPH_API_URL || !user) {
+    if (!user) {
       setProfiles([])
       setSelectedIdState(null)
       setProfilesLoaded(true)
       return
     }
 
-    const requestHeaders = { ...authHeaders, ...workspaceHeaders }
-
     async function fetchProfiles() {
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles`, {
-          headers: requestHeaders,
-          credentials: "include",
+        const resp = await backendFetch("/api/agent-profiles", {
+          authHeaders,
+          workspaceHeaders,
         })
         if (resp.ok) {
           const data = await resp.json()
@@ -101,7 +99,7 @@ export function useAgentProfiles() {
   const createProfile = useCallback(async (
     data: Omit<AgentProfile, "id" | "createdAt" | "updatedAt">
   ): Promise<AgentProfile | null> => {
-    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
+    if (!user || !canManageWorkspace) return null
     const now = new Date().toISOString()
     const newProfile: AgentProfile = {
       ...data,
@@ -111,11 +109,11 @@ export function useAgentProfiles() {
     }
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles`, {
+      const resp = await backendFetch("/api/agent-profiles", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
-        body: JSON.stringify(newProfile),
+        authHeaders,
+        workspaceHeaders,
+        json: newProfile,
       })
       if (resp.ok) {
         const saved = await resp.json()
@@ -129,7 +127,7 @@ export function useAgentProfiles() {
   }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const updateProfile = useCallback(async (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => {
-    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
+    if (!user || !canManageWorkspace) return null
     const target = profiles.find(p => p.id === id)
     if (!target) return null
 
@@ -140,11 +138,11 @@ export function useAgentProfiles() {
     }
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
+      const resp = await backendFetch(`/api/agent-profiles/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
-        body: JSON.stringify(updatedProfile),
+        authHeaders,
+        workspaceHeaders,
+        json: updatedProfile,
       })
       if (resp.ok) {
         const saved = await resp.json()
@@ -158,12 +156,12 @@ export function useAgentProfiles() {
   }, [authHeaders, profiles, user, workspaceHeaders, canManageWorkspace])
 
   const fetchProfileVersions = useCallback(async (id: string): Promise<AgentProfileVersion[]> => {
-    if (!LANGGRAPH_API_URL || !user) return []
+    if (!user) return []
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions`, {
-        headers: { ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
+      const resp = await backendFetch(`/api/agent-profiles/${id}/versions`, {
+        authHeaders,
+        workspaceHeaders,
       })
       if (resp.ok) {
         return await resp.json()
@@ -175,13 +173,13 @@ export function useAgentProfiles() {
   }, [authHeaders, user, workspaceHeaders])
 
   const restoreProfileVersion = useCallback(async (id: string, versionId: string): Promise<AgentProfile | null> => {
-    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
+    if (!user || !canManageWorkspace) return null
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions/${versionId}/restore`, {
+      const resp = await backendFetch(`/api/agent-profiles/${id}/versions/${versionId}/restore`, {
         method: "POST",
-        headers: { ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
+        authHeaders,
+        workspaceHeaders,
       })
       if (resp.ok) {
         const saved = await resp.json()
@@ -198,14 +196,14 @@ export function useAgentProfiles() {
     id: string,
     include: AgentShareOptions,
   ): Promise<AgentShareLink | null> => {
-    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
+    if (!user || !canManageWorkspace) return null
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/share`, {
+      const resp = await backendFetch(`/api/agent-profiles/${id}/share`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
-        body: JSON.stringify({ include }),
+        authHeaders,
+        workspaceHeaders,
+        json: { include },
       })
       if (resp.ok) {
         return await resp.json()
@@ -220,14 +218,14 @@ export function useAgentProfiles() {
     token: string,
     name?: string,
   ): Promise<AgentShareImportResponse | null> => {
-    if (!LANGGRAPH_API_URL || !user) return null
+    if (!user) return null
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-shares/${encodeURIComponent(token)}/import`, {
+      const resp = await backendFetch(`/api/agent-shares/${encodeURIComponent(token)}/import`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
-        body: JSON.stringify({ name }),
+        authHeaders,
+        workspaceHeaders,
+        json: { name },
       })
       if (resp.ok) {
         const data = await resp.json()
@@ -250,10 +248,8 @@ export function useAgentProfiles() {
   const fetchSharePreview = useCallback(async (
     token: string,
   ): Promise<AgentSharePreview | null> => {
-    if (!LANGGRAPH_API_URL) return null
-
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-shares/${encodeURIComponent(token)}`)
+      const resp = await backendFetch(`/api/agent-shares/${encodeURIComponent(token)}`, { anonymous: true })
       if (resp.ok) {
         return await resp.json()
       }
@@ -266,14 +262,14 @@ export function useAgentProfiles() {
   const importTomlConfig = useCallback(async (
     toml: string,
   ): Promise<AgentConfigTomlImportResponse | null> => {
-    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
+    if (!user || !canManageWorkspace) return null
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/import.toml`, {
+      const resp = await backendFetch("/api/agent-profiles/import.toml", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
-        body: JSON.stringify({ toml }),
+        authHeaders,
+        workspaceHeaders,
+        json: { toml },
       })
       if (resp.ok) {
         const data = await resp.json()
@@ -292,13 +288,13 @@ export function useAgentProfiles() {
   }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const deleteProfile = useCallback(async (id: string) => {
-    if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return
+    if (!user || !canManageWorkspace) return
 
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
+      const resp = await backendFetch(`/api/agent-profiles/${id}`, {
         method: "DELETE",
-        headers: { ...authHeaders, ...workspaceHeaders },
-        credentials: "include",
+        authHeaders,
+        workspaceHeaders,
       })
       if (resp.ok) {
         setProfiles(prev => prev.filter(p => p.id !== id))

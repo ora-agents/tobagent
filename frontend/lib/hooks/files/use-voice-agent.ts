@@ -28,7 +28,7 @@ import {
   type VoiceState,
   type VoiceTelemetryContext,
 } from "@/lib/voice/protocol"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch, backendUrl } from "@/lib/api/backend-fetch"
 import { VOICE_IDLE_TIMEOUT_MS } from "@/lib/voice/utils/constants"
 import { getAudioContextConstructor, getVoiceSupportError, isVoiceSupported } from "@/lib/voice/utils/browser"
 
@@ -171,7 +171,7 @@ const postVoiceTelemetryEvent = (
     timestampMs: getPayloadTimestampMs(payload as NativeVoiceEventPayload),
     payload,
   })
-  const url = `${LANGGRAPH_API_URL}/api/voice/telemetry`
+  const url = backendUrl("/api/voice/telemetry")
 
   try {
     if (navigator.sendBeacon) {
@@ -185,11 +185,12 @@ const postVoiceTelemetryEvent = (
     // Fall back to fetch below.
   }
 
-  fetch(url, {
+  backendFetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body,
     keepalive: true,
+    anonymous: true,
   }).catch(() => {})
 }
 

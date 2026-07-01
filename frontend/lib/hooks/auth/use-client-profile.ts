@@ -4,7 +4,7 @@ import {
   createClientProfile,
   resolveClientProfile,
 } from "@/lib/config/client-config"
-import { LANGGRAPH_API_URL } from "../../constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import { generateUUID } from "@/lib/utils"
 
 // ============================================================================
@@ -48,7 +48,7 @@ export function useClientProfile(): UseClientProfileReturn {
 
   // 1. Fetch profile from PostgreSQL via FastAPI on mount
   useEffect(() => {
-    if (typeof window === "undefined" || !LANGGRAPH_API_URL) {
+    if (typeof window === "undefined") {
       return
     }
 
@@ -56,7 +56,7 @@ export function useClientProfile(): UseClientProfileReturn {
 
     async function loadIdentity() {
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/client-profiles/${clientId}`)
+        const resp = await backendFetch(`/api/client-profiles/${clientId}`, { anonymous: true })
         if (resp.ok) {
           const data = await resp.json()
           if (data) {
@@ -72,10 +72,10 @@ export function useClientProfile(): UseClientProfileReturn {
       // No profile found in backend, upload the initial template
       if (initialRef.current) {
         try {
-          await fetch(`${LANGGRAPH_API_URL}/api/client-profiles`, {
+          await backendFetch("/api/client-profiles", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(initialRef.current),
+            anonymous: true,
+            json: initialRef.current,
           })
         } catch (err) {
           console.error("Failed to persist initial identity to backend", err)
@@ -89,12 +89,11 @@ export function useClientProfile(): UseClientProfileReturn {
 
   // 2. Persist profile changes asynchronously to database
   const persistToBackend = useCallback(async (profile: ClientProfile) => {
-    if (!LANGGRAPH_API_URL) return
     try {
-      await fetch(`${LANGGRAPH_API_URL}/api/client-profiles`, {
+      await backendFetch("/api/client-profiles", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
+        anonymous: true,
+        json: profile,
       })
     } catch (err) {
       console.error("Failed to sync identity to PostgreSQL", err)

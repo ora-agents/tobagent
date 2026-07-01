@@ -6,7 +6,7 @@
  * needed on the frontend (as a fallback when the backend is unreachable).
  */
 
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 
 // =============================================================================
 // Config Storage
@@ -87,10 +87,7 @@ export async function fetchAvailableModels(): Promise<ModelOption[]> {
   }
 
   try {
-    const url = `${LANGGRAPH_API_URL.replace(/\/$/, "")}/api/models`
-    const response = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
-    })
+    const response = await backendFetch("/api/models", { anonymous: true })
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
     }

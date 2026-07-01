@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { DEFAULT_RUNTIME_CAPABILITIES, fetchRuntimeCapabilities, type RuntimeCapabilities } from '@/lib/api/capabilities'
+import { backendFetch } from '@/lib/api/backend-fetch'
 import { useApiConfig } from '@/lib/config/api-config'
 import { loadStoredDesktopSessionToken, saveStoredDesktopSessionToken } from '@/lib/config/api-runtime'
 import { useT, type Translations } from '@/lib/i18n'
@@ -231,8 +232,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const headers = storedDesktopToken
         ? { Authorization: `Bearer ${storedDesktopToken}` }
         : undefined
-      const resp = await fetch(`${apiUrl}/api/auth/session`, {
-        credentials: 'include',
+      const resp = await backendFetch(`${apiUrl}/api/auth/session`, {
         headers,
       })
       return resp
@@ -320,9 +320,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveWorkspaceIdState(null)
       return
     }
-    const resp = await fetch(`${apiUrl}/api/workspaces`, {
-      credentials: 'include',
-      headers: authHeaders,
+    const resp = await backendFetch(`${apiUrl}/api/workspaces`, {
+      authHeaders,
     })
     if (!resp.ok) return
     const data = (await resp.json()) as Workspace[]
@@ -351,13 +350,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(message)
     }
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      Object.assign(headers, authHeaders)
-      const resp = await fetch(`${apiUrl}/api/auth/sms-code`, {
+      const resp = await backendFetch(`${apiUrl}/api/auth/sms-code`, {
         method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ phone, purpose }),
+        authHeaders,
+        json: { phone, purpose },
       })
 
       if (!resp.ok) {
@@ -378,11 +374,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isDesktopRuntime) {
         headers['X-Tob-Desktop-Session'] = 'true'
       }
-      const resp = await fetch(`${apiUrl}/api/auth/login`, {
+      const resp = await backendFetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
+        anonymous: true,
         headers,
-        credentials: 'include',
-        body: JSON.stringify(method === 'password' ? { account: accountOrPhone, password: credential } : { phone: accountOrPhone, code: credential }),
+        json: method === 'password' ? { account: accountOrPhone, password: credential } : { phone: accountOrPhone, code: credential },
       })
 
       if (!resp.ok) {
@@ -414,11 +410,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isDesktopRuntime) {
         headers['X-Tob-Desktop-Session'] = 'true'
       }
-      const resp = await fetch(`${apiUrl}/api/auth/register`, {
+      const resp = await backendFetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
+        anonymous: true,
         headers,
-        credentials: 'include',
-        body: JSON.stringify({ username, phone, code, password }),
+        json: { username, phone, code, password },
       })
 
       if (!resp.ok) {
@@ -444,10 +440,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 4. Logout function
   const logout = useCallback(() => {
-    void fetch(`${apiUrl}/api/auth/logout`, {
+    void backendFetch(`${apiUrl}/api/auth/logout`, {
       method: 'POST',
-      credentials: 'include',
-      headers: authHeaders,
+      authHeaders,
     }).catch((err) => {
       console.warn('[Auth] Logout request failed:', err)
     })
@@ -464,11 +459,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bindPhone = useCallback(async (phone: string, code: string): Promise<User> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
-    const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}/phone`, {
+    const resp = await backendFetch(`${apiUrl}/api/auth/users/${user.id}/phone`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders },
-      credentials: 'include',
-      body: JSON.stringify({ phone, code }),
+      authHeaders,
+      json: { phone, code },
     })
     if (!resp.ok) {
       const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
@@ -484,11 +478,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const changePassword = useCallback(async (phone: string, code: string, password: string): Promise<void> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
-    const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}/password`, {
+    const resp = await backendFetch(`${apiUrl}/api/auth/users/${user.id}/password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders },
-      credentials: 'include',
-      body: JSON.stringify({ phone, code, password }),
+      authHeaders,
+      json: { phone, code, password },
     })
     if (!resp.ok) {
       const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
@@ -500,10 +493,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const deleteAccount = useCallback(async (): Promise<void> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
-    const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}`, {
+    const resp = await backendFetch(`${apiUrl}/api/auth/users/${user.id}`, {
       method: 'DELETE',
-      credentials: 'include',
-      headers: authHeaders,
+      authHeaders,
     })
     if (!resp.ok) {
       const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
@@ -522,11 +514,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null)
     try {
       console.info('[Auth] Updating profile:', user.id, data)
-      const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}`, {
+      const resp = await backendFetch(`${apiUrl}/api/auth/users/${user.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
-        credentials: 'include',
-        body: JSON.stringify(data),
+        authHeaders,
+        json: data,
       })
 
       if (!resp.ok) {

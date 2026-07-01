@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { useAuth, type Workspace } from "@/components/providers/auth-provider"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import type { WorkspaceChangeRequest } from "@/components/layout/management-dashboard/change-detail"
 
 export type WorkspaceNotificationKind = "pending_review" | "review_result"
@@ -123,12 +123,9 @@ export function useWorkspaceNotifications() {
     try {
       const results = await Promise.all(
         workspaces.map(async (workspace) => {
-          const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${workspace.id}/change-requests`, {
-            headers: {
-              ...authHeaders,
-              "X-Workspace-ID": workspace.id,
-            },
-            credentials: "include",
+          const response = await backendFetch(`/api/workspaces/${workspace.id}/change-requests`, {
+            authHeaders,
+            workspaceHeaders: { "X-Workspace-ID": workspace.id },
             signal: controller.signal,
           })
 
@@ -196,17 +193,13 @@ export function useWorkspaceNotifications() {
   ) => {
     if (!user) return
 
-    const response = await fetch(
-      `${LANGGRAPH_API_URL}/api/workspaces/${notification.workspace.id}/change-requests/${notification.change.id}/${decision}`,
+    const response = await backendFetch(
+      `/api/workspaces/${notification.workspace.id}/change-requests/${notification.change.id}/${decision}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-          "X-Workspace-ID": notification.workspace.id,
-        },
-        credentials: "include",
-        body: JSON.stringify({ note: decision === "approve" ? "ok" : "" }),
+        authHeaders,
+        workspaceHeaders: { "X-Workspace-ID": notification.workspace.id },
+        json: { note: decision === "approve" ? "ok" : "" },
       },
     )
 

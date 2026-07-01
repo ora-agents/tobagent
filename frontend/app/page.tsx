@@ -32,7 +32,7 @@ import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
 import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual", "traces"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
@@ -322,9 +322,8 @@ function DashboardContent() {
       setUserVoiceprints([])
       return
     }
-    fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints`, {
-      credentials: "include",
-      headers: authHeaders,
+    backendFetch("/api/user-voiceprints", {
+      authHeaders,
     })
       .then((r) => (r.ok ? r.json() : []))
       .then((vps) => setUserVoiceprints(vps))

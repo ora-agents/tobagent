@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dialog"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import {
   useVoiceprintRecorder,
   SPEAKER_AUDIO_ACCEPT,
@@ -204,9 +204,8 @@ export function UserSettingsPage({
     const loadApiKeys = async () => {
       setApiKeysLoading(true)
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys`, {
-          credentials: "include",
-          headers: authHeaders,
+        const resp = await backendFetch("/api/auth/api-keys", {
+          authHeaders,
         })
         if (resp.ok) {
           setApiKeys(await resp.json())
@@ -218,7 +217,7 @@ export function UserSettingsPage({
       }
     }
     loadApiKeys()
-  }, [user])
+  }, [authHeaders, user])
 
   // ---- Auto-hide success message ----
   useEffect(() => {
@@ -349,18 +348,14 @@ export function UserSettingsPage({
       }
       setVoiceprintStatus(zh ? "正在生成声纹..." : "Creating voiceprint...")
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints`, {
+        const resp = await backendFetch("/api/user-voiceprints", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...authHeaders,
-          },
-          credentials: "include",
-          body: JSON.stringify({
+          authHeaders,
+          json: {
             name: voiceprintName,
             audio: audioDataUri,
             sampleText,
-          }),
+          },
         })
         if (!resp.ok) {
           const text = await resp.text().catch(() => "")
@@ -377,7 +372,7 @@ export function UserSettingsPage({
         setVoiceprintStatus(`${zh ? "声纹保存失败" : "Voiceprint save failed"}: ${message}`)
       }
     },
-    [user, zh, newVoiceprintName, sampleText, voiceprints, onVoiceprintsChange],
+    [authHeaders, user, zh, newVoiceprintName, sampleText, voiceprints, onVoiceprintsChange],
   )
 
   const {
@@ -436,10 +431,9 @@ export function UserSettingsPage({
     async (vpId: string) => {
       if (!user) return
       try {
-        const resp = await fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints/${vpId}`, {
+        const resp = await backendFetch(`/api/user-voiceprints/${vpId}`, {
           method: "DELETE",
-          credentials: "include",
-          headers: authHeaders,
+          authHeaders,
         })
         if (resp.ok) {
           onVoiceprintsChange(voiceprints.filter((vp) => vp.id !== vpId))
@@ -448,7 +442,7 @@ export function UserSettingsPage({
         console.error("[UserSettingsPage] Failed to delete voiceprint:", err)
       }
     },
-    [user, voiceprints, onVoiceprintsChange],
+    [authHeaders, user, voiceprints, onVoiceprintsChange],
   )
 
   // ---- API key actions ----
@@ -457,11 +451,10 @@ export function UserSettingsPage({
     setError(null)
     setApiKeysLoading(true)
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys`, {
+      const resp = await backendFetch("/api/auth/api-keys", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        credentials: "include",
-        body: JSON.stringify({ name: apiKeyName.trim() }),
+        authHeaders,
+        json: { name: apiKeyName.trim() },
       })
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
@@ -482,10 +475,9 @@ export function UserSettingsPage({
     if (!user) return
     setError(null)
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys/${keyId}`, {
+      const resp = await backendFetch(`/api/auth/api-keys/${keyId}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: authHeaders,
+        authHeaders,
       })
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
