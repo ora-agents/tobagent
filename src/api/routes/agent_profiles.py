@@ -55,7 +55,6 @@ from src.utils.db import (
     UserTable,
     get_db,
 )
-from src.utils.default_skills import ensure_default_skills
 from src.utils.form_permissions import normalize_form_permissions
 
 router = APIRouter(tags=["agent-profiles"])
@@ -162,7 +161,6 @@ async def get_agent_profiles(
 
     workspace, _member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
-    ensure_default_skills(db, owner_user_id)
     ensure_default_agent_profile(db, owner_user_id, workspace_id=workspace.id)
     db.commit()
 

@@ -51,7 +51,6 @@ from src.utils.db import (
     WorkspaceTable,
     get_db,
 )
-from src.utils.default_skills import ensure_default_skills
 
 router = APIRouter(tags=["auth"])
 
@@ -180,7 +179,6 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     db.commit()
     db.refresh(user)
 
-    ensure_default_skills(db, user.id)
     ensure_default_workspace(db, user)
     db.commit()
     
