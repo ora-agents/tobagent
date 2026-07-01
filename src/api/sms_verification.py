@@ -59,7 +59,7 @@ def _parse_iso(value: str) -> datetime:
 
 
 def _hash_code(phone: str, purpose: str, code: str) -> str:
-    salt = os.getenv("SMS_CODE_HASH_SECRET") or os.getenv("LANGGRAPH_AUTH_SECRET") or "tobagent-sms-code"
+    salt = os.getenv("SMS_CODE_HASH_SECRET") or os.getenv("SESSION_JWT_SECRET") or "tobagent-sms-code"
     payload = f"{phone}:{purpose}:{code}".encode()
     return hmac.new(salt.encode(), payload, hashlib.sha256).hexdigest()
 

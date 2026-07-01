@@ -3,9 +3,10 @@
 import hashlib
 import secrets
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Cookie, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
+from src.api.session_auth import SESSION_COOKIE_NAME, verify_session_token
 from src.utils.db import UserApiKeyTable, UserTable, get_db
 
 AVATAR_COLORS = [
@@ -68,16 +69,33 @@ def hash_api_key(api_key: str) -> str:
     return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
 
-async def get_current_user(
-    authorization: str | None = Header(default=None),
-    db: Session = Depends(get_db),
-) -> UserTable:
-    """Require a logged-in account and return the authenticated user."""
+def _resolve_authorization_user_id(
+    authorization: str | None,
+    db: Session,
+) -> tuple[str, UserApiKeyTable | None]:
+    """Resolve Authorization as a desktop session JWT, API key, or legacy user id."""
     credential = _extract_bearer_user_id(authorization)
+    session_user_id = verify_session_token(credential)
+    if session_user_id:
+        return session_user_id, None
+
     api_key = db.query(UserApiKeyTable).filter(
         UserApiKeyTable.key_hash == hash_api_key(credential),
     ).first()
-    user_id = api_key.owner_user_id if api_key else credential
+    return (api_key.owner_user_id if api_key else credential), api_key
+
+
+async def get_current_user(
+    authorization: str | None = Header(default=None),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    db: Session = Depends(get_db),
+) -> UserTable:
+    """Require a logged-in account and return the authenticated user."""
+    credential = verify_session_token(session_cookie)
+    api_key = None
+    if not credential:
+        credential, api_key = _resolve_authorization_user_id(authorization, db)
+    user_id = credential
     user = db.query(UserTable).filter(UserTable.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid user")

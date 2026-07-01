@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from langgraph_sdk import Auth
 from langgraph_sdk.auth import is_studio_user
 
+from src.api.session_auth import extract_session_cookie, verify_session_token
 from src.utils.debug_logging import redact_secret, write_debug_event
 
 auth = Auth()
@@ -270,20 +271,36 @@ async def authenticate(headers: dict) -> Auth.types.MinimalUserDict:
                 status_code=401, detail="Invalid auth key"
             )
 
-    # Extract user identity from Authorization header. For compatibility with
-    # existing browser sessions, Bearer user-... is still accepted as a session
-    # identity. Other bearer values are treated as user-scoped API keys first.
-    authorization = _get_header(headers, "authorization")
-    if not authorization:
+    # Browser requests authenticate with a signed HttpOnly session cookie.
+    cookie_header = _get_header(headers, "cookie")
+    session_user_id = verify_session_token(extract_session_cookie(cookie_header))
+    if session_user_id:
+        authorization = _get_header(headers, "authorization")
+        user_id = session_user_id
+        resolved_user_id = None
+    else:
+        authorization = _get_header(headers, "authorization")
+        user_id = None
+        resolved_user_id = None
+
+    # Extract user identity from Authorization header for external API clients.
+    # User-scoped API keys are resolved first; direct user-id bearer values remain
+    # as a compatibility fallback for older clients and tests.
+    if not user_id and not authorization:
         return {"identity": "studio-user", "kind": "StudioUser"}
 
-    user_id = authorization
-    if authorization.lower().startswith("bearer "):
-        user_id = authorization.split(" ", 1)[1]
+    if not user_id and authorization:
+        user_id = authorization
+        if authorization.lower().startswith("bearer "):
+            user_id = authorization.split(" ", 1)[1]
 
-    resolved_user_id = _resolve_api_key_user_id(user_id)
-    if resolved_user_id:
-        user_id = resolved_user_id
+        bearer_session_user_id = verify_session_token(user_id)
+        if bearer_session_user_id:
+            user_id = bearer_session_user_id
+        else:
+            resolved_user_id = _resolve_api_key_user_id(user_id)
+        if resolved_user_id:
+            user_id = resolved_user_id
 
     # Detect if the request comes from LangGraph Studio
     is_studio = False

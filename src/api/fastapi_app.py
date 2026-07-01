@@ -83,6 +83,9 @@ DEFAULT_CORS_ORIGINS: list[str] = [
     "https://chat.langchain.com",
     "https://support.langchain.com",
     "https://reference.langchain.com",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
     "https://chat-lang-chain-v2.vercel.app",
     "https://chat-langchain-alpha.vercel.app",
     "https://public-chat-langchain-test.vercel.app",
@@ -171,7 +174,7 @@ app = FastAPI(
         "Backend API for the LangGraph documentation agent, management UI, "
         "voice services, robot integration, and LangSmith sharing helpers.\n\n"
         "External callers should pass `Authorization: Bearer <api-key>`. "
-        "The web UI may also pass a user id bearer token for internal flows.\n\n"
+        "The web UI authenticates with an HttpOnly session cookie.\n\n"
         "Interactive Swagger documentation is available at `/docs`; ReDoc is "
         "available at `/redoc`; the raw OpenAPI schema is available at `/openapi.json`."
     ),

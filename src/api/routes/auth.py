@@ -5,20 +5,21 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import (
     AVATAR_COLORS,
-    _extract_bearer_user_id,
     _require_same_user,
+    _resolve_authorization_user_id,
     get_current_user,
     hash_api_key,
     hash_password,
     verify_password,
 )
 from src.api.schemas import (
+    AuthSessionResponse,
     CreateUserApiKeyRequest,
     CreateUserApiKeyResponse,
     SmsCodeRequest,
@@ -31,6 +32,15 @@ from src.api.schemas import (
     UserRegisterRequest,
     UserResponse,
     UserUpdateRequest,
+)
+from src.api.session_auth import (
+    DESKTOP_SESSION_HEADER,
+    SESSION_COOKIE_NAME,
+    clear_session_cookie,
+    create_session_token,
+    set_session_cookie,
+    verify_session_token,
+    wants_desktop_session_token,
 )
 from src.api.sms_verification import consume_sms_code, issue_sms_code
 from src.api.workspace_utils import ensure_default_workspace
@@ -78,12 +88,23 @@ def _user_response(user: UserTable) -> UserResponse:
     )
 
 
-def _current_user_from_authorization(authorization: str | None, db: Session) -> UserTable:
-    credential = _extract_bearer_user_id(authorization)
-    api_key = db.query(UserApiKeyTable).filter(
-        UserApiKeyTable.key_hash == hash_api_key(credential),
-    ).first()
-    user_id = api_key.owner_user_id if api_key else credential
+def _auth_session_response(user: UserTable, include_session_token: bool) -> AuthSessionResponse:
+    return AuthSessionResponse(
+        **_user_response(user).model_dump(),
+        sessionToken=create_session_token(user.id) if include_session_token else None,
+    )
+
+
+def _current_user_from_authorization(
+    authorization: str | None,
+    db: Session,
+    session_cookie: str | None = None,
+) -> UserTable:
+    credential = verify_session_token(session_cookie)
+    if not credential:
+        user_id, _api_key = _resolve_authorization_user_id(authorization, db)
+    else:
+        user_id = credential
     current_user = db.query(UserTable).filter(UserTable.id == user_id).first()
     if not current_user:
         raise HTTPException(status_code=401, detail="Invalid user")
@@ -100,6 +121,7 @@ async def send_sms_code(
     req: SmsCodeRequest,
     db: Session = Depends(get_db),
     authorization: str | None = Header(default=None),
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ):
     if req.purpose == "register":
         existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
@@ -110,14 +132,14 @@ async def send_sms_code(
         if not existing_user:
             raise HTTPException(status_code=404, detail="Phone is not registered")
     elif req.purpose == "bind_phone":
-        current_user = _current_user_from_authorization(authorization, db)
+        current_user = _current_user_from_authorization(authorization, db, session_cookie)
         if current_user.phone:
             raise HTTPException(status_code=400, detail="Phone already bound")
         existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="Phone already exists")
     else:
-        current_user = _current_user_from_authorization(authorization, db)
+        current_user = _current_user_from_authorization(authorization, db, session_cookie)
         if current_user.phone != req.phone:
             raise HTTPException(status_code=403, detail="Cannot verify another account")
 
@@ -146,11 +168,16 @@ async def verify_sms_code(
 
 @router.post(
     "/api/auth/register",
-    response_model=UserResponse,
+    response_model=AuthSessionResponse,
     summary="Register a user",
     description="Creates a local user account after validating an SMS code.",
 )
-async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db)):
+async def register_user(
+    req: UserRegisterRequest,
+    response: Response,
+    desktop_session: str | None = Header(default=None, alias=DESKTOP_SESSION_HEADER),
+    db: Session = Depends(get_db),
+):
     # Check if username already exists
     existing_user = db.query(UserTable).filter(UserTable.username == req.username).first()
     if existing_user:
@@ -182,16 +209,22 @@ async def register_user(req: UserRegisterRequest, db: Session = Depends(get_db))
     ensure_default_workspace(db, user)
     db.commit()
     
-    return _user_response(user)
+    set_session_cookie(response, user.id)
+    return _auth_session_response(user, wants_desktop_session_token(desktop_session))
 
 
 @router.post(
     "/api/auth/login",
-    response_model=UserResponse,
+    response_model=AuthSessionResponse,
     summary="Log in a user",
     description="Validates a phone SMS code and returns the user's profile metadata.",
 )
-async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
+async def login_user(
+    req: UserLoginRequest,
+    response: Response,
+    desktop_session: str | None = Header(default=None, alias=DESKTOP_SESSION_HEADER),
+    db: Session = Depends(get_db),
+):
     if req.password is not None:
         account = req.account or req.phone
         if not account:
@@ -214,7 +247,29 @@ async def login_user(req: UserLoginRequest, db: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=400, detail="Password or verification code is required")
 
-    return _user_response(user)
+    set_session_cookie(response, user.id)
+    return _auth_session_response(user, wants_desktop_session_token(desktop_session))
+
+
+@router.post(
+    "/api/auth/logout",
+    response_model=SmsCodeResponse,
+    summary="Log out the current browser session",
+    description="Clears the HttpOnly browser session cookie.",
+)
+async def logout_user(response: Response):
+    clear_session_cookie(response)
+    return SmsCodeResponse(ok=True)
+
+
+@router.get(
+    "/api/auth/session",
+    response_model=UserResponse,
+    summary="Get the current browser session user",
+    description="Returns the authenticated user resolved from the HttpOnly session cookie or API key.",
+)
+async def get_session_user(current_user: UserTable = Depends(get_current_user)):
+    return _user_response(current_user)
 
 
 @router.get(

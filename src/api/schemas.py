@@ -157,6 +157,10 @@ class UserResponse(BaseModel):
     createdAt: str
 
 
+class AuthSessionResponse(UserResponse):
+    sessionToken: str | None = None
+
+
 class UserBindPhoneRequest(BaseModel):
     phone: str
     code: str

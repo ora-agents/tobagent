@@ -74,6 +74,8 @@ def test_sms_register_creates_user_and_consumes_code(auth_sms_client):
         },
     )
     assert register.status_code == 200
+    assert "tob_session" in register.cookies
+    assert "httponly" in register.headers["set-cookie"].lower()
     body = register.json()
     assert body["username"] == "alice"
     assert body["phone"] == "13800138000"
@@ -105,7 +107,24 @@ def test_password_login(auth_sms_client):
         json={"phone": "13800138009", "password": "secret123"},
     )
     assert login.status_code == 200
+    assert "tob_session" in login.cookies
+    assert "httponly" in login.headers["set-cookie"].lower()
+    assert login.json()["sessionToken"] is None
     assert login.json()["id"] == "user-password"
+
+    session = client.get("/api/auth/session")
+    assert session.status_code == 200
+    assert session.json()["id"] == "user-password"
+
+    profile = client.get("/api/auth/users/user-password")
+    assert profile.status_code == 200
+    assert profile.json()["id"] == "user-password"
+
+    logout = client.post("/api/auth/logout")
+    assert logout.status_code == 200
+
+    signed_out = client.get("/api/auth/session")
+    assert signed_out.status_code == 401
 
     username_login = client.post(
         "/api/auth/login",
@@ -119,6 +138,38 @@ def test_password_login(auth_sms_client):
         json={"phone": "13800138009", "password": "wrong-password"},
     )
     assert bad_login.status_code == 401
+
+
+def test_desktop_session_token_bearer_fallback(auth_sms_client):
+    client, Session, _sent_codes = auth_sms_client
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    with Session() as db:
+        db.add(UserTable(
+            id="user-desktop",
+            username="desktop-user",
+            phone="13800138012",
+            password_hash=hash_password("secret123"),
+            created_at=now,
+        ))
+        db.commit()
+
+    login = client.post(
+        "/api/auth/login",
+        json={"phone": "13800138012", "password": "secret123"},
+        headers={"X-Tob-Desktop-Session": "true"},
+    )
+    assert login.status_code == 200
+    token = login.json()["sessionToken"]
+    assert isinstance(token, str)
+    assert token.count(".") == 2
+
+    client.cookies.clear()
+    session = client.get(
+        "/api/auth/session",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert session.status_code == 200
+    assert session.json()["id"] == "user-desktop"
 
 
 def test_sms_template_purpose_selection(auth_sms_client):

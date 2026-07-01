@@ -119,7 +119,7 @@ def _runtime_modules() -> dict[str, RuntimeModuleCapability]:
             label="Password authentication",
             description="Enables account registration, login, profile settings, and API keys.",
             requiredEnv=[],
-            optionalEnv=["LANGGRAPH_AUTH_SECRET"],
+            optionalEnv=["SESSION_JWT_SECRET", "SESSION_COOKIE_SECURE", "SESSION_COOKIE_DOMAIN"],
             defaults={"authSecretRequired": False},
         ),
         "auth.sms": RuntimeModuleCapability(
