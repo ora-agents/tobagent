@@ -46,6 +46,12 @@ Python targets 3.11+ and is linted with Ruff using `E`, `F`, `I`, `D`, `D401`, `
 
 When making UI or styling changes, prefer the visual system in `docs/design.md` as the primary reference for colors, typography, spacing, layout, elevation, border radius, and component treatments. Keep new frontend work consistent with those tokens and patterns unless the task explicitly calls for a different style.
 
+Prefer minimal, reusable component composition for frontend UI work. Before creating page-specific markup, check whether an existing shared component or shadcn/ui component can be composed or lightly customized. Build new shared components only when they capture a real repeated pattern, keep their props small and stable, and place them where they can be reused across the website and desktop surfaces without coupling them to one route.
+
+Use shadcn/ui as the default base for common controls, overlays, forms, feedback states, navigation, cards, tables, and empty/loading states. Customize through semantic design tokens, variants, and composition instead of raw Tailwind color overrides or one-off styled wrappers. When adding or changing shadcn components, follow the project component registry conventions and keep generated component code reviewable.
+
+Design all new UI for light and dark themes from the start. Use semantic tokens such as `background`, `foreground`, `muted`, `border`, `primary`, and component variants so dark mode works without manual per-element color fixes. Verify hover, focus, disabled, selected, error, empty, and loading states have sufficient contrast in both themes.
+
 ## Testing Guidelines
 
 Add focused unit tests in `tests/unit/` for isolated utilities, middleware, and API helpers. Use `tests/evals/` for agent behavior, guardrail, retry, and tool-wiring checks. Prefer deterministic tests that avoid live network calls unless the behavior explicitly requires integration coverage. Run `uv run pytest` before submitting backend changes and `cd frontend && bun run build` before submitting UI changes.
