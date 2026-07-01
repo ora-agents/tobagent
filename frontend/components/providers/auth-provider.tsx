@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { LANGGRAPH_API_URL } from '@/lib/constants/api'
 import { DEFAULT_RUNTIME_CAPABILITIES, fetchRuntimeCapabilities, type RuntimeCapabilities } from '@/lib/api/capabilities'
+import { useApiConfig } from '@/lib/config/api-config'
 import { useT, type Translations } from '@/lib/i18n'
 
 // ============================================================================
@@ -198,6 +198,7 @@ async function getAuthErrorMessage(resp: Response, t: Translations, fallback: st
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const t = useT()
+  const { apiUrl, loading: apiConfigLoading } = useApiConfig()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities>(DEFAULT_RUNTIME_CAPABILITIES)
@@ -227,7 +228,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (apiConfigLoading) return
     let cancelled = false
+    setCapabilitiesLoaded(false)
     void fetchRuntimeCapabilities()
       .then((nextCapabilities) => {
         if (!cancelled) setCapabilities(nextCapabilities)
@@ -242,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [apiConfigLoading, apiUrl])
 
   const clearError = useCallback(() => setError(null), [])
 
@@ -262,7 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveWorkspaceIdState(null)
       return
     }
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/workspaces`, {
+    const resp = await fetch(`${apiUrl}/api/workspaces`, {
       headers: { Authorization: `Bearer ${user.id}` },
     })
     if (!resp.ok) return
@@ -276,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       || data[0]?.id
       || null
     setActiveWorkspaceId(nextWorkspaceId)
-  }, [setActiveWorkspaceId, user])
+  }, [apiUrl, setActiveWorkspaceId, user])
 
   useEffect(() => {
     void refreshWorkspaces().catch((err) => {
@@ -296,7 +299,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         headers.Authorization = `Bearer ${user.id}`
       }
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/sms-code`, {
+      const resp = await fetch(`${apiUrl}/api/auth/sms-code`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ phone, purpose }),
@@ -310,13 +313,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.smsCodeSendFailed))
       throw err
     }
-  }, [capabilities.smsAuth, t, user])
+  }, [apiUrl, capabilities.smsAuth, t, user])
 
   // 2. Login function
   const login = useCallback(async (accountOrPhone: string, credential: string, method: 'password' | 'sms' = 'password') => {
     setError(null)
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/login`, {
+      const resp = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(method === 'password' ? { account: accountOrPhone, password: credential } : { phone: accountOrPhone, code: credential }),
@@ -335,13 +338,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.loginError))
       throw err
     }
-  }, [t])
+  }, [apiUrl, t])
 
   // 3. Register function
   const register = useCallback(async (username: string, phone: string, code: string, password: string) => {
     setError(null)
     try {
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/register`, {
+      const resp = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, phone, code, password }),
@@ -360,7 +363,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.registrationError))
       throw err
     }
-  }, [t])
+  }, [apiUrl, t])
 
   // 4. Logout function
   const logout = useCallback(() => {
@@ -375,7 +378,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bindPhone = useCallback(async (phone: string, code: string): Promise<User> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}/phone`, {
+    const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}/phone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
       body: JSON.stringify({ phone, code }),
@@ -389,12 +392,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updatedUser)
     localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser))
     return updatedUser
-  }, [user, t])
+  }, [apiUrl, user, t])
 
   const changePassword = useCallback(async (phone: string, code: string, password: string): Promise<void> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}/password`, {
+    const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}/password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
       body: JSON.stringify({ phone, code, password }),
@@ -404,12 +407,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(message)
       throw new Error(message)
     }
-  }, [user, t])
+  }, [apiUrl, user, t])
 
   const deleteAccount = useCallback(async (): Promise<void> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
-    const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}`, {
+    const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${user.id}` },
     })
@@ -419,7 +422,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(message)
     }
     logout()
-  }, [logout, user, t])
+  }, [apiUrl, logout, user, t])
 
   // 5. Update profile function
   const updateProfile = useCallback(async (
@@ -430,7 +433,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null)
     try {
       console.info('[Auth] Updating profile:', user.id, data)
-      const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/users/${user.id}`, {
+      const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
         body: JSON.stringify(data),
@@ -459,7 +462,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [user, t.notLoggedIn, t.profileUpdateError, t.serverError])
+  }, [apiUrl, user, t.notLoggedIn, t.profileUpdateError, t.serverError])
 
   // Compute final userId. Anonymous access is intentionally disabled.
   const userId = user ? user.id : null

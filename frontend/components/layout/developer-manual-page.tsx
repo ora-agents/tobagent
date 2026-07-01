@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useI18n } from "@/lib/i18n"
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { getLangGraphApiUrl } from "@/lib/constants/api"
 
 interface DeveloperManualPageProps {
   onBackToChat: () => void
@@ -73,7 +73,7 @@ export function DeveloperManualPage({ onBackToChat, onOpenSidebar }: DeveloperMa
   const [activeSection, setActiveSection] = useState("section-overview")
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const apiBase = LANGGRAPH_API_URL
+  const apiBase = getLangGraphApiUrl()
   const swaggerDocsUrl = `${apiBase.replace(/\/$/, "")}/docs`
   const redocUrl = `${apiBase.replace(/\/$/, "")}/redoc`
 

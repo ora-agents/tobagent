@@ -1,81 +1,24 @@
-/**
- * API Constants
- *
- * Configuration constants for API endpoints and keys.
- */
+import { getLangGraphApiUrl } from "@/lib/config/api-runtime"
 
-/**
- * Get the public Chat LangChain LangGraph API URL.
- *
- * NEXT_PUBLIC_LANGGRAPH_API_URL points to the public docs-agent deployment.
- * NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL is supported for compatibility with
- * the existing Chat-LangChain-Frontend Vercel deployment.
- */
-const DESKTOP_LANGGRAPH_API_URL = "https://gen.wsiri.cn"
-
-function isTauriRuntime(): boolean {
-  if (typeof window === "undefined") return false
-
-  const tauriWindow = window as Window & {
-    __TAURI__?: unknown
-    __TAURI_INTERNALS__?: unknown
-  }
-
-  return Boolean(tauriWindow.__TAURI__ || tauriWindow.__TAURI_INTERNALS__)
-}
-
-function getLangGraphApiUrl(): string {
-  if (isTauriRuntime()) {
-    return DESKTOP_LANGGRAPH_API_URL
-  }
-
-  const configuredUrl =
-    process.env.NEXT_PUBLIC_LANGGRAPH_API_URL ||
-    process.env.NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL
-  let url = configuredUrl
-
-  if (
-    typeof window !== "undefined" &&
-    process.env.NODE_ENV === "development" &&
-    !configuredUrl
-  ) {
-    const hostname = window.location.hostname
-    const isLocalAddress =
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname.endsWith(".local") ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("10.") ||
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
-
-    if (isLocalAddress) {
-      url = `http://${hostname}:2025`
+const dynamicLangGraphApiUrl = new Proxy({}, {
+  get(_target, prop) {
+    if (prop === Symbol.toPrimitive) {
+      return () => getLangGraphApiUrl()
     }
-  }
-
-  if (!url) {
-    if (typeof window !== "undefined") {
-      const protocol = window.location.protocol
-      url = `${protocol}//${window.location.hostname}:2025`
-    } else {
-      url = "http://127.0.0.1:2025"
+    if (prop === "toString" || prop === "valueOf") {
+      return () => getLangGraphApiUrl()
     }
-  }
+    const value = getLangGraphApiUrl()
+    const member = value[prop as keyof string]
+    return typeof member === "function" ? member.bind(value) : member
+  },
+  getPrototypeOf() {
+    return String.prototype
+  },
+}) as string
 
-  if (!url) {
-    throw new Error(
-      "NEXT_PUBLIC_LANGGRAPH_API_URL is not defined for public Chat LangChain"
-    )
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    console.info("[LangGraph] Public deployment routing to:", url)
-  }
-
-  return url
-}
-
-export const LANGGRAPH_API_URL = getLangGraphApiUrl()
+export { getLangGraphApiUrl }
+export const LANGGRAPH_API_URL = dynamicLangGraphApiUrl
 
 // LangGraph Server API key (used for LangGraph client, not LangSmith)
 // Note: This should be undefined in browser for security

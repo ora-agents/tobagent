@@ -7,6 +7,7 @@ import { SegmentProvider } from "@/components/providers/segment-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ImageAssetProtection } from "@/components/providers/image-asset-protection";
+import { ApiConfigProvider } from "@/lib/config/api-config";
 import { I18nProvider } from "@/lib/i18n";
 
 const inter = Inter({
@@ -69,13 +70,15 @@ analytics.page();
         <ImageAssetProtection />
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <I18nProvider>
-            <AuthProvider>
-              <SegmentProvider>
-                <NuqsAdapter>
-                  {children}
-                </NuqsAdapter>
-              </SegmentProvider>
-            </AuthProvider>
+            <ApiConfigProvider>
+              <AuthProvider>
+                <SegmentProvider>
+                  <NuqsAdapter>
+                    {children}
+                  </NuqsAdapter>
+                </SegmentProvider>
+              </AuthProvider>
+            </ApiConfigProvider>
           </I18nProvider>
         </ThemeProvider>
       </body>

@@ -6,7 +6,7 @@
  */
 
 import { Client } from "@langchain/langgraph-sdk"
-import { LANGGRAPH_API_URL, LANGSMITH_API_KEY } from "@/lib/constants/api"
+import { getLangGraphApiUrl, LANGSMITH_API_KEY } from "@/lib/constants/api"
 
 /**
  * Create a LangGraph client instance with authentication.
@@ -42,7 +42,7 @@ export function createLangGraphClient(
   }
 
   return new Client({
-    apiUrl: LANGGRAPH_API_URL,
+    apiUrl: getLangGraphApiUrl(),
     apiKey: LANGSMITH_API_KEY,
     defaultHeaders: headers,
   })

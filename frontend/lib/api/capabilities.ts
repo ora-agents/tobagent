@@ -1,4 +1,4 @@
-import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { getLangGraphApiUrl } from "@/lib/constants/api"
 
 export interface RuntimeCapabilities {
   smsAuth: boolean
@@ -11,7 +11,7 @@ export const DEFAULT_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
 }
 
 export async function fetchRuntimeCapabilities(): Promise<RuntimeCapabilities> {
-  const resp = await fetch(`${LANGGRAPH_API_URL}/api/capabilities`, {
+  const resp = await fetch(`${getLangGraphApiUrl()}/api/capabilities`, {
     headers: { "Content-Type": "application/json" },
   })
   if (!resp.ok) {
