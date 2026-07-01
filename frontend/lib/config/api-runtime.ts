@@ -2,6 +2,7 @@ export const DESKTOP_LANGGRAPH_API_URL = 'https://gen.wsiri.cn'
 
 const STORE_FILE = 'settings.json'
 const API_URL_STORE_KEY = 'langgraphApiUrl'
+const DESKTOP_SESSION_TOKEN_STORE_KEY = 'desktopSessionToken'
 
 type TauriWindow = Window & {
   __TAURI__?: unknown
@@ -9,6 +10,7 @@ type TauriWindow = Window & {
 }
 
 let runtimeLangGraphApiUrl = getDefaultLangGraphApiUrl()
+let runtimeDesktopSessionToken: string | null = null
 
 export function isTauriRuntime(): boolean {
   if (typeof window === 'undefined') return false
@@ -96,5 +98,31 @@ export async function saveStoredDesktopApiUrl(url: string): Promise<void> {
   const { Store } = await import('@tauri-apps/plugin-store')
   const store = await Store.load(STORE_FILE)
   await store.set(API_URL_STORE_KEY, url)
+  await store.save()
+}
+
+export function getDesktopSessionToken(): string | null {
+  return runtimeDesktopSessionToken
+}
+
+export async function loadStoredDesktopSessionToken(): Promise<string | null> {
+  if (!isTauriRuntime()) return null
+  const { Store } = await import('@tauri-apps/plugin-store')
+  const store = await Store.load(STORE_FILE)
+  const stored = await store.get<string>(DESKTOP_SESSION_TOKEN_STORE_KEY)
+  runtimeDesktopSessionToken = typeof stored === 'string' && stored.trim() ? stored : null
+  return runtimeDesktopSessionToken
+}
+
+export async function saveStoredDesktopSessionToken(token: string | null): Promise<void> {
+  runtimeDesktopSessionToken = token && token.trim() ? token : null
+  if (!isTauriRuntime()) return
+  const { Store } = await import('@tauri-apps/plugin-store')
+  const store = await Store.load(STORE_FILE)
+  if (runtimeDesktopSessionToken) {
+    await store.set(DESKTOP_SESSION_TOKEN_STORE_KEY, runtimeDesktopSessionToken)
+  } else {
+    await store.delete(DESKTOP_SESSION_TOKEN_STORE_KEY)
+  }
   await store.save()
 }

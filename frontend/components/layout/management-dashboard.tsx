@@ -273,7 +273,7 @@ export function ManagementDashboard({
 }: ManagementDashboardProps) {
   const t = useT()
   const { locale } = useI18n()
-  const { user, activeWorkspace, canManageWorkspace, workspaceHeaders } = useAuth()
+  const { user, activeWorkspace, canManageWorkspace, workspaceHeaders, authHeaders: sessionHeaders } = useAuth()
   const [hasRobotEnvironment, setHasRobotEnvironment] = useState(false)
   const [configBundleMode, setConfigBundleMode] = useState<"import" | "export" | null>(null)
   const [configBundleInitialSelection, setConfigBundleInitialSelection] = useState<{
@@ -295,8 +295,8 @@ export function ManagementDashboard({
   }, [])
 
   const authHeaders = useMemo(
-    () => user ? { Authorization: `Bearer ${user.id}`, ...workspaceHeaders } : undefined,
-    [user, workspaceHeaders],
+    () => user ? { ...sessionHeaders, ...workspaceHeaders } : undefined,
+    [sessionHeaders, user, workspaceHeaders],
   )
   const [activeTab, setActiveTab] = useState<"skills" | "agents" | "knowledge" | "forms" | "mcp">(initialTab)
 

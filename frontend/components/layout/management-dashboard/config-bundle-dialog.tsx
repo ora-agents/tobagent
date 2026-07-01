@@ -138,6 +138,7 @@ export function ConfigBundleDialog({
       const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/export`, {
         method: "POST",
         headers: { ...authHeaders, "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           selection,
           options: {
@@ -176,6 +177,7 @@ export function ConfigBundleDialog({
         const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/inspect`, {
           method: "POST",
           headers: authHeaders,
+          credentials: "include",
           body: form,
         })
         if (!response.ok) {
@@ -200,6 +202,7 @@ export function ConfigBundleDialog({
         const response = await fetch(`${LANGGRAPH_API_URL}/api/config-bundles/import`, {
           method: "POST",
           headers: { ...authHeaders, "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             inspectionId: item.inspection.inspectionId,
             conflictPolicy: policy,

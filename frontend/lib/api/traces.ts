@@ -1,4 +1,5 @@
 import { LANGGRAPH_API_URL } from "@/lib/constants/api"
+import { getDesktopSessionToken } from "@/lib/config/api-runtime"
 
 export type TraceSource = "all" | "main" | "agent_app" | "shared_agent_app" | "api_key"
 
@@ -57,12 +58,6 @@ export interface LangfuseObservation {
   total_cost?: number | null
 }
 
-function authHeaders(userId: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${userId}`,
-  }
-}
-
 async function readJson<T>(resp: Response): Promise<T> {
   if (!resp.ok) {
     let message = `Request failed (${resp.status})`
@@ -79,8 +74,13 @@ async function readJson<T>(resp: Response): Promise<T> {
   return resp.json() as Promise<T>
 }
 
+function authHeaders(): HeadersInit | undefined {
+  const token = getDesktopSessionToken()
+  return token ? { Authorization: `Bearer ${token}` } : undefined
+}
+
 export async function fetchTraces(
-  userId: string,
+  _userId: string,
   params: {
     source?: TraceSource
     limit?: number
@@ -99,14 +99,16 @@ export async function fetchTraces(
   if (params.toTimestamp) url.searchParams.set("toTimestamp", params.toTimestamp)
 
   const resp = await fetch(url.toString(), {
-    headers: authHeaders(userId),
+    credentials: "include",
+    headers: authHeaders(),
   })
   return readJson<TraceListResponse>(resp)
 }
 
-export async function fetchTraceDetail(userId: string, traceId: string): Promise<TraceDetailResponse> {
+export async function fetchTraceDetail(_userId: string, traceId: string): Promise<TraceDetailResponse> {
   const resp = await fetch(`${LANGGRAPH_API_URL}/api/traces/${encodeURIComponent(traceId)}`, {
-    headers: authHeaders(userId),
+    credentials: "include",
+    headers: authHeaders(),
   })
   return readJson<TraceDetailResponse>(resp)
 }

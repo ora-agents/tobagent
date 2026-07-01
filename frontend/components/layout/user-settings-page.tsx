@@ -126,7 +126,7 @@ export function UserSettingsPage({
   conversationCount,
 }: UserSettingsPageProps) {
   const elderOptimized = false
-  const { user, updateProfile, sendSmsCode, bindPhone, changePassword, deleteAccount, activeWorkspace, canManageWorkspace, capabilities } = useAuth()
+  const { user, updateProfile, sendSmsCode, bindPhone, changePassword, deleteAccount, activeWorkspace, canManageWorkspace, capabilities, authHeaders } = useAuth()
   const { locale } = useI18n()
   const zh = locale === "zh"
   const smsEnabled = capabilities.smsAuth
@@ -205,7 +205,8 @@ export function UserSettingsPage({
       setApiKeysLoading(true)
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys`, {
-          headers: { Authorization: `Bearer ${user.id}` },
+          credentials: "include",
+          headers: authHeaders,
         })
         if (resp.ok) {
           setApiKeys(await resp.json())
@@ -352,8 +353,9 @@ export function UserSettingsPage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${user.id}`,
+            ...authHeaders,
           },
+          credentials: "include",
           body: JSON.stringify({
             name: voiceprintName,
             audio: audioDataUri,
@@ -436,7 +438,8 @@ export function UserSettingsPage({
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints/${vpId}`, {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${user.id}` },
+          credentials: "include",
+          headers: authHeaders,
         })
         if (resp.ok) {
           onVoiceprintsChange(voiceprints.filter((vp) => vp.id !== vpId))
@@ -456,7 +459,8 @@ export function UserSettingsPage({
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}` },
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        credentials: "include",
         body: JSON.stringify({ name: apiKeyName.trim() }),
       })
       if (!resp.ok) {
@@ -480,7 +484,8 @@ export function UserSettingsPage({
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/auth/api-keys/${keyId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${user.id}` },
+        credentials: "include",
+        headers: authHeaders,
       })
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))

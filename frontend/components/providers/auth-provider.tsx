@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { DEFAULT_RUNTIME_CAPABILITIES, fetchRuntimeCapabilities, type RuntimeCapabilities } from '@/lib/api/capabilities'
 import { useApiConfig } from '@/lib/config/api-config'
+import { loadStoredDesktopSessionToken, saveStoredDesktopSessionToken } from '@/lib/config/api-runtime'
 import { useT, type Translations } from '@/lib/i18n'
 
 // ============================================================================
@@ -18,6 +19,10 @@ export interface User {
   preferences: string | null
   safetyEnabled: boolean
   createdAt: string
+}
+
+interface AuthResponse extends User {
+  sessionToken?: string | null
 }
 
 export interface Workspace {
@@ -40,6 +45,7 @@ interface AuthContextType {
   activeWorkspace: Workspace | null
   activeWorkspaceId: string | null
   workspaceHeaders: Record<string, string>
+  authHeaders: Record<string, string>
   canManageWorkspace: boolean
   refreshWorkspaces: () => Promise<void>
   setActiveWorkspaceId: (workspaceId: string | null) => void
@@ -196,10 +202,16 @@ async function getAuthErrorMessage(resp: Response, t: Translations, fallback: st
   return fallback
 }
 
+function userWithoutSessionToken(response: AuthResponse): User {
+  const { sessionToken: _sessionToken, ...user } = response
+  return user
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const t = useT()
-  const { apiUrl, loading: apiConfigLoading } = useApiConfig()
+  const { apiUrl, loading: apiConfigLoading, isDesktopRuntime } = useApiConfig()
   const [user, setUser] = useState<User | null>(null)
+  const [desktopSessionToken, setDesktopSessionToken] = useState<string | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [capabilities, setCapabilities] = useState<RuntimeCapabilities>(DEFAULT_RUNTIME_CAPABILITIES)
   const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false)
@@ -207,25 +219,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspaceIdState, setActiveWorkspaceIdState] = useState<string | null>(null)
 
-  // 1. Initialize user session from localStorage
+  // 1. Initialize user session from HttpOnly cookie
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (apiConfigLoading) return
+    let cancelled = false
 
-    // Load registered user session if exists
-    const savedUser = localStorage.getItem(USER_SESSION_KEY)
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser) as User
-        setUser(parsed)
-        console.info('[Auth] Restored user session:', parsed.username)
-      } catch (err) {
-        console.error('[Auth] Failed to parse saved user session:', err)
-        localStorage.removeItem(USER_SESSION_KEY)
-      }
+    void (async () => {
+      const storedDesktopToken = isDesktopRuntime ? await loadStoredDesktopSessionToken() : null
+      if (cancelled) return
+      setDesktopSessionToken(storedDesktopToken)
+      const headers = storedDesktopToken
+        ? { Authorization: `Bearer ${storedDesktopToken}` }
+        : undefined
+      const resp = await fetch(`${apiUrl}/api/auth/session`, {
+        credentials: 'include',
+        headers,
+      })
+      return resp
+    })()
+      .then(async (resp) => {
+        if (cancelled) return
+        if (!resp || !resp.ok) {
+          setUser(null)
+          setDesktopSessionToken(null)
+          if (isDesktopRuntime) {
+            void saveStoredDesktopSessionToken(null)
+          }
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(USER_SESSION_KEY)
+          }
+          return
+        }
+        const sessionUser = (await resp.json()) as User
+        setUser(sessionUser)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionUser))
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('[Auth] Failed to restore browser session:', err)
+        setUser(null)
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(USER_SESSION_KEY)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
-
-    setLoading(false)
-  }, [])
+  }, [apiConfigLoading, apiUrl, isDesktopRuntime])
 
   useEffect(() => {
     if (apiConfigLoading) return
@@ -249,6 +295,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = useCallback(() => setError(null), [])
 
+  const authHeaders = useMemo(
+    (): Record<string, string> => (
+      isDesktopRuntime && desktopSessionToken
+        ? { Authorization: `Bearer ${desktopSessionToken}` }
+        : {}
+    ),
+    [desktopSessionToken, isDesktopRuntime],
+  )
+
   const setActiveWorkspaceId = useCallback((workspaceId: string | null) => {
     setActiveWorkspaceIdState(workspaceId)
     if (typeof window === 'undefined') return
@@ -266,7 +321,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const resp = await fetch(`${apiUrl}/api/workspaces`, {
-      headers: { Authorization: `Bearer ${user.id}` },
+      credentials: 'include',
+      headers: authHeaders,
     })
     if (!resp.ok) return
     const data = (await resp.json()) as Workspace[]
@@ -279,7 +335,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       || data[0]?.id
       || null
     setActiveWorkspaceId(nextWorkspaceId)
-  }, [apiUrl, setActiveWorkspaceId, user])
+  }, [apiUrl, authHeaders, setActiveWorkspaceId, user])
 
   useEffect(() => {
     void refreshWorkspaces().catch((err) => {
@@ -296,12 +352,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (user) {
-        headers.Authorization = `Bearer ${user.id}`
-      }
+      Object.assign(headers, authHeaders)
       const resp = await fetch(`${apiUrl}/api/auth/sms-code`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify({ phone, purpose }),
       })
 
@@ -313,15 +368,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.smsCodeSendFailed))
       throw err
     }
-  }, [apiUrl, capabilities.smsAuth, t, user])
+  }, [apiUrl, authHeaders, capabilities.smsAuth, t])
 
   // 2. Login function
   const login = useCallback(async (accountOrPhone: string, credential: string, method: 'password' | 'sms' = 'password') => {
     setError(null)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (isDesktopRuntime) {
+        headers['X-Tob-Desktop-Session'] = 'true'
+      }
       const resp = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        credentials: 'include',
         body: JSON.stringify(method === 'password' ? { account: accountOrPhone, password: credential } : { phone: accountOrPhone, code: credential }),
       })
 
@@ -329,24 +389,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(await getAuthErrorMessage(resp, t, t.loginFailed))
       }
 
-      const loggedInUser = (await resp.json()) as User
-      setUser(loggedInUser)
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(loggedInUser))
-      console.info('[Auth] Login successful:', loggedInUser.username)
+      const loggedInUser = (await resp.json()) as AuthResponse
+      if (isDesktopRuntime) {
+        const token = loggedInUser.sessionToken || null
+        setDesktopSessionToken(token)
+        await saveStoredDesktopSessionToken(token)
+      }
+      const nextUser = userWithoutSessionToken(loggedInUser)
+      setUser(nextUser)
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(nextUser))
+      console.info('[Auth] Login successful:', nextUser.username)
     } catch (err: any) {
       console.error('[Auth] Login error:', err)
       setError(localizeAuthMessage(err.message || '', t, t.loginError))
       throw err
     }
-  }, [apiUrl, t])
+  }, [apiUrl, isDesktopRuntime, t])
 
   // 3. Register function
   const register = useCallback(async (username: string, phone: string, code: string, password: string) => {
     setError(null)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (isDesktopRuntime) {
+        headers['X-Tob-Desktop-Session'] = 'true'
+      }
       const resp = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        credentials: 'include',
         body: JSON.stringify({ username, phone, code, password }),
       })
 
@@ -354,33 +425,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(await getAuthErrorMessage(resp, t, t.registrationFailed))
       }
 
-      const registeredUser = (await resp.json()) as User
-      setUser(registeredUser)
-      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(registeredUser))
-      console.info('[Auth] Registration successful:', registeredUser.username)
+      const registeredUser = (await resp.json()) as AuthResponse
+      if (isDesktopRuntime) {
+        const token = registeredUser.sessionToken || null
+        setDesktopSessionToken(token)
+        await saveStoredDesktopSessionToken(token)
+      }
+      const nextUser = userWithoutSessionToken(registeredUser)
+      setUser(nextUser)
+      localStorage.setItem(USER_SESSION_KEY, JSON.stringify(nextUser))
+      console.info('[Auth] Registration successful:', nextUser.username)
     } catch (err: any) {
       console.error('[Auth] Registration error:', err)
       setError(localizeAuthMessage(err.message || '', t, t.registrationError))
       throw err
     }
-  }, [apiUrl, t])
+  }, [apiUrl, isDesktopRuntime, t])
 
   // 4. Logout function
   const logout = useCallback(() => {
+    void fetch(`${apiUrl}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: authHeaders,
+    }).catch((err) => {
+      console.warn('[Auth] Logout request failed:', err)
+    })
     setUser(null)
+    setDesktopSessionToken(null)
+    void saveStoredDesktopSessionToken(null)
     setWorkspaces([])
     setActiveWorkspaceIdState(null)
     localStorage.removeItem(USER_SESSION_KEY)
     localStorage.removeItem(WORKSPACE_SESSION_KEY)
     console.info('[Auth] Logged out successfully')
-  }, [])
+  }, [apiUrl, authHeaders])
 
   const bindPhone = useCallback(async (phone: string, code: string): Promise<User> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
     const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}/phone`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      credentials: 'include',
       body: JSON.stringify({ phone, code }),
     })
     if (!resp.ok) {
@@ -392,14 +479,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(updatedUser)
     localStorage.setItem(USER_SESSION_KEY, JSON.stringify(updatedUser))
     return updatedUser
-  }, [apiUrl, user, t])
+  }, [apiUrl, authHeaders, user, t])
 
   const changePassword = useCallback(async (phone: string, code: string, password: string): Promise<void> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
     const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}/password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
+      credentials: 'include',
       body: JSON.stringify({ phone, code, password }),
     })
     if (!resp.ok) {
@@ -407,14 +495,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(message)
       throw new Error(message)
     }
-  }, [apiUrl, user, t])
+  }, [apiUrl, authHeaders, user, t])
 
   const deleteAccount = useCallback(async (): Promise<void> => {
     if (!user) throw new Error(t.notLoggedIn)
     setError(null)
     const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${user.id}` },
+      credentials: 'include',
+      headers: authHeaders,
     })
     if (!resp.ok) {
       const message = await getAuthErrorMessage(resp, t, t.profileUpdateError)
@@ -422,7 +511,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(message)
     }
     logout()
-  }, [apiUrl, logout, user, t])
+  }, [apiUrl, authHeaders, logout, user, t])
 
   // 5. Update profile function
   const updateProfile = useCallback(async (
@@ -435,7 +524,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.info('[Auth] Updating profile:', user.id, data)
       const resp = await fetch(`${apiUrl}/api/auth/users/${user.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.id}` },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        credentials: 'include',
         body: JSON.stringify(data),
       })
 
@@ -462,7 +552,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [apiUrl, user, t.notLoggedIn, t.profileUpdateError, t.serverError])
+  }, [apiUrl, authHeaders, user, t.notLoggedIn, t.profileUpdateError, t.serverError])
 
   // Compute final userId. Anonymous access is intentionally disabled.
   const userId = user ? user.id : null
@@ -487,6 +577,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     activeWorkspace,
     activeWorkspaceId: activeWorkspace?.id ?? null,
     workspaceHeaders,
+    authHeaders,
     canManageWorkspace,
     refreshWorkspaces,
     setActiveWorkspaceId,

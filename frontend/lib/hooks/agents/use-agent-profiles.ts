@@ -29,7 +29,7 @@ function saveSelectedId(id: string | null) {
 }
 
 export function useAgentProfiles() {
-  const { user, workspaceHeaders, activeWorkspaceId, canManageWorkspace } = useAuth()
+  const { user, workspaceHeaders, authHeaders, activeWorkspaceId, canManageWorkspace } = useAuth()
   const [profiles, setProfiles] = useState<AgentProfile[]>([])
   const [selectedId, setSelectedIdState] = useState<string | null>(null)
   const [profilesLoaded, setProfilesLoaded] = useState(false)
@@ -47,12 +47,13 @@ export function useAgentProfiles() {
       return
     }
 
-    const authHeaders = { Authorization: `Bearer ${user.id}`, ...workspaceHeaders }
+    const requestHeaders = { ...authHeaders, ...workspaceHeaders }
 
     async function fetchProfiles() {
       try {
         const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles`, {
-          headers: authHeaders,
+          headers: requestHeaders,
+          credentials: "include",
         })
         if (resp.ok) {
           const data = await resp.json()
@@ -67,7 +68,7 @@ export function useAgentProfiles() {
 
     setProfilesLoaded(false)
     fetchProfiles()
-  }, [activeWorkspaceId, user, workspaceHeaders])
+  }, [activeWorkspaceId, authHeaders, user, workspaceHeaders])
 
   const visibleProfiles = useMemo(
     () => profiles.filter((profile) => !profile.isHidden),
@@ -112,7 +113,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
         body: JSON.stringify(newProfile),
       })
       if (resp.ok) {
@@ -124,7 +126,7 @@ export function useAgentProfiles() {
       console.error("Failed to persist new agent profile to PostgreSQL", err)
     }
     return null
-  }, [user, workspaceHeaders, canManageWorkspace])
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const updateProfile = useCallback(async (id: string, data: Partial<Omit<AgentProfile, "id" | "createdAt">>) => {
     if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
@@ -140,7 +142,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
         body: JSON.stringify(updatedProfile),
       })
       if (resp.ok) {
@@ -152,14 +155,15 @@ export function useAgentProfiles() {
       console.error(`Failed to update agent profile ${id} in PostgreSQL`, err)
     }
     return null
-  }, [profiles, user, workspaceHeaders, canManageWorkspace])
+  }, [authHeaders, profiles, user, workspaceHeaders, canManageWorkspace])
 
   const fetchProfileVersions = useCallback(async (id: string): Promise<AgentProfileVersion[]> => {
     if (!LANGGRAPH_API_URL || !user) return []
 
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions`, {
-        headers: { Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
       })
       if (resp.ok) {
         return await resp.json()
@@ -168,7 +172,7 @@ export function useAgentProfiles() {
       console.error(`Failed to load agent profile versions for ${id}`, err)
     }
     return []
-  }, [user, workspaceHeaders])
+  }, [authHeaders, user, workspaceHeaders])
 
   const restoreProfileVersion = useCallback(async (id: string, versionId: string): Promise<AgentProfile | null> => {
     if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return null
@@ -176,7 +180,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/versions/${versionId}/restore`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
       })
       if (resp.ok) {
         const saved = await resp.json()
@@ -187,7 +192,7 @@ export function useAgentProfiles() {
       console.error(`Failed to restore agent profile ${id} version ${versionId}`, err)
     }
     return null
-  }, [user, workspaceHeaders, canManageWorkspace])
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const createShareLink = useCallback(async (
     id: string,
@@ -198,7 +203,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}/share`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
         body: JSON.stringify({ include }),
       })
       if (resp.ok) {
@@ -208,7 +214,7 @@ export function useAgentProfiles() {
       console.error(`Failed to create share link for agent profile ${id}`, err)
     }
     return null
-  }, [user, workspaceHeaders, canManageWorkspace])
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const importShareLink = useCallback(async (
     token: string,
@@ -219,7 +225,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-shares/${encodeURIComponent(token)}/import`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
         body: JSON.stringify({ name }),
       })
       if (resp.ok) {
@@ -238,7 +245,7 @@ export function useAgentProfiles() {
       console.error(`Failed to import shared agent ${token}`, err)
     }
     return null
-  }, [user, workspaceHeaders])
+  }, [authHeaders, user, workspaceHeaders])
 
   const fetchSharePreview = useCallback(async (
     token: string,
@@ -264,7 +271,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/import.toml`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { "Content-Type": "application/json", ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
         body: JSON.stringify({ toml }),
       })
       if (resp.ok) {
@@ -281,7 +289,7 @@ export function useAgentProfiles() {
       console.error("Failed to import TOML agent configuration", err)
     }
     return null
-  }, [user, workspaceHeaders, canManageWorkspace])
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const deleteProfile = useCallback(async (id: string) => {
     if (!LANGGRAPH_API_URL || !user || !canManageWorkspace) return
@@ -289,7 +297,8 @@ export function useAgentProfiles() {
     try {
       const resp = await fetch(`${LANGGRAPH_API_URL}/api/agent-profiles/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${user.id}`, ...workspaceHeaders },
+        headers: { ...authHeaders, ...workspaceHeaders },
+        credentials: "include",
       })
       if (resp.ok) {
         setProfiles(prev => prev.filter(p => p.id !== id))
@@ -301,7 +310,7 @@ export function useAgentProfiles() {
     } catch (err) {
       console.error(`Failed to delete agent profile ${id} from PostgreSQL`, err)
     }
-  }, [user, workspaceHeaders, canManageWorkspace])
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const selectedProfile = selectedId
     ? visibleProfiles.find(p => p.id === selectedId) ?? null

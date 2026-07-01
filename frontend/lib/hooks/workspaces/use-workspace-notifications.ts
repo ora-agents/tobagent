@@ -93,7 +93,7 @@ function writeViewedIds(userId: string, viewedIds: Set<string>) {
 }
 
 export function useWorkspaceNotifications() {
-  const { user, workspaces } = useAuth()
+  const { user, workspaces, authHeaders } = useAuth()
   const [changesByWorkspace, setChangesByWorkspace] = useState<Map<string, WorkspaceChangeRequest[]>>(new Map())
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
@@ -125,9 +125,10 @@ export function useWorkspaceNotifications() {
         workspaces.map(async (workspace) => {
           const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${workspace.id}/change-requests`, {
             headers: {
-              Authorization: `Bearer ${user.id}`,
+              ...authHeaders,
               "X-Workspace-ID": workspace.id,
             },
+            credentials: "include",
             signal: controller.signal,
           })
 
@@ -149,7 +150,7 @@ export function useWorkspaceNotifications() {
       }
       setLoading(false)
     }
-  }, [user, workspaces])
+  }, [authHeaders, user, workspaces])
 
   useEffect(() => {
     void refresh()
@@ -201,9 +202,10 @@ export function useWorkspaceNotifications() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${user.id}`,
+          ...authHeaders,
           "X-Workspace-ID": notification.workspace.id,
         },
+        credentials: "include",
         body: JSON.stringify({ note: decision === "approve" ? "ok" : "" }),
       },
     )
@@ -213,7 +215,7 @@ export function useWorkspaceNotifications() {
     }
 
     await refresh()
-  }, [refresh, user])
+  }, [authHeaders, refresh, user])
 
   return {
     notifications,

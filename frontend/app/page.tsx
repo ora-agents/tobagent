@@ -111,7 +111,7 @@ function DashboardContent() {
   const t = useT()
   const router = useRouter()
   const pathname = usePathname()
-  const { user, loading: authLoading, capabilities } = useAuth()
+  const { user, loading: authLoading, capabilities, authHeaders } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
@@ -323,12 +323,13 @@ function DashboardContent() {
       return
     }
     fetch(`${LANGGRAPH_API_URL}/api/user-voiceprints`, {
-      headers: { Authorization: `Bearer ${user.id}` },
+      credentials: "include",
+      headers: authHeaders,
     })
       .then((r) => (r.ok ? r.json() : []))
       .then((vps) => setUserVoiceprints(vps))
       .catch(() => setUserVoiceprints([]))
-  }, [user])
+  }, [authHeaders, user])
 
   // Load account-scoped conversation threads.
   const {

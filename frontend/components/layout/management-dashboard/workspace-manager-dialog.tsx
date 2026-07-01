@@ -72,9 +72,8 @@ const roleLabels: Record<Locale, Record<WorkspaceRole, string>> = {
   },
 }
 
-function headers(userId: string, workspaceId?: string | null) {
+function headers(_userId: string, workspaceId?: string | null) {
   return {
-    Authorization: `Bearer ${userId}`,
     ...(workspaceId ? { "X-Workspace-ID": workspaceId } : {}),
   }
 }
@@ -90,6 +89,7 @@ export function WorkspaceManagerDialog({
     workspaces,
     activeWorkspace,
     activeWorkspaceId,
+    authHeaders,
     canManageWorkspace,
     refreshWorkspaces,
     setActiveWorkspaceId,
@@ -117,7 +117,8 @@ export function WorkspaceManagerDialog({
   const loadMembers = async () => {
     if (!user || !activeWorkspaceId) return
     const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/members`, {
-      headers: headers(user.id, activeWorkspaceId),
+      headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId) },
+      credentials: "include",
     })
     if (!response.ok) throw new Error(await response.text())
     setMembers(await response.json())
@@ -126,7 +127,8 @@ export function WorkspaceManagerDialog({
   const loadChanges = async () => {
     if (!user || !activeWorkspaceId) return
     const response = await fetch(requestPath, {
-      headers: headers(user.id, activeWorkspaceId),
+      headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId) },
+      credentials: "include",
     })
     if (!response.ok) throw new Error(await response.text())
     setChanges(await response.json())
@@ -150,7 +152,8 @@ export function WorkspaceManagerDialog({
     try {
       const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces`, {
         method: "POST",
-        headers: { ...headers(user.id), "Content-Type": "application/json" },
+        headers: { ...authHeaders, ...headers(user.id), "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ name: newWorkspaceName.trim() }),
       })
       if (!response.ok) throw new Error(await response.text())
@@ -172,7 +175,8 @@ export function WorkspaceManagerDialog({
     try {
       const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/members`, {
         method: "POST",
-        headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+        headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ username: memberUsername.trim(), role: memberRole }),
       })
       if (!response.ok) throw new Error(await response.text())
@@ -194,12 +198,14 @@ export function WorkspaceManagerDialog({
       const response = activeRole === "owner"
         ? await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/members/${member.userId}`, {
             method: "PATCH",
-            headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+            headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({ role }),
           })
         : await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/change-requests`, {
             method: "POST",
-            headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+            headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+            credentials: "include",
             body: JSON.stringify({
               targetType: "workspace_member",
               targetId: member.userId,
@@ -237,7 +243,8 @@ export function WorkspaceManagerDialog({
     try {
       const response = await fetch(`${LANGGRAPH_API_URL}/api/workspaces/${activeWorkspaceId}/members/${member.userId}`, {
         method: "DELETE",
-        headers: headers(user.id, activeWorkspaceId),
+        headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId) },
+        credentials: "include",
       })
       if (!response.ok) throw new Error(await response.text())
       await loadMembers()
@@ -256,7 +263,8 @@ export function WorkspaceManagerDialog({
     try {
       const response = await fetch(`${requestPath}/${change.id}/${decision}`, {
         method: "POST",
-        headers: { ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+        headers: { ...authHeaders, ...headers(user.id, activeWorkspaceId), "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ note: decision === "approve" ? "ok" : "" }),
       })
       if (!response.ok) throw new Error(await response.text())
