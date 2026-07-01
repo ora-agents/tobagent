@@ -21,6 +21,9 @@ from src.utils.db import (
 
 @pytest.fixture()
 def auth_sms_client(monkeypatch):
+    monkeypatch.setenv("ALIYUN_SMS_TEMPLATE_CODE", "SMS_REGISTER_TEST")
+    monkeypatch.setenv("ALIYUN_SMS_RESET_PASSWORD_TEMPLATE_CODE", "SMS_RESET_TEST")
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -145,8 +148,8 @@ def test_sms_template_purpose_selection(auth_sms_client):
     )
     assert reset.status_code == 200
     assert sent_codes[-1][2] == "reset_password"
-    assert _sms_template_code_for_purpose("register") == "SMS_509065002"
-    assert _sms_template_code_for_purpose("reset_password") == "SMS_508940009"
+    assert _sms_template_code_for_purpose("register") == "SMS_REGISTER_TEST"
+    assert _sms_template_code_for_purpose("reset_password") == "SMS_RESET_TEST"
 
 
 def test_sms_login_consumes_code_once(auth_sms_client):

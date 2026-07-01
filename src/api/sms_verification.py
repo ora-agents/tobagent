@@ -19,11 +19,6 @@ from src.utils.db import SmsVerificationCodeTable
 
 logger = logging.getLogger(__name__)
 
-SMS_TEMPLATE_CODE = os.getenv("ALIYUN_SMS_TEMPLATE_CODE", "SMS_509065002")
-SMS_RESET_PASSWORD_TEMPLATE_CODE = os.getenv(
-    "ALIYUN_SMS_RESET_PASSWORD_TEMPLATE_CODE",
-    "SMS_508940009",
-)
 SMS_ENDPOINT = os.getenv("ALIYUN_SMS_ENDPOINT", "https://dysmsapi.aliyuncs.com/")
 SMS_REGION_ID = os.getenv("ALIYUN_SMS_REGION_ID", "cn-hangzhou")
 SMS_CODE_TTL_SECONDS = int(os.getenv("SMS_CODE_TTL_SECONDS", "300"))
@@ -66,10 +61,19 @@ def _sign_aliyun_request(params: dict[str, str], access_key_secret: str) -> str:
     return base64.b64encode(digest).decode("ascii")
 
 
+def _required_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise HTTPException(status_code=500, detail=f"{name} is not configured")
+    return value
+
+
 def _sms_template_code_for_purpose(purpose: str) -> str:
     if purpose == "reset_password":
-        return SMS_RESET_PASSWORD_TEMPLATE_CODE
-    return SMS_TEMPLATE_CODE
+        reset_template_code = os.getenv("ALIYUN_SMS_RESET_PASSWORD_TEMPLATE_CODE", "").strip()
+        if reset_template_code:
+            return reset_template_code
+    return _required_env("ALIYUN_SMS_TEMPLATE_CODE")
 
 
 def _send_aliyun_template_sms(

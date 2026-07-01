@@ -55,6 +55,7 @@ def _payload(user_phone: str = "13800138000") -> dict:
 
 def test_form_sms_hook_requires_matching_key(monkeypatch):
     monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.setenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", "SMS_FORM_TEST")
     calls: list[tuple[str, str, dict | None]] = []
     monkeypatch.setattr(
         "src.api.routes.sms_hooks._send_aliyun_template_sms",
@@ -76,6 +77,7 @@ def test_form_sms_hook_requires_matching_key(monkeypatch):
 
 def test_form_sms_hook_sends_template_to_user_phone(monkeypatch):
     monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.setenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", "SMS_FORM_TEST")
     calls: list[tuple[str, str, dict | None]] = []
     monkeypatch.setattr(
         "src.api.routes.sms_hooks._send_aliyun_template_sms",
@@ -91,11 +93,12 @@ def test_form_sms_hook_sends_template_to_user_phone(monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
-    assert calls == [("13800138000", "SMS_509045024", None)]
+    assert calls == [("13800138000", "SMS_FORM_TEST", None)]
 
 
 def test_form_sms_hook_requires_valid_user_phone(monkeypatch):
     monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.setenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", "SMS_FORM_TEST")
     monkeypatch.setattr(
         "src.api.routes.sms_hooks._send_aliyun_template_sms",
         lambda phone, template_code, template_param=None: None,
