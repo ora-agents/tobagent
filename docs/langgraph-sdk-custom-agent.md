@@ -71,10 +71,10 @@
 
 4. 获取用户自定义 agent 的 ID。
 
-   可以从前端管理页复制，也可以用登录用户 ID 查询管理接口：
+   可以从前端管理页复制，也可以用用户设置里创建的 API Key 查询管理接口：
 
    ```bash
-   curl -H "Authorization: Bearer <登录用户ID>" \
+   curl -H "Authorization: Bearer <USER_API_KEY>" \
      "$LANGGRAPH_API_URL/api/agent-profiles"
    ```
 

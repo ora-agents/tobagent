@@ -94,7 +94,9 @@ OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
 这套最小配置会使用默认 CORS、本地 SQLite fallback 和 OpenAI 兼容模型服务，足够启动基础账号、管理后台、智能体对话、技能/表单/MCP 配置页面和模型代理。生产环境建议额外设置：
 
 ```env
-LANGGRAPH_AUTH_SECRET=change_me_to_a_random_secret
+SESSION_JWT_SECRET=change_me_to_a_random_session_secret
+SESSION_COOKIE_SECURE=true
+# 前后端跨站部署时设置 SESSION_COOKIE_SAMESITE=none
 CORS_ALLOW_ORIGINS=https://your-frontend.example.com
 ```
 
@@ -208,7 +210,7 @@ FastAPI 应用挂载在 Aegra/LangGraph HTTP 服务中，主要接口包括：
 | `core.model` | 智能体运行、模型调用、上下文摘要 | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_COMPATIBLE_BASE_URL` 默认可留空使用 OpenAI 标准端点；`OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o` |
 | `core.database` | 用户、工作区、智能体配置、表单、技能、MCP 元数据 | 无 | 未设置 PostgreSQL 时使用 `./chat_langchain.db` SQLite fallback |
 | `core.cors` | 允许前端访问后端 | 无 | 默认允许本地开发地址；生产配置 `CORS_ALLOW_ORIGINS` |
-| `auth.password` | 密码登录、注册、用户资料、API Key | 无 | 生产建议设置 `LANGGRAPH_AUTH_SECRET` 保护 LangGraph/Aegra 调用 |
+| `auth.password` | 密码登录、注册、用户资料、API Key | 无 | 浏览器使用 HttpOnly session cookie；生产建议设置 `SESSION_JWT_SECRET` |
 
 最小 `.env`：
 
