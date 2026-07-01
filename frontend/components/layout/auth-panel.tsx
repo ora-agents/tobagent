@@ -26,7 +26,7 @@ export function AuthPanel({
   onAuthenticated,
 }: AuthPanelProps) {
   const t = useT()
-  const { login, register, sendSmsCode, error, clearError } = useAuth()
+  const { login, register, sendSmsCode, capabilities, error, clearError } = useAuth()
 
   const [internalTab, setInternalTab] = useState<'login' | 'register'>(mode ?? 'login')
   const [username, setUsername] = useState('')
@@ -40,8 +40,11 @@ export function AuthPanel({
   const [codeCooldown, setCodeCooldown] = useState(0)
   const [localError, setLocalError] = useState<string | null>(null)
   const activeTab = mode ?? internalTab
+  const smsEnabled = capabilities.smsAuth
+  const registerBlocked = activeTab === 'register' && !smsEnabled
 
   const setActiveTab = (nextMode: 'login' | 'register') => {
+    if (nextMode === 'register' && !smsEnabled) return
     setInternalTab(nextMode)
     onModeChange?.(nextMode)
   }
@@ -57,11 +60,21 @@ export function AuthPanel({
     return () => window.clearTimeout(timer)
   }, [codeCooldown])
 
+  useEffect(() => {
+    if (!smsEnabled && loginMethod === 'sms') {
+      setLoginMethod('password')
+    }
+  }, [loginMethod, smsEnabled])
+
   const accountInput = phone.trim()
   const normalizedPhone = accountInput.replace(/\s+/g, '').replace(/-/g, '')
 
   const handleSendCode = async () => {
     setLocalError(null)
+    if (!smsEnabled) {
+      setLocalError(t.smsAuthUnavailable)
+      return
+    }
     if (!normalizedPhone) {
       setLocalError(t.enterPhone)
       return
@@ -82,12 +95,14 @@ export function AuthPanel({
     setLocalError(null)
 
     if (
-      ((activeTab === 'login' && loginMethod === 'password') ? !accountInput : !normalizedPhone)
+      registerBlocked
+      || (activeTab === 'login' && loginMethod === 'sms' && !smsEnabled)
+      || ((activeTab === 'login' && loginMethod === 'password') ? !accountInput : !normalizedPhone)
       || (activeTab === 'login' && loginMethod === 'password' && !password.trim())
       || (activeTab === 'login' && loginMethod === 'sms' && !smsCode.trim())
       || (activeTab === 'register' && (!username.trim() || !smsCode.trim() || !password.trim() || !confirmPassword.trim()))
     ) {
-      setLocalError(t.fillRequiredFields)
+      setLocalError(registerBlocked ? t.smsAuthUnavailable : t.fillRequiredFields)
       return
     }
     if ((activeTab === 'register' || loginMethod === 'password') && password.trim().length < 6) {
@@ -166,6 +181,13 @@ export function AuthPanel({
             </div>
           )}
 
+          {registerBlocked && !shownError && (
+            <div className="flex items-center gap-2.5 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <div className="font-medium">{t.smsAuthUnavailable}</div>
+            </div>
+          )}
+
           {activeTab === 'register' && (
             <div className="space-y-1.5">
               <Label htmlFor="username" className="text-sm font-medium text-foreground">
@@ -177,7 +199,7 @@ export function AuthPanel({
                 placeholder={t.enterUsername}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
+                disabled={loading || registerBlocked}
                 className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
                 required
               />
@@ -195,13 +217,13 @@ export function AuthPanel({
               placeholder={activeTab === 'login' && loginMethod === 'password' ? t.enterAccountOrPhone : t.enterPhone}
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              disabled={loading}
+              disabled={loading || registerBlocked}
               className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
               required
             />
           </div>
 
-          {activeTab === 'login' && (
+          {activeTab === 'login' && smsEnabled && (
             <div className="grid grid-cols-2 gap-2 rounded-lg bg-secondary p-1">
               <Button
                 type="button"
@@ -233,7 +255,7 @@ export function AuthPanel({
                 placeholder={t.enterPassword}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
+                disabled={loading || registerBlocked}
                 className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
                 required
               />
@@ -251,14 +273,14 @@ export function AuthPanel({
                 placeholder={t.confirmPasswordPlaceholder}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={loading}
+                disabled={loading || registerBlocked}
                 className="h-11 rounded-lg bg-secondary px-3 text-sm text-foreground shadow-none transition-colors duration-200 hover:bg-muted focus-visible:bg-secondary"
                 required
               />
             </div>
           )}
 
-          {(activeTab === 'register' || loginMethod === 'sms') && (
+          {smsEnabled && (activeTab === 'register' || loginMethod === 'sms') && (
             <div className="space-y-1.5">
               <Label htmlFor="smsCode" className="text-sm font-medium text-foreground">
                 {t.smsCode} <span className="text-destructive">*</span>
@@ -296,7 +318,7 @@ export function AuthPanel({
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || registerBlocked}
             className="h-11 w-full cursor-pointer rounded-lg bg-primary text-sm font-medium text-primary-foreground shadow-depth-xs transition-all duration-200 hover:bg-primary-active hover:shadow-depth-hover active:bg-primary-active"
           >
             {loading ? (
@@ -314,7 +336,8 @@ export function AuthPanel({
 
         <div className="pt-1 text-center text-sm text-muted-foreground">
           {activeTab === 'login' ? (
-            <>
+            smsEnabled ? (
+              <>
               {t.dontHaveAccount}{' '}
               <Button
                 type="button"
@@ -324,7 +347,8 @@ export function AuthPanel({
               >
                 {t.createOneNow}
               </Button>
-            </>
+              </>
+            ) : null
           ) : (
             <>
               {t.alreadyHaveAccount}{' '}

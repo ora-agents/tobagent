@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { LANGGRAPH_API_URL } from '@/lib/constants/api'
+import { DEFAULT_RUNTIME_CAPABILITIES, fetchRuntimeCapabilities, type RuntimeCapabilities } from '@/lib/api/capabilities'
 import { useT, type Translations } from '@/lib/i18n'
 
 // ============================================================================
@@ -32,6 +33,8 @@ interface AuthContextType {
   user: User | null
   userId: string | null
   loading: boolean
+  capabilities: RuntimeCapabilities
+  capabilitiesLoaded: boolean
   error: string | null
   workspaces: Workspace[]
   activeWorkspace: Workspace | null
@@ -197,6 +200,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const t = useT()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
+  const [capabilities, setCapabilities] = useState<RuntimeCapabilities>(DEFAULT_RUNTIME_CAPABILITIES)
+  const [capabilitiesLoaded, setCapabilitiesLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspaceIdState, setActiveWorkspaceIdState] = useState<string | null>(null)
@@ -219,6 +224,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchRuntimeCapabilities()
+      .then((nextCapabilities) => {
+        if (!cancelled) setCapabilities(nextCapabilities)
+      })
+      .catch((err) => {
+        console.warn('[Auth] Failed to load backend capabilities; optional modules disabled:', err)
+        if (!cancelled) setCapabilities(DEFAULT_RUNTIME_CAPABILITIES)
+      })
+      .finally(() => {
+        if (!cancelled) setCapabilitiesLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const clearError = useCallback(() => setError(null), [])
@@ -263,6 +286,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const sendSmsCode = useCallback(async (phone: string, purpose: 'login' | 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => {
     setError(null)
+    if (!capabilities.smsAuth) {
+      const message = t.smsAuthUnavailable
+      setError(message)
+      throw new Error(message)
+    }
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (user) {
@@ -282,7 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.smsCodeSendFailed))
       throw err
     }
-  }, [t, user])
+  }, [capabilities.smsAuth, t, user])
 
   // 2. Login function
   const login = useCallback(async (accountOrPhone: string, credential: string, method: 'password' | 'sms' = 'password') => {
@@ -449,6 +477,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     userId,
     loading,
+    capabilities,
+    capabilitiesLoaded,
     error,
     workspaces,
     activeWorkspace,

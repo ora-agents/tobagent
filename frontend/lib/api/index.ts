@@ -5,4 +5,5 @@
  */
 
 export * from "./langgraph-client"
+export * from "./capabilities"
 export * from "./traces"

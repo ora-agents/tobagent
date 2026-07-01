@@ -111,7 +111,7 @@ function DashboardContent() {
   const t = useT()
   const router = useRouter()
   const pathname = usePathname()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, capabilities } = useAuth()
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
@@ -171,6 +171,12 @@ function DashboardContent() {
       setViewParam(null)
     }
   }, [setViewParam, viewParam])
+
+  useEffect(() => {
+    if (currentView === "traces" && !capabilities.langfuseTracing) {
+      setCurrentView("chat")
+    }
+  }, [capabilities.langfuseTracing, currentView, setCurrentView])
 
   useEffect(() => {
     if (isAgentAppRoute || (!agentAppParam?.trim() && !agentShareToken?.trim())) return
@@ -853,7 +859,7 @@ function DashboardContent() {
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : !isDedicatedAgentApp && currentView === "traces" ? (
+        ) : !isDedicatedAgentApp && currentView === "traces" && capabilities.langfuseTracing ? (
           <TraceBrowserPage
             onBackToChat={() => setCurrentView("chat")}
           />

@@ -22,6 +22,7 @@ from src.api.routes import agent_profiles as agent_profile_routes
 from src.api.routes import models as model_routes
 from src.api.routes.agent_profiles import router as agent_profiles_router
 from src.api.routes.auth import router as auth_router
+from src.api.routes.capabilities import router as capabilities_router
 from src.api.routes.client_profiles import router as client_profiles_router
 from src.api.routes.config_bundles import router as config_bundles_router
 from src.api.routes.forms import router as forms_router
@@ -204,6 +205,7 @@ app.add_middleware(
 )
 
 app.include_router(langsmith_router)
+app.include_router(capabilities_router)
 app.include_router(voice_router)
 app.include_router(kws_router)
 app.include_router(auth_router)

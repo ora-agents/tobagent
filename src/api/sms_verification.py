@@ -25,6 +25,27 @@ SMS_CODE_TTL_SECONDS = int(os.getenv("SMS_CODE_TTL_SECONDS", "300"))
 SMS_RESEND_INTERVAL_SECONDS = int(os.getenv("SMS_RESEND_INTERVAL_SECONDS", "60"))
 
 
+def aliyun_sms_is_configured(template_env: str = "ALIYUN_SMS_TEMPLATE_CODE") -> bool:
+    """Return whether SMS sending can be offered to clients."""
+    has_provider_credentials = all(
+        os.getenv(name, "").strip()
+        for name in (
+            "ALIYUN_ACCESS_KEY_ID",
+            "ALIYUN_ACCESS_KEY_SECRET",
+            "ALIYUN_SMS_SIGN_NAME",
+        )
+    )
+    has_template = bool(os.getenv(template_env, "").strip())
+    dev_log_enabled = os.getenv("SMS_DEV_LOG_CODE", "").lower() == "true"
+    return has_template and (has_provider_credentials or dev_log_enabled)
+
+
+def require_aliyun_sms_configured(template_env: str = "ALIYUN_SMS_TEMPLATE_CODE") -> None:
+    """Reject SMS flows when the Aliyun SMS module is disabled by env."""
+    if not aliyun_sms_is_configured(template_env):
+        raise HTTPException(status_code=503, detail="SMS service is not configured")
+
+
 def _now() -> datetime:
     return datetime.now(UTC)
 
@@ -142,6 +163,7 @@ def _send_aliyun_sms(phone: str, code: str, purpose: str) -> None:
 
 def issue_sms_code(db: Session, phone: str, purpose: str) -> None:
     """Create and send a short-lived SMS verification code."""
+    require_aliyun_sms_configured()
     now = _now()
     latest = (
         db.query(SmsVerificationCodeTable)

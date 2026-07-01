@@ -21,6 +21,7 @@ from src.utils.db import (
 
 @pytest.fixture()
 def auth_sms_client(monkeypatch):
+    monkeypatch.setenv("SMS_DEV_LOG_CODE", "true")
     monkeypatch.setenv("ALIYUN_SMS_TEMPLATE_CODE", "SMS_REGISTER_TEST")
     monkeypatch.setenv("ALIYUN_SMS_RESET_PASSWORD_TEMPLATE_CODE", "SMS_RESET_TEST")
 

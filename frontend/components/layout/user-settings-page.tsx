@@ -126,9 +126,10 @@ export function UserSettingsPage({
   conversationCount,
 }: UserSettingsPageProps) {
   const elderOptimized = false
-  const { user, updateProfile, sendSmsCode, bindPhone, changePassword, deleteAccount, activeWorkspace, canManageWorkspace } = useAuth()
+  const { user, updateProfile, sendSmsCode, bindPhone, changePassword, deleteAccount, activeWorkspace, canManageWorkspace, capabilities } = useAuth()
   const { locale } = useI18n()
   const zh = locale === "zh"
+  const smsEnabled = capabilities.smsAuth
 
   // ---- Form state ----
   const [username, setUsername] = useState("")
@@ -501,6 +502,10 @@ export function UserSettingsPage({
   const normalizePhoneInput = (value: string) => value.trim().replace(/\s+/g, "").replace(/-/g, "")
 
   const handleSendBindPhoneCode = async () => {
+    if (!smsEnabled) {
+      setError(zh ? "短信服务未配置，手机号绑定已关闭" : "SMS is not configured, so phone binding is disabled")
+      return
+    }
     const normalized = normalizePhoneInput(bindPhoneValue)
     if (!normalized) {
       setError(zh ? "请先输入手机号" : "Please enter a phone number first")
@@ -520,6 +525,10 @@ export function UserSettingsPage({
   }
 
   const handleBindPhone = async () => {
+    if (!smsEnabled) {
+      setError(zh ? "短信服务未配置，手机号绑定已关闭" : "SMS is not configured, so phone binding is disabled")
+      return
+    }
     const normalized = normalizePhoneInput(bindPhoneValue)
     if (!normalized || !bindPhoneCode.trim()) {
       setError(zh ? "请填写手机号和验证码" : "Please enter the phone number and verification code")
@@ -540,6 +549,10 @@ export function UserSettingsPage({
   }
 
   const handleSendPasswordCode = async () => {
+    if (!smsEnabled) {
+      setError(zh ? "短信服务未配置，密码短信验证已关闭" : "SMS is not configured, so password verification is disabled")
+      return
+    }
     if (!user?.phone) return
     setError(null)
     setPasswordCodeSending(true)
@@ -555,6 +568,10 @@ export function UserSettingsPage({
   }
 
   const handleChangePassword = async () => {
+    if (!smsEnabled) {
+      setError(zh ? "短信服务未配置，密码修改已关闭" : "SMS is not configured, so password changes are disabled")
+      return
+    }
     if (!user?.phone) {
       setError(zh ? "请先绑定手机号" : "Bind a phone number first")
       return
@@ -786,7 +803,13 @@ export function UserSettingsPage({
                 </StatusNotice>
               )}
 
-              {!user.phone && (
+              {!smsEnabled && (
+                <StatusNotice tone="info" className={elderOptimized ? "p-4 text-base" : undefined}>
+                  {zh ? "短信服务未配置，手机号绑定和短信改密已关闭。" : "SMS is not configured. Phone binding and SMS password changes are disabled."}
+                </StatusNotice>
+              )}
+
+              {!user.phone && smsEnabled && (
                 <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary`}>
                   <div>
                     <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
@@ -836,7 +859,7 @@ export function UserSettingsPage({
                 </div>
               )}
 
-              {user.phone && (
+              {user.phone && smsEnabled && (
                 <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary`}>
                   <div>
                     <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>

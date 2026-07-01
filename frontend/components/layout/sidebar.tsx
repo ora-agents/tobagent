@@ -182,6 +182,7 @@ export const Sidebar = memo(function Sidebar({
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
+  const { capabilities } = useAuth()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -192,7 +193,7 @@ export const Sidebar = memo(function Sidebar({
   const [isDevelopmentOpen, setIsDevelopmentOpen] = useState(true)
   const isAgentAppSidebar = variant === "agentApp"
   const isConfigView = currentView === "skills" || currentView === "agents" || currentView === "knowledge" || currentView === "forms" || currentView === "mcp"
-  const isDevelopmentView = currentView === "developer-manual" || currentView === "traces"
+  const isDevelopmentView = currentView === "developer-manual" || (capabilities.langfuseTracing && currentView === "traces")
 
   // Filter threads based on search query
   const filteredThreads = useMemo(() => {
@@ -434,17 +435,19 @@ export const Sidebar = memo(function Sidebar({
               >
                 <BookOpenText className="w-5 h-5" />
               </Button>
-              <Button variant="unstyled"
-                onClick={() => handleViewChange("traces")}
-                className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
-                  currentView === "traces"
-                    ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
-                    : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                }`}
-                title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
-              >
-                <Sparkles className="w-5 h-5" />
-              </Button>
+              {capabilities.langfuseTracing && (
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("traces")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "traces"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
+                >
+                  <Sparkles className="w-5 h-5" />
+                </Button>
+              )}
             </div>
           )}
           <Button variant="unstyled"
@@ -666,17 +669,19 @@ export const Sidebar = memo(function Sidebar({
               <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
               <span className="truncate">{t.developerManual}</span>
             </Button>
-            <Button variant="unstyled"
-              onClick={() => handleViewChange("traces")}
-              className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
-                currentView === "traces"
-                  ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
-              }`}
-            >
-              <Sparkles className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
-              <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
-            </Button>
+            {capabilities.langfuseTracing && (
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("traces")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "traces"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+                }`}
+              >
+                <Sparkles className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
+              </Button>
+            )}
           </div>
         )}
         <Button variant="unstyled"

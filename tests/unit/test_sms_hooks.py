@@ -55,6 +55,7 @@ def _payload(user_phone: str = "13800138000") -> dict:
 
 def test_form_sms_hook_requires_matching_key(monkeypatch):
     monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.setenv("SMS_DEV_LOG_CODE", "true")
     monkeypatch.setenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", "SMS_FORM_TEST")
     calls: list[tuple[str, str, dict | None]] = []
     monkeypatch.setattr(
@@ -77,6 +78,7 @@ def test_form_sms_hook_requires_matching_key(monkeypatch):
 
 def test_form_sms_hook_sends_template_to_user_phone(monkeypatch):
     monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.setenv("SMS_DEV_LOG_CODE", "true")
     monkeypatch.setenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", "SMS_FORM_TEST")
     calls: list[tuple[str, str, dict | None]] = []
     monkeypatch.setattr(
@@ -96,8 +98,28 @@ def test_form_sms_hook_sends_template_to_user_phone(monkeypatch):
     assert calls == [("13800138000", "SMS_FORM_TEST", None)]
 
 
+def test_form_sms_hook_disabled_without_sms_env(monkeypatch):
+    monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.delenv("SMS_DEV_LOG_CODE", raising=False)
+    monkeypatch.delenv("ALIYUN_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("ALIYUN_ACCESS_KEY_SECRET", raising=False)
+    monkeypatch.delenv("ALIYUN_SMS_SIGN_NAME", raising=False)
+    monkeypatch.delenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", raising=False)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/hooks/form-sms",
+            json=_payload("13800138000"),
+            headers={"SMS-HOOK-KEY": "secret"},
+        )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "SMS service is not configured"
+
+
 def test_form_sms_hook_requires_valid_user_phone(monkeypatch):
     monkeypatch.setenv("SMS_HOOK_KEY", "secret")
+    monkeypatch.setenv("SMS_DEV_LOG_CODE", "true")
     monkeypatch.setenv("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE", "SMS_FORM_TEST")
     monkeypatch.setattr(
         "src.api.routes.sms_hooks._send_aliyun_template_sms",

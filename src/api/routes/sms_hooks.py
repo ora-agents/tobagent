@@ -10,7 +10,11 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from src.api.schemas import PHONE_PATTERN
-from src.api.sms_verification import _required_env, _send_aliyun_template_sms
+from src.api.sms_verification import (
+    _required_env,
+    _send_aliyun_template_sms,
+    require_aliyun_sms_configured,
+)
 
 router = APIRouter(tags=["sms-hooks"])
 
@@ -70,6 +74,7 @@ async def send_form_hook_sms(
         raise HTTPException(status_code=401, detail="Invalid SMS hook key")
 
     phone = _extract_phone(req)
+    require_aliyun_sms_configured("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE")
     template_code = _required_env("ALIYUN_SMS_FORM_HOOK_TEMPLATE_CODE")
     _send_aliyun_template_sms(phone, template_code)
     return FormSmsHookResponse(ok=True)
