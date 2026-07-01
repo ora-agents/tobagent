@@ -66,7 +66,7 @@ def test_form_sms_hook_requires_matching_key(monkeypatch):
         wrong = client.post(
             "/api/hooks/form-sms",
             json=_payload(),
-            headers={"SMS_HOOK_KEY": "wrong"},
+            headers={"SMS-HOOK-KEY": "wrong"},
         )
 
     assert missing.status_code == 401
@@ -86,7 +86,7 @@ def test_form_sms_hook_sends_template_to_user_phone(monkeypatch):
         response = client.post(
             "/api/hooks/form-sms",
             json=_payload("138 0013-8000"),
-            headers={"SMS_HOOK_KEY": "secret"},
+            headers={"SMS-HOOK-KEY": "secret"},
         )
 
     assert response.status_code == 200
@@ -105,7 +105,7 @@ def test_form_sms_hook_requires_valid_user_phone(monkeypatch):
         response = client.post(
             "/api/hooks/form-sms",
             json=_payload("not-a-phone"),
-            headers={"SMS_HOOK_KEY": "secret"},
+            headers={"SMS-HOOK-KEY": "secret"},
         )
 
     assert response.status_code == 400

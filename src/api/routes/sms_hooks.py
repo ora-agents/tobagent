@@ -65,7 +65,7 @@ def _extract_phone(req: FormSmsHookRequest) -> str:
 )
 async def send_form_hook_sms(
     req: FormSmsHookRequest,
-    sms_hook_key: str | None = Header(default=None, alias="SMS_HOOK_KEY"),
+    sms_hook_key: str | None = Header(default=None, alias="SMS-HOOK-KEY"),
 ):
     configured_key = _configured_hook_key()
     if not sms_hook_key or not hmac.compare_digest(sms_hook_key, configured_key):
