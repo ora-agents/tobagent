@@ -104,6 +104,7 @@ export type FormDefinitionState = {
 }
 
 export const SYSTEM_FORM_FIELDS: CustomFormField[] = [
+  { id: "id", label: "ID", type: "text", required: false, options: [] },
   { id: "createdAt", label: "创建时间", type: "date", required: false, options: [] },
   { id: "updatedAt", label: "更新时间", type: "date", required: false, options: [] },
 ]
@@ -275,6 +276,7 @@ export function validateFormRecordData(
 }
 
 function getSystemFieldLabel(field: CustomFormField, locale: string) {
+  if (field.id === "id") return "ID"
   if (field.id === "createdAt") return locale === "zh" ? "创建时间" : "Created at"
   if (field.id === "updatedAt") return locale === "zh" ? "更新时间" : "Updated at"
   return field.label
@@ -308,7 +310,7 @@ export function FormFieldDesigner({
   onDefinitionChange,
   onSelectedFieldChange,
 }: FormFieldDesignerProps) {
-  const displayFields = [...definition.fields, ...SYSTEM_FORM_FIELDS]
+  const displayFields = [SYSTEM_FORM_FIELDS[0], ...definition.fields, ...SYSTEM_FORM_FIELDS.slice(1)]
   const selectedSystemField = SYSTEM_FORM_FIELDS.find(field => field.id === selectedFieldId) || null
   const selectedField = selectedSystemField || definition.fields.find(field => field.id === selectedFieldId) || definition.fields[0] || SYSTEM_FORM_FIELDS[0]
   const isSelectedSystemField = Boolean(selectedSystemField)
@@ -614,7 +616,7 @@ export function FormFieldDesigner({
           </ScrollArea>
           <div className="mt-3 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <span>{locale === "zh" ? `${definition.fields.length} 个自定义字段，${SYSTEM_FORM_FIELDS.length} 个系统字段` : `${definition.fields.length} custom fields, ${SYSTEM_FORM_FIELDS.length} system fields`}</span>
-            <span>{locale === "zh" ? "系统字段固定在记录末尾" : "System fields stay at the end"}</span>
+            <span>{locale === "zh" ? "系统字段固定显示且不可编辑" : "System fields stay visible and read-only"}</span>
           </div>
         </div>
 
@@ -1142,7 +1144,7 @@ export function FormRecordsTable({
   const stickyColumnOverlap = 1
   const [pinnedFieldIds, setPinnedFieldIds] = useState<Set<string>>(new Set())
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const allRecordFields = useMemo(() => [...form.fields, ...SYSTEM_FORM_FIELDS], [form.fields])
+  const allRecordFields = useMemo(() => [SYSTEM_FORM_FIELDS[0], ...form.fields, ...SYSTEM_FORM_FIELDS.slice(1)], [form.fields])
   const orderedRecordFields = useMemo(() => {
     const pinnedFields = allRecordFields.filter(field => pinnedFieldIds.has(field.id))
     const unpinnedFields = allRecordFields.filter(field => !pinnedFieldIds.has(field.id))
@@ -1227,7 +1229,9 @@ export function FormRecordsTable({
         header: () => renderFieldHeader(field, isSystemField),
         cell: ({ row }) => isSystemField ? (
           <span className="block truncate px-2 text-sm text-muted-foreground">
-            {formatRecordTimestamp(field.id === "createdAt" ? row.original.createdAt : row.original.updatedAt, locale)}
+            {field.id === "id"
+              ? row.original.id
+              : formatRecordTimestamp(field.id === "createdAt" ? row.original.createdAt : row.original.updatedAt, locale)}
           </span>
         ) : (
           <EditableRecordCell
