@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Check, ChevronDown, ChevronRight, Download, LoaderCircle, Upload } from "lucide-react"
+import { ChevronDown, ChevronRight, Download, LoaderCircle, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -96,9 +97,7 @@ export function ConfigBundleDialog({
     if (mode !== "export") return
     const next = emptySelection()
     for (const key of resourceKeys) {
-      next[key] = initialSelection?.[key]
-        ? [...(initialSelection[key] || [])]
-        : resources[key].map(item => item.id)
+      next[key] = initialSelection?.[key] ? [...(initialSelection[key] || [])] : []
     }
     setSelection(next)
   }, [initialSelection, mode, resources])
@@ -267,14 +266,32 @@ export function ConfigBundleDialog({
         </DialogHeader>
 
         {mode === "export" ? (
-          <div className="space-y-3">
-            <div className="space-y-2">
+          <div className="flex flex-col gap-4">
+            <div className="grid gap-3 rounded-xl bg-muted p-4 sm:grid-cols-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{zh ? "已选择" : "Selected"}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{selectedCount}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{zh ? "可导出资源" : "Available resources"}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {resourceKeys.reduce((total, key) => total + resources[key].length, 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">{zh ? "资源类型" : "Resource types"}</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{resourceKeys.length}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
               {resourceKeys.map(key => {
                 const allSelected = resources[key].length > 0 && selection[key].length === resources[key].length
+                const partiallySelected = selection[key].length > 0 && !allSelected
                 const isExpanded = expanded.has(key)
                 return (
-                  <div key={key} className="overflow-hidden rounded-xl border border-border/60">
-                    <div className="flex items-center gap-2 bg-secondary/60 p-2">
+                  <section key={key} className="overflow-hidden rounded-xl bg-card shadow-depth-xs">
+                    <div className="flex items-center gap-2 bg-muted/70 p-3">
                       <Button
                         type="button"
                         variant="ghost"
@@ -285,77 +302,96 @@ export function ConfigBundleDialog({
                           else next.add(key)
                           return next
                         })}
-                        className="rounded p-1 hover:bg-muted"
+                        aria-label={isExpanded ? zh ? "收起分类" : "Collapse category" : zh ? "展开分类" : "Expand category"}
                       >
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        {isExpanded ? <ChevronDown /> : <ChevronRight />}
                       </Button>
-                      <Button
+                      <Checkbox
+                        checked={allSelected ? true : partiallySelected ? "indeterminate" : false}
+                        onCheckedChange={() => toggleCategory(key)}
+                        disabled={resources[key].length === 0}
+                        aria-label={`${resourceLabels[key][locale]} ${zh ? "全选" : "select all"}`}
+                      />
+                      <button
                         type="button"
-                        variant="ghost"
-                        onClick={() => toggleCategory(key)}
-                        className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left text-sm"
+                        onClick={() => setExpanded(current => {
+                          const next = new Set(current)
+                          if (next.has(key)) next.delete(key)
+                          else next.add(key)
+                          return next
+                        })}
+                        className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-1 py-1 text-left"
                       >
-                        <span className="font-medium">{resourceLabels[key][locale]}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {selection[key].length}/{resources[key].length}
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">{resourceLabels[key][locale]}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {zh
+                              ? `${selection[key].length} / ${resources[key].length} 项已选择`
+                              : `${selection[key].length} of ${resources[key].length} selected`}
+                          </span>
                         </span>
-                        <span className={`flex h-4 w-4 items-center justify-center rounded border ${allSelected ? "border-primary bg-primary" : "border-muted-foreground/40"}`}>
-                          {allSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                        </span>
-                      </Button>
+                      </button>
                     </div>
                     {isExpanded && (
-                      <ScrollArea className="h-44">
-                      <div className="space-y-1 p-2">
+                      <ScrollArea className="h-48">
+                      <div className="flex flex-col gap-1 p-2">
                         {resources[key].length === 0 ? (
                           <p className="px-2 py-1 text-xs text-muted-foreground">{zh ? "暂无配置" : "No resources"}</p>
                         ) : resources[key].map(item => {
                           const checked = selection[key].includes(item.id)
                           return (
-                            <Button
+                            <div
                               key={item.id}
-                              type="button"
-                              variant="ghost"
-                              onClick={() => toggleResource(key, item.id)}
-                              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-muted"
+                              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
                             >
-                              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-primary bg-primary" : "border-muted-foreground/40"}`}>
-                                {checked && <Check className="h-3 w-3 text-primary-foreground" />}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                              <span className="max-w-48 truncate font-mono text-[10px] text-muted-foreground">{item.id}</span>
-                            </Button>
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleResource(key, item.id)}
+                                aria-label={item.name}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => toggleResource(key, item.id)}
+                                className="min-w-0 flex-1 truncate text-left"
+                              >
+                                {item.name}
+                              </button>
+                              <span className="hidden max-w-48 truncate font-mono text-[10px] text-muted-foreground sm:block">{item.id}</span>
+                            </div>
                           )
                         })}
                       </div>
                       </ScrollArea>
                     )}
-                  </div>
+                  </section>
                 )
               })}
             </div>
-            <SettingsSwitch
-              checked={includeDependencies}
-              onCheckedChange={setIncludeDependencies}
-              label={zh ? "包含智能体关联资源" : "Include agent dependencies"}
-            />
-            <SettingsSwitch
-              checked={includeKnowledgeDocuments}
-              onCheckedChange={setIncludeKnowledgeDocuments}
-              label={zh ? "包含知识库原始文档" : "Include knowledge documents"}
-              description={zh ? "导入后会异步重新解析和建立索引。" : "Documents are parsed and reindexed asynchronously after import."}
-            />
-            <SettingsSwitch
-              checked={includeFormRecords}
-              onCheckedChange={setIncludeFormRecords}
-              label={zh ? "包含表单记录" : "Include form records"}
-            />
+
+            <div className="flex flex-col gap-2 rounded-xl bg-muted p-3">
+              <SettingsSwitch
+                checked={includeDependencies}
+                onCheckedChange={setIncludeDependencies}
+                label={zh ? "包含智能体关联资源" : "Include agent dependencies"}
+              />
+              <SettingsSwitch
+                checked={includeKnowledgeDocuments}
+                onCheckedChange={setIncludeKnowledgeDocuments}
+                label={zh ? "包含知识库原始文档" : "Include knowledge documents"}
+                description={zh ? "导入后会异步重新解析和建立索引。" : "Documents are parsed and reindexed asynchronously after import."}
+              />
+              <SettingsSwitch
+                checked={includeFormRecords}
+                onCheckedChange={setIncludeFormRecords}
+                label={zh ? "包含表单记录" : "Include form records"}
+              />
+            </div>
           </div>
         ) : inspections.length > 0 ? (
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {inspections.map(item => (
-                <div key={item.inspection.inspectionId} className="rounded-xl border border-border/60 p-3">
+                <div key={item.inspection.inspectionId} className="rounded-xl bg-card p-3 shadow-depth-xs">
                   <p className="truncate text-sm font-medium">{item.filename}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {resourceKeys.map(key => `${resourceLabels[key][locale]} ${item.inspection.resources[key] || 0}`).join(" · ")}
@@ -363,7 +399,7 @@ export function ConfigBundleDialog({
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-secondary p-3 text-sm">
+            <div className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-3 text-sm sm:grid-cols-3">
               {resourceKeys.map(key => (
                 <div key={key} className="flex justify-between gap-3">
                   <span>{resourceLabels[key][locale]}</span>
@@ -381,7 +417,7 @@ export function ConfigBundleDialog({
                 value={policy}
                 onValueChange={(value) => setPolicy(value as ConflictPolicy)}
               >
-                <SelectTrigger className="h-10 w-full border border-border bg-background px-3">
+                <SelectTrigger className="h-10 w-full bg-muted px-3">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -394,7 +430,7 @@ export function ConfigBundleDialog({
               </Select>
             </label>
             {(totals.conflicts > 0 || totals.missing > 0 || inspections.some(item => item.inspection.warnings.length > 0)) && (
-              <div className="space-y-1 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm">
+              <div className="flex flex-col gap-1 rounded-xl bg-warning/10 p-3 text-sm">
                 <p>{zh ? `冲突：${totals.conflicts}` : `Conflicts: ${totals.conflicts}`}</p>
                 <p>{zh ? `缺失依赖：${totals.missing}` : `Missing dependencies: ${totals.missing}`}</p>
                 {inspections.flatMap(item => item.inspection.warnings.map(warning => `${item.filename}: ${warning}`)).map(warning => (
@@ -408,9 +444,9 @@ export function ConfigBundleDialog({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             variant="outline"
-            className="flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-secondary/50 text-sm hover:bg-secondary"
+            className="flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-xl bg-muted text-sm hover:bg-muted/80"
           >
-            {busy ? <LoaderCircle className="h-6 w-6 animate-spin text-primary" /> : <Download className="h-6 w-6 text-primary" />}
+            {busy ? <LoaderCircle className="animate-spin text-primary" /> : <Download className="text-primary" />}
             {zh ? "选择一个或多个配置包" : "Choose one or more configuration bundles"}
           </Button>
         )}
