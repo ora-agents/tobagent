@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label'
 import { LoadingPlaceholder } from '@/components/ui/loading-placeholder'
 import { normalizeLangGraphApiUrl, useApiConfig } from '@/lib/config/api-config'
 import { useT } from '@/lib/i18n'
+import logoImage from '@/public/logo.png'
 import { RotateCcw, Save, ServerCog } from 'lucide-react'
 
 interface AuthPageProps {
@@ -150,7 +151,7 @@ export function AuthPage({ mode }: AuthPageProps) {
         <main className="flex min-h-0 flex-col gap-8 px-6 py-7 sm:px-10 lg:px-14 lg:py-10">
           <div className="flex justify-center gap-3 md:justify-start">
             <div className="flex min-w-0 flex-1 items-center justify-center gap-3 md:justify-start">
-              <Image src="/logo.png" alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" draggable={false} />
+              <Image src={logoImage} alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" draggable={false} />
               <div>
                 <div className="text-sm font-medium tracking-tight">{t.loginBrandName}</div>
                 <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>

@@ -13,6 +13,7 @@ import { useAuth } from "@/components/providers/auth-provider"
 import { AuthPanel } from "./auth-panel"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getThreadSource } from "@/lib/utils/thread-source"
+import logoImage from "@/public/logo.png"
 
 interface SidebarProps {
   isCollapsed: boolean
@@ -488,7 +489,7 @@ export const Sidebar = memo(function Sidebar({
               </Button>
             )}
             <Image
-              src="/logo.png"
+              src={logoImage}
               alt="WSIRI"
               width={957}
               height={613}
