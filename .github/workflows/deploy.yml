@@ -303,7 +303,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DESKTOP_TAG: ${{ needs.release.outputs.desktop_tag }}
-        run: gh workflow run desktop-release.yml --ref "$GITHUB_REF_NAME" -f tag="$DESKTOP_TAG"
+        run: gh workflow run desktop-release.yml --repo "$GITHUB_REPOSITORY" --ref "$DESKTOP_TAG" -f tag="$DESKTOP_TAG"
 
   build-backend:
     name: Build backend image
