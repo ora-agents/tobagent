@@ -20,6 +20,16 @@ from src.utils.runtime_context import get_runtime_context_value
 logger = logging.getLogger(__name__)
 
 
+def _form_record_payload(record: FormRecordTable) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "formId": record.form_id,
+        "data": record.data or {},
+        "createdAt": record.created_at,
+        "updatedAt": record.updated_at,
+    }
+
+
 def _record_matches(
     data: dict,
     q: str,
@@ -289,9 +299,10 @@ class ManageFormDataTool(BaseTool):
                 normalized_data = {}
             old_data: dict[str, Any] = {}
             trigger_hooks = False
+            record_payload: dict[str, Any] | None = None
             if action == "create":
                 record = FormRecordTable(
-                    id=f"record-{uuid.uuid4()}",
+                    id=str(uuid.uuid4()),
                     form_id=form_id,
                     owner_user_id=owner_user_id,
                     data=normalized_data,
@@ -316,22 +327,26 @@ class ManageFormDataTool(BaseTool):
                     record.updated_at = now
                     trigger_hooks = True
                 else:
+                    record_payload = _form_record_payload(record)
                     db.delete(record)
 
             db.commit()
             if trigger_hooks:
                 db.refresh(record)
+                record_payload = _form_record_payload(record)
                 try:
                     trigger_form_hooks_sync(form, record, old_data, record.data or {})
                 except Exception as exc:
                     logger.warning("Form hooks failed after %s: %s", action, exc)
+            if record_payload is None:
+                record_payload = _form_record_payload(record)
             return json.dumps(
                 {
                     "status": "success",
                     "action": action,
                     "formId": form_id,
-                    "recordId": record.id,
-                    "data": record.data if action != "delete" else None,
+                    "recordId": record_payload["id"],
+                    "record": record_payload,
                 },
                 ensure_ascii=False,
             )

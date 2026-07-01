@@ -1,5 +1,6 @@
 """Tests for agent form permissions and form API-key authentication."""
 
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -121,7 +122,12 @@ def test_manage_form_tool_enforces_action_permission(monkeypatch):
         record_id="missing",
     )
 
-    assert '"status": "success"' in created
+    created_payload = json.loads(created)
+    assert created_payload["status"] == "success"
+    assert created_payload["recordId"] == created_payload["record"]["id"]
+    assert created_payload["record"]["formId"] == "orders"
+    assert created_payload["record"]["createdAt"]
+    assert created_payload["record"]["updatedAt"]
     assert "does not grant delete permission" in denied
     with session_factory() as session:
         assert session.query(FormRecordTable).count() == 1
@@ -181,7 +187,13 @@ def test_manage_form_tool_validates_record_data_against_form_fields(monkeypatch)
         data={"amount": 3},
     )
 
-    assert '"status": "success"' in created
+    created_payload = json.loads(created)
+    assert created_payload["status"] == "success"
+    assert created_payload["record"]["id"]
+    assert created_payload["record"]["formId"] == "orders"
+    assert created_payload["record"]["data"] == {"customer": "Acme", "amount": 12.5, "status": "new"}
+    assert created_payload["record"]["createdAt"]
+    assert created_payload["record"]["updatedAt"]
     assert "unknown field" in unknown
     assert "Customer" in missing
     with session_factory() as session:
