@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "next dev",
     "dev:local": "next dev -H 0.0.0.0",
-    "dev:desktop": "cross-env NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2026 next dev",
+    "dev:desktop": "cross-env NEXT_PUBLIC_LANGGRAPH_API_URL=https://gen.wsiri.cn next dev",
     "dev:desktop:if-needed": "bash -lc 'if curl -sf http://localhost:3000 >/dev/null 2>&1; then echo \"Next.js already running on http://localhost:3000; attaching Tauri without starting another dev server.\"; else bun run dev:desktop; fi'",
     "dev:remote": "next dev -p 3001",
     "build": "next build",
-    "build:desktop": "cross-env NEXT_OUTPUT_MODE=export NEXT_PUBLIC_LANGGRAPH_API_URL=http://127.0.0.1:2026 next build",
+    "build:desktop": "cross-env NEXT_OUTPUT_MODE=export NEXT_PUBLIC_LANGGRAPH_API_URL=https://gen.wsiri.cn next build",
     "start": "next start",
     "lint": "next lint",
     "tauri:dev": "tauri dev",

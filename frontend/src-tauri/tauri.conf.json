@@ -30,9 +30,6 @@
     "icon": [
       "../app/icon.png"
     ],
-    "resources": {
-      "../../desktop/dist/bin": "bin",
-      "../../desktop/dist/resources": "."
-    }
+    "resources": {}
   }
 }

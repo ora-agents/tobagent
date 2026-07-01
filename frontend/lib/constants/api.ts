@@ -11,7 +11,7 @@
  * NEXT_PUBLIC_LANGGRAPH_API_URL_EXTERNAL is supported for compatibility with
  * the existing Chat-LangChain-Frontend Vercel deployment.
  */
-const DESKTOP_LANGGRAPH_API_URL = "http://127.0.0.1:2026"
+const DESKTOP_LANGGRAPH_API_URL = "https://gen.wsiri.cn"
 
 function isTauriRuntime(): boolean {
   if (typeof window === "undefined") return false

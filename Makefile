@@ -6,7 +6,7 @@
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
 	desktop desktop-backend desktop-frontend desktop-tauri \
-	dev-desktop dev-tauri \
+	dev-desktop dev-tauri tauri check-tauri-frontend \
 	update-assets refresh-assets \
 	lint-actions \
 	test-agent-sdk
@@ -136,7 +136,15 @@ dev-desktop: dev-infra stop-ports
 
 # Tauri-only dev — expects `make dev` already running in another terminal.
 # Skips beforeDevCommand so Tauri attaches to the existing Next.js on port 3000.
-dev-tauri:
+tauri: dev-tauri
+
+check-tauri-frontend:
+	@if ! curl -sf -o /dev/null http://localhost:3000 2>/dev/null; then \
+		echo "Tauri attach mode expects Next.js on http://localhost:3000. Run 'make dev' first, or use 'make dev-desktop' for all-in-one desktop dev."; \
+		exit 1; \
+	fi
+
+dev-tauri: check-tauri-frontend
 	cd frontend && bun run tauri:dev:attach
 
 # Frontend pointing to local backend
@@ -198,7 +206,7 @@ install-frontend:
 install-backend:
 	uv sync
 
-desktop: desktop-backend desktop-frontend desktop-tauri
+desktop: desktop-frontend desktop-tauri
 
 desktop-backend:
 	@if [ "$$(uname -s)" = "Linux" ] && ! command -v patchelf >/dev/null 2>&1; then \
