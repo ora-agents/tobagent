@@ -9,7 +9,7 @@ import string
 from contextlib import asynccontextmanager, suppress
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -92,6 +92,11 @@ DEFAULT_CORS_ORIGINS: list[str] = [
     "https://public-chat-langchain-test-b5cwr3ocz-langchain.vercel.app",
 ]
 
+DESKTOP_CORS_ORIGIN_PATTERN = re.compile(
+    r"^(tauri://localhost|https?://tauri\.localhost(?::\d+)?|https?://localhost(?::\d+)?|"
+    r"https?://127\.0\.0\.1(?::\d+)?)$"
+)
+
 
 def _get_cors_origins() -> list[str]:
     """Get CORS allowed origins from defaults plus environment overrides."""
@@ -106,6 +111,11 @@ def _get_cors_origins() -> list[str]:
         origins.extend([o.strip() for o in cors_additional.split(",") if o.strip()])
         
     return list(set(origins))
+
+
+def _is_desktop_cors_origin(origin: str | None) -> bool:
+    """Return whether an Origin belongs to the packaged desktop app or localhost."""
+    return bool(origin and DESKTOP_CORS_ORIGIN_PATTERN.fullmatch(origin))
 
 
 @asynccontextmanager
@@ -207,6 +217,39 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def desktop_cors_preflight_middleware(request: Request, call_next):
+    """Allow packaged Tauri app preflight requests against local or remote backends."""
+    origin = request.headers.get("origin")
+    if (
+        request.method == "OPTIONS"
+        and request.headers.get("access-control-request-method")
+        and _is_desktop_cors_origin(origin)
+    ):
+        headers = {
+            "Access-Control-Allow-Origin": origin or "",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
+            "Access-Control-Allow-Headers": request.headers.get(
+                "access-control-request-headers",
+                "authorization,content-type",
+            ),
+            "Access-Control-Max-Age": "600",
+            "Vary": "Origin",
+        }
+        if request.headers.get("access-control-request-private-network"):
+            headers["Access-Control-Allow-Private-Network"] = "true"
+        return Response("OK", status_code=200, headers=headers)
+
+    response = await call_next(request)
+    if _is_desktop_cors_origin(origin) and not response.headers.get("access-control-allow-origin"):
+        response.headers["Access-Control-Allow-Origin"] = origin or ""
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers.add_vary_header("Origin")
+    return response
+
 
 app.include_router(langsmith_router)
 app.include_router(capabilities_router)
