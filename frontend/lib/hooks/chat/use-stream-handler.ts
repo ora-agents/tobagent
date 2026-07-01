@@ -125,6 +125,21 @@ function hasToolCallChunks(chunk: any): boolean {
   )
 }
 
+function getChunkToolCalls(chunk: any): any[] {
+  if (!chunk || typeof chunk !== "object") return []
+
+  const candidates = [
+    chunk.tool_calls,
+    chunk.tool_call_chunks,
+    chunk.invalid_tool_calls,
+    chunk.additional_kwargs?.tool_calls,
+    chunk.kwargs?.tool_calls,
+    chunk.kwargs?.tool_call_chunks,
+  ]
+
+  return candidates.flatMap((value) => (Array.isArray(value) ? value : []))
+}
+
 function getChunkText(chunk: any): string {
   if (!chunk || typeof chunk !== "object") return ""
   if (chunk.content !== undefined) return extractTextFromContent(chunk.content)
@@ -175,6 +190,10 @@ function parseToolArgs(value: unknown): Record<string, any> {
   }
 }
 
+function hasToolArgs(args: Record<string, any>): boolean {
+  return Object.keys(args).length > 0
+}
+
 function getToolCallArgs(toolCall: any): Record<string, any> {
   return parseToolArgs(
     toolCall?.args ??
@@ -194,12 +213,20 @@ function normalizeToolCall(toolCall: any): ToolCall {
   }
 }
 
+function getToolCallName(toolCall: any): string | undefined {
+  return toolCall?.name ?? toolCall?.function?.name ?? toolCall?.kwargs?.name
+}
+
+function getToolCallId(toolCall: any): string | undefined {
+  return toolCall?.id ?? toolCall?.tool_call_id ?? toolCall?.kwargs?.id
+}
+
 function mergeToolCalls(current: ToolCall[], incoming: any[]): ToolCall[] {
   const incomingById = new Map(
-    incoming.map((toolCall) => {
-      const normalized = normalizeToolCall(toolCall)
-      return [normalized.id, normalized]
-    })
+    incoming
+      .map(normalizeToolCall)
+      .filter((toolCall) => toolCall.id)
+      .map((normalized) => [normalized.id, normalized] as const)
   )
   const currentIds = new Set(current.map((toolCall) => toolCall.id))
 
@@ -211,13 +238,70 @@ function mergeToolCalls(current: ToolCall[], incoming: any[]): ToolCall[] {
       return {
         ...toolCall,
         ...next,
+        name: next.name || toolCall.name,
+        args: hasToolArgs(next.args) ? next.args : toolCall.args,
         output: next.output !== undefined ? next.output : toolCall.output,
       }
     }),
     ...incoming
       .map(normalizeToolCall)
-      .filter((toolCall) => !currentIds.has(toolCall.id)),
+      .filter((toolCall) => toolCall.id && !currentIds.has(toolCall.id)),
   ]
+}
+
+type StreamedToolCallChunk = {
+  id?: string
+  name?: string
+  argsText: string
+  args?: Record<string, any>
+}
+
+function mergeStreamedToolCallChunks(
+  current: Map<string, StreamedToolCallChunk>,
+  chunks: any[],
+  runId: string
+): ToolCall[] {
+  const updatedTools: ToolCall[] = []
+
+  chunks.forEach((chunk, index) => {
+    const chunkIndex =
+      typeof chunk?.index === "number" || typeof chunk?.index === "string"
+        ? String(chunk.index)
+        : String(index)
+    const id = getToolCallId(chunk)
+    const key = `${runId || "tool-call"}:${id || chunkIndex}`
+    const existing = current.get(key) ?? { argsText: "" }
+    const argsFragment =
+      typeof chunk?.args === "string"
+        ? chunk.args
+        : typeof chunk?.arguments === "string"
+          ? chunk.arguments
+          : typeof chunk?.function?.arguments === "string"
+            ? chunk.function.arguments
+            : ""
+    const argsObject = getToolCallArgs(chunk)
+    const next: StreamedToolCallChunk = {
+      id: id || existing.id,
+      name: getToolCallName(chunk) || existing.name,
+      argsText: existing.argsText + argsFragment,
+      args: hasToolArgs(argsObject) ? argsObject : existing.args,
+    }
+
+    current.set(key, next)
+
+    if (!next.name || isSubagentToolName(next.name)) return
+
+    const args = next.argsText
+      ? parseToolArgs(next.argsText)
+      : next.args ?? {}
+    updatedTools.push({
+      id: next.id || key,
+      name: next.name,
+      args,
+    })
+  })
+
+  return updatedTools
 }
 
 function syncProcessStepTools(
@@ -321,11 +405,33 @@ function toDisplayResponseMessages(
   displayMessages: any[],
   assistantMessageId: string,
   finalAssistantCheckpointId: string | undefined,
-  currentUserCheckpointId: string | undefined
+  currentUserCheckpointId: string | undefined,
+  allMessages: any[] = displayMessages,
+  streamedToolCalls: ToolCall[] = []
 ): Message[] {
   let assistantSegmentIndex = 0
   let hasSeenTool = false
   let hasSeenAssistant = false
+  const toolArgsByCallId = new Map(
+    streamedToolCalls.map((toolCall) => [toolCall.id, toolCall.args] as const)
+  )
+
+  allMessages.forEach((msg: any) => {
+    if (!isAssistantMessage(msg)) return
+    const toolCalls = Array.isArray(msg.tool_calls)
+      ? msg.tool_calls
+      : Array.isArray(msg.additional_kwargs?.tool_calls)
+        ? msg.additional_kwargs.tool_calls
+        : []
+
+    toolCalls.forEach((toolCall: any) => {
+      const id = getToolCallId(toolCall)
+      const args = getToolCallArgs(toolCall)
+      if (id && hasToolArgs(args)) {
+        toolArgsByCallId.set(id, args)
+      }
+    })
+  })
 
   return displayMessages.map((msg: any, index: number): Message => {
     const role = isToolMessage(msg) ? "tool" : "assistant"
@@ -357,6 +463,7 @@ function toDisplayResponseMessages(
       parentCheckpointId: currentUserCheckpointId,
       toolName: msg.name,
       toolCallId: msg.tool_call_id,
+      toolArgs: msg.tool_call_id ? toolArgsByCallId.get(msg.tool_call_id) : undefined,
     }
   })
 }
@@ -646,6 +753,7 @@ export function useStreamHandler({
       let currentUserCheckpointId: string | undefined = options?.checkpointId
       let finalAssistantCheckpointId: string | undefined
       let orderedResponseMessagesFromValues: Message[] = []
+      const streamedToolCallChunks = new Map<string, StreamedToolCallChunk>()
 
       const isCustomProfile = !!agentProfile
       const agentType = agentProfile?.graphId?.trim() || "generic_agent"
@@ -922,7 +1030,9 @@ export function useStreamHandler({
           displayMessages,
           assistantMessageId,
           finalAssistantCheckpointId,
-          currentUserCheckpointId
+          currentUserCheckpointId,
+          data.messages,
+          assistantToolCalls
         )
         const finalContent = nextResponseMessages
           .filter((message) => message.role === "assistant")
@@ -966,6 +1076,20 @@ export function useStreamHandler({
           const eventRunId = getEventRunId(data)
           if (eventRunId && hasToolCallChunks(aiChunk)) {
             toolCallingModelRuns.add(eventRunId)
+            const streamedTools = mergeStreamedToolCallChunks(
+              streamedToolCallChunks,
+              getChunkToolCalls(aiChunk),
+              eventRunId
+            )
+            if (streamedTools.length > 0) {
+              assistantToolCalls = mergeToolCalls(assistantToolCalls, streamedTools)
+              streamedTools.forEach((streamedTool) => {
+                const tool = assistantToolCalls.find((item) => item.id === streamedTool.id)
+                if (tool) {
+                  queueStreamedToolMessage(tool)
+                }
+              })
+            }
           }
           if (eventRunId && toolCallingModelRuns.has(eventRunId)) {
             continue
