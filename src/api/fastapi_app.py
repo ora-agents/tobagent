@@ -28,6 +28,7 @@ from src.api.routes.config_bundles import router as config_bundles_router
 from src.api.routes.forms import router as forms_router
 from src.api.routes.knowledge_bases import router as knowledge_bases_router
 from src.api.routes.mcp_servers import router as mcp_servers_router
+from src.api.routes.model_gateway import router as model_gateway_router
 from src.api.routes.models import router as models_router
 from src.api.routes.robot import router as robot_router
 from src.api.routes.skills import router as skills_router
@@ -220,6 +221,7 @@ app.include_router(skills_router)
 app.include_router(sms_hooks_router)
 app.include_router(knowledge_bases_router)
 app.include_router(mcp_servers_router)
+app.include_router(model_gateway_router)
 app.include_router(traces_router)
 
 
