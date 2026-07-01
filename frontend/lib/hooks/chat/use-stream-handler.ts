@@ -42,7 +42,7 @@ import type { AgentProfile } from "../../types/agent-profiles"
 import { LANGGRAPH_API_URL } from "../../constants/api"
 
 function isSubagentToolName(name?: string): boolean {
-  return name === "task" || name === "read_skill" || !!name?.startsWith("call_agent_")
+  return name === "task" || !!name?.startsWith("call_agent_")
 }
 
 function getStreamMessageMetadata(data: any, chunk?: any): Record<string, any> {
@@ -76,18 +76,19 @@ function isSubagentMessageStream(eventType: string, data: any, chunk?: any): boo
 }
 
 function isUserMessage(msg: any): boolean {
-  const role = msg?.type || msg?.role
+  const role = getMessageRole(msg)
   return role === "human" || role === "user"
 }
 
 function isAssistantMessage(msg: any): boolean {
-  const role = msg?.type || msg?.role
+  const role = getMessageRole(msg)
   return role === "ai" || role === "assistant"
 }
 
 function isToolMessage(msg: any): boolean {
-  const role = msg?.type || msg?.role
-  return role === "tool"
+  const role = getMessageRole(msg)
+  const constructorId = Array.isArray(msg?.id) ? msg.id.join(".") : ""
+  return role === "tool" || constructorId.includes("ToolMessage")
 }
 
 function hasToolCalls(msg: any): boolean {
@@ -160,6 +161,22 @@ function getDisplayText(content: unknown): string {
   } catch {
     return String(content)
   }
+}
+
+function getMessageRole(msg: any): string | undefined {
+  return msg?.type ?? msg?.role ?? msg?.kwargs?.type ?? msg?.kwargs?.role
+}
+
+function getMessageContent(msg: any): unknown {
+  return msg?.content ?? msg?.kwargs?.content
+}
+
+function getMessageToolCallId(msg: any): string | undefined {
+  return msg?.tool_call_id ?? msg?.toolCallId ?? msg?.kwargs?.tool_call_id ?? msg?.kwargs?.toolCallId
+}
+
+function getMessageName(msg: any): string | undefined {
+  return msg?.name ?? msg?.kwargs?.name
 }
 
 function mergeStreamedContent(currentContent: string, streamedContent: string): string {
@@ -344,6 +361,197 @@ function applyToolOutput(
   }
 }
 
+function getUpdateNodeMessages(data: any): any[] {
+  if (!data || typeof data !== "object") return []
+
+  const messages: any[] = []
+  const appendMessages = (value: any) => {
+    if (Array.isArray(value?.messages)) {
+      messages.push(...value.messages)
+    }
+  }
+
+  appendMessages(data)
+  Object.values(data).forEach(appendMessages)
+
+  return messages
+}
+
+function getUpdateAssistantMessages(data: any): any[] {
+  return getUpdateNodeMessages(data).filter(isAssistantMessage)
+}
+
+function getUpdateToolMessages(data: any): any[] {
+  return getUpdateNodeMessages(data).filter(
+    (msg: any) => isToolMessage(msg) && getMessageToolCallId(msg)
+  )
+}
+
+function getEventToolEnd(data: any): { name?: string; input?: unknown; output: unknown; toolCallId?: string } | undefined {
+  if (!data || typeof data !== "object" || data.event !== "on_tool_end") {
+    return undefined
+  }
+
+  const eventData = data.data && typeof data.data === "object" ? data.data : {}
+  const output = eventData.output
+  const outputToolCallId =
+    output && typeof output === "object" ? getMessageToolCallId(output) : undefined
+
+  return {
+    name: data.name,
+    input: eventData.input,
+    output,
+    toolCallId: outputToolCallId,
+  }
+}
+
+function normalizeToolEventInput(input: unknown): Record<string, any> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {}
+  const value = input as Record<string, any>
+  if (
+    value.input &&
+    typeof value.input === "object" &&
+    !Array.isArray(value.input)
+  ) {
+    return value.input as Record<string, any>
+  }
+  return value
+}
+
+function stableJson(value: unknown): string {
+  if (!value || typeof value !== "object") return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+
+  const objectValue = value as Record<string, unknown>
+  return `{${Object.keys(objectValue)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(objectValue[key])}`)
+    .join(",")}}`
+}
+
+function sameToolArgs(left: Record<string, any>, right: Record<string, any>): boolean {
+  return stableJson(left) === stableJson(right)
+}
+
+function applyToolMessage(
+  toolCalls: ToolCall[],
+  processSteps: ProcessStep[],
+  msg: any
+): { toolCalls: ToolCall[]; processSteps: ProcessStep[]; tool?: ToolCall } {
+  const toolCallId = getMessageToolCallId(msg)
+  if (!toolCallId) {
+    return { toolCalls, processSteps }
+  }
+
+  const content = getMessageContent(msg)
+  const output =
+    typeof content === "string"
+      ? content
+      : JSON.stringify(content)
+  const existingTool = toolCalls.find((toolCall) => toolCall.id === toolCallId)
+
+  let nextToolCalls = toolCalls
+  let nextProcessSteps = processSteps
+  let tool: ToolCall | undefined
+
+  if (existingTool) {
+    const nextState = applyToolOutput(
+      toolCalls,
+      processSteps,
+      toolCallId,
+      output
+    )
+    nextToolCalls = nextState.toolCalls
+    nextProcessSteps = nextState.processSteps
+    tool = nextToolCalls.find((item) => item.id === toolCallId)
+  } else {
+    tool = {
+      id: toolCallId,
+      name: getMessageName(msg) || "tool",
+      args: {},
+      output,
+    }
+    nextToolCalls = [...toolCalls, tool]
+  }
+
+  if (
+    tool &&
+    !nextProcessSteps.some(
+      (step) => step.type === "tool" && step.tool?.id === toolCallId
+    )
+  ) {
+    nextProcessSteps = [
+      ...nextProcessSteps,
+      { type: "tool", tool },
+    ]
+  } else if (tool) {
+    nextProcessSteps = syncProcessStepTools(nextProcessSteps, nextToolCalls)
+  }
+
+  return { toolCalls: nextToolCalls, processSteps: nextProcessSteps, tool }
+}
+
+function applyToolEndEvent(
+  toolCalls: ToolCall[],
+  processSteps: ProcessStep[],
+  event: { name?: string; input?: unknown; output: unknown; toolCallId?: string }
+): { toolCalls: ToolCall[]; processSteps: ProcessStep[]; tool?: ToolCall } {
+  const outputMessage =
+    event.output && typeof event.output === "object" && isToolMessage(event.output)
+      ? event.output
+      : undefined
+  const explicitToolCallId = event.toolCallId ?? (
+    outputMessage ? getMessageToolCallId(outputMessage) : undefined
+  )
+
+  if (explicitToolCallId && outputMessage) {
+    return applyToolMessage(toolCalls, processSteps, outputMessage)
+  }
+
+  const inputArgs = normalizeToolEventInput(event.input)
+  const pendingTool =
+    (event.name
+      ? toolCalls.find((toolCall) =>
+          toolCall.name === event.name &&
+          toolCall.output === undefined &&
+          sameToolArgs(toolCall.args, inputArgs)
+        )
+      : undefined) ??
+    (event.name
+      ? toolCalls.find((toolCall) => toolCall.name === event.name && toolCall.output === undefined)
+      : undefined) ??
+    toolCalls.find((toolCall) => toolCall.output === undefined)
+
+  const output = outputMessage
+    ? getDisplayText(getMessageContent(outputMessage))
+    : getDisplayText(event.output)
+
+  if (!pendingTool) {
+    const syntheticTool: ToolCall = {
+      id: explicitToolCallId || `tool-event-${event.name || "tool"}`,
+      name: event.name || "tool",
+      args: inputArgs,
+      output,
+    }
+    return {
+      toolCalls: [...toolCalls, syntheticTool],
+      processSteps: [
+        ...processSteps,
+        { type: "tool", tool: syntheticTool },
+      ],
+      tool: syntheticTool,
+    }
+  }
+
+  const msg = {
+    type: "tool",
+    name: pendingTool.name,
+    tool_call_id: pendingTool.id,
+    content: output,
+  }
+  return applyToolMessage(toolCalls, processSteps, msg)
+}
+
 function findDisplayMessagesAfterUser(messages: any[], userContent: string): any[] {
   let lastUserIndex = -1
   let foundCurrentUser = !userContent
@@ -352,7 +560,8 @@ function findDisplayMessagesAfterUser(messages: any[], userContent: string): any
     const msg = messages[index]
     if (!isUserMessage(msg)) continue
 
-    const content = msg.content ? extractTextFromContent(msg.content) : ""
+    const rawContent = getMessageContent(msg)
+    const content = rawContent ? extractTextFromContent(rawContent) : ""
     if (!userContent || content === userContent || content.includes(userContent)) {
       lastUserIndex = index
       foundCurrentUser = true
@@ -365,8 +574,8 @@ function findDisplayMessagesAfterUser(messages: any[], userContent: string): any
   const candidates = lastUserIndex >= 0 ? messages.slice(lastUserIndex + 1) : messages
   return candidates.filter((msg: any) =>
     (
-      (isAssistantMessage(msg) && getDisplayText(msg.content).trim()) ||
-      (isToolMessage(msg) && getDisplayText(msg.content).trim())
+      (isAssistantMessage(msg) && getDisplayText(getMessageContent(msg)).trim()) ||
+      (isToolMessage(msg) && getDisplayText(getMessageContent(msg)).trim())
     )
   )
 }
@@ -435,12 +644,12 @@ function toDisplayResponseMessages(
 
   return displayMessages.map((msg: any, index: number): Message => {
     const role = isToolMessage(msg) ? "tool" : "assistant"
-    const content = getDisplayText(msg.content)
+    const content = getDisplayText(getMessageContent(msg))
     let id: string
 
     if (role === "tool") {
       hasSeenTool = true
-      id = `${assistantMessageId}-tool-${msg.tool_call_id || msg.id || index}`
+      id = `${assistantMessageId}-tool-${getMessageToolCallId(msg) || msg.id || index}`
     } else if (!hasSeenAssistant && !hasSeenTool) {
       hasSeenAssistant = true
       id = assistantMessageId
@@ -452,18 +661,21 @@ function toDisplayResponseMessages(
         : `${assistantMessageId}-values-${msg.id || index}`
     }
 
+    const toolCallId = getMessageToolCallId(msg)
+    const isCompletedToolMessage = role === "tool" && content.trim().length > 0
+
     return {
       id,
       role,
       content,
       timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
-      isThinking: true,
+      isThinking: !isCompletedToolMessage,
       runId: msg.run_id,
       checkpointId: index === displayMessages.length - 1 ? finalAssistantCheckpointId : undefined,
       parentCheckpointId: currentUserCheckpointId,
-      toolName: msg.name,
-      toolCallId: msg.tool_call_id,
-      toolArgs: msg.tool_call_id ? toolArgsByCallId.get(msg.tool_call_id) : undefined,
+      toolName: getMessageName(msg),
+      toolCallId,
+      toolArgs: toolCallId ? toolArgsByCallId.get(toolCallId) : undefined,
     }
   })
 }
@@ -936,8 +1148,9 @@ export function useStreamHandler({
           const lastMessage = Array.isArray(checkpointMessages)
             ? checkpointMessages[checkpointMessages.length - 1]
             : undefined
-          const lastRole = lastMessage?.type || lastMessage?.role
-          const lastContent = lastMessage?.content ? extractTextFromContent(lastMessage.content) : ""
+          const lastRole = getMessageRole(lastMessage)
+          const rawLastContent = getMessageContent(lastMessage)
+          const lastContent = rawLastContent ? extractTextFromContent(rawLastContent) : ""
 
           if (checkpointId && (lastRole === "human" || lastRole === "user") && lastContent === userContent) {
             currentUserCheckpointId = checkpointId
@@ -954,71 +1167,6 @@ export function useStreamHandler({
 
           if (checkpointId && (lastRole === "ai" || lastRole === "assistant")) {
             finalAssistantCheckpointId = checkpointId
-          }
-        }
-
-        // Track tool calls. Subagent tool output is intentionally kept out of
-        // frontend state; the parent agent consumes it and streams one final answer.
-        if (
-          (eventType === "updates" ||
-            (baseEvent === "updates" && isSubgraphEvent)) &&
-          data
-        ) {
-          // Update tool calls from agent/model messages
-          const agentMessages = data.agent?.messages || data.model?.messages
-          if (agentMessages && Array.isArray(agentMessages)) {
-            agentMessages.forEach((msg: any) => {
-              if (msg.tool_calls && Array.isArray(msg.tool_calls)) {
-                msg.tool_calls.forEach((toolCall: any) => {
-                  const existingToolCall = assistantToolCalls.find(
-                    (tc) => tc.id === toolCall.id
-                  )
-                  if (!existingToolCall) {
-                    if (!isSubagentToolName(toolCall.name)) {
-                      assistantToolCalls = mergeToolCalls(
-                        assistantToolCalls,
-                        [toolCall]
-                      )
-                      const tool = assistantToolCalls.find((item) => item.id === toolCall.id)
-                      if (tool) {
-                        queueStreamedToolMessage(tool)
-                      }
-                    }
-                  }
-                })
-              }
-            })
-          }
-
-          // Process tool messages (both regular tools and subagent responses)
-          if (data.tools?.messages && Array.isArray(data.tools.messages)) {
-            data.tools.messages.forEach((msg: any) => {
-              if (msg.type === "tool" && msg.tool_call_id) {
-                if (isSubagentToolName(msg.name)) return
-
-                if (
-                  assistantToolCalls.some((tc) => tc.id === msg.tool_call_id) &&
-                  msg.content
-                ) {
-                  const output =
-                    typeof msg.content === "string"
-                      ? msg.content
-                      : JSON.stringify(msg.content)
-                  const nextState = applyToolOutput(
-                    assistantToolCalls,
-                    assistantProcessSteps,
-                    msg.tool_call_id,
-                    output
-                  )
-                  assistantToolCalls = nextState.toolCalls
-                  assistantProcessSteps = nextState.processSteps
-                  const tool = assistantToolCalls.find((item) => item.id === msg.tool_call_id)
-                  if (tool) {
-                    queueStreamedToolMessage(tool)
-                  }
-                }
-              }
-            })
           }
         }
 
@@ -1070,6 +1218,21 @@ export function useStreamHandler({
       // Handle astream_events-style model token events. Tool-call assistant
       // messages are skipped; only natural-language answer chunks render.
       if (eventType === "events" && !isSubagentMessageEvent && data) {
+        const toolEndEvent = getEventToolEnd(data)
+        if (toolEndEvent && !isSubagentToolName(toolEndEvent.name)) {
+          const nextState = applyToolEndEvent(
+            assistantToolCalls,
+            assistantProcessSteps,
+            toolEndEvent
+          )
+          assistantToolCalls = nextState.toolCalls
+          assistantProcessSteps = nextState.processSteps
+          if (nextState.tool) {
+            queueStreamedToolMessage(nextState.tool)
+            flushQueuedMessageUpdates()
+          }
+        }
+
         const aiChunk = getEventMessageChunk(data)
 
         if (aiChunk) {
@@ -1149,7 +1312,7 @@ export function useStreamHandler({
 
       // Capture intermediate text and tool calls into processSteps
       // Support both agent (deepagent) and model (create_agent) nodes
-      const agentMessages = data?.agent?.messages || data?.model?.messages
+      const agentMessages = getUpdateAssistantMessages(data)
       if ((eventType === "updates" || baseEvent === "updates") && data) {
         if (agentMessages && Array.isArray(agentMessages)) {
           agentMessages.forEach((msg: any) => {
@@ -1159,8 +1322,9 @@ export function useStreamHandler({
               // Only capture text as intermediate processStep when the same AI message
               // also contains tool_calls — this is thinking/reasoning text BEFORE tool execution.
               // Text in AI messages WITHOUT tool_calls is the final response, not a process step.
-              if (hasToolCallsInMsg && msg.content && typeof msg.content === "string" && msg.content.trim()) {
-                const textContent = msg.content.trim()
+              const rawContent = getMessageContent(msg)
+              if (hasToolCallsInMsg && rawContent && typeof rawContent === "string" && rawContent.trim()) {
+                const textContent = rawContent.trim()
                 if (!assistantProcessSteps.find(s => s.type === "text" && s.content === textContent)) {
                   assistantProcessSteps.push({ type: "text", content: textContent })
                 }
@@ -1197,45 +1361,22 @@ export function useStreamHandler({
           })
         }
         
-        if (data.tools?.messages && Array.isArray(data.tools.messages)) {
-          data.tools.messages.forEach((msg: any) => {
-            if (msg.type === "tool" && msg.tool_call_id) {
-              const output =
-                typeof msg.content === "string"
-                  ? msg.content
-                  : JSON.stringify(msg.content)
-              const nextState = applyToolOutput(
-                assistantToolCalls,
-                assistantProcessSteps,
-                msg.tool_call_id,
-                output
-              )
-              assistantToolCalls = nextState.toolCalls
-              assistantProcessSteps = nextState.processSteps
-              const updatedTool = assistantToolCalls.find(
-                (item) => item.id === msg.tool_call_id
-              )
-              if (updatedTool) {
-                queueStreamedToolMessage(updatedTool)
-              }
-              if (
-                !assistantProcessSteps.some(
-                  (step) => step.type === "tool" && step.tool?.id === msg.tool_call_id
-                )
-              ) {
-                const tool = assistantToolCalls.find(
-                  (item) => item.id === msg.tool_call_id
-                )
-                if (tool) {
-                  assistantProcessSteps = [
-                    ...assistantProcessSteps,
-                    { type: "tool", tool },
-                  ]
-                }
-              }
-            }
-          })
-        }
+        getUpdateToolMessages(data).forEach((msg: any) => {
+          if (isSubagentToolName(getMessageName(msg))) return
+          if (!getMessageContent(msg)) return
+
+          const nextState = applyToolMessage(
+            assistantToolCalls,
+            assistantProcessSteps,
+            msg
+          )
+          assistantToolCalls = nextState.toolCalls
+          assistantProcessSteps = nextState.processSteps
+          if (nextState.tool) {
+            queueStreamedToolMessage(nextState.tool)
+            flushQueuedMessageUpdates()
+          }
+        })
 
       }
     }
