@@ -4,7 +4,7 @@ This project can be packaged as a local desktop app with:
 
 - Tauri for the desktop shell.
 - A static Next.js export for the UI.
-- A Nuitka standalone binary for the local FastAPI backend.
+- A configurable remote or user-managed FastAPI backend.
 
 ## Build Flow
 
@@ -14,9 +14,8 @@ make desktop
 
 The target runs:
 
-1. `make desktop-backend` to build `desktop/backend_entry.py` with Nuitka.
-2. `make desktop-frontend` to export the Next.js UI to `frontend/out`.
-3. `make desktop-tauri` to build the Tauri desktop bundle.
+1. `make desktop-frontend` to export the Next.js UI to `frontend/out`.
+2. `make desktop-tauri` to build the Tauri desktop bundle.
 
 On Linux/WSL the default Tauri bundle targets are `.deb` and `.rpm`. AppImage
 packaging is intentionally skipped until the project has square icon assets.
@@ -27,10 +26,14 @@ For a faster frontend-only check:
 cd frontend && bun run build:desktop
 ```
 
-## Local Backend Runtime
+## Backend Runtime
 
-The Tauri app starts the bundled backend binary from `bin/tobagent-backend` or
-`bin/tobagent-backend.exe` on `127.0.0.1:2025`.
+The Tauri app does not start a bundled backend process automatically. The UI
+connects to the configured backend URL, so users can use the official service or
+a backend they run themselves.
+
+The `desktop-backend` target is still available for manually building a local
+backend binary, but it is not part of the default desktop package.
 
 `scripts/build_desktop_backend.py` includes `assets/` and `models/` only when
 those directories exist. This keeps CI builds working when local model files are
@@ -44,18 +47,6 @@ The desktop backend entrypoint sets local defaults before importing the app:
 - `VOICE_TEN_VAD_MODEL_PATH` uses bundled `models/vad/ten-vad.onnx`.
 - `TOB_ASSETS_DIR` points to bundled `assets` when available.
 
-For Tauri development with an externally started backend:
-
-```bash
-TOB_DESKTOP_BACKEND_EXTERNAL=1 cd frontend && bun run tauri:dev
-```
-
-Or point Tauri at a manually built backend binary:
-
-```bash
-TOB_DESKTOP_BACKEND_BIN=/path/to/tobagent-backend cd frontend && bun run tauri:dev
-```
-
 ## Platform Notes
 
 Linux Nuitka standalone builds require `patchelf`:
@@ -65,7 +56,8 @@ sudo apt install patchelf
 ```
 
 Windows desktop builds should be run on Windows so Tauri produces a Windows
-installer and Nuitka emits `tobagent-backend.exe`.
+installer. If you manually build the optional local backend there, Nuitka emits
+`tobagent-backend.exe`.
 
 ## GitHub Actions
 
