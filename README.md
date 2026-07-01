@@ -79,7 +79,7 @@ cd frontend && bun install
 ### 2. 配置环境变量
 
 ```bash
-cp .env.example .env
+cp .env.minimal .env
 cp frontend/.env.example frontend/.env.local
 ```
 
@@ -91,10 +91,11 @@ OPENAI_COMPATIBLE_API_KEY=sk-your_api_key_here
 OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
 ```
 
-语音功能需要额外配置：
+这套最小配置会使用默认 CORS、本地 SQLite fallback 和 OpenAI 兼容模型服务，足够启动基础账号、管理后台、智能体对话、技能/表单/MCP 配置页面和模型代理。生产环境建议额外设置：
 
 ```env
-DASHSCOPE_API_KEY=sk-xxx
+LANGGRAPH_AUTH_SECRET=change_me_to_a_random_secret
+CORS_ALLOW_ORIGINS=https://your-frontend.example.com
 ```
 
 前端默认读取：
@@ -103,6 +104,14 @@ DASHSCOPE_API_KEY=sk-xxx
 NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:2025
 NEXT_PUBLIC_OPENAI_DEFAULT_MODEL=gpt-4o
 ```
+
+如需完整配置模板，使用：
+
+```bash
+cp .env.example .env
+```
+
+`.env.example` 中的扩展模块默认保持注释，按需取消注释即可。
 
 ### 3. 启动本地开发环境
 
@@ -172,12 +181,62 @@ FastAPI 应用挂载在 Aegra/LangGraph HTTP 服务中，主要接口包括：
 - `/api/forms`：表单和表单记录管理
 - `/api/mcp-servers`：MCP 服务配置
 - `/api/models`：OpenAI 兼容模型列表代理
+- `/api/capabilities`：后端模块能力清单，前端据此动态显示可用 UI
 - `/api/config-bundles/*`：配置包导入导出
 - `/api/robot/*`：机器人点位、命令流和结果回调
 - `/ws/voice/*`：ASR/TTS 语音 WebSocket
 - `/langsmith/*`：LangSmith run 查询和分享辅助
 
 交互式接口文档见 `/docs`，OpenAPI Schema 见 `/openapi.json`。
+
+## 环境变量与模块能力
+
+后端通过 `/api/capabilities` 暴露当前环境可用能力。响应保留旧字段 `smsAuth`、`langfuseTracing`，同时提供结构化 `modules`，每个模块包含：
+
+- `enabled`：当前环境是否启用
+- `category`：模块分类
+- `requiredEnv`：启用该模块需要配置的环境变量名
+- `optionalEnv`：可调整默认行为的环境变量名
+- `defaults`：未配置时使用的默认参数
+
+前端会在启动时读取该接口；目前短信认证和 Langfuse Trace 菜单已经按能力动态显示，后续语音、机器人、模型、RAG 等 UI 也可直接读取 `capabilities.modules`。
+
+### 基础必需配置
+
+| 模块 | 用途 | 必需环境变量 | 默认/说明 |
+| --- | --- | --- | --- |
+| `core.model` | 智能体运行、模型调用、上下文摘要 | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_COMPATIBLE_BASE_URL` 默认可留空使用 OpenAI 标准端点；`OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o` |
+| `core.database` | 用户、工作区、智能体配置、表单、技能、MCP 元数据 | 无 | 未设置 PostgreSQL 时使用 `./chat_langchain.db` SQLite fallback |
+| `core.cors` | 允许前端访问后端 | 无 | 默认允许本地开发地址；生产配置 `CORS_ALLOW_ORIGINS` |
+| `auth.password` | 密码登录、注册、用户资料、API Key | 无 | 生产建议设置 `LANGGRAPH_AUTH_SECRET` 保护 LangGraph/Aegra 调用 |
+
+最小 `.env`：
+
+```env
+OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_API_KEY=sk-your_api_key_here
+OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
+```
+
+### 可选扩展模块
+
+| 模块 | 启用条件 | 主要环境变量 | 默认参数 |
+| --- | --- | --- | --- |
+| `models.proxy` | 配置 OpenAI 兼容 base URL 和 API key | `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY` | `MODEL_LIST_CACHE_TTL_SECONDS=300` |
+| `knowledge.rag` | 配置模型 API key | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_EMBEDDING_MODEL=text-embedding-v3`, `LANCEDB_PATH=/tmp/lancedb_agents`, `KNOWLEDGE_DOCUMENTS_PATH=/tmp/tobagent_knowledge_documents` |
+| `agent.skills` | 默认开启 | 数据库配置 | 用户在 UI 中维护技能内容 |
+| `agent.forms` | 默认开启 | 数据库配置 | 用户在 UI 中维护表单和权限 |
+| `agent.mcp` | 默认开启 | 数据库配置 | 用户在 UI 中配置 streamable HTTP MCP server |
+| `agent.subagents` | 默认开启 | 数据库配置 | 用户在智能体配置中链接子智能体 |
+| `auth.sms` | 配置 Aliyun SMS 或开发日志模式 | `ALIYUN_SMS_TEMPLATE_CODE`, `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME` | `SMS_CODE_TTL_SECONDS=300`, `SMS_RESEND_INTERVAL_SECONDS=60`; 本地可用 `SMS_DEV_LOG_CODE=true` |
+| `observability.langfuse` | 配置 Langfuse 公钥和私钥 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | `LANGFUSE_BASE_URL=https://cloud.langfuse.com` |
+| `voice.asr` | 配置 DashScope API key | `DASHSCOPE_API_KEY` | `ASR_MODEL=qwen3-asr-flash`, VAD 阈值 `0.5` |
+| `voice.tts` | 配置 DashScope API key | `DASHSCOPE_API_KEY` | `TTS_MODEL=qwen3-tts-instruct-flash-realtime`, `TTS_VOICE=Cherry` |
+| `voice.wakeWord` | 本地 KWS 模型目录存在 | `KWS_MODEL_DIR` | `KWS_MODEL_DIR=./models/kws`, `KWS_NUM_THREADS=2` |
+| `voice.speakerVerification` | 显式开启声纹模块 | `VOICE_SPEAKER_VERIFICATION_ENABLED=true` | `SPEAKER_SERVICE_URL=http://speaker:8090`, `VOICE_SPEAKER_PROFILE_THRESHOLD=0.72` |
+| `robot.navigation` | 显式开启机器人导航 | `ROBOT_NAVIGATION_ENABLED=true` | 仅 robot Android WebView 运行环境会向智能体开放导航工具 |
+
+模块化分两层：系统级模块由 env 决定并通过 `/api/capabilities` 暴露；智能体运行时模块由数据库中的 agent profile 决定，包括启用工具、知识库、技能、表单、MCP server、子智能体、模型和温度。
 
 ## 智能体运行方式
 
