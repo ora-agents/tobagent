@@ -792,7 +792,7 @@ async def import_agent_profiles_toml(
                 if key not in {"id", "createdAt", "updatedAt"}
             }
             db.add(FormRecordTable(
-                id=_new_resource_id("record"),
+                id=str(uuid.uuid4()),
                 form_id=target_id,
                 owner_user_id=owner_user_id,
                 workspace_id=workspace.id,

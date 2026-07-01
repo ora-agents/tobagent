@@ -380,7 +380,7 @@ async def create_form_record(
     except FormRecordValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     record = FormRecordTable(
-        id=record_data.id or f"record-{uuid.uuid4()}",
+        id=record_data.id or str(uuid.uuid4()),
         form_id=id,
         owner_user_id=owner_user_id,
         workspace_id=workspace.id,

@@ -630,7 +630,7 @@ def execute_import(
                         ).delete()
                     for record in item.get("records") or []:
                         db.add(FormRecordTable(
-                            id=_new_resource_id("record"),
+                            id=str(uuid.uuid4()),
                             form_id=target_id,
                             owner_user_id=owner_user_id,
                             data=copy.deepcopy(record.get("data") or {}),

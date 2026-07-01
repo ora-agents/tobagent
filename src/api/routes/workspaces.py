@@ -564,7 +564,7 @@ async def _apply_form_record_change(
         return
 
     data = FormRecordWriteSchema.model_validate(change.payload)
-    record_id = data.id or change.target_id or f"record-{uuid.uuid4()}"
+    record_id = data.id or change.target_id or str(uuid.uuid4())
     record = db.query(FormRecordTable).filter(
         FormRecordTable.id == record_id,
         FormRecordTable.form_id == form_id,
