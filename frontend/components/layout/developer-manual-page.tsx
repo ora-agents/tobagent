@@ -153,7 +153,7 @@ export function DeveloperManualPage({ onBackToChat, onOpenSidebar }: DeveloperMa
 const client = new Client({
   apiUrl: "${apiBase}",
   defaultHeaders: {
-    Authorization: "Bearer tob_xxx_or_user_id",
+    Authorization: "Bearer tob_xxx",
   },
 })
 
@@ -179,7 +179,7 @@ for await (const event of stream) {
 }`
 
   const httpExample = `export LANGGRAPH_API_URL="${apiBase}"
-export API_KEY="tob_xxx_or_user_id"
+export API_KEY="tob_xxx"
 export AGENT_ID="your-agent-profile-id"
 
 THREAD_ID=$(curl -sS -X POST "$LANGGRAPH_API_URL/threads" \\
@@ -329,8 +329,8 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
               </div>
               <p className="text-sm leading-7 text-muted-foreground">
                 {zh
-                  ? "外部调用方可以使用用户设置里的 API Key，也可以在内部前端场景继续使用用户 ID 作为 Bearer token。普通外部调用建议始终使用 API Key，并在每次 run 中带上 context.agent_id。"
-                  : "External callers should use an API key from User Settings. Internal frontend flows may still use the user ID bearer token. Always include context.agent_id for custom agent runs."}
+                  ? "外部调用方应使用用户设置里的 API Key。浏览器管理台使用 HttpOnly session cookie；自定义 agent run 需要带上 context.agent_id。"
+                  : "External callers should use an API key from User Settings. The browser workspace uses an HttpOnly session cookie. Include context.agent_id for custom agent runs."}
               </p>
             </div>
 
