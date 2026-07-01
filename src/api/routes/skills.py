@@ -20,10 +20,28 @@ from src.api.workspace_utils import (
     get_workspace_header,
 )
 from src.utils.db import SkillTable, UserTable, get_db
-from src.utils.default_skills import ensure_default_skills
 from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
 
 router = APIRouter(tags=["skills"])
+DEFAULT_IMPORTED_SKILL_ID_PREFIX = "default_skill_"
+
+
+def _delete_default_imported_skills(db: Session, owner_user_id: str) -> bool:
+    default_skill_ids = [
+        row.id
+        for row in db.query(SkillTable.id).filter(
+            SkillTable.owner_user_id == owner_user_id,
+            SkillTable.id.like(f"{DEFAULT_IMPORTED_SKILL_ID_PREFIX}%"),
+        ).all()
+    ]
+    if not default_skill_ids:
+        return False
+
+    _remove_agent_profile_links(db, owner_user_id, "skill_ids", default_skill_ids)
+    db.query(SkillTable).filter(SkillTable.id.in_(default_skill_ids)).delete(
+        synchronize_session=False,
+    )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +52,7 @@ router = APIRouter(tags=["skills"])
     "/api/skills",
     response_model=list[SkillSchema],
     summary="List skills",
-    description="Lists prompt-based skills owned by the authenticated user, creating defaults when needed.",
+    description="Lists prompt-based skills owned by the authenticated user.",
 )
 async def get_skills(
     workspace_id: str | None = Depends(get_workspace_header),
@@ -43,8 +61,8 @@ async def get_skills(
 ):
     workspace, _member = get_active_workspace(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
-    ensure_default_skills(db, owner_user_id)
-    db.commit()
+    if _delete_default_imported_skills(db, owner_user_id):
+        db.commit()
 
     skills = db.query(SkillTable).filter(
         SkillTable.owner_user_id == owner_user_id,
