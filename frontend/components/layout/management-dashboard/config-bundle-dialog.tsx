@@ -72,6 +72,7 @@ const emptySelection = (): Record<ResourceKey, string[]> => ({
   mcpServers: [],
   forms: [],
 })
+const checkboxClassName = "border-muted-foreground/50 bg-background shadow-xs"
 
 export function ConfigBundleDialog({
   mode,
@@ -307,6 +308,7 @@ export function ConfigBundleDialog({
                         {isExpanded ? <ChevronDown /> : <ChevronRight />}
                       </Button>
                       <Checkbox
+                        className={checkboxClassName}
                         checked={allSelected ? true : partiallySelected ? "indeterminate" : false}
                         onCheckedChange={() => toggleCategory(key)}
                         disabled={resources[key].length === 0}
@@ -345,6 +347,7 @@ export function ConfigBundleDialog({
                               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
                             >
                               <Checkbox
+                                className={checkboxClassName}
                                 checked={checked}
                                 onCheckedChange={() => toggleResource(key, item.id)}
                                 aria-label={item.name}
