@@ -24,7 +24,10 @@ export function normalizeLangGraphApiUrl(url: string): string {
     throw new Error('Backend URL is required')
   }
 
-  const parsed = new URL(trimmed)
+  const withProtocol = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `http://${trimmed}`
+  const parsed = new URL(withProtocol)
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new Error('Backend URL must start with http:// or https://')
   }
