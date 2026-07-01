@@ -53,6 +53,7 @@ const AGENT_PROFILE_FIELDS: FieldDef[] = [
   { key: "description", label: { zh: "描述", en: "Description" }, type: "longtext" },
   { key: "systemPrompt", label: { zh: "系统提示词", en: "System prompt" }, type: "longtext" },
   { key: "model", label: { zh: "模型", en: "Model" }, type: "text" },
+  { key: "modelTemperature", label: { zh: "Temperature", en: "Temperature" }, type: "text" },
   { key: "enabledTools", label: { zh: "启用工具", en: "Enabled tools" }, type: "array" },
   { key: "knowledgeBaseIds", label: { zh: "知识库", en: "Knowledge bases" }, type: "array" },
   { key: "skillIds", label: { zh: "技能", en: "Skills" }, type: "array" },

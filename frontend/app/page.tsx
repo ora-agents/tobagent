@@ -284,7 +284,11 @@ function DashboardContent() {
         const saved = localStorage.getItem(CONFIG_STORAGE.key)
         if (saved) {
           try {
-            return JSON.parse(saved)
+            const parsed = JSON.parse(saved)
+            return {
+              ...parsed,
+              modelTemperature: typeof parsed.modelTemperature === "number" ? parsed.modelTemperature : 1,
+            }
           } catch (e) {
             console.error('Failed to parse saved agent config:', e)
           }
@@ -294,6 +298,7 @@ function DashboardContent() {
     // Default config
     return {
       model: getDefaultModel(),
+      modelTemperature: 1,
       recursionLimit: 100,
       agentType: getDefaultAgent(),
     }

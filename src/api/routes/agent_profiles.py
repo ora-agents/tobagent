@@ -91,6 +91,7 @@ def _share_import_signature(profile: AgentProfileTable) -> tuple:
         profile.description,
         profile.system_prompt,
         profile.model,
+        profile.model_temperature,
         profile.graph_id,
         tuple(profile.enabled_tools or []),
         tuple(profile.wake_words or []),
@@ -231,6 +232,7 @@ async def create_agent_profile(
         description=profile_data.description,
         system_prompt=profile_data.systemPrompt,
         model=(profile_data.model or "").strip() or None,
+        model_temperature=profile_data.modelTemperature,
         graph_id=(profile_data.graphId or "").strip() or None,
         enabled_tools=profile_data.enabledTools,
         knowledge_base_ids=profile_data.knowledgeBaseIds,
@@ -319,6 +321,7 @@ async def update_agent_profile(
     profile.description = profile_data.description
     profile.system_prompt = profile_data.systemPrompt
     profile.model = (profile_data.model or "").strip() or None
+    profile.model_temperature = profile_data.modelTemperature
     profile.graph_id = (profile_data.graphId or "").strip() or None
     profile.enabled_tools = profile_data.enabledTools
     profile.knowledge_base_ids = profile_data.knowledgeBaseIds
@@ -437,6 +440,7 @@ async def restore_agent_profile_version(
     profile.description = restored.description
     profile.system_prompt = restored.systemPrompt
     profile.model = (restored.model or "").strip() or None
+    profile.model_temperature = restored.modelTemperature
     profile.graph_id = (restored.graphId or "").strip() or None
     profile.enabled_tools = restored.enabledTools
     profile.knowledge_base_ids = restored.knowledgeBaseIds
@@ -633,6 +637,7 @@ async def import_agent_share(
         description=source_profile.description,
         system_prompt=source_profile.system_prompt,
         model=source_profile.model,
+        model_temperature=source_profile.model_temperature,
         graph_id=source_profile.graph_id,
         enabled_tools=copy.deepcopy(source_profile.enabled_tools or []),
         knowledge_base_ids=copied_ids["knowledgeBaseIds"],
@@ -836,6 +841,7 @@ async def import_agent_profiles_toml(
             description=str(raw_agent.get("description") or ""),
             system_prompt=str(raw_agent.get("systemPrompt") or ""),
             model=(str(raw_agent.get("model") or "").strip() or None),
+            model_temperature=raw_agent.get("modelTemperature"),
             graph_id=(str(raw_agent.get("graphId") or "").strip() or None),
             enabled_tools=list(raw_agent.get("enabledTools") or []),
             knowledge_base_ids=[],

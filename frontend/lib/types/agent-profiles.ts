@@ -24,6 +24,8 @@ export interface AgentProfile {
   systemPrompt: string
   /** Optional model ID used when this agent runs. Empty means use the global chat model. */
   model?: string | null
+  /** Optional sampling temperature. Empty means use the model provider/default chat temperature. */
+  modelTemperature?: number | null
   /** LangGraph assistant/graph used to run this profile. Empty defaults to generic_agent. */
   graphId?: "generic_agent" | "agent_builder" | string | null
   /** Enabled built-in tool IDs. */

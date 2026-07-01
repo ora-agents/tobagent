@@ -27,11 +27,13 @@ const zh = {
 
   // Agent Settings
   agentSettings: "角色设置",
-  configureAgent: "配置角色类型、AI 模型和递归深度限制。",
+  configureAgent: "配置角色类型、AI 模型、Temperature 和递归深度限制。",
   agentType: "角色类型",
   selectAgentType: "选择角色类型",
   moreAgentTypesComing: "更多角色类型即将推出！",
   model: "模型",
+  modelTemperature: "模型 Temperature",
+  modelTemperatureDesc: "控制回答随机性，0 更稳定，2 更发散（默认：1）",
   selectModel: "选择模型",
   loadingModels: "加载模型中...",
   loadingAgents: "加载角色中...",
@@ -70,6 +72,7 @@ const zh = {
 
   // Tooltip
   recursionLimitLabel: "递归深度",
+  modelTemperatureLabel: "Temperature",
 
   // Management
   skills: "技能",
@@ -339,11 +342,13 @@ const en = {
 
   // Agent Settings
   agentSettings: "Agent Settings",
-  configureAgent: "Configure the agent type, AI model, and recursion limit.",
+  configureAgent: "Configure the agent type, AI model, temperature, and recursion limit.",
   agentType: "Agent Type",
   selectAgentType: "Select agent type",
   moreAgentTypesComing: "More agent types coming soon!",
   model: "Model",
+  modelTemperature: "Model Temperature",
+  modelTemperatureDesc: "Controls response randomness. 0 is focused; 2 is more varied (default: 1).",
   selectModel: "Select a model",
   loadingModels: "Loading models...",
   loadingAgents: "Loading roles...",
@@ -382,6 +387,7 @@ const en = {
 
   // Tooltip
   recursionLimitLabel: "Recursion Limit",
+  modelTemperatureLabel: "Temperature",
 
   // Management
   skills: "Skills",

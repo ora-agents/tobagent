@@ -410,6 +410,7 @@ def _apply_agent_profile_change(
     profile.description = data.description
     profile.system_prompt = data.systemPrompt
     profile.model = (data.model or "").strip() or None
+    profile.model_temperature = data.modelTemperature
     profile.graph_id = (data.graphId or "").strip() or None
     profile.enabled_tools = data.enabledTools
     profile.knowledge_base_ids = data.knowledgeBaseIds

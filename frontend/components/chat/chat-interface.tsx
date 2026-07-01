@@ -842,7 +842,7 @@ export function ChatInterface({
     if (messageQueueRef.current.length > 0) {
       processQueue()
     }
-  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, agentProfile, userId, client, agentConfig?.model, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId, onCreateAgent, t.selectAgentRequired])
+  }, [uiState.input, uiState.isLoading, uiState.isRegenerating, attachedFiles, agentProfile, userId, client, agentConfig?.model, agentConfig?.modelTemperature, setInput, setUploadError, clearFiles, processMessage, processQueue, ensureThreadId, onCreateAgent, t.selectAgentRequired])
 
   const handleStop = useCallback(async () => {
     console.log('User requested stop')

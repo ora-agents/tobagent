@@ -158,6 +158,7 @@ class UpsertAgentProfileInput(BackendGeneratedIdUpsertInput):
     description: str = ""
     system_prompt: str = ""
     model: str = ""
+    model_temperature: float | None = Field(default=None, ge=0, le=2)
     enabled_tools: list[str] = Field(default_factory=list)
     role_template_id: str = ""
     persona_style: str = ""
@@ -210,6 +211,7 @@ class UpsertAgentProfileTool(BaseTool):
             profile.description = str(kwargs.get("description") or "")
             profile.system_prompt = str(kwargs.get("system_prompt") or "")
             profile.model = str(kwargs.get("model") or "").strip() or None
+            profile.model_temperature = kwargs.get("model_temperature")
             profile.graph_id = "generic_agent"
             profile.enabled_tools = list(kwargs.get("enabled_tools") or [])
             profile.role_template_id = str(kwargs.get("role_template_id") or "").strip() or None

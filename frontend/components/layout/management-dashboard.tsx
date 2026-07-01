@@ -353,6 +353,7 @@ export function ManagementDashboard({
     description: string
     systemPrompt: string
     model: string
+    modelTemperature: string
     enabledTools: BuiltinToolId[]
     knowledgeBaseIds: string[]
     skillIds: string[]
@@ -376,6 +377,7 @@ export function ManagementDashboard({
     description: "",
     systemPrompt: "",
     model: "",
+    modelTemperature: "",
     enabledTools: [],
     knowledgeBaseIds: [],
     skillIds: [],
@@ -875,6 +877,7 @@ export function ManagementDashboard({
       description: "",
       systemPrompt: "You are a helpful assistant.",
       model: getDefaultModel(),
+      modelTemperature: "1",
       enabledTools: ["fetch"],
       knowledgeBaseIds: [],
       skillIds: [],
@@ -912,6 +915,7 @@ export function ManagementDashboard({
       description: profile.description,
       systemPrompt: profile.systemPrompt,
       model: profile.model || "",
+      modelTemperature: typeof profile.modelTemperature === "number" ? String(profile.modelTemperature) : "",
       enabledTools: profile.enabledTools,
       knowledgeBaseIds: profile.knowledgeBaseIds || [],
       skillIds: profile.skillIds || [],
@@ -1003,6 +1007,16 @@ export function ManagementDashboard({
 
   const handleSaveAgent = async () => {
     if (!agentForm.name.trim()) return
+    const modelTemperature = agentForm.modelTemperature.trim() === ""
+      ? null
+      : Number(agentForm.modelTemperature)
+    if (
+      modelTemperature !== null &&
+      (!Number.isFinite(modelTemperature) || modelTemperature < 0 || modelTemperature > 2)
+    ) {
+      window.alert(locale === "zh" ? "Temperature 必须在 0 到 2 之间。" : "Temperature must be between 0 and 2.")
+      return
+    }
 
     const enabledTools = [
       ...agentForm.enabledTools.filter(
@@ -1022,6 +1036,7 @@ export function ManagementDashboard({
       description: agentForm.description.trim(),
       systemPrompt: agentForm.systemPrompt,
       model: agentForm.model || null,
+      modelTemperature,
       enabledTools,
       knowledgeBaseIds: agentForm.knowledgeBaseIds,
       skillIds: agentForm.skillIds,
@@ -3312,7 +3327,7 @@ export function ManagementDashboard({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="agent-name">{locale === "zh" ? "角色名称" : "Role Name"}</Label>
                         <Input
@@ -3357,6 +3372,25 @@ export function ManagementDashboard({
                             menuClassName="w-full max-w-none"
                           />
                         )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="agent-model-temperature">
+                          {locale === "zh" ? "Temperature" : "Temperature"}
+                        </Label>
+                        <Input
+                          id="agent-model-temperature"
+                          type="number"
+                          min={0}
+                          max={2}
+                          step={0.1}
+                          value={agentForm.modelTemperature}
+                          onChange={e => setAgentForm({
+                            ...agentForm,
+                            modelTemperature: e.target.value,
+                          })}
+                          placeholder={locale === "zh" ? "默认" : "Default"}
+                          className="rounded-lg"
+                        />
                       </div>
                     </div>
 

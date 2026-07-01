@@ -598,6 +598,7 @@ export function useStreamHandler({
           }
 
       const model = ((agentProfile?.model || agentConfig?.model || getDefaultModel()) as ModelOption)
+      const modelTemperature = agentProfile?.modelTemperature ?? agentConfig?.modelTemperature
       const recursionLimit = agentConfig?.recursionLimit ?? 100
 
       let assistantContent = ""
@@ -646,6 +647,9 @@ export function useStreamHandler({
       })()
 
       const contextBase: Record<string, unknown> = { model, user_id: userId }
+      if (typeof modelTemperature === "number") {
+        contextBase.model_temperature = modelTemperature
+      }
       if (isCustomProfile && agentProfile) {
         contextBase.agent_id = agentProfile.id
         if (agentProfile.ownerUserId) {

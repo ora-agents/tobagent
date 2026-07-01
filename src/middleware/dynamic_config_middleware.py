@@ -19,6 +19,7 @@ from langgraph.types import Command
 from sqlalchemy import or_, text
 
 from src.agent.config import (
+    _DEFAULT_MODEL_NAME,
     OPENAI_COMPATIBLE_API_KEY,
     OPENAI_COMPATIBLE_BASE_URL,
 )
@@ -39,6 +40,18 @@ from src.utils.runtime_context import get_runtime_context_value
 logger = logging.getLogger(__name__)
 
 
+def _chat_model_override(model: str | None, temperature: float | None = None) -> ChatOpenAI:
+    """Create a ChatOpenAI override using the configured compatible endpoint."""
+    kwargs: dict[str, Any] = {
+        "base_url": OPENAI_COMPATIBLE_BASE_URL or None,
+        "api_key": OPENAI_COMPATIBLE_API_KEY,
+        "model": (model or "").strip() or _DEFAULT_MODEL_NAME,
+    }
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    return ChatOpenAI(**kwargs)
+
+
 def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     """Eagerly extract all needed attributes from an ORM row into a plain dict.
 
@@ -54,6 +67,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     skill_category_ids = getattr(agent_row, "skill_category_ids", None)
     form_category_ids = getattr(agent_row, "form_category_ids", None)
     model = getattr(agent_row, "model", None)
+    model_temperature = getattr(agent_row, "model_temperature", None)
     persona_style = getattr(agent_row, "persona_style", None)
     boundary_mode = getattr(agent_row, "boundary_mode", None)
     role_template_id = getattr(agent_row, "role_template_id", None)
@@ -65,6 +79,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "description": agent_row.description or "No description.",
         "system_prompt": system_prompt if isinstance(system_prompt, str) else "",
         "model": model.strip() if isinstance(model, str) and model.strip() else "",
+        "model_temperature": model_temperature if isinstance(model_temperature, (int, float)) else None,
         "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
         "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
         "form_ids": list(form_ids) if isinstance(form_ids, list) else [],
@@ -283,6 +298,7 @@ def _make_subagent_tool(
     _description = agent_data["description"]
     _system_prompt = agent_data["system_prompt"]
     _model = agent_data.get("model", "")
+    _model_temperature = agent_data.get("model_temperature")
     _enabled_tools = agent_data["enabled_tools"]
     _agent_ids = agent_data["agent_ids"]
 
@@ -325,6 +341,8 @@ def _make_subagent_tool(
         }
         if _model:
             sub_context["model"] = _model
+        if _model_temperature is not None:
+            sub_context["model_temperature"] = _model_temperature
 
         logger.info(
             "[DynamicConfigMiddleware] Executing subagent '%s' (id=%s) with query: %.80s...",
@@ -653,6 +671,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
             enabled_tools_set=_context_field_was_set(ctx, "enabled_tools"),
             agent_ids_set=_context_field_was_set(ctx, "agent_ids"),
             requested_model=getattr(ctx, "model", "") or "",
+            requested_model_temperature=getattr(ctx, "model_temperature", None),
             robot_environment=robot_environment,
         )
 
@@ -686,10 +705,9 @@ class DynamicConfigMiddleware(AgentMiddleware):
                     if not _context_field_was_set(ctx, "enabled_tools"):
                         enabled_tools = profile.get("enabled_tools", [])
                     if not _context_field_was_set(ctx, "model") and profile.get("model"):
-                        overrides["model"] = ChatOpenAI(
-                            base_url=OPENAI_COMPATIBLE_BASE_URL or None,
-                            api_key=OPENAI_COMPATIBLE_API_KEY,
-                            model=profile["model"],
+                        overrides["model"] = _chat_model_override(
+                            profile["model"],
+                            profile.get("model_temperature"),
                         )
                     system_prompt += _role_behavior_instructions(profile)
 
@@ -925,12 +943,9 @@ class DynamicConfigMiddleware(AgentMiddleware):
 
         # Model override.
         model_name = getattr(ctx, "model", None)
-        if model_name and "model" not in overrides:
-            overrides["model"] = ChatOpenAI(
-                base_url=OPENAI_COMPATIBLE_BASE_URL or None,
-                api_key=OPENAI_COMPATIBLE_API_KEY,
-                model=model_name,
-            )
+        model_temperature = getattr(ctx, "model_temperature", None)
+        if (model_name or model_temperature is not None) and "model" not in overrides:
+            overrides["model"] = _chat_model_override(model_name, model_temperature)
 
         if overrides:
             write_debug_event(

@@ -78,6 +78,7 @@ const getAllPaths = (includePrivate: boolean): string[] =>
 
 export interface AgentConfig {
   model: string
+  modelTemperature: number
   recursionLimit: number
   agentType: AgentType
   /** Selected repos for codebase_agent (empty = all repos). Format: "category/repo" */
@@ -97,6 +98,7 @@ interface AgentSettingsProps {
 export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceShowTooltip, open, onOpenChange, fixedModel }: AgentSettingsProps) {
   const t = useT()
   const [recursionLimitInput, setRecursionLimitInput] = useState((config.recursionLimit ?? 100).toString())
+  const [temperatureInput, setTemperatureInput] = useState((config.modelTemperature ?? 1).toString())
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([])
   const [modelsLoading, setModelsLoading] = useState(true)
@@ -123,6 +125,10 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     setRecursionLimitInput((config.recursionLimit ?? 100).toString())
   }, [config.recursionLimit])
 
+  useEffect(() => {
+    setTemperatureInput((config.modelTemperature ?? 1).toString())
+  }, [config.modelTemperature])
+
   const lockedModel = fixedModel?.trim() || null
   const displayedModel = lockedModel || config.model
 
@@ -145,6 +151,14 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
     if (lockedModel) return
     onConfigChange({ ...config, model })
   }, [config, lockedModel, onConfigChange])
+
+  const handleTemperatureChange = useCallback((value: string) => {
+    setTemperatureInput(value)
+    const temperature = Number(value)
+    if (Number.isFinite(temperature) && temperature >= 0 && temperature <= 2) {
+      onConfigChange({ ...config, modelTemperature: temperature })
+    }
+  }, [config, onConfigChange])
 
   const handleRecursionLimitChange = useCallback((value: string) => {
     // Allow typing and deleting
@@ -199,6 +213,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
           <TooltipContent side="bottom" className="max-w-xs">
             <div className="space-y-1 text-xs">
               <div><span className="font-semibold">{t.model}:</span> {getModelDisplayName(displayedModel as ModelOption)}</div>
+              <div><span className="font-semibold">{t.modelTemperatureLabel}:</span> {config.modelTemperature ?? 1}</div>
               <div><span className="font-semibold">{t.recursionLimitLabel}:</span> {config.recursionLimit ?? 100}</div>
             </div>
           </TooltipContent>
@@ -296,6 +311,21 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
                 </SelectGroup>
               </SelectContent>
             </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="model-temperature">{t.modelTemperature}</Label>
+            <Input
+              id="model-temperature"
+              type="number"
+              min={0}
+              max={2}
+              step={0.1}
+              value={temperatureInput}
+              onChange={(e) => handleTemperatureChange(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t.modelTemperatureDesc}
+            </p>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="recursion-limit">{t.recursionLimit}</Label>

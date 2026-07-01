@@ -77,6 +77,12 @@ class GenericAgentContext(BaseModel):
         default="",
         description="Model name to use; overrides the default when non-empty.",
     )
+    model_temperature: float | None = Field(
+        default=None,
+        ge=0,
+        le=2,
+        description="Sampling temperature to use for chat generation.",
+    )
     user_preferences: str = Field(
         default="",
         description="User's general preferences injected into the system prompt.",

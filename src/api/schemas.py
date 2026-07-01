@@ -360,6 +360,7 @@ class AgentProfileSchema(BaseModel):
     description: str | None = None
     systemPrompt: str | None = None
     model: str | None = None
+    modelTemperature: float | None = Field(default=None, ge=0, le=2)
     graphId: str | None = None
     enabledTools: list[str] = []
     knowledgeBaseIds: list[str] = []

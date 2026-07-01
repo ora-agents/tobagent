@@ -182,6 +182,7 @@ class AgentProfileTable(Base):
     description = Column(Text, nullable=True)
     system_prompt = Column(Text, nullable=True)
     model = Column(String(255), nullable=True)
+    model_temperature = Column(Float, nullable=True)
     graph_id = Column(String(100), nullable=True)
     # enabled_tools is a JSON list of builtin tool IDs, e.g., ["rag_search", "fetch"]
     enabled_tools = Column(JSON, nullable=False, default=list)
@@ -400,6 +401,7 @@ def ensure_database_schema() -> None:
         ("agent_profiles", "skill_ids", "skill_ids JSON"),
         ("agent_profiles", "skill_category_ids", "skill_category_ids JSON"),
         ("agent_profiles", "model", "model VARCHAR(255)"),
+        ("agent_profiles", "model_temperature", "model_temperature FLOAT"),
         ("agent_profiles", "graph_id", "graph_id VARCHAR(100)"),
         ("agent_profiles", "mcp_ids", "mcp_ids JSON"),
         ("agent_profiles", "agent_ids", "agent_ids JSON"),

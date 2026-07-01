@@ -109,6 +109,7 @@ def _agent_payload(row: AgentProfileTable) -> dict:
         "description": row.description,
         "systemPrompt": row.system_prompt,
         "model": row.model,
+        "modelTemperature": row.model_temperature,
         "enabledTools": list(row.enabled_tools or []),
         "knowledgeBaseIds": list(row.knowledge_base_ids or []),
         "skillIds": list(row.skill_ids or []),
@@ -697,6 +698,7 @@ def execute_import(
             row.description = item.get("description")
             row.system_prompt = item.get("systemPrompt")
             row.model = item.get("model")
+            row.model_temperature = item.get("modelTemperature")
             row.enabled_tools = list(item.get("enabledTools") or [])
             row.skill_category_ids = list(item.get("skillCategoryIds") or [])
             row.form_category_ids = list(item.get("formCategoryIds") or [])
