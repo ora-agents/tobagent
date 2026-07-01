@@ -154,11 +154,42 @@ function mergeStreamedContent(currentContent: string, streamedContent: string): 
   return currentContent + streamedContent
 }
 
+function parseToolArgs(value: unknown): Record<string, any> {
+  if (!value) return {}
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, any>
+  }
+  if (typeof value !== "string") return { value }
+
+  const trimmed = value.trim()
+  if (!trimmed) return {}
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>
+    }
+    return { value: parsed }
+  } catch {
+    return { arguments: value }
+  }
+}
+
+function getToolCallArgs(toolCall: any): Record<string, any> {
+  return parseToolArgs(
+    toolCall?.args ??
+      toolCall?.arguments ??
+      toolCall?.function?.arguments ??
+      toolCall?.kwargs?.args ??
+      toolCall?.kwargs?.arguments
+  )
+}
+
 function normalizeToolCall(toolCall: any): ToolCall {
   return {
     id: toolCall.id,
     name: toolCall.name,
-    args: toolCall.args ?? {},
+    args: getToolCallArgs(toolCall),
     ...(toolCall.output !== undefined ? { output: toolCall.output } : {}),
   }
 }
@@ -346,6 +377,7 @@ function upsertStreamedToolMessage(
     isThinking: tool.output === undefined,
     toolName: tool.name,
     toolCallId: tool.id,
+    toolArgs: tool.args,
   }
 
   if (existingIndex >= 0) {

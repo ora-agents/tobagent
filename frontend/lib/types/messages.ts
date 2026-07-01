@@ -31,6 +31,7 @@ export interface Message {
   // Tool execution
   toolName?: string
   toolCallId?: string
+  toolArgs?: Record<string, any>
   toolCalls?: ToolCall[]
   subgraphOutputs?: SubgraphOutput[]
 

@@ -59,6 +59,37 @@ const isLangGraphInputMessage = (
 ): message is Message & { role: "user" | "assistant" } =>
   message.role === "user" || message.role === "assistant"
 
+function parseToolArgs(value: unknown): Record<string, any> {
+  if (!value) return {}
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, any>
+  }
+  if (typeof value !== "string") return { value }
+
+  const trimmed = value.trim()
+  if (!trimmed) return {}
+
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, any>
+    }
+    return { value: parsed }
+  } catch {
+    return { arguments: value }
+  }
+}
+
+function getToolCallArgs(toolCall: any): Record<string, any> {
+  return parseToolArgs(
+    toolCall?.args ??
+      toolCall?.arguments ??
+      toolCall?.function?.arguments ??
+      toolCall?.kwargs?.args ??
+      toolCall?.kwargs?.arguments
+  )
+}
+
 const toLangGraphMessages = (
   messages: Message[]
 ): Array<{ role: "user" | "assistant"; content: unknown }> =>
@@ -101,7 +132,7 @@ export function ChatInterface({
 }: ChatInterfaceProps) {
   const t = useT()
   const userId = useUserId()
-  const { user: authUser, workspaceHeaders } = useAuth()
+  const { user: authUser, workspaceHeaders, authHeaders } = useAuth()
   // ============================================================================
   // State Management
   // ============================================================================
@@ -285,8 +316,8 @@ export function ChatInterface({
       return null
     }
 
-    return createLangGraphClient(userId, workspaceHeaders)
-  }, [userId, workspaceHeaders])
+    return createLangGraphClient(userId, { ...authHeaders, ...workspaceHeaders })
+  }, [authHeaders, userId, workspaceHeaders])
 
   // Memoize user metadata to prevent unnecessary re-renders
   const userEmail = useMemo(
@@ -472,6 +503,24 @@ export function ChatInterface({
           console.warn("Failed to load checkpoint metadata for thread history:", error)
         }
 
+        const toolArgsByCallId = new Map<string, Record<string, any>>()
+        threadMessages.forEach((msg: any) => {
+          const msgType = msg.type || msg.role
+          if (msgType !== "ai" && msgType !== "assistant") return
+
+          const toolCalls = Array.isArray(msg.tool_calls)
+            ? msg.tool_calls
+            : Array.isArray(msg.additional_kwargs?.tool_calls)
+              ? msg.additional_kwargs.tool_calls
+              : []
+
+          toolCalls.forEach((toolCall: any) => {
+            if (typeof toolCall?.id === "string") {
+              toolArgsByCallId.set(toolCall.id, getToolCallArgs(toolCall))
+            }
+          })
+        })
+
         const convertedMessages: Message[] = []
         
         threadMessages.forEach((msg: any, idx: number) => {
@@ -500,6 +549,7 @@ export function ChatInterface({
               timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
               toolName: msg.name,
               toolCallId: msg.tool_call_id,
+              toolArgs: msg.tool_call_id ? toolArgsByCallId.get(msg.tool_call_id) : undefined,
             })
           } else if (msgType === "ai" || msgType === "assistant") {
             const content = extractDisplayTextFromContent(msg.content)

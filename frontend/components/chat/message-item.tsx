@@ -296,10 +296,10 @@ export const MessageItem = memo(function MessageItem({
     return {
       id: message.toolCallId || message.id,
       name: message.toolName || "tool",
-      args: {},
-      output: message.content,
+      args: message.toolArgs ?? {},
+      output: message.isThinking ? undefined : message.content,
     }
-  }, [isToolMessage, message.content, message.id, message.toolCallId, message.toolName])
+  }, [isToolMessage, message.content, message.id, message.isThinking, message.toolArgs, message.toolCallId, message.toolName])
 
   const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey && onEditAndRerun) {
