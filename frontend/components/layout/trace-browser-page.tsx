@@ -216,7 +216,7 @@ function TraceBadge({ source }: { source: TraceSource }) {
   const className =
     source === "api_key"
       ? "bg-amber-500/15 text-foreground"
-    : source === "agent_app"
+      : source === "agent_app"
         ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
         : "bg-muted text-foreground"
   return (
