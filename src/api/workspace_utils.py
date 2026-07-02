@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import Header, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.utils.db import (
@@ -26,6 +27,14 @@ def utc_now() -> str:
 def default_workspace_id(user_id: str) -> str:
     """Return the stable default workspace id for a user."""
     return f"workspace-default-{user_id}"
+
+
+def workspace_scoped_resource_filter(table, owner_user_id: str, workspace_id: str):
+    """Scope a resource to one workspace, with legacy unscoped rows only in the default workspace."""
+    conditions = [table.workspace_id == workspace_id]
+    if workspace_id == default_workspace_id(owner_user_id):
+        conditions.append(table.workspace_id.is_(None))
+    return or_(*conditions)
 
 
 def ensure_default_workspace(db: Session, user: UserTable) -> WorkspaceTable:

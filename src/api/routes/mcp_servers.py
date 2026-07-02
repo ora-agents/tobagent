@@ -2,7 +2,6 @@
 # ruff: noqa: D103
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -18,6 +17,7 @@ from src.api.workspace_utils import (
     create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
+    workspace_scoped_resource_filter,
 )
 from src.utils.db import McpServerTable, UserTable, get_db
 
@@ -43,7 +43,7 @@ async def get_mcp_servers(
     owner_user_id = workspace.owner_user_id
     servers = db.query(McpServerTable).filter(
         McpServerTable.owner_user_id == owner_user_id,
-        or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(McpServerTable, owner_user_id, workspace.id),
     ).all()
     return [_mcp_schema(s) for s in servers]
 
@@ -128,7 +128,7 @@ async def update_mcp_server(
         existing_server = db.query(McpServerTable).filter(
             McpServerTable.id == id,
             McpServerTable.owner_user_id == owner_user_id,
-            or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
+            workspace_scoped_resource_filter(McpServerTable, owner_user_id, workspace.id),
         ).first()
         payload = server_data.model_dump(mode="json")
         if existing_server:
@@ -146,7 +146,7 @@ async def update_mcp_server(
     server = db.query(McpServerTable).filter(
         McpServerTable.id == id,
         McpServerTable.owner_user_id == owner_user_id,
-        or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(McpServerTable, owner_user_id, workspace.id),
     ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")
@@ -227,7 +227,7 @@ async def delete_mcp_server(
     server = db.query(McpServerTable).filter(
         McpServerTable.id == id,
         McpServerTable.owner_user_id == owner_user_id,
-        or_(McpServerTable.workspace_id == workspace.id, McpServerTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(McpServerTable, owner_user_id, workspace.id),
     ).first()
     if not server:
         raise HTTPException(status_code=404, detail="MCP Server not found")

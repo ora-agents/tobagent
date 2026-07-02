@@ -45,6 +45,7 @@ from src.api.workspace_utils import (
     get_active_workspace,
     get_workspace_header,
     require_workspace_manager,
+    workspace_scoped_resource_filter,
 )
 from src.utils.db import (
     AgentProfileTable,
@@ -166,8 +167,9 @@ async def get_agent_profiles(
 
     profiles = db.query(AgentProfileTable).filter(
         AgentProfileTable.owner_user_id == owner_user_id,
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
         or_(
-            AgentProfileTable.workspace_id == workspace.id,
+            AgentProfileTable.workspace_id.is_not(None),
             and_(
                 AgentProfileTable.workspace_id.is_(None),
                 or_(
@@ -283,10 +285,7 @@ async def update_agent_profile(
         existing_profile = db.query(AgentProfileTable).filter(
             AgentProfileTable.id == id,
             AgentProfileTable.owner_user_id == owner_user_id,
-            or_(
-                AgentProfileTable.workspace_id == workspace.id,
-                AgentProfileTable.workspace_id.is_(None),
-            ),
+            workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
         ).first()
         payload = profile_data.model_dump(mode="json")
         if existing_profile:
@@ -304,10 +303,7 @@ async def update_agent_profile(
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(
-            AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
-        ),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -368,10 +364,7 @@ async def get_agent_profile_versions(
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(
-            AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
-        ),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -412,10 +405,7 @@ async def restore_agent_profile_version(
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(
-            AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
-        ),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -491,10 +481,7 @@ async def create_agent_share_link(
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(
-            AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
-        ),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -698,10 +685,7 @@ async def export_agent_profile_toml(
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(
-            AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
-        ),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -896,10 +880,7 @@ async def delete_agent_profile(
     profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(
-            AgentProfileTable.workspace_id == workspace.id,
-            AgentProfileTable.workspace_id.is_(None),
-        ),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")

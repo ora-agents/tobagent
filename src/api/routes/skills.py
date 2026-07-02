@@ -2,7 +2,6 @@
 # ruff: noqa: D103
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -18,6 +17,7 @@ from src.api.workspace_utils import (
     create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
+    workspace_scoped_resource_filter,
 )
 from src.utils.db import SkillTable, UserTable, get_db
 from src.utils.skill_validation import SkillValidationError, skill_identity_from_content
@@ -66,7 +66,7 @@ async def get_skills(
 
     skills = db.query(SkillTable).filter(
         SkillTable.owner_user_id == owner_user_id,
-        or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(SkillTable, owner_user_id, workspace.id),
     ).all()
     return [_skill_schema(s) for s in skills]
 
@@ -145,7 +145,7 @@ async def update_skill(
         existing_skill = db.query(SkillTable).filter(
             SkillTable.id == id,
             SkillTable.owner_user_id == owner_user_id,
-            or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
+            workspace_scoped_resource_filter(SkillTable, owner_user_id, workspace.id),
         ).first()
         payload = skill_data.model_dump(mode="json")
         if existing_skill:
@@ -163,7 +163,7 @@ async def update_skill(
     skill = db.query(SkillTable).filter(
         SkillTable.id == id,
         SkillTable.owner_user_id == owner_user_id,
-        or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(SkillTable, owner_user_id, workspace.id),
     ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
@@ -216,7 +216,7 @@ async def delete_skill(
     skill = db.query(SkillTable).filter(
         SkillTable.id == id,
         SkillTable.owner_user_id == owner_user_id,
-        or_(SkillTable.workspace_id == workspace.id, SkillTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(SkillTable, owner_user_id, workspace.id),
     ).first()
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")

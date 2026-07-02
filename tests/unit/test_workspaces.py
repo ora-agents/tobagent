@@ -7,7 +7,16 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.api.fastapi_app import app
-from src.utils.db import Base, UserTable, get_db
+from src.utils.db import (
+    AgentProfileTable,
+    Base,
+    FormTable,
+    KnowledgeBaseTable,
+    McpServerTable,
+    SkillTable,
+    UserTable,
+    get_db,
+)
 
 
 @pytest.fixture()
@@ -416,3 +425,122 @@ def test_platform_agent_is_scoped_to_active_workspace(client):
     assert len(first_platform) == 1
     assert len(second_platform) == 1
     assert first_platform[0]["id"] != second_platform[0]["id"]
+
+
+def test_legacy_unscoped_resources_do_not_leak_into_new_workspaces(client):
+    override_get_db = app.dependency_overrides[get_db]
+    db_gen = override_get_db()
+    db = next(db_gen)
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    try:
+        db.add(AgentProfileTable(
+            id="legacy-agent",
+            owner_user_id="user-owner",
+            workspace_id=None,
+            name="Legacy Role",
+            description="Imported before workspace scoping",
+            system_prompt="Legacy prompt",
+            graph_id=None,
+            enabled_tools=[],
+            knowledge_base_ids=[],
+            skill_ids=[],
+            mcp_ids=[],
+            agent_ids=[],
+            form_ids=[],
+            wake_words=[],
+            created_at=now,
+            updated_at=now,
+        ))
+        db.add(SkillTable(
+            id="legacy-skill",
+            owner_user_id="user-owner",
+            workspace_id=None,
+            name="Legacy Skill",
+            description="",
+            content="---\nname: Legacy Skill\ndescription: legacy\n---\nUse legacy instructions.",
+            created_at=now,
+            updated_at=now,
+        ))
+        db.add(KnowledgeBaseTable(
+            id="legacy-kb",
+            owner_user_id="user-owner",
+            workspace_id=None,
+            name="Legacy KB",
+            description="",
+            files=[],
+            import_status="ready",
+            created_at=now,
+            updated_at=now,
+        ))
+        db.add(McpServerTable(
+            id="legacy-mcp",
+            owner_user_id="user-owner",
+            workspace_id=None,
+            name="Legacy MCP",
+            type="streamable_http",
+            url="http://legacy.test/mcp",
+            headers={},
+            tools=[],
+            resources=[],
+            prompts=[],
+            created_at=now,
+            updated_at=now,
+        ))
+        db.add(FormTable(
+            id="legacy-form",
+            owner_user_id="user-owner",
+            workspace_id=None,
+            name="Legacy Form",
+            description="",
+            category="",
+            fields=[],
+            hooks=[],
+            created_at=now,
+            updated_at=now,
+        ))
+        db.commit()
+    finally:
+        db.close()
+        db_gen.close()
+
+    default_workspace = client.get("/api/workspaces", headers=_auth("user-owner")).json()[0]["id"]
+    default_agents = client.get(
+        "/api/agent-profiles",
+        headers=_auth("user-owner", default_workspace),
+    ).json()
+    default_skills = client.get("/api/skills", headers=_auth("user-owner", default_workspace)).json()
+    default_kbs = client.get("/api/knowledge-bases", headers=_auth("user-owner", default_workspace)).json()
+    default_mcps = client.get("/api/mcp-servers", headers=_auth("user-owner", default_workspace)).json()
+    default_forms = client.get("/api/forms", headers=_auth("user-owner", default_workspace)).json()
+    created = client.post(
+        "/api/workspaces",
+        headers=_auth("user-owner"),
+        json={"name": "New Space"},
+    )
+    workspace_id = created.json()["id"]
+    new_workspace_agents = client.get(
+        "/api/agent-profiles",
+        headers=_auth("user-owner", workspace_id),
+    ).json()
+    new_workspace_skills = client.get("/api/skills", headers=_auth("user-owner", workspace_id)).json()
+    new_workspace_kbs = client.get("/api/knowledge-bases", headers=_auth("user-owner", workspace_id)).json()
+    new_workspace_mcps = client.get("/api/mcp-servers", headers=_auth("user-owner", workspace_id)).json()
+    new_workspace_forms = client.get("/api/forms", headers=_auth("user-owner", workspace_id)).json()
+
+    assert any(agent["id"] == "legacy-agent" for agent in default_agents)
+    assert any(skill["id"] == "legacy-skill" for skill in default_skills)
+    assert any(kb["id"] == "legacy-kb" for kb in default_kbs)
+    assert any(mcp["id"] == "legacy-mcp" for mcp in default_mcps)
+    assert any(form["id"] == "legacy-form" for form in default_forms)
+    assert all(agent["id"] != "legacy-agent" for agent in new_workspace_agents)
+    assert all(skill["id"] != "legacy-skill" for skill in new_workspace_skills)
+    assert all(kb["id"] != "legacy-kb" for kb in new_workspace_kbs)
+    assert all(mcp["id"] != "legacy-mcp" for mcp in new_workspace_mcps)
+    assert all(form["id"] != "legacy-form" for form in new_workspace_forms)
+
+    update = client.put(
+        "/api/agent-profiles/legacy-agent",
+        headers=_auth("user-owner", workspace_id),
+        json={**_agent_payload("legacy-agent"), "name": "Moved Legacy Role"},
+    )
+    assert update.status_code == 404

@@ -5,7 +5,6 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -27,6 +26,7 @@ from src.api.workspace_utils import (
     create_workspace_change_request_row,
     get_active_workspace,
     get_workspace_header,
+    workspace_scoped_resource_filter,
 )
 from src.utils.db import FormRecordTable, FormTable, UserTable, get_db
 from src.utils.form_hooks import trigger_form_hooks
@@ -111,7 +111,7 @@ async def list_forms(
     owner_user_id = workspace.owner_user_id
     forms = db.query(FormTable).filter(
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).all()
     return [
         _form_schema(
@@ -142,7 +142,7 @@ async def get_form(
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -207,7 +207,7 @@ async def update_form(
         existing_form = db.query(FormTable).filter(
             FormTable.id == id,
             FormTable.owner_user_id == owner_user_id,
-            or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+            workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
         ).first()
         payload = form_data.model_dump(mode="json")
         if existing_form:
@@ -225,7 +225,7 @@ async def update_form(
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -264,7 +264,7 @@ async def delete_form(
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -301,7 +301,7 @@ async def list_form_records(
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -357,7 +357,7 @@ async def create_form_record(
     form = db.query(FormTable).filter(
         FormTable.id == id,
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
@@ -421,7 +421,7 @@ async def update_form_record(
     form = db.query(FormTable).filter(
         FormTable.id == form_id,
         FormTable.owner_user_id == owner_user_id,
-        or_(FormTable.workspace_id == workspace.id, FormTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(FormTable, owner_user_id, workspace.id),
     ).first()
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")

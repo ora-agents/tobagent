@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
@@ -27,6 +27,7 @@ from src.api.workspace_utils import (
     get_active_workspace,
     get_workspace_header,
     require_workspace_manager,
+    workspace_scoped_resource_filter,
 )
 from src.utils.db import AgentProfileTable, KnowledgeBaseTable, UserTable, get_db
 
@@ -53,12 +54,14 @@ async def get_knowledge_bases(
     owner_user_id = workspace.owner_user_id
     kbs = db.query(KnowledgeBaseTable).filter(
         or_(
-            KnowledgeBaseTable.owner_user_id == owner_user_id,
-            KnowledgeBaseTable.owner_user_id.is_(None),
-        ),
-        or_(
-            KnowledgeBaseTable.workspace_id == workspace.id,
-            KnowledgeBaseTable.workspace_id.is_(None),
+            and_(
+                KnowledgeBaseTable.owner_user_id == owner_user_id,
+                workspace_scoped_resource_filter(KnowledgeBaseTable, owner_user_id, workspace.id),
+            ),
+            and_(
+                KnowledgeBaseTable.owner_user_id.is_(None),
+                KnowledgeBaseTable.workspace_id.is_(None),
+            ),
         ),
     ).order_by(KnowledgeBaseTable.owner_user_id.isnot(None), KnowledgeBaseTable.name).all()
     return [_kb_schema(k) for k in kbs]
@@ -132,7 +135,7 @@ async def update_knowledge_base(
         existing_kb = db.query(KnowledgeBaseTable).filter(
             KnowledgeBaseTable.id == id,
             KnowledgeBaseTable.owner_user_id == owner_user_id,
-            or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
+            workspace_scoped_resource_filter(KnowledgeBaseTable, owner_user_id, workspace.id),
         ).first()
         payload = kb_data.model_dump(mode="json")
         if existing_kb:
@@ -150,7 +153,7 @@ async def update_knowledge_base(
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == id,
         KnowledgeBaseTable.owner_user_id == owner_user_id,
-        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(KnowledgeBaseTable, owner_user_id, workspace.id),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -195,7 +198,7 @@ async def delete_knowledge_base(
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == id,
         KnowledgeBaseTable.owner_user_id == owner_user_id,
-        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(KnowledgeBaseTable, owner_user_id, workspace.id),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -279,7 +282,7 @@ async def upload_kb_document(
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == kb_id,
         KnowledgeBaseTable.owner_user_id == owner_user_id,
-        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(KnowledgeBaseTable, owner_user_id, workspace.id),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -382,7 +385,7 @@ async def delete_kb_file(
     kb = db.query(KnowledgeBaseTable).filter(
         KnowledgeBaseTable.id == kb_id,
         KnowledgeBaseTable.owner_user_id == owner_user_id,
-        or_(KnowledgeBaseTable.workspace_id == workspace.id, KnowledgeBaseTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(KnowledgeBaseTable, owner_user_id, workspace.id),
     ).first()
     if not kb:
         raise HTTPException(status_code=404, detail="Knowledge Base not found")
@@ -457,7 +460,7 @@ async def upload_document(
     agent_profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == agent_id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(AgentProfileTable.workspace_id == workspace.id, AgentProfileTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not agent_profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
@@ -511,7 +514,7 @@ async def rag_status(
     agent_profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == agent_id,
         AgentProfileTable.owner_user_id == owner_user_id,
-        or_(AgentProfileTable.workspace_id == workspace.id, AgentProfileTable.workspace_id.is_(None)),
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
     ).first()
     if not agent_profile:
         raise HTTPException(status_code=404, detail="Agent profile not found")
