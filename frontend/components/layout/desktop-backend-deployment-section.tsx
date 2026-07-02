@@ -70,6 +70,7 @@ export function DesktopBackendDeploymentSection({
   const [status, setStatus] = useState<DesktopBackendStatus | null>(null)
   const [envDraft, setEnvDraft] = useState("")
   const [downloadUrl, setDownloadUrl] = useState("")
+  const [showDownloadUrlInput, setShowDownloadUrlInput] = useState(false)
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +153,10 @@ export function DesktopBackendDeploymentSection({
 
   const downloadPackage = () =>
     runAction("download", async () => {
+      if (!showDownloadUrlInput) {
+        setShowDownloadUrlInput(true)
+        return null
+      }
       if (!downloadUrl.trim()) {
         throw new Error(zh ? "请先填写安装包下载地址" : "Enter a package download URL first")
       }
@@ -269,7 +274,7 @@ export function DesktopBackendDeploymentSection({
         <Label htmlFor="desktop-backend-download-url" className="text-xs font-semibold text-muted-foreground">
           {zh ? "安装包或后端二进制" : "Installer, package, or backend binary"}
         </Label>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        {showDownloadUrlInput && (
           <Input
             id="desktop-backend-download-url"
             value={downloadUrl}
@@ -277,9 +282,11 @@ export function DesktopBackendDeploymentSection({
             placeholder="https://example.com/tobagent-backend-installer.exe"
             className="bg-background text-sm"
           />
+        )}
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button type="button" variant="outline" size="sm" onClick={downloadPackage} disabled={Boolean(busyAction)} className="shrink-0 rounded-lg">
             {isBusy("download") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Download data-icon="inline-start" />}
-            {zh ? "下载" : "Download"}
+            {showDownloadUrlInput ? (zh ? "开始下载" : "Start download") : (zh ? "下载" : "Download")}
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={selectPackage} disabled={Boolean(busyAction)} className="shrink-0 rounded-lg">
             {isBusy("select-package") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FileUp data-icon="inline-start" />}
