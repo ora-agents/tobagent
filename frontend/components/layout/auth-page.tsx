@@ -4,24 +4,19 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { AuthPanel } from '@/components/layout/auth-panel'
+import { DesktopBackendDeploymentSection } from '@/components/layout/desktop-backend-deployment-section'
 import { useAuth } from '@/components/providers/auth-provider'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingPlaceholder } from '@/components/ui/loading-placeholder'
+import { PageSection, PageSectionTitle } from '@/components/ui/page-section'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { StatusNotice } from '@/components/ui/status-notice'
 import { normalizeLangGraphApiUrl, useApiConfig } from '@/lib/config/api-config'
-import { useT } from '@/lib/i18n'
+import { useI18n, useT } from '@/lib/i18n'
 import logoImage from '@/public/logo.png'
-import { RotateCcw, Save, ServerCog } from 'lucide-react'
+import { LogIn, RotateCcw, Save, ServerCog } from 'lucide-react'
 
 interface AuthPageProps {
   mode: 'login' | 'register'
@@ -35,16 +30,28 @@ function AuthPageFallback() {
   )
 }
 
-function DesktopBackendDialog({ onBackendChanged }: { onBackendChanged: () => void }) {
+function DesktopBackendAddressSection({
+  zh,
+  onBackendChanged,
+}: {
+  zh: boolean
+  onBackendChanged: () => void
+}) {
   const { apiUrl, defaultApiUrl, isDesktopRuntime, loading, setApiUrl, resetApiUrl } = useApiConfig()
-  const [open, setOpen] = useState(false)
   const [draftUrl, setDraftUrl] = useState(apiUrl)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    if (!open) setDraftUrl(apiUrl)
-  }, [apiUrl, open])
+    setDraftUrl(apiUrl)
+  }, [apiUrl])
+
+  useEffect(() => {
+    if (!saved) return
+    const timer = window.setTimeout(() => setSaved(false), 1600)
+    return () => window.clearTimeout(timer)
+  }, [saved])
 
   if (!isDesktopRuntime) return null
 
@@ -64,10 +71,10 @@ function DesktopBackendDialog({ onBackendChanged }: { onBackendChanged: () => vo
       const changed = nextUrl !== apiUrl
       await setApiUrl(nextUrl)
       if (changed) onBackendChanged()
-      setOpen(false)
+      setSaved(true)
     } catch (err: any) {
       console.error('[API Config] Failed to save backend URL:', err)
-      setError(err?.message || '后端地址保存失败')
+      setError(err?.message || (zh ? '后端地址保存失败' : 'Failed to save backend URL'))
     } finally {
       setSaving(false)
     }
@@ -81,59 +88,61 @@ function DesktopBackendDialog({ onBackendChanged }: { onBackendChanged: () => vo
       await resetApiUrl()
       setDraftUrl(defaultApiUrl)
       if (changed) onBackendChanged()
-      setOpen(false)
+      setSaved(true)
     } catch (err: any) {
       console.error('[API Config] Failed to reset backend URL:', err)
-      setError(err?.message || '后端地址保存失败')
+      setError(err?.message || (zh ? '后端地址保存失败' : 'Failed to save backend URL'))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button type="button" variant="secondary" size="sm" disabled={loading} className="h-9 rounded-lg">
-          <ServerCog data-icon="inline-start" />
-          后端
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>后端地址</DialogTitle>
-          <DialogDescription>{apiUrl}</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="desktop-backend-url">API URL</Label>
-          <Input
-            id="desktop-backend-url"
-            value={draftUrl}
-            onChange={(event) => setDraftUrl(event.target.value)}
-            placeholder="https://gen.wsiri.cn"
-            disabled={saving}
-            aria-invalid={Boolean(error)}
-          />
-          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+    <PageSection density="compact" className="w-full shadow-none">
+      <PageSectionTitle icon={ServerCog} compact>
+        {zh ? '后端地址' : 'Backend URL'}
+      </PageSectionTitle>
+      {error && <StatusNotice tone="error">{error}</StatusNotice>}
+      {saved && <StatusNotice tone="success">{zh ? '后端地址已保存' : 'Backend URL saved'}</StatusNotice>}
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="desktop-backend-url" className="text-xs font-semibold text-muted-foreground">
+          API URL
+        </Label>
+        <Input
+          id="desktop-backend-url"
+          value={draftUrl}
+          onChange={(event) => setDraftUrl(event.target.value)}
+          placeholder="https://gen.wsiri.cn"
+          disabled={saving || loading}
+          aria-invalid={Boolean(error)}
+          className="bg-secondary text-sm"
+        />
+        <div className="truncate text-xs text-muted-foreground">
+          {zh ? '当前：' : 'Current: '}{apiUrl}
         </div>
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={handleReset} disabled={saving}>
-            <RotateCcw data-icon="inline-start" />
-            默认
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={saving}>
-            <Save data-icon="inline-start" />
-            保存
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={handleReset} disabled={saving || loading} className="rounded-lg">
+          <RotateCcw data-icon="inline-start" />
+          {zh ? '默认' : 'Default'}
+        </Button>
+        <Button type="button" size="sm" onClick={handleSave} disabled={saving || loading} className="rounded-lg">
+          <Save data-icon="inline-start" />
+          {zh ? '保存' : 'Save'}
+        </Button>
+      </div>
+    </PageSection>
   )
 }
 
 export function AuthPage({ mode }: AuthPageProps) {
   const t = useT()
+  const { locale } = useI18n()
   const router = useRouter()
   const { user, loading, logout, clearError } = useAuth()
+  const { isDesktopRuntime } = useApiConfig()
+  const zh = locale === 'zh'
+  const [activeView, setActiveView] = useState<'login' | 'backend'>('login')
 
   useEffect(() => {
     if (!loading && user) {
@@ -141,14 +150,14 @@ export function AuthPage({ mode }: AuthPageProps) {
     }
   }, [loading, router, user])
 
-  if (loading || user) {
+  if (user || (loading && !isDesktopRuntime)) {
     return <AuthPageFallback />
   }
 
   return (
-    <div className="min-h-svh bg-background p-4 text-foreground sm:p-6 lg:p-8">
-      <div className="grid min-h-[calc(100svh-2rem)] overflow-hidden rounded-2xl bg-card shadow-depth-sm sm:min-h-[calc(100svh-3rem)] lg:min-h-[calc(100svh-4rem)] lg:grid-cols-2">
-        <main className="flex min-h-0 flex-col gap-8 px-6 py-7 sm:px-10 lg:px-14 lg:py-10">
+    <div className="h-svh overflow-hidden bg-background p-3 text-foreground sm:p-4 lg:p-6">
+      <div className="grid h-full min-h-0 overflow-hidden rounded-xl bg-card shadow-depth-sm lg:grid-cols-[minmax(25rem,0.95fr)_minmax(24rem,1.05fr)]">
+        <main className="flex min-h-0 flex-col gap-5 px-6 py-6 sm:px-10 lg:px-14 lg:py-8">
           <div className="flex justify-center gap-3 md:justify-start">
             <div className="flex min-w-0 flex-1 items-center justify-center gap-3 md:justify-start">
               <Image src={logoImage} alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" draggable={false} />
@@ -157,33 +166,66 @@ export function AuthPage({ mode }: AuthPageProps) {
                 <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>
               </div>
             </div>
-            <DesktopBackendDialog onBackendChanged={() => {
-              logout()
-              clearError()
-            }} />
+            {isDesktopRuntime && (
+              <Button
+                type="button"
+                variant={activeView === 'backend' ? 'outline' : 'secondary'}
+                size="sm"
+                onClick={() => setActiveView((view) => (view === 'backend' ? 'login' : 'backend'))}
+                className="h-9 shrink-0 rounded-lg"
+              >
+                {activeView === 'backend' ? <LogIn data-icon="inline-start" /> : <ServerCog data-icon="inline-start" />}
+                {activeView === 'backend' ? (zh ? '登录' : 'Login') : (zh ? '后端' : 'Backend')}
+              </Button>
+            )}
           </div>
 
-          <div className="flex flex-1 items-center justify-center">
-            <AuthPanel
-              open={true}
-              onOpenChange={() => {}}
-              inline
-              mode={mode}
-              onModeChange={(nextMode) => router.push(nextMode === 'login' ? '/login' : '/register')}
-              onAuthenticated={() => router.replace('/')}
-            />
-          </div>
+          <ScrollArea className="min-h-0 flex-1" viewportClassName="pr-3">
+            <div className={`flex min-h-full flex-col items-center gap-5 py-2 ${activeView === 'login' ? 'justify-center' : 'justify-start'}`}>
+              {loading && activeView === 'login' && (
+                <div className="w-full max-w-sm rounded-lg bg-secondary px-3 py-2 text-center text-xs text-muted-foreground">
+                  {zh ? '正在检查当前后端会话，本地部署工具可直接使用。' : 'Checking the current backend session. Local deployment tools remain available.'}
+                </div>
+              )}
+              {activeView === 'login' ? (
+                <AuthPanel
+                  open={true}
+                  onOpenChange={() => {}}
+                  inline
+                  mode={mode}
+                  onModeChange={(nextMode) => router.push(nextMode === 'login' ? '/login' : '/register')}
+                  onAuthenticated={() => router.replace('/')}
+                />
+              ) : (
+                <div className="flex w-full max-w-xl flex-col gap-4">
+                  <DesktopBackendAddressSection
+                    zh={zh}
+                    onBackendChanged={() => {
+                      logout()
+                      clearError()
+                    }}
+                  />
+                  <DesktopBackendDeploymentSection
+                    zh={zh}
+                    density="compact"
+                    compactTitle
+                    className="w-full shadow-none"
+                  />
+                </div>
+              )}
+            </div>
+          </ScrollArea>
         </main>
 
         <aside className="relative hidden min-h-0 overflow-hidden bg-background-tint lg:block">
-          <div className="flex h-full items-center justify-center px-8 py-10 xl:px-12">
+          <div className="relative h-full min-h-0 w-full">
             <Image
               src="/login_sidepic.svg"
               alt=""
-              width={2500}
-              height={1500}
+              fill
               priority
-              className="h-auto w-full max-w-[min(48vw,900px)] object-contain"
+              sizes="(min-width: 1024px) 50vw, 0vw"
+              className="object-contain p-8 xl:p-12"
               draggable={false}
             />
           </div>

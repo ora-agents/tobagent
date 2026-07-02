@@ -38,7 +38,7 @@ interface DesktopBackendStatus {
 
 interface DesktopBackendDeploymentSectionProps {
   zh: boolean
-  sectionRef: (el: HTMLElement | null) => void
+  sectionRef?: (el: HTMLElement | null) => void
   density?: "default" | "compact" | "roomy"
   compactTitle?: boolean
   className?: string
