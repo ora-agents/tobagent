@@ -61,9 +61,45 @@ jobs:
             echo "channel=Stable" >> "$GITHUB_OUTPUT"
           fi
 
+  create-release:
+    name: Create release
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TITLE: TOB Agent ${{ env.RELEASE_TAG }} [${{ needs.prepare.outputs.channel }}]
+          RELEASE_NOTES: |
+            Desktop release for Linux, Windows, and macOS.
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "$RELEASE_TITLE" \
+              --notes "$RELEASE_NOTES" \
+              --draft=false \
+              --prerelease="$PRERELEASE"
+          else
+            create_args=(
+              --verify-tag
+              --title "$RELEASE_TITLE"
+              --notes "$RELEASE_NOTES"
+            )
+            if [[ "$PRERELEASE" == "true" ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" "${create_args[@]}"
+          fi
+
   build:
     name: Build ${{ matrix.platform_name }}
-    needs: prepare
+    needs:
+      - prepare
+      - create-release
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -163,7 +199,7 @@ jobs:
     name: Build backend ${{ matrix.platform_name }}
     needs:
       - prepare
-      - build
+      - create-release
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
