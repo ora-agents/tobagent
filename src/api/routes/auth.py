@@ -127,10 +127,6 @@ async def send_sms_code(
         existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="Phone already exists")
-    elif req.purpose == "login":
-        existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
-        if not existing_user:
-            raise HTTPException(status_code=404, detail="Phone is not registered")
     elif req.purpose == "bind_phone":
         current_user = _current_user_from_authorization(authorization, db, session_cookie)
         if current_user.phone:
@@ -217,7 +213,7 @@ async def register_user(
     "/api/auth/login",
     response_model=AuthSessionResponse,
     summary="Log in a user",
-    description="Validates a phone SMS code and returns the user's profile metadata.",
+    description="Validates an account or phone number with a password and returns the user's profile metadata.",
 )
 async def login_user(
     req: UserLoginRequest,
@@ -225,27 +221,18 @@ async def login_user(
     desktop_session: str | None = Header(default=None, alias=DESKTOP_SESSION_HEADER),
     db: Session = Depends(get_db),
 ):
-    if req.password is not None:
-        account = req.account or req.phone
-        if not account:
-            raise HTTPException(status_code=400, detail="Account or phone is required")
-        user = db.query(UserTable).filter(
-            or_(UserTable.username == account, UserTable.phone == account),
-        ).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid account or password")
-        if not user.password_hash or not verify_password(req.password, user.password_hash):
-            raise HTTPException(status_code=401, detail="Invalid account or password")
-    elif req.code is not None:
-        if not req.phone:
-            raise HTTPException(status_code=400, detail="Phone is required")
-        user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid phone or verification code")
-        consume_sms_code(db, req.phone, "login", req.code)
-        db.commit()
-    else:
-        raise HTTPException(status_code=400, detail="Password or verification code is required")
+    if req.password is None:
+        raise HTTPException(status_code=400, detail="Password is required")
+    account = req.account or req.phone
+    if not account:
+        raise HTTPException(status_code=400, detail="Account or phone is required")
+    user = db.query(UserTable).filter(
+        or_(UserTable.username == account, UserTable.phone == account),
+    ).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid account or password")
+    if not user.password_hash or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid account or password")
 
     set_session_cookie(response, user.id)
     return _auth_session_response(user, wants_desktop_session_token(desktop_session))

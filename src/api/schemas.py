@@ -54,7 +54,6 @@ class UserRegisterRequest(BaseModel):
 class UserLoginRequest(BaseModel):
     phone: str | None = None
     account: str | None = None
-    code: str | None = None
     password: str | None = None
 
     @field_validator("phone")
@@ -77,16 +76,6 @@ class UserLoginRequest(BaseModel):
             raise ValueError("Invalid account")
         return account
 
-    @field_validator("code")
-    @classmethod
-    def validate_code(cls, value: str) -> str:
-        if value is None:
-            return value
-        code = value.strip()
-        if not re.fullmatch(SMS_CODE_PATTERN, code):
-            raise ValueError("Invalid verification code")
-        return code
-
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str | None) -> str | None:
@@ -100,7 +89,7 @@ class UserLoginRequest(BaseModel):
 
 class SmsCodeRequest(BaseModel):
     phone: str
-    purpose: Literal["register", "login", "sensitive", "bind_phone", "reset_password"] = "login"
+    purpose: Literal["register", "sensitive", "bind_phone", "reset_password"] = "register"
 
     @field_validator("phone")
     @classmethod

@@ -50,8 +50,8 @@ interface AuthContextType {
   canManageWorkspace: boolean
   refreshWorkspaces: () => Promise<void>
   setActiveWorkspaceId: (workspaceId: string | null) => void
-  sendSmsCode: (phone: string, purpose: 'login' | 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => Promise<void>
-  login: (phone: string, credential: string, method?: 'password' | 'sms') => Promise<void>
+  sendSmsCode: (phone: string, purpose: 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => Promise<void>
+  login: (accountOrPhone: string, password: string) => Promise<void>
   register: (username: string, phone: string, code: string, password: string) => Promise<void>
   logout: () => void
   bindPhone: (phone: string, code: string) => Promise<User>
@@ -342,7 +342,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
   }, [refreshWorkspaces])
 
-  const sendSmsCode = useCallback(async (phone: string, purpose: 'login' | 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => {
+  const sendSmsCode = useCallback(async (phone: string, purpose: 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => {
     setError(null)
     if (!capabilities.smsAuth) {
       const message = t.smsAuthUnavailable
@@ -367,7 +367,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [apiUrl, authHeaders, capabilities.smsAuth, t])
 
   // 2. Login function
-  const login = useCallback(async (accountOrPhone: string, credential: string, method: 'password' | 'sms' = 'password') => {
+  const login = useCallback(async (accountOrPhone: string, password: string) => {
     setError(null)
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -378,7 +378,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         anonymous: true,
         headers,
-        json: method === 'password' ? { account: accountOrPhone, password: credential } : { phone: accountOrPhone, code: credential },
+        json: { account: accountOrPhone, password },
       })
 
       if (!resp.ok) {

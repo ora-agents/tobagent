@@ -204,8 +204,8 @@ def test_sms_template_purpose_selection(auth_sms_client):
     assert _sms_template_code_for_purpose("reset_password") == "SMS_RESET_TEST"
 
 
-def test_sms_login_consumes_code_once(auth_sms_client):
-    client, Session, sent_codes = auth_sms_client
+def test_sms_code_cannot_log_in(auth_sms_client):
+    client, Session, _sent_codes = auth_sms_client
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     with Session() as db:
         db.add(UserTable(
@@ -216,21 +216,19 @@ def test_sms_login_consumes_code_once(auth_sms_client):
             created_at=now,
         ))
         db.commit()
-        issue_sms_code(db, "13800138001", "login")
 
-    code = sent_codes[-1][1]
+    sent = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138001", "purpose": "login"},
+    )
+    assert sent.status_code == 422
+
     login = client.post(
         "/api/auth/login",
-        json={"phone": "13800138001", "code": code},
+        json={"phone": "13800138001", "code": "123456"},
     )
-    assert login.status_code == 200
-    assert login.json()["id"] == "user-existing"
-
-    replay = client.post(
-        "/api/auth/login",
-        json={"phone": "13800138001", "code": code},
-    )
-    assert replay.status_code == 401
+    assert login.status_code == 400
+    assert login.json()["detail"] == "Password is required"
 
 
 def test_sensitive_sms_requires_matching_authenticated_phone(auth_sms_client):
