@@ -36,6 +36,9 @@ if (process.env.ALLOWED_DEV_ORIGINS) {
 const nextConfig: NextConfig = {
   output: process.env.NEXT_OUTPUT_MODE === "export" ? "export" : "standalone",
   trailingSlash: process.env.NEXT_OUTPUT_MODE === "export",
+  images: {
+    unoptimized: process.env.NEXT_OUTPUT_MODE === "export",
+  },
   turbopack: {
     root: rootDir,
   },
