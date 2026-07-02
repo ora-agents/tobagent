@@ -157,8 +157,8 @@ export function AuthPage({ mode }: AuthPageProps) {
   return (
     <div className="h-svh overflow-hidden bg-background p-3 text-foreground sm:p-4 lg:p-6">
       <div className="grid h-full min-h-0 overflow-hidden rounded-xl bg-card shadow-depth-sm lg:grid-cols-[minmax(25rem,0.95fr)_minmax(24rem,1.05fr)]">
-        <main className="flex min-h-0 flex-col gap-5 px-6 py-6 sm:px-10 lg:px-14 lg:py-8">
-          <div className="flex justify-center gap-3 md:justify-start">
+        <main className="relative flex min-h-0 flex-col gap-5 px-6 py-6 sm:px-10 lg:px-14 lg:py-8">
+          <div className={`flex justify-center gap-3 md:justify-start ${activeView === 'login' ? 'absolute inset-x-6 top-6 z-10 sm:inset-x-10 lg:inset-x-14 lg:top-8' : ''}`}>
             <div className="flex min-w-0 flex-1 items-center justify-center gap-3 md:justify-start">
               <Image src={logoImage} alt="威思瑞 WSIRI" width={126} height={80} priority className="h-12 w-auto" draggable={false} />
               <div>
@@ -180,23 +180,25 @@ export function AuthPage({ mode }: AuthPageProps) {
             )}
           </div>
 
-          <ScrollArea className="min-h-0 flex-1" viewportClassName="pr-3">
-            <div className={`flex min-h-full flex-col items-center gap-5 py-2 ${activeView === 'login' ? 'justify-center' : 'justify-start'}`}>
-              {loading && activeView === 'login' && (
+          {activeView === 'login' ? (
+            <div className="absolute inset-0 flex min-h-0 flex-col items-center justify-center gap-5 overflow-y-auto px-6 py-24 sm:px-10 lg:px-14">
+              {loading && (
                 <div className="w-full max-w-sm rounded-lg bg-secondary px-3 py-2 text-center text-xs text-muted-foreground">
                   {zh ? '正在检查当前后端会话，本地部署工具可直接使用。' : 'Checking the current backend session. Local deployment tools remain available.'}
                 </div>
               )}
-              {activeView === 'login' ? (
-                <AuthPanel
-                  open={true}
-                  onOpenChange={() => {}}
-                  inline
-                  mode={mode}
-                  onModeChange={(nextMode) => router.push(nextMode === 'login' ? '/login' : '/register')}
-                  onAuthenticated={() => router.replace('/')}
-                />
-              ) : (
+              <AuthPanel
+                open={true}
+                onOpenChange={() => {}}
+                inline
+                mode={mode}
+                onModeChange={(nextMode) => router.push(nextMode === 'login' ? '/login' : '/register')}
+                onAuthenticated={() => router.replace('/')}
+              />
+            </div>
+          ) : (
+            <ScrollArea className="min-h-0 flex-1" viewportClassName="pr-3">
+              <div className="flex min-h-full flex-col items-center justify-start gap-5 py-2">
                 <div className="flex w-full max-w-xl flex-col gap-4">
                   <DesktopBackendAddressSection
                     zh={zh}
@@ -212,9 +214,9 @@ export function AuthPage({ mode }: AuthPageProps) {
                     className="w-full shadow-none"
                   />
                 </div>
-              )}
-            </div>
-          </ScrollArea>
+              </div>
+            </ScrollArea>
+          )}
         </main>
 
         <aside className="relative hidden min-h-0 overflow-hidden bg-background-tint lg:block">
