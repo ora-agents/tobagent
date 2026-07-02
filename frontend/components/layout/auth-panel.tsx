@@ -294,7 +294,7 @@ export function AuthPanel({
                 {t.pleaseWait}
               </>
             ) : activeTab === 'login' ? (
-              t.signIn
+              t.loginSubmit
             ) : (
               t.createAccountTitle
             )}
