@@ -12,6 +12,7 @@ import { DashboardMobileSidebar } from "@/components/layout/dashboard-mobile-sid
 import { DashboardViewPane, DashboardWorkspace } from "@/components/layout/dashboard-workspace"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
+import { UserManualPage } from "@/components/layout/user-manual-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -35,7 +36,7 @@ import { useT } from "@/lib/i18n"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { backendFetch } from "@/lib/api/backend-fetch"
 
-const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "developer-manual", "traces"] as const
+const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "user-manual", "developer-manual", "traces"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
@@ -792,6 +793,11 @@ function DashboardContent() {
             onVoiceprintsChange={setUserVoiceprints}
             onClearAllConversations={handleClearAllConversations}
             conversationCount={threads.length}
+          />
+        ) : !isDedicatedAgentApp && currentView === "user-manual" ? (
+          <UserManualPage
+            onBackToChat={() => setCurrentView("chat")}
+            onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
         ) : !isDedicatedAgentApp && currentView === "developer-manual" ? (
           <DeveloperManualPage

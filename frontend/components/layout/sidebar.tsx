@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react"
 import Image from "next/image"
-import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2 } from "lucide-react"
+import { Trash2, PanelLeftClose, PanelLeft, Search, X, Wrench, Bot, Database, TableProperties, Sun, Moon, Cpu, User, LogIn, LogOut, Settings, ChevronDown, BookOpenText, Sparkles, Code2, CircleHelp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { LoadingPlaceholder, ThreadSkeleton } from "@/components/ui/loading-placeholder"
@@ -24,7 +24,7 @@ interface SidebarProps {
   onDeleteThread: (threadId: string) => void
   isLoading?: boolean
   currentView?: string
-  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual" | "traces") => void
+  onViewChange?: (view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "user-manual" | "developer-manual" | "traces") => void
   isMobileDrawer?: boolean
   onMobileClose?: () => void
   variant?: "default" | "agentApp"
@@ -219,7 +219,7 @@ export const Sidebar = memo(function Sidebar({
     onMobileClose?.()
   }, [onSelectThread, onViewChange, onMobileClose])
 
-  const handleViewChange = useCallback((view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "developer-manual" | "traces") => {
+  const handleViewChange = useCallback((view: "chat" | "skills" | "agents" | "knowledge" | "forms" | "mcp" | "settings" | "user-manual" | "developer-manual" | "traces") => {
     onViewChange?.(view)
     onMobileClose?.()
   }, [onViewChange, onMobileClose])
@@ -451,6 +451,17 @@ export const Sidebar = memo(function Sidebar({
               )}
             </div>
           )}
+          <Button variant="unstyled"
+            onClick={() => handleViewChange("user-manual")}
+            className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+              currentView === "user-manual"
+                ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            }`}
+            title={t.userManual}
+          >
+            <CircleHelp className="w-5 h-5" />
+          </Button>
           <Button variant="unstyled"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             className="p-2.5 rounded-lg transition-all duration-200 cursor-pointer text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
@@ -685,6 +696,17 @@ export const Sidebar = memo(function Sidebar({
             )}
           </div>
         )}
+        <Button variant="unstyled"
+          onClick={() => handleViewChange("user-manual")}
+          className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+            currentView === "user-manual"
+              ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+          }`}
+        >
+          <CircleHelp className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+          <span className="truncate">{t.userManual}</span>
+        </Button>
         <Button variant="unstyled"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"

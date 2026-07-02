@@ -129,6 +129,7 @@ const zh = {
   expandDevelopment: "展开开发",
   collapseDevelopment: "收起开发",
   backend: "后台管理",
+  userManual: "用户手册",
   developerManual: "开发手册",
 
   // Common & General
@@ -443,6 +444,7 @@ const en = {
   expandDevelopment: "Expand development",
   collapseDevelopment: "Collapse development",
   backend: "Backend",
+  userManual: "User Manual",
   developerManual: "Developer Manual",
 
   // Common & General
