@@ -347,7 +347,7 @@ export function AgentSettings({ config, onConfigChange, onShowShortcuts, forceSh
             <Button
               variant="ghost"
               size="sm"
-              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground active:text-black"
+              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground active:text-foreground"
               onClick={onShowShortcuts}
             >
               <Keyboard className="w-4 h-4" />
