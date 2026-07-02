@@ -7,11 +7,13 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
 import { ChatInterface } from "@/components/chat/chat-interface"
 import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-dialog"
+import { DashboardFallback } from "@/components/layout/dashboard-fallback"
+import { DashboardMobileSidebar } from "@/components/layout/dashboard-mobile-sidebar"
+import { DashboardViewPane, DashboardWorkspace } from "@/components/layout/dashboard-workspace"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
-import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -30,7 +32,6 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
-import { LoadingPlaceholder } from "@/components/ui/loading-placeholder"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { backendFetch } from "@/lib/api/backend-fetch"
 
@@ -39,62 +40,6 @@ type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
   return DASHBOARD_VIEWS.includes(value as DashboardView)
-}
-
-function DashboardFallback() {
-  return (
-    <div className="flex h-screen bg-background" aria-busy="true" aria-label="Loading dashboard" role="status">
-      <aside className="hidden w-56 flex-col border-r border-border/60 bg-sidebar md:flex">
-        <div className="flex h-16 items-center border-b border-border/60 px-3">
-          <LoadingPlaceholder variant="button" className="h-9 w-9" />
-        </div>
-        <div className="space-y-3 px-3 py-4">
-          <LoadingPlaceholder variant="input" className="h-10 w-full" />
-          <div className="space-y-2 pt-2">
-            <LoadingPlaceholder className="h-2.5 w-16" />
-            <LoadingPlaceholder variant="thread" className="w-full" />
-            <LoadingPlaceholder variant="thread" className="w-[92%]" />
-            <LoadingPlaceholder variant="thread" className="w-[84%]" />
-          </div>
-        </div>
-        <div className="mt-auto space-y-2 border-t border-border/40 px-3 py-3">
-          <LoadingPlaceholder variant="button" className="h-9 w-full" />
-          <LoadingPlaceholder variant="button" className="h-9 w-4/5" />
-        </div>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b border-border/60 px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <LoadingPlaceholder variant="button" className="h-9 w-9 md:hidden" />
-            <LoadingPlaceholder className="h-4 w-28" />
-          </div>
-          <div className="flex items-center gap-2">
-            <LoadingPlaceholder variant="button" className="h-9 w-9" />
-            <LoadingPlaceholder variant="button" className="h-9 w-24" />
-          </div>
-        </header>
-
-        <main className="flex flex-1 items-center justify-center px-4">
-          <div className="w-full max-w-3xl -mt-20">
-            <LoadingPlaceholder className="mx-auto mb-8 h-9 w-64 sm:h-12 sm:w-96" />
-            <div className="rounded-xl border border-border/70 bg-background/95 p-3 shadow-depth-sm">
-              <LoadingPlaceholder className="mb-3 h-4 w-3/4" />
-              <div className="flex items-end gap-2">
-                <LoadingPlaceholder variant="button" className="h-9 w-9 rounded-full" />
-                <LoadingPlaceholder variant="input" className="h-11 flex-1 border-0" />
-                <LoadingPlaceholder variant="button" className="h-9 w-20 rounded-full" />
-              </div>
-            </div>
-            <div className="mt-3 flex gap-3 px-2">
-              <LoadingPlaceholder variant="button" className="h-8 w-36" />
-              <LoadingPlaceholder variant="button" className="h-8 w-32" />
-            </div>
-          </div>
-        </main>
-      </div>
-    </div>
-  )
 }
 
 function AuthRedirect() {
@@ -751,8 +696,9 @@ function DashboardContent() {
         open={showShortcutsDialog}
         onOpenChange={setShowShortcutsDialog}
       />
-      <div className={`flex h-dvh bg-background ${isDedicatedAgentApp ? "text-foreground" : ""}`}>
-        {!isDedicatedAgentApp && (
+      <DashboardWorkspace
+        className={isDedicatedAgentApp ? "text-foreground" : undefined}
+        sidebar={!isDedicatedAgentApp ? (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
             onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -764,8 +710,7 @@ function DashboardContent() {
             currentView={currentView}
             onViewChange={setCurrentView}
           />
-        )}
-        {isDedicatedAgentApp && activeAgentProfile && (
+        ) : isDedicatedAgentApp && activeAgentProfile ? (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
             onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -780,40 +725,29 @@ function DashboardContent() {
             agentName={activeAgentProfile.name}
             onNewChat={handleNewChat}
           />
-        )}
-        {isMobileSidebarOpen && (
-          <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="菜单">
-            <Button variant="unstyled"
-              type="button"
-              className="absolute inset-0 bg-foreground/35"
-              onClick={() => setIsMobileSidebarOpen(false)}
-              aria-label="关闭菜单"
-            />
-            <div className="relative h-full">
-              <Sidebar
-                isCollapsed={false}
-                onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                threads={filteredThreads.filter((t) => !newThreads.has(t.thread_id))}
-                currentThreadId={activeThreadId || ''}
-                onSelectThread={handleSelectThread}
-                onDeleteThread={handleDeleteThread}
-                isLoading={threadsLoading}
-                currentView={currentView}
-                onViewChange={setCurrentView}
-                isMobileDrawer
-                onMobileClose={() => setIsMobileSidebarOpen(false)}
-                variant={isDedicatedAgentApp ? "agentApp" : "default"}
-                agentName={isDedicatedAgentApp ? activeAgentProfile?.name : undefined}
-                onNewChat={isDedicatedAgentApp ? handleNewChat : undefined}
-              />
-            </div>
-          </div>
-        )}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden bg-background">
-        <div
-          className={currentView === "chat" ? "flex min-h-0 flex-1 flex-col" : "hidden min-h-0 flex-1 flex-col"}
-          aria-hidden={currentView !== "chat"}
-        >
+        ) : null}
+        mobileSidebar={
+          <DashboardMobileSidebar
+            open={isMobileSidebarOpen}
+            onClose={() => setIsMobileSidebarOpen(false)}
+            sidebarProps={{
+              isCollapsed: false,
+              onToggle: () => setIsSidebarCollapsed(!isSidebarCollapsed),
+              threads: filteredThreads.filter((thread) => !newThreads.has(thread.thread_id)),
+              currentThreadId: activeThreadId || "",
+              onSelectThread: handleSelectThread,
+              onDeleteThread: handleDeleteThread,
+              isLoading: threadsLoading,
+              currentView,
+              onViewChange: setCurrentView,
+              variant: isDedicatedAgentApp ? "agentApp" : "default",
+              agentName: isDedicatedAgentApp ? activeAgentProfile?.name : undefined,
+              onNewChat: isDedicatedAgentApp ? handleNewChat : undefined,
+            }}
+          />
+        }
+      >
+        <DashboardViewPane active={currentView === "chat"}>
             <Header
               onNewChat={handleNewChat}
               agentConfig={isDedicatedAgentApp ? undefined : agentConfig}
@@ -848,7 +782,7 @@ function DashboardContent() {
               onInitialMessageSent={() => setInitialPrompt(null)}
               conversationSource={isDedicatedAgentApp ? "agent_app" : "main"}
             />
-        </div>
+        </DashboardViewPane>
 
         {!isDedicatedAgentApp && currentView === "settings" ? (
           <UserSettingsPage
@@ -869,7 +803,7 @@ function DashboardContent() {
             onBackToChat={() => setCurrentView("chat")}
           />
         ) : !isDedicatedAgentApp && currentView !== "chat" ? (
-          <div className="flex min-h-0 flex-1 overflow-hidden">
+          <DashboardViewPane>
             <ManagementDashboard
               initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : currentView === "forms" ? "forms" : "knowledge"}
               onBackToChat={() => setCurrentView("chat")}
@@ -889,10 +823,9 @@ function DashboardContent() {
               createOnOpen={createParam === "1"}
               onCreateChange={(creating) => setCreateParam(creating ? "1" : null)}
             />
-          </div>
+          </DashboardViewPane>
         ) : null}
-      </div>
-    </div>
+      </DashboardWorkspace>
     </>
   )
 }
