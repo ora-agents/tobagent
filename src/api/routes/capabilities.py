@@ -265,16 +265,6 @@ def _runtime_modules() -> dict[str, RuntimeModuleCapability]:
                 "verifyMinSeconds": 0.5,
             },
         ),
-        "robot.navigation": RuntimeModuleCapability(
-            enabled=os.getenv("ROBOT_NAVIGATION_ENABLED", "").lower()
-            in {"1", "true", "yes", "on"},
-            category="robot",
-            label="Robot navigation",
-            description="Enables robot point management and the navigate_robot_to_point agent tool for robot WebView sessions.",
-            requiredEnv=["ROBOT_NAVIGATION_ENABLED"],
-            optionalEnv=[],
-            defaults={"enabled": False},
-        ),
     }
 
 

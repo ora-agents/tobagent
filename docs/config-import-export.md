@@ -2,7 +2,7 @@
 
 ## 1. 背景
 
-当前系统主要支持智能体 TOML 导入导出，配置资产实际还包括知识库、技能、MCP 服务、表单、机器人点位和用户偏好等内容。
+当前系统主要支持智能体 TOML 导入导出，配置资产实际还包括知识库、技能、MCP 服务、表单和用户偏好等内容。
 
 本方案将现有能力升级为统一的“配置包系统”，同时支持：
 
@@ -30,7 +30,6 @@
 | 技能 | 支持 | 支持 | 支持 | 完整保留 Skill 内容 |
 | MCP 服务 | 支持 | 支持 | 支持 | 敏感 Header 默认脱敏 |
 | 表单 | 支持 | 支持 | 支持 | 可选择是否包含记录 |
-| 机器人点位 | 支持 | 支持 | 支持 | 按点位名称和设备 SN 检测冲突 |
 | 用户偏好 | 整体导入导出 | 支持 | 支持 | 不包含账户认证信息 |
 
 以下内容默认不导出：
@@ -72,8 +71,6 @@ backup.tobconfig
 │   ├── kb-source-id.json
 │   └── kb-source-id/
 │       └── documents/
-├── robot-points/
-│   └── points.json
 └── preferences/
     └── user.json
 ```
@@ -91,8 +88,7 @@ backup.tobconfig
     "skills": ["skill-1"],
     "knowledgeBases": ["kb-1"],
     "mcpServers": [],
-    "forms": [],
-    "robotPoints": []
+    "forms": []
   },
   "options": {
     "includeDependencies": true,
@@ -128,7 +124,6 @@ backup.tobconfig
   ☐ 包含敏感请求头
 ☑ 表单
   ☑ 包含表单记录
-☑ 机器人点位
 ☐ 用户偏好
 ```
 
@@ -225,9 +220,8 @@ backup.tobconfig
 3. MCP 服务。
 4. 表单及记录。
 5. 知识库及文档。
-6. 机器人点位。
-7. 智能体。
-8. 重写智能体之间的协同引用。
+6. 智能体。
+7. 重写智能体之间的协同引用。
 
 智能体最后导入，确保其依赖已经生成目标 ID。
 
@@ -425,7 +419,6 @@ src/config_bundle/
     ├── mcp_servers.py
     ├── forms.py
     ├── knowledge_bases.py
-    ├── robot_points.py
     └── preferences.py
 ```
 
@@ -588,7 +581,6 @@ POST /api/agent-profiles/import.toml
 
 ### 第三阶段：补全配置类型
 
-- 支持机器人点位。
 - 支持用户偏好。
 - 增加分类批量操作。
 

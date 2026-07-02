@@ -74,7 +74,6 @@ import {
 } from "@/lib/types/role-templates"
 import { cn, generateUUID } from "@/lib/utils"
 import { useAuth } from "@/components/providers/auth-provider"
-import { isRobotEnvironment } from "@/lib/voice/utils/browser"
 import {
   DEFAULT_SKILL_TEMPLATE,
   SkillStructuredView,
@@ -274,7 +273,6 @@ export function ManagementDashboard({
   const t = useT()
   const { locale } = useI18n()
   const { user, activeWorkspace, canManageWorkspace, workspaceHeaders, authHeaders: sessionHeaders } = useAuth()
-  const [hasRobotEnvironment, setHasRobotEnvironment] = useState(false)
   const [configBundleMode, setConfigBundleMode] = useState<"import" | "export" | null>(null)
   const [configBundleInitialSelection, setConfigBundleInitialSelection] = useState<{
     agents?: string[]
@@ -283,16 +281,6 @@ export function ManagementDashboard({
     mcpServers?: string[]
     forms?: string[]
   }>()
-
-  useEffect(() => {
-    const updateRobotEnvironment = () => {
-      setHasRobotEnvironment(isRobotEnvironment())
-    }
-
-    updateRobotEnvironment()
-    window.addEventListener("nativeVoiceEvent", updateRobotEnvironment)
-    return () => window.removeEventListener("nativeVoiceEvent", updateRobotEnvironment)
-  }, [])
 
   const authHeaders = useMemo(
     () => user ? { ...sessionHeaders, ...workspaceHeaders } : undefined,
@@ -1174,9 +1162,7 @@ export function ManagementDashboard({
     })
   }
 
-  const visibleBuiltinTools = BUILTIN_TOOLS.filter(
-    tool => tool.id !== "navigate_robot_to_point" || hasRobotEnvironment
-  )
+  const visibleBuiltinTools = BUILTIN_TOOLS
 
   const handleApplyRoleTemplate = (templateId: string) => {
     const template = ROLE_TEMPLATES.find(item => item.id === templateId)

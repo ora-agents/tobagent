@@ -6,13 +6,11 @@ This repository contains a LangGraph documentation agent with a Next.js frontend
 
 Frontend code lives in `frontend/`. The website uses Next.js routes in `frontend/app/`, React components in `frontend/components/`, client logic in `frontend/lib/`, and browser assets in `frontend/public/`. The desktop application uses the same Next.js UI as a static export, with the Tauri shell in `frontend/src-tauri/`.
 
-安卓软件地址：`C:\Users\wrsi\Documents\wsrtobandroid`，WSL 路径为 `/mnt/c/Users/wrsi/Documents/wsrtobandroid`。
-
-## Cross-Project Android Coordination
+## Android Voice Coordination
 
 When changing voice, wake-word, ASR/VAD, TTS playback, interruption, speaker verification, WebView bridge, telemetry, or agent-profile configuration behavior, also inspect the Android project at `/mnt/c/Users/wrsi/Documents/wsrtobandroid`. The Android app owns the native voice provider exposed through `TobNativeVoice` / `__TOB_NATIVE_VOICE__` and sends `nativeVoiceEvent` payloads consumed by `frontend/lib/hooks/files/use-voice-agent.ts`.
 
-Keep web and Android behavior aligned for shared state-machine semantics such as `idle`, `kws`, `listening`, `transcribing`, `processing`, `speaking`, `speech_start`, `asr`, `speaker_rejected`, `tts_audio`, and `tts_done`. If a frontend change adds, removes, or reinterprets a native bridge field, update or explicitly verify the Android counterpart in the same task. In particular, changes to `voiceInterruptionEnabled` must be checked on both sides so disabled interruption suppresses speech captured during an agent reply and does not send delayed ASR text after playback ends.
+Keep web and Android behavior aligned for shared voice state-machine semantics such as `idle`, `kws`, `listening`, `transcribing`, `processing`, `speaking`, `speech_start`, `asr`, `speaker_rejected`, `tts_audio`, and `tts_done`. If a frontend change adds, removes, or reinterprets a native voice bridge field, update or explicitly verify the Android counterpart in the same task. In particular, changes to `voiceInterruptionEnabled` must be checked on both sides so disabled interruption suppresses speech captured during an agent reply and does not send delayed ASR text after playback ends.
 
 Do not assume Windows paths are inaccessible from WSL. Use the `/mnt/c/...` path above for reads, searches, and edits when the task touches these integration points. Keep Android commits separate from this repository unless the user explicitly asks for a coordinated multi-repo commit.
 

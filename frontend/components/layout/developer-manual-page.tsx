@@ -437,8 +437,8 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                   ]}
                 />
                 <EndpointGroup
-                  title={zh ? "语音与机器人" : "Voice and Robot"}
-                  description={zh ? "语音识别、语音会话、TTS、声纹绑定/验证，以及机器人点位和指令结果上报。" : "ASR, voice sessions, TTS, voiceprint enrollment/verification, robot points, and command result reporting."}
+                  title={zh ? "语音" : "Voice"}
+                  description={zh ? "语音识别、语音会话、TTS、声纹绑定/验证和语音遥测。" : "ASR, voice sessions, TTS, voiceprint enrollment/verification, and voice telemetry."}
                   endpoints={[
                     "POST /api/asr/transcribe",
                     "WS /ws/voice/asr",
@@ -448,9 +448,6 @@ curl -N -X POST "$LANGGRAPH_API_URL/threads/$THREAD_ID/runs/stream" \\
                     "GET/POST /api/user-voiceprints",
                     "POST /api/speaker-profiles/verify",
                     "POST /api/voice/telemetry",
-                    "GET/POST/PUT/DELETE /api/robot-points",
-                    "GET /api/robot/sse",
-                    "POST /api/robot/commands/{command_id}/result",
                   ]}
                 />
               </div>

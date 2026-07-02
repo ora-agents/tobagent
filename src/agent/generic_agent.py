@@ -26,7 +26,6 @@ from src.prompts.context_summary_prompt import context_summary_prompt
 from src.tools.fetch_tool import fetch
 from src.tools.form_tool import ManageFormDataTool, QueryFormDataTool
 from src.tools.rag_tool import RagSearchTool
-from src.tools.robot_control_tool import navigate_robot_to_point
 from src.tools.skill_tool import ReadSkillTool
 from src.utils.langfuse_tracing import with_langfuse_tracing
 
@@ -95,11 +94,6 @@ class GenericAgentContext(BaseModel):
         default=False,
         description="When true, agent must confirm before executing dangerous actions.",
     )
-    robot_environment: bool = Field(
-        default=False,
-        description="True when the current web client runs inside the robot Android WebView.",
-    )
-
 
 # ---------------------------------------------------------------------------
 # Tools
@@ -115,7 +109,6 @@ _all_tools = [
     _read_skill_tool,
     _query_form_data_tool,
     _manage_form_data_tool,
-    navigate_robot_to_point,
 ]
 logger.info(f"Generic agent tools: {[t.name for t in _all_tools]}")
 

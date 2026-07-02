@@ -343,23 +343,6 @@ class KnowledgeBaseTable(Base):
     updated_at = Column(String(50), nullable=False)
 
 
-class RobotPointTable(Base):
-    """Saved robot navigation point metadata."""
-    __tablename__ = "robot_points"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    point_name = Column(String(255), unique=True, index=True, nullable=False)
-    introduction = Column(Text, nullable=False)
-    x = Column(Float, nullable=False)
-    y = Column(Float, nullable=False)
-    z = Column(Float, nullable=False)
-    rotation = Column(Float, nullable=False)
-    position_json = Column(JSON, nullable=False)
-    robot_sn = Column(String(255), nullable=True)
-    created_at = Column(String(50), nullable=False)
-    updated_at = Column(String(50), nullable=False)
-
-
 def _add_column_if_missing(table_name: str, column_name: str, column_sql: str) -> None:
     """Add a column when it is absent, using dialect-compatible DDL."""
     inspector = inspect(engine)

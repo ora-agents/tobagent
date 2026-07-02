@@ -53,17 +53,8 @@ export function isAndroidWebView(): boolean {
   const webViewUserAgent = /\bwv\b/i.test(userAgent) || /Version\/[\d.]+.*Chrome/i.test(userAgent)
   const nativeBridge = Boolean(
     (window as any).__TOB_NATIVE_VOICE__ ||
-      (window as any).TobNativeVoice ||
-      (window as any).__TOB_ROBOT_ENV__
+      (window as any).TobNativeVoice
   )
 
   return webViewUserAgent || nativeBridge
-}
-
-export function isRobotEnvironment(): boolean {
-  if (typeof window === "undefined") {
-    return false
-  }
-
-  return Boolean((window as any).__TOB_ROBOT_ENV__?.enabled)
 }

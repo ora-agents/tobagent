@@ -125,9 +125,6 @@ uv run python scripts/langgraph_sdk_external_call.py \
 # 复用已有 thread，继续同一段对话
 --thread-id "<thread_id>"
 
-# 追加 context 字段
---context-json '{"robot_environment": true}'
-
 # 追加 run metadata
 --metadata-json '{"request_id": "external-001"}'
 
@@ -420,8 +417,6 @@ asyncio.run(main())
    - `model`：可选模型覆盖。
    - `user_preferences`：用户偏好。
    - `safety_enabled`：是否开启危险操作确认。
-   - `robot_environment`：机器人 WebView 场景开关。
-
 6. `src/middleware/dynamic_config_middleware.py` 根据 `agent_id` 和 `user_id` 加载用户 agent 配置。
 
    它会动态应用：
@@ -497,7 +492,6 @@ uv run python scripts/langgraph_sdk_external_call.py \
 - `rag_search`
 - `fetch`
 - `read_skill`
-- `navigate_robot_to_point`
 
 ## 常见错误
 
