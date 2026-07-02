@@ -14,7 +14,12 @@
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
-        "https://wsrtob.s.odn.cc"
+        "https://wsrtob.s.odn.cc",
+        "https://wsr.wsiri.cn",
+        "https://gen.wsiri.cn",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost"
       ],
       "allow_methods": ["*"],
       "allow_headers": ["*"]
