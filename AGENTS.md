@@ -48,9 +48,11 @@ When making UI or styling changes, prefer the visual system in `docs/design.md` 
 
 Prefer minimal, reusable component composition for frontend UI work. Before creating page-specific markup, check whether an existing shared component or shadcn/ui component can be composed or lightly customized. Build new shared components only when they capture a real repeated pattern, keep their props small and stable, and place them where they can be reused across the website and desktop surfaces without coupling them to one route.
 
+Keep route files in `frontend/app/**` focused on routing, data loading, state orchestration, and composition. New visual UI should live in reusable components under `frontend/components/**`; page-local JSX is acceptable only for trivial composition of existing components. If a future change introduces a new view, skeleton, drawer, panel, toolbar, form block, empty state, badge group, or repeated row treatment, extract it into a named component with stable props instead of embedding one-off markup in a route or large layout file.
+
 Use shadcn/ui as the default base for common controls, overlays, forms, feedback states, navigation, cards, tables, and empty/loading states. Customize through semantic design tokens, variants, and composition instead of raw Tailwind color overrides or one-off styled wrappers. When adding or changing shadcn components, follow the project component registry conventions and keep generated component code reviewable.
 
-Design all new UI for light and dark themes from the start. Use semantic tokens such as `background`, `foreground`, `muted`, `border`, `primary`, and component variants so dark mode works without manual per-element color fixes. Verify hover, focus, disabled, selected, error, empty, and loading states have sufficient contrast in both themes.
+Design all new UI for light and dark themes from the start. Use semantic tokens such as `background`, `foreground`, `muted`, `border`, `primary`, and component variants so dark mode works without manual per-element color fixes. Avoid hard-coded light-only classes such as `bg-white`, `text-black`, raw gray/slate palettes, and ad hoc `dark:` fixes unless the design token set cannot express the state. Verify hover, focus, disabled, selected, error, empty, and loading states have sufficient contrast in both themes before considering the UI complete.
 
 ## Testing Guidelines
 
