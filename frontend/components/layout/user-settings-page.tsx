@@ -20,6 +20,7 @@ import {
   Upload,
   Waves,
   Building2,
+  ServerCog,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -47,11 +48,13 @@ import {
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
 import { backendFetch } from "@/lib/api/backend-fetch"
+import { useApiConfig } from "@/lib/config/api-config"
 import {
   useVoiceprintRecorder,
   SPEAKER_AUDIO_ACCEPT,
 } from "@/lib/hooks/use-voiceprint-recorder"
 import { WorkspaceManagerDialog } from "@/components/layout/management-dashboard/workspace-manager-dialog"
+import { DesktopBackendDeploymentSection } from "@/components/layout/desktop-backend-deployment-section"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,6 +109,7 @@ const NAV_SECTIONS: NavSection[] = [
   { id: "section-profile", icon: User, labelZh: "基本信息", labelEn: "Profile" },
   { id: "section-account-security", icon: KeyRound, labelZh: "账号安全", labelEn: "Account Security" },
   { id: "section-workspace", icon: Building2, labelZh: "工作区", labelEn: "Workspace" },
+  { id: "section-desktop-backend", icon: ServerCog, labelZh: "本地后端", labelEn: "Local Backend" },
   { id: "section-prefs", icon: Settings2, labelZh: "通用偏好", labelEn: "Preferences" },
   { id: "section-safety", icon: Shield, labelZh: "安全选项", labelEn: "Safety" },
   { id: "section-voiceprint", icon: Waves, labelZh: "声纹管理", labelEn: "Voiceprints" },
@@ -127,6 +131,7 @@ export function UserSettingsPage({
 }: UserSettingsPageProps) {
   const elderOptimized = false
   const { user, updateProfile, sendSmsCode, bindPhone, changePassword, deleteAccount, activeWorkspace, canManageWorkspace, capabilities, authHeaders } = useAuth()
+  const { isDesktopRuntime } = useApiConfig()
   const { locale } = useI18n()
   const zh = locale === "zh"
   const smsEnabled = capabilities.smsAuth
@@ -178,9 +183,13 @@ export function UserSettingsPage({
   const pendingVoiceprintNameRef = useRef("")
 
   // ---- Active section tracking ----
-  const [activeSection, setActiveSection] = useState("section-display")
+  const [activeSection, setActiveSection] = useState("section-profile")
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const visibleNavSections = useMemo(
+    () => NAV_SECTIONS.filter((section) => isDesktopRuntime || section.id !== "section-desktop-backend"),
+    [isDesktopRuntime],
+  )
 
   // ---- Sync form state when user changes ----
   useEffect(() => {
@@ -291,19 +300,19 @@ export function UserSettingsPage({
 
     const maxScrollTop = container.scrollHeight - container.clientHeight
     if (container.scrollTop <= 2) {
-      setActiveSection(NAV_SECTIONS[0].id)
+      setActiveSection(visibleNavSections[0]?.id || "section-profile")
       return
     }
     if (maxScrollTop - container.scrollTop <= 2) {
-      setActiveSection(NAV_SECTIONS[NAV_SECTIONS.length - 1].id)
+      setActiveSection(visibleNavSections[visibleNavSections.length - 1]?.id || "section-danger")
       return
     }
 
     const containerTop = container.getBoundingClientRect().top
     const activationY = containerTop + Math.min(container.clientHeight * 0.28, 180)
-    let nextActive = NAV_SECTIONS[0].id
+    let nextActive = visibleNavSections[0]?.id || "section-profile"
 
-    for (const section of NAV_SECTIONS) {
+    for (const section of visibleNavSections) {
       const el = sectionRefs.current.get(section.id)
       if (!el) continue
       if (el.getBoundingClientRect().top <= activationY) {
@@ -314,7 +323,7 @@ export function UserSettingsPage({
     }
 
     setActiveSection(nextActive)
-  }, [])
+  }, [visibleNavSections])
 
   useEffect(() => {
     updateActiveSectionFromScroll()
@@ -712,7 +721,7 @@ export function UserSettingsPage({
               <div className="hidden text-xs font-semibold text-muted-foreground md:mb-3 md:block md:px-3">
                 {zh ? "配置目录" : "Sections"}
               </div>
-              {NAV_SECTIONS.map(({ id, icon: Icon, labelZh, labelEn }) => (
+              {visibleNavSections.map(({ id, icon: Icon, labelZh, labelEn }) => (
                 <NavItem
                   key={id}
                   onClick={() => scrollToSection(id)}
@@ -948,6 +957,13 @@ export function UserSettingsPage({
                 </ActionButton>
               </div>
             </PageSection>
+
+            <DesktopBackendDeploymentSection
+              zh={zh}
+              sectionRef={registerSectionRef("section-desktop-backend")}
+              density={sectionDensity}
+              compactTitle={sectionTitleCompact}
+            />
 
             {/* ============ Section: Preferences ============ */}
             <PageSection
