@@ -3526,6 +3526,8 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-store",
+ "webkit2gtk",
+ "webview2-com",
 ]
 
 [[package]]
