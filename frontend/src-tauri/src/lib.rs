@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     fs,
     io::{self, Read, Write},
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
 };
@@ -22,6 +22,7 @@ TOB_BACKEND_ACCESS_LOG=false
 # LANGFUSE_SECRET_KEY=
 # LANGFUSE_HOST=
 "#;
+const MAX_BACKEND_BINARY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 struct BackendProcess(Mutex<Option<Child>>);
 
@@ -104,66 +105,100 @@ fn read_package_marker(app: &tauri::AppHandle) -> Option<PathBuf> {
     path.exists().then_some(path)
 }
 
-fn safe_archive_path(path: &Path) -> Option<PathBuf> {
-    let mut safe = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Normal(part) => safe.push(part),
-            Component::CurDir => {}
-            _ => return None,
+fn copy_limited<R: Read>(reader: &mut R, output: &mut fs::File) -> Result<u64, String> {
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; 1024 * 1024];
+
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|err| format!("Cannot read backend binary: {err}"))?;
+        if read == 0 {
+            break;
         }
+        total += read as u64;
+        if total > MAX_BACKEND_BINARY_BYTES {
+            return Err(format!(
+                "Backend binary is larger than {} bytes; refusing to import",
+                MAX_BACKEND_BINARY_BYTES
+            ));
+        }
+        output
+            .write_all(&buffer[..read])
+            .map_err(|err| format!("Cannot write backend binary: {err}"))?;
     }
-    (!safe.as_os_str().is_empty()).then_some(safe)
+
+    output
+        .flush()
+        .map_err(|err| format!("Cannot flush backend binary: {err}"))?;
+    Ok(total)
 }
 
-fn copy_backend_binary(source: &Path, app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn install_backend_binary_from_reader<R: Read>(
+    reader: &mut R,
+    app: &tauri::AppHandle,
+    expected_size: Option<u64>,
+    unix_mode: Option<u32>,
+) -> Result<PathBuf, String> {
+    if let Some(size) = expected_size {
+        if size > MAX_BACKEND_BINARY_BYTES {
+            return Err(format!(
+                "Backend binary is larger than {} bytes; refusing to import",
+                MAX_BACKEND_BINARY_BYTES
+            ));
+        }
+    }
+
     let target = deploy_dir(app)?.join("bin").join(backend_exe_name());
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|err| format!("Cannot create bin directory: {err}"))?;
     }
-    fs::copy(source, &target).map_err(|err| format!("Cannot copy backend binary: {err}"))?;
+
+    let temp = target.with_file_name(format!("{}.importing", backend_exe_name()));
+    if temp.exists() {
+        fs::remove_file(&temp)
+            .map_err(|err| format!("Cannot remove previous import temp file: {err}"))?;
+    }
+
+    let mut output =
+        fs::File::create(&temp).map_err(|err| format!("Cannot create backend binary: {err}"))?;
+    let copied = copy_limited(reader, &mut output)?;
+    drop(output);
+    if copied == 0 {
+        let _ = fs::remove_file(&temp);
+        return Err("Selected backend binary is empty".to_owned());
+    }
+
+    if target.exists() {
+        fs::remove_file(&target).map_err(|err| {
+            format!("Cannot replace existing backend binary. Stop the local backend first: {err}")
+        })?;
+    }
+    fs::rename(&temp, &target).map_err(|err| format!("Cannot install backend binary: {err}"))?;
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&target)
             .map_err(|err| format!("Cannot read backend permissions: {err}"))?
             .permissions();
-        perms.set_mode(0o755);
+        perms.set_mode(unix_mode.unwrap_or(0o755) | 0o700);
         fs::set_permissions(&target, perms)
             .map_err(|err| format!("Cannot set backend executable bit: {err}"))?;
     }
     Ok(target)
 }
 
-fn find_backend_binary(root: &Path) -> Result<Option<PathBuf>, String> {
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(path) = stack.pop() {
-        let entries = fs::read_dir(&path)
-            .map_err(|err| format!("Cannot read extracted directory {}: {err}", path.display()))?;
-        for entry in entries {
-            let entry = entry.map_err(|err| format!("Cannot inspect extracted file: {err}"))?;
-            let entry_path = entry.path();
-            let file_type = entry
-                .file_type()
-                .map_err(|err| format!("Cannot inspect extracted file type: {err}"))?;
-            if file_type.is_dir() {
-                stack.push(entry_path);
-                continue;
-            }
-            if file_type.is_file() {
-                let Some(name) = entry_path.file_name().and_then(|value| value.to_str()) else {
-                    continue;
-                };
-                if is_backend_binary_name(name) {
-                    return Ok(Some(entry_path));
-                }
-            }
-        }
-    }
-    Ok(None)
+fn copy_backend_binary(source: &Path, app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let size = fs::metadata(source)
+        .map_err(|err| format!("Cannot inspect backend binary: {err}"))?
+        .len();
+    let mut file =
+        fs::File::open(source).map_err(|err| format!("Cannot open backend binary: {err}"))?;
+    install_backend_binary_from_reader(&mut file, app, Some(size), None)
 }
 
-fn extract_zip(package: &Path, target_dir: &Path) -> Result<(), String> {
+fn import_zip_backend_binary(package: &Path, app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let file = fs::File::open(package).map_err(|err| format!("Cannot open zip package: {err}"))?;
     let mut archive =
         zip::ZipArchive::new(file).map_err(|err| format!("Cannot read zip package: {err}"))?;
@@ -172,44 +207,26 @@ fn extract_zip(package: &Path, target_dir: &Path) -> Result<(), String> {
         let mut entry = archive
             .by_index(index)
             .map_err(|err| format!("Cannot read zip entry: {err}"))?;
-        let Some(relative) = entry.enclosed_name().map(PathBuf::from) else {
+        let Some(path) = entry.enclosed_name() else {
             continue;
         };
-        let Some(relative) = safe_archive_path(&relative) else {
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
-        if relative == Path::new(".env") {
-            continue;
-        }
-        let output_path = target_dir.join(relative);
-
-        if entry.is_dir() {
-            fs::create_dir_all(&output_path)
-                .map_err(|err| format!("Cannot create zip directory: {err}"))?;
-            continue;
-        }
-
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|err| format!("Cannot create zip parent directory: {err}"))?;
-        }
-        let mut output = fs::File::create(&output_path)
-            .map_err(|err| format!("Cannot create extracted file: {err}"))?;
-        io::copy(&mut entry, &mut output)
-            .map_err(|err| format!("Cannot extract zip entry: {err}"))?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Some(mode) = entry.unix_mode() {
-                let _ = fs::set_permissions(&output_path, fs::Permissions::from_mode(mode));
-            }
+        if is_backend_binary_name(name) && entry.is_file() {
+            let size = entry.size();
+            let mode = entry.unix_mode();
+            return install_backend_binary_from_reader(&mut entry, app, Some(size), mode);
         }
     }
-    Ok(())
+
+    Err(format!("Package does not contain {}", backend_exe_name()))
 }
 
-fn unpack_tar<R: Read>(reader: R, target_dir: &Path) -> Result<(), String> {
+fn import_tar_backend_binary<R: Read>(
+    reader: R,
+    app: &tauri::AppHandle,
+) -> Result<PathBuf, String> {
     let mut archive = tar::Archive::new(reader);
     for entry in archive
         .entries()
@@ -220,45 +237,24 @@ fn unpack_tar<R: Read>(reader: R, target_dir: &Path) -> Result<(), String> {
             .path()
             .map_err(|err| format!("Cannot read tar entry path: {err}"))?
             .into_owned();
-        let Some(relative) = safe_archive_path(&path) else {
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
             continue;
         };
-        if relative == Path::new(".env") {
-            continue;
-        }
-        let output_path = target_dir.join(relative);
-
-        let entry_type = entry.header().entry_type();
-        if entry_type.is_dir() {
-            fs::create_dir_all(&output_path)
-                .map_err(|err| format!("Cannot create tar directory: {err}"))?;
-            continue;
-        }
-        if !entry_type.is_file() {
-            continue;
-        }
-
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|err| format!("Cannot create tar parent directory: {err}"))?;
-        }
-        let mut output = fs::File::create(&output_path)
-            .map_err(|err| format!("Cannot create extracted file: {err}"))?;
-        io::copy(&mut entry, &mut output)
-            .map_err(|err| format!("Cannot extract tar entry: {err}"))?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(mode) = entry.header().mode() {
-                let _ = fs::set_permissions(&output_path, fs::Permissions::from_mode(mode));
-            }
+        if is_backend_binary_name(name) && entry.header().entry_type().is_file() {
+            let size = entry.header().size().ok();
+            let mode = entry.header().mode().ok();
+            return install_backend_binary_from_reader(&mut entry, app, size, mode);
         }
     }
-    Ok(())
+
+    Err(format!("Package does not contain {}", backend_exe_name()))
 }
 
-fn extract_tar(package: &Path, target_dir: &Path) -> Result<(), String> {
+fn import_tar_package(package: &Path, app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    if let Some(target) = import_tar_package_with_system_tar(package, app)? {
+        return Ok(target);
+    }
+
     let file = fs::File::open(package).map_err(|err| format!("Cannot open tar package: {err}"))?;
     let name = package
         .file_name()
@@ -268,10 +264,78 @@ fn extract_tar(package: &Path, target_dir: &Path) -> Result<(), String> {
 
     if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
         let decoder = flate2::read::GzDecoder::new(file);
-        unpack_tar(decoder, target_dir)
+        import_tar_backend_binary(decoder, app)
     } else {
-        unpack_tar(file, target_dir)
+        import_tar_backend_binary(file, app)
     }
+}
+
+fn tar_args_for_package(package: &Path, mode: &str) -> Vec<&'static str> {
+    let name = package
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let gzip = name.ends_with(".tar.gz") || name.ends_with(".tgz");
+
+    match (mode, gzip) {
+        ("list", true) => vec!["-tzf"],
+        ("list", false) => vec!["-tf"],
+        ("extract_stdout", true) => vec!["-xOzf"],
+        ("extract_stdout", false) => vec!["-xOf"],
+        _ => vec![],
+    }
+}
+
+fn import_tar_package_with_system_tar(
+    package: &Path,
+    app: &tauri::AppHandle,
+) -> Result<Option<PathBuf>, String> {
+    let list_output = match Command::new("tar")
+        .args(tar_args_for_package(package, "list"))
+        .arg(package)
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Ok(None),
+    };
+
+    if !list_output.status.success() {
+        return Ok(None);
+    }
+
+    let listing = String::from_utf8_lossy(&list_output.stdout);
+    let Some(member) = listing.lines().find_map(|line| {
+        let trimmed = line.trim();
+        let name = Path::new(trimmed).file_name()?.to_str()?;
+        is_backend_binary_name(name).then(|| trimmed.to_owned())
+    }) else {
+        return Ok(None);
+    };
+
+    let mut child = Command::new("tar")
+        .args(tar_args_for_package(package, "extract_stdout"))
+        .arg(package)
+        .arg(&member)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|err| format!("Cannot start tar extraction: {err}"))?;
+
+    let mut stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Cannot read tar extraction output".to_owned())?;
+    let target = install_backend_binary_from_reader(&mut stdout, app, None, Some(0o755))?;
+    let status = child
+        .wait()
+        .map_err(|err| format!("Cannot finish tar extraction: {err}"))?;
+    if !status.success() {
+        let _ = fs::remove_file(&target);
+        return Err("tar failed while extracting backend binary".to_owned());
+    }
+
+    Ok(Some(target))
 }
 
 fn import_backend_package(app: &tauri::AppHandle, package: &Path) -> Result<PathBuf, String> {
@@ -280,13 +344,13 @@ fn import_backend_package(app: &tauri::AppHandle, package: &Path) -> Result<Path
     }
     ensure_env_file(app)?;
     write_start_scripts(app)?;
+    cleanup_import_staging(app)?;
 
     let name = package
         .file_name()
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
-    let deploy = deploy_dir(app)?;
 
     if name.ends_with(".zip")
         || name.ends_with(".tar")
@@ -294,31 +358,9 @@ fn import_backend_package(app: &tauri::AppHandle, package: &Path) -> Result<Path
         || name.ends_with(".tgz")
     {
         if name.ends_with(".zip") {
-            extract_zip(package, &deploy)?;
+            import_zip_backend_binary(package, app)
         } else {
-            extract_tar(package, &deploy)?;
-        }
-
-        let binary = find_backend_binary(&deploy)?.ok_or_else(|| {
-            format!(
-                "Package extracted, but no {} binary was found",
-                backend_exe_name()
-            )
-        })?;
-        if binary == deploy.join("bin").join(backend_exe_name()) {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let mut perms = fs::metadata(&binary)
-                    .map_err(|err| format!("Cannot read backend permissions: {err}"))?
-                    .permissions();
-                perms.set_mode(0o755);
-                fs::set_permissions(&binary, perms)
-                    .map_err(|err| format!("Cannot set backend executable bit: {err}"))?;
-            }
-            Ok(binary)
-        } else {
-            copy_backend_binary(&binary, app)
+            import_tar_package(package, app)
         }
     } else {
         copy_backend_binary(package, app)
@@ -443,6 +485,15 @@ fn write_start_scripts(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+fn cleanup_import_staging(app: &tauri::AppHandle) -> Result<(), String> {
+    let staging = deploy_dir(app)?.join("import-staging");
+    if staging.exists() {
+        fs::remove_dir_all(&staging)
+            .map_err(|err| format!("Cannot clear import staging directory: {err}"))?;
+    }
+    Ok(())
+}
+
 fn check_running(state: &State<BackendProcess>) -> Result<bool, String> {
     let mut guard = state
         .0
@@ -499,6 +550,7 @@ fn desktop_backend_initialize(
 ) -> Result<DesktopBackendStatus, String> {
     ensure_env_file(&app)?;
     write_start_scripts(&app)?;
+    cleanup_import_staging(&app)?;
     let _ = copy_bundled_binary(&app)?;
     let running = check_running(&state)?;
     status_for(&app, running)
@@ -566,20 +618,30 @@ fn desktop_backend_select_package(app: tauri::AppHandle) -> Result<Option<String
 }
 
 #[tauri::command]
-fn desktop_backend_import_package(
+async fn desktop_backend_import_package(
     app: tauri::AppHandle,
     package_path: Option<String>,
-    state: State<BackendProcess>,
+    state: State<'_, BackendProcess>,
 ) -> Result<DesktopBackendStatus, String> {
+    if check_running(&state)? {
+        return Err("Stop the local backend before importing a backend package.".to_owned());
+    }
     let package = package_path
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
         .or_else(|| read_package_marker(&app))
         .ok_or_else(|| "No package selected".to_owned())?;
-    let _ = import_backend_package(&app, &package)?;
-    record_package_marker(&app, &package)?;
-    let running = check_running(&state)?;
-    status_for(&app, running)
+
+    let app_for_task = app.clone();
+    let package_for_task = package.clone();
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let _ = import_backend_package(&app_for_task, &package_for_task)?;
+        record_package_marker(&app_for_task, &package_for_task)
+    })
+    .await
+    .map_err(|err| format!("Import task failed: {err}"))??;
+
+    status_for(&app, false)
 }
 
 #[tauri::command]
