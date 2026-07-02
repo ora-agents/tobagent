@@ -27,7 +27,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "威思瑞智能体平台",
+  title: "威思瑞客服智能体平台",
   description: "AI-powered assistant",
   icons: {
     icon: [
