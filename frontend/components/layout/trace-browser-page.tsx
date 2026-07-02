@@ -216,8 +216,8 @@ function TraceBadge({ source }: { source: TraceSource }) {
   const className =
     source === "api_key"
       ? "bg-amber-500/15 text-foreground"
-      : source === "agent_app"
-        ? "bg-primary-soft text-primary"
+    : source === "agent_app"
+        ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
         : "bg-muted text-foreground"
   return (
     <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold", className)}>
@@ -480,10 +480,10 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                     selected={active}
                     title={traceDisplayName(trace)}
                     description={traceInputSummary(trace.input)}
-                    titleClassName={active ? "text-primary" : undefined}
+                    titleClassName={active ? "text-primary dark:text-foreground" : undefined}
                     descriptionClassName={cn(
                       "line-clamp-2 whitespace-normal leading-relaxed",
-                      active ? "text-foreground" : undefined,
+                      active ? "text-foreground dark:text-muted-foreground" : undefined,
                     )}
                     onSelect={() => setSelectedTraceId(trace.id)}
                     actions={<TraceBadge source={traceSource} />}
@@ -491,11 +491,11 @@ export function TraceBrowserPage({ onBackToChat }: TraceBrowserPageProps) {
                     className={cn(
                       "pr-3 sm:pr-20",
                       active
-                        ? "border-transparent bg-primary-soft text-primary"
+                        ? "border-transparent bg-primary-soft text-primary dark:border-border/70 dark:bg-card dark:text-foreground"
                         : "hover:bg-muted",
                     )}
                   >
-                    <div className={cn("mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs", active ? "text-primary" : "text-muted-foreground")}>
+                    <div className={cn("mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs", active ? "text-primary dark:text-muted-foreground" : "text-muted-foreground")}>
                       <span className="inline-flex min-w-0 items-center gap-1">
                         <Clock3 className="h-3.5 w-3.5" />
                         {formatDate(trace.timestamp)}
