@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
+  Archive,
   Download,
+  FileUp,
   FolderOpen,
   Loader2,
   Play,
@@ -157,10 +159,28 @@ export function DesktopBackendDeploymentSection({
       return zh ? `已下载到 ${path}` : `Downloaded to ${path}`
     })
 
+  const selectPackage = () =>
+    runAction("select-package", async () => {
+      const path = await tauriInvoke<string | null>("desktop_backend_select_package")
+      return path ? (zh ? `已选择 ${path}` : `Selected ${path}`) : null
+    })
+
+  const importPackage = () =>
+    runAction("import-package", async () => {
+      await tauriInvoke<DesktopBackendStatus>("desktop_backend_import_package", { packagePath: status?.packagePath || null })
+      return zh ? "本地后端包已导入" : "Local backend package imported"
+    })
+
   const runInstaller = () =>
     runAction("installer", async () => {
       await tauriInvoke("desktop_backend_run_installer", { packagePath: status?.packagePath || null })
       return zh ? "已调用系统安装器" : "Installer opened"
+    })
+
+  const openDeployDir = () =>
+    runAction("open-dir", async () => {
+      await tauriInvoke("desktop_backend_open_deploy_dir")
+      return zh ? "已打开部署目录" : "Deploy directory opened"
     })
 
   const startBackend = () =>
@@ -225,6 +245,10 @@ export function DesktopBackendDeploymentSection({
           {isBusy("initialize") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FolderOpen data-icon="inline-start" />}
           {zh ? "准备部署目录" : "Prepare"}
         </ActionButton>
+        <ActionButton type="button" variant="outline" size="sm" onClick={openDeployDir} disabled={Boolean(busyAction)}>
+          {isBusy("open-dir") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FolderOpen data-icon="inline-start" />}
+          {zh ? "打开目录" : "Open folder"}
+        </ActionButton>
         <ActionButton type="button" variant={status?.running ? "outline" : "default"} size="sm" onClick={status?.running ? stopBackend : startBackend} disabled={Boolean(busyAction)}>
           {isBusy("start") || isBusy("stop") ? (
             <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -243,7 +267,7 @@ export function DesktopBackendDeploymentSection({
 
       <div className="flex flex-col gap-2 rounded-lg bg-secondary p-3.5">
         <Label htmlFor="desktop-backend-download-url" className="text-xs font-semibold text-muted-foreground">
-          {zh ? "安装包下载地址" : "Installer or package URL"}
+          {zh ? "安装包或后端二进制" : "Installer, package, or backend binary"}
         </Label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
@@ -257,6 +281,14 @@ export function DesktopBackendDeploymentSection({
             {isBusy("download") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Download data-icon="inline-start" />}
             {zh ? "下载" : "Download"}
           </Button>
+          <Button type="button" variant="outline" size="sm" onClick={selectPackage} disabled={Boolean(busyAction)} className="shrink-0 rounded-lg">
+            {isBusy("select-package") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <FileUp data-icon="inline-start" />}
+            {zh ? "选择文件" : "Select file"}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={importPackage} disabled={Boolean(busyAction) || !status?.packagePath} className="shrink-0 rounded-lg">
+            {isBusy("import-package") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Archive data-icon="inline-start" />}
+            {zh ? "导入/解压" : "Import"}
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={runInstaller} disabled={Boolean(busyAction) || !status?.packagePath} className="shrink-0 rounded-lg">
             {isBusy("installer") ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Play data-icon="inline-start" />}
             {zh ? "执行安装" : "Install"}
@@ -264,8 +296,8 @@ export function DesktopBackendDeploymentSection({
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
           {zh
-            ? `最近下载：${compactPath(status?.packagePath)}`
-            : `Latest download: ${compactPath(status?.packagePath)}`}
+            ? `最近文件：${compactPath(status?.packagePath)}。zip、tar.gz、tgz、tar 会解压到部署目录；单个文件会复制为后端程序。`
+            : `Latest file: ${compactPath(status?.packagePath)}. zip, tar.gz, tgz, and tar files are extracted into the deploy directory; a single file is copied as the backend binary.`}
         </p>
       </div>
 
