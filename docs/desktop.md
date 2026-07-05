@@ -32,8 +32,11 @@ The Tauri app does not start a bundled backend process automatically. The UI
 connects to the configured backend URL, so users can use the official service or
 a backend they run themselves.
 
-The `desktop-backend` target is still available for manually building a local
-backend binary, but it is not part of the default desktop package.
+The `desktop-backend` target builds a local backend binary that starts the full
+Aegra server (`aegra_api.main:app`) instead of only the custom FastAPI routes.
+It installs a desktop-local Aegra database manager before importing Aegra, so
+the Agent Protocol routes such as `/threads`, `/runs`, `/assistants`, and
+`/store` use local SQLite files.
 
 `scripts/build_desktop_backend.py` includes `assets/` and `models/` only when
 those directories exist. This keeps CI builds working when local model files are
@@ -41,7 +44,14 @@ not checked into the repository.
 
 The desktop backend entrypoint sets local defaults before importing the app:
 
-- `DATABASE_URL` points to a SQLite file in the user's app data directory.
+- `AEGRA_CONFIG` points to the bundled or source `langgraph.json`.
+- Aegra startup migrations are disabled because the local runtime creates its
+  own SQLite metadata tables.
+- Aegra run streaming uses the in-process broker rather than Redis.
+- Aegra metadata, checkpoints, and store data are persisted in SQLite files in
+  the user's app data directory.
+- `DATABASE_URL` points to a SQLite file in the user's app data directory for
+  the repository's custom FastAPI routes.
 - `LANCEDB_PATH` points to the user's app data directory.
 - `KWS_MODEL_DIR` uses bundled `models/kws` when available.
 - `VOICE_TEN_VAD_MODEL_PATH` uses bundled `models/vad/ten-vad.onnx`.
