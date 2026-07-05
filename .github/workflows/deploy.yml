@@ -17,6 +17,9 @@ on:
       - 'aegra.json'
       - 'langgraph.json'
       - 'assets/**'
+      - 'models/**'
+      - 'desktop/**'
+      - 'scripts/build_desktop_backend.py'
       - 'frontend/**'
       - 'services/speaker/**'
       - 'docker-compose.yml'
@@ -63,6 +66,15 @@ jobs:
             frontend:
               - 'frontend/**'
             desktop:
+              - 'src/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'aegra.json'
+              - 'langgraph.json'
+              - 'assets/**'
+              - 'models/**'
+              - 'desktop/**'
+              - 'scripts/build_desktop_backend.py'
               - 'frontend/**'
               - '.github/workflows/deploy.yml'
               - '.github/workflows/desktop-release.yml'
@@ -119,6 +131,12 @@ jobs:
                 git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^services/speaker/'
                 ;;
             esac
+          }
+
+          touches_desktop() {
+            local commit="$1"
+
+            git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^(frontend/|src/|assets/|models/|desktop/|pyproject[.]toml$|uv[.]lock$|aegra[.]json$|langgraph[.]json$|scripts/build_desktop_backend[.]py$|[.]github/workflows/(deploy|desktop-release)[.]yml$)'
           }
 
           commit_bump() {
@@ -255,7 +273,7 @@ jobs:
 
               bump=""
               while IFS= read -r commit; do
-                if touches_service frontend "$commit"; then
+                if touches_desktop "$commit"; then
                   candidate="$(commit_bump "$commit")"
                   if [[ -z "$bump" ]]; then
                     bump="$candidate"
