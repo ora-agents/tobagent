@@ -16,7 +16,11 @@ RESOURCE_DIR = DIST_DIR / "resources"
 
 def _include_data_args() -> list[str]:
     args: list[str] = []
-    for name in ("assets", "models"):
+    langgraph_config = ROOT / "langgraph.json"
+    if langgraph_config.exists():
+        args.append(f"--include-data-files={langgraph_config}=langgraph.json")
+
+    for name in ("src", "assets", "models"):
         source = ROOT / name
         if source.exists():
             args.append(f"--include-data-dir={source}={name}")
@@ -37,7 +41,11 @@ def _copy_optional_resources() -> None:
         shutil.rmtree(RESOURCE_DIR)
     RESOURCE_DIR.mkdir(parents=True, exist_ok=True)
 
-    for name in ("assets", "models"):
+    langgraph_config = ROOT / "langgraph.json"
+    if langgraph_config.exists():
+        shutil.copy2(langgraph_config, RESOURCE_DIR / "langgraph.json")
+
+    for name in ("src", "assets", "models"):
         source = ROOT / name
         if source.exists():
             shutil.copytree(source, RESOURCE_DIR / name)
@@ -53,6 +61,10 @@ def main() -> None:
         "--assume-yes-for-downloads",
         f"--output-dir={DIST_DIR}",
         "--output-filename=tobagent-backend",
+        "--include-package=aegra_api",
+        "--include-package=langgraph",
+        "--include-package=langgraph.checkpoint.sqlite",
+        "--include-package=langgraph.store.sqlite",
         *_include_data_args(),
         str(ROOT / "desktop" / "backend_entry.py"),
     ]
