@@ -37,6 +37,31 @@ def _resource_dir() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _find_config_file(resource_dir: Path) -> Path:
+    """Find the bundled or source LangGraph/Aegra config file."""
+    candidates = []
+    if os.getenv("AEGRA_CONFIG"):
+        candidates.append(Path(os.environ["AEGRA_CONFIG"]).expanduser())
+    candidates.extend([
+        resource_dir / "langgraph.json",
+        resource_dir / "aegra.json",
+        resource_dir.parent / "langgraph.json",
+        resource_dir.parent / "aegra.json",
+        resource_dir / "resources" / "langgraph.json",
+        resource_dir / "resources" / "aegra.json",
+        resource_dir.parent / "resources" / "langgraph.json",
+        resource_dir.parent / "resources" / "aegra.json",
+        Path.cwd() / "langgraph.json",
+        Path.cwd() / "aegra.json",
+    ])
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    raise FileNotFoundError(
+        "Could not find langgraph.json or aegra.json for the local backend"
+    )
+
+
 def _prepend_origins(existing: str, origins: list[str]) -> str:
     values = [item.strip() for item in existing.split(",") if item.strip()]
     for origin in reversed(origins):
@@ -49,6 +74,7 @@ def configure_desktop_environment(host: str, port: int) -> None:
     """Set desktop-safe defaults before importing the FastAPI app."""
     data_dir = _default_data_dir()
     resource_dir = _resource_dir()
+    config_file = _find_config_file(resource_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
 
     logs_dir = data_dir / "logs"
@@ -57,6 +83,9 @@ def configure_desktop_environment(host: str, port: int) -> None:
     db_path = (data_dir / "chat_langchain.db").resolve()
 
     os.environ.setdefault("TOB_DESKTOP", "1")
+    os.environ.setdefault("AEGRA_CONFIG", str(config_file))
+    os.environ.setdefault("RUN_MIGRATIONS_ON_STARTUP", "false")
+    os.environ.setdefault("REDIS_BROKER_ENABLED", "false")
     os.environ.setdefault("DATABASE_URL", f"sqlite:///{db_path.as_posix()}")
     os.environ.setdefault("LANCEDB_PATH", str(data_dir / "lancedb"))
     os.environ.setdefault("VOICE_AUDIO_LOG_DIR", str(logs_dir / "voice_audio"))
@@ -105,10 +134,21 @@ def main() -> None:
 
     configure_desktop_environment(args.host, args.port)
 
+    from dotenv import load_dotenv
+
+    config_file = Path(os.environ["AEGRA_CONFIG"])
+    if str(config_file.parent) not in sys.path:
+        sys.path.insert(0, str(config_file.parent))
+    load_dotenv(config_file.parent / ".env")
+
+    from src.utils.aegra_local_runtime import install_local_aegra_database_manager
+
+    install_local_aegra_database_manager(_default_data_dir() / "aegra")
+
     import uvicorn
 
     uvicorn.run(
-        "src.api.fastapi_app:app",
+        "aegra_api.main:app",
         host=args.host,
         port=args.port,
         log_level=os.getenv("TOB_BACKEND_LOG_LEVEL", "info"),
