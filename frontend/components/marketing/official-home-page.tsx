@@ -452,10 +452,10 @@ export function OfficialHomePage() {
               <Link href="/login">登录</Link>
             </Button>
             <Button asChild size="sm">
-              <Link href="/dashboard">
+              <a href="https://wsr.wsiri.cn/agentapp/?agentShare=wsiri-sales-helper">
                 进入工作台
                 <ArrowRight data-icon="inline-end" />
-              </Link>
+              </a>
             </Button>
           </div>
         </div>
@@ -478,10 +478,10 @@ export function OfficialHomePage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <Link href="/dashboard">
+                <a href="https://wsr.wsiri.cn/agentapp/?agentShare=wsiri-sales-helper">
                   立即体验
                   <ArrowRight data-icon="inline-end" />
-                </Link>
+                </a>
               </Button>
               <Button asChild variant="secondary" size="lg">
                 <a href="#product">了解产品</a>
