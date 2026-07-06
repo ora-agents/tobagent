@@ -66,10 +66,12 @@ def ensure_default_workspace(db: Session, user: UserTable) -> WorkspaceTable:
             created_at=now,
             updated_at=now,
         ))
+        db.flush()
     elif member.role != "owner" or member.status != "active":
         member.role = "owner"
         member.status = "active"
         member.updated_at = now
+        db.flush()
 
     return workspace
 
