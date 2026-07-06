@@ -6,6 +6,7 @@ import {
   Bot,
   BookOpenText,
   Boxes,
+  Cpu,
   Database,
   FileText,
   KeyRound,
@@ -74,6 +75,28 @@ function FeatureTile({
   )
 }
 
+function InteractionBlock({
+  title,
+  items,
+}: {
+  title: string
+  items: string[]
+}) {
+  return (
+    <div className="rounded-lg bg-secondary p-4">
+      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <ul className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPageProps) {
   const { locale } = useI18n()
   const zh = locale === "zh"
@@ -85,8 +108,11 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
     () => [
       { id: "section-start", icon: BookOpenText, title: zh ? "快速开始" : "Quick Start" },
       { id: "section-chat", icon: MessageSquareText, title: zh ? "对话与文件" : "Chat and Files" },
-      { id: "section-agent", icon: Bot, title: zh ? "角色与技能" : "Agents and Skills" },
-      { id: "section-knowledge", icon: Database, title: zh ? "知识库与表单" : "Knowledge and Forms" },
+      { id: "section-skills", icon: Wrench, title: zh ? "技能模块" : "Skills" },
+      { id: "section-agent", icon: Bot, title: zh ? "角色模块" : "Agents" },
+      { id: "section-knowledge", icon: Database, title: zh ? "知识库模块" : "Knowledge" },
+      { id: "section-forms", icon: TableProperties, title: zh ? "表单模块" : "Forms" },
+      { id: "section-mcp", icon: Cpu, title: zh ? "MCP 模块" : "MCP" },
       { id: "section-voice", icon: Mic, title: zh ? "语音使用" : "Voice" },
       { id: "section-settings", icon: Settings, title: zh ? "账号与设置" : "Account and Settings" },
     ],
@@ -257,6 +283,24 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       : "The platform combines a chat workspace with a configuration center. Start by selecting an agent; configure skills, knowledge, and tools when you need repeatable business workflows."}
                   </p>
                   <StepList items={startSteps} />
+                  <InteractionBlock
+                    title={zh ? "左侧导航的交互逻辑" : "Sidebar interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "点击对话记录会切回对话页并加载该线程；移动端会同时关闭侧边栏。",
+                            "搜索框按标题和最近消息过滤对话；清除按钮会恢复完整列表。",
+                            "配置分组可展开或收起，技能、角色、知识库、表单和 MCP 都从这里进入。",
+                            "用户手册、开发手册、轨迹页面和主题切换位于侧边栏底部；头像入口进入用户设置。",
+                          ]
+                        : [
+                            "Selecting a thread returns to Chat and loads that thread; on mobile the drawer closes at the same time.",
+                            "The search box filters by title and latest message; the clear button restores the full list.",
+                            "The Configuration group expands or collapses and opens Skills, Agents, Knowledge, Forms, and MCP.",
+                            "User Manual, Developer Manual, traces, theme switching, and profile settings live at the bottom of the sidebar.",
+                          ]
+                    }
+                  />
                 </div>
               </section>
 
@@ -287,6 +331,66 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       description={zh ? "同一对话会保留上下文；如果要切换任务或避免旧信息干扰，请新建对话。" : "A thread keeps its context. Create a new chat when switching tasks or avoiding old information."}
                     />
                   </div>
+                  <InteractionBlock
+                    title={zh ? "对话页的交互逻辑" : "Chat interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "输入框内容会按当前对话保存草稿，切换线程后会恢复该线程的未发送内容。",
+                            "发送前如没有线程，前端会先创建新线程，再把用户消息追加到消息区并开始流式请求。",
+                            "AI 回复中再次发送消息时，新消息会进入队列；当前回复结束后按顺序继续处理。",
+                            "点击停止会中断当前流式回复；语音打断触发停止时，不会把打断语音错误地排入等待队列。",
+                            "上传、粘贴或拖入文件后，附件会显示在输入区；删除附件会同步释放可输入字数。",
+                            "历史消息加载失败或线程无权限时，页面会回退到空对话并通知外层选择可访问线程。",
+                          ]
+                        : [
+                            "The input draft is saved per thread and restored when you switch back to that thread.",
+                            "If no thread exists, sending first creates one, appends the user message, then starts the streaming request.",
+                            "Messages sent while the assistant is replying are queued and processed in order after the current reply finishes.",
+                            "Stop interrupts the active stream; voice interruptions do not accidentally queue the interruption transcript.",
+                            "Uploaded, pasted, or dropped files appear near the input; removing them also frees input length budget.",
+                            "If history cannot load or the thread is inaccessible, the view falls back to an empty chat and asks the shell to select an accessible thread.",
+                          ]
+                    }
+                  />
+                </div>
+              </section>
+
+              <section
+                id="section-skills"
+                ref={registerSectionRef("section-skills")}
+                className="scroll-mt-4 rounded-xl bg-card p-5 shadow-depth-xs sm:p-6"
+              >
+                <div className="flex flex-col gap-4">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                    <Wrench className="h-5 w-5 text-primary" />
+                    {zh ? "技能模块" : "Skills"}
+                  </h3>
+                  <p className="text-sm leading-7 text-muted-foreground">
+                    {zh
+                      ? "技能用于沉淀可复用的工作规则，例如输出格式、审核标准、业务 SOP 和工具调用习惯。"
+                      : "Skills store reusable operating rules such as output formats, review criteria, SOPs, and tool-use habits."}
+                  </p>
+                  <InteractionBlock
+                    title={zh ? "技能管理的交互逻辑" : "Skill management interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "进入技能模块后，左侧按分类展示技能；点击技能只进入查看态，不会立即编辑。",
+                            "点击新建会清空当前选择并打开默认模板；从角色编辑器里新建技能时，保存后会自动回到该角色并完成关联。",
+                            "点击编辑会把技能内容载入 Markdown 编辑器；保存时系统从 frontmatter 解析名称和描述。",
+                            "删除需要先点删除图标进入确认态，再点确认删除；删除后列表会自动选择剩余的第一个技能。",
+                            "在受管工作区中，如果当前账号没有直接管理权限，保存或删除可能转为审批中的变更请求。",
+                          ]
+                        : [
+                            "The skill list is grouped by category. Selecting a skill opens read mode and does not immediately edit it.",
+                            "New clears the current selection and opens the default template. If created from the agent editor, saving returns to that agent and links it.",
+                            "Edit loads the skill into the Markdown editor. Save parses the name and description from frontmatter.",
+                            "Delete first enters confirmation state; confirming removes it and selects the first remaining skill when available.",
+                            "In managed workspaces, users without direct manage permission may create pending change requests instead of applying changes immediately.",
+                          ]
+                    }
+                  />
                 </div>
               </section>
 
@@ -298,7 +402,7 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                 <div className="flex flex-col gap-4">
                   <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                     <Bot className="h-5 w-5 text-primary" />
-                    {zh ? "角色与技能" : "Agents and Skills"}
+                    {zh ? "角色模块" : "Agents"}
                   </h3>
                   <StepList items={agentSteps} />
                   <div className="grid gap-3 md:grid-cols-2">
@@ -313,6 +417,30 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       description={zh ? "分享角色前确认其绑定的技能、工具和知识库是否适合被接收方使用。" : "Before sharing an agent, review whether its attached skills, tools, and knowledge bases are appropriate for recipients."}
                     />
                   </div>
+                  <InteractionBlock
+                    title={zh ? "角色配置的交互逻辑" : "Agent configuration interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "角色列表只展示可配置角色；隐藏角色不会出现在对话页的角色切换器中。",
+                            "点击角色进入详情态；点击编辑后才会出现可修改表单、资源勾选区和保存/取消操作。",
+                            "应用角色模板会覆盖名称、描述、系统提示词、工具、人格风格、边界模式和默认语音，并自动匹配同名技能。",
+                            "勾选知识库会自动启用检索工具；勾选表单读写权限会自动启用查询或管理表单数据的工具。",
+                            "资源列表中的跳转按钮可直接打开对应知识库、技能、MCP、表单或子角色配置；保存后回到对话页。",
+                            "分享链接会按勾选项打包角色、技能、知识库、MCP、表单和多角色依赖，并自动复制到剪贴板。",
+                            "版本记录可恢复历史版本；恢复后该角色会重新成为当前选中的对话角色。",
+                          ]
+                        : [
+                            "The list shows configurable agents. Hidden agents are kept out of the chat agent switcher.",
+                            "Selecting an agent opens detail mode; Edit enables the form, resource selectors, and Save/Cancel actions.",
+                            "Applying a role template overwrites name, description, system prompt, tools, persona style, boundary mode, and default voice, then matches skills by name.",
+                            "Selecting knowledge bases automatically enables retrieval. Form read/write permissions automatically enable query or manage form-data tools.",
+                            "Jump buttons in linked resource lists open the matching Knowledge, Skill, MCP, Form, or child Agent editor; saving returns to Chat.",
+                            "Share links package the selected dependencies and are copied to the clipboard automatically.",
+                            "Version history can restore an older version; the restored agent becomes the active chat agent.",
+                          ]
+                    }
+                  />
                 </div>
               </section>
 
@@ -324,7 +452,7 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                 <div className="flex flex-col gap-4">
                   <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
                     <Database className="h-5 w-5 text-primary" />
-                    {zh ? "知识库与表单" : "Knowledge and Forms"}
+                    {zh ? "知识库模块" : "Knowledge"}
                   </h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     <FeatureTile
@@ -343,6 +471,108 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       ? "建议把长期稳定的业务知识放入知识库，把需要严格执行的步骤写成技能，把可增删改查的数据放到表单。"
                       : "A practical split: put stable business knowledge in knowledge bases, strict operating steps in skills, and editable records in forms."}
                   </div>
+                  <InteractionBlock
+                    title={zh ? "知识库管理的交互逻辑" : "Knowledge management interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "点击知识库进入详情态；系统知识库只能查看，普通知识库可以编辑名称、描述和文件。",
+                            "新建知识库会打开空表单，保存后自动选中新知识库。",
+                            "上传文件通过当前知识库的上传按钮触发，上传过程中按钮进入加载态；成功后文件列表和导入状态会刷新。",
+                            "文件删除只影响当前知识库；删除知识库前会进入确认态，删除后自动选择列表中的下一个知识库。",
+                            "导入中的知识库会被定时刷新状态，直到索引完成或失败。",
+                          ]
+                        : [
+                            "Selecting a knowledge base opens detail mode. System knowledge bases are read-only; regular ones can edit metadata and files.",
+                            "New opens a blank form and selects the created knowledge base after saving.",
+                            "Upload uses the active knowledge base upload button, shows loading state, then refreshes files and import status.",
+                            "File deletion only affects the active knowledge base. Deleting a knowledge base requires confirmation and then selects the next item.",
+                            "Knowledge bases in importing state are polled until indexing completes or fails.",
+                          ]
+                    }
+                  />
+                </div>
+              </section>
+
+              <section
+                id="section-forms"
+                ref={registerSectionRef("section-forms")}
+                className="scroll-mt-4 rounded-xl bg-card p-5 shadow-depth-xs sm:p-6"
+              >
+                <div className="flex flex-col gap-4">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                    <TableProperties className="h-5 w-5 text-primary" />
+                    {zh ? "表单模块" : "Forms"}
+                  </h3>
+                  <p className="text-sm leading-7 text-muted-foreground">
+                    {zh
+                      ? "表单用于管理结构化业务数据，并可绑定到角色，让角色按权限查询、新增或更新记录。"
+                      : "Forms manage structured business records and can be linked to agents so they can query, create, or update records according to permissions."}
+                  </p>
+                  <InteractionBlock
+                    title={zh ? "表单设计与数据表的交互逻辑" : "Form designer and records interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "左侧表单按分类展示；点击表单会加载字段定义、Hook 配置和记录表格。",
+                            "新建表单默认带一个名称字段；字段 ID 不能重复，也不能使用 createdAt 或 updatedAt 系统字段。",
+                            "字段设计器支持文本、数字、日期、布尔和下拉选项；保存前会校验字段和 Hook 条件。",
+                            "Hook 需要选择有效字段、匹配条件和 http(s) 地址；满足条件的记录会按配置调用外部接口。",
+                            "新增记录会先出现在表格顶部并标记为未保存；修改单元格后需要保存该行或保存全部变更。",
+                            "记录保存前会按字段必填、类型和选项做校验；草稿记录删除只移除本地行，已保存记录删除会调用后端。",
+                            "从角色编辑器中创建表单时，保存后会返回该角色并自动关联，同时默认授予读取权限。",
+                          ]
+                        : [
+                            "The form list is grouped by category. Selecting one loads its fields, hooks, and records table.",
+                            "New forms start with a Name field. Field IDs must be unique and cannot use createdAt or updatedAt.",
+                            "The designer supports text, number, date, boolean, and select fields; fields and hooks are validated before saving.",
+                            "Hooks require a valid field, match condition, and http(s) URL. Matching records call the configured external API.",
+                            "Adding a record creates an unsaved row at the top. Editing cells marks rows dirty until that row or all changes are saved.",
+                            "Records are validated before saving. Deleting a draft removes the local row; deleting a saved record calls the backend.",
+                            "When created from the agent editor, saving returns to that agent, links the form, and grants read permission by default.",
+                          ]
+                    }
+                  />
+                </div>
+              </section>
+
+              <section
+                id="section-mcp"
+                ref={registerSectionRef("section-mcp")}
+                className="scroll-mt-4 rounded-xl bg-card p-5 shadow-depth-xs sm:p-6"
+              >
+                <div className="flex flex-col gap-4">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                    <Cpu className="h-5 w-5 text-primary" />
+                    {zh ? "MCP 模块" : "MCP"}
+                  </h3>
+                  <p className="text-sm leading-7 text-muted-foreground">
+                    {zh
+                      ? "MCP 模块用于登记外部 MCP Server，让角色在对话中调用服务暴露的工具、资源和提示词。"
+                      : "MCP registers external MCP servers so agents can use their advertised tools, resources, and prompts during chat."}
+                  </p>
+                  <InteractionBlock
+                    title={zh ? "MCP 服务配置的交互逻辑" : "MCP server interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "点击 MCP 服务只查看已发现的 tools、resources 和 prompts；点击编辑后才会打开连接表单。",
+                            "新建时默认使用 Streamable HTTP，并预填本地示例地址和请求头 JSON。",
+                            "保存前会解析自定义请求头 JSON；格式错误会阻止保存并提示修正。",
+                            "保存或更新时会请求后端发现服务能力；发现失败会在页面内显示错误信息。",
+                            "删除 MCP 服务需要确认，成功后自动选择剩余的第一个服务。",
+                            "角色配置里勾选 MCP 后，该角色才会在对话执行时携带对应 MCP 能力。",
+                          ]
+                        : [
+                            "Selecting an MCP server only shows discovered tools, resources, and prompts; Edit opens the connection form.",
+                            "New defaults to Streamable HTTP and pre-fills a local sample URL and header JSON.",
+                            "Custom headers are parsed as JSON before saving. Invalid JSON blocks the save and shows feedback.",
+                            "Saving or updating asks the backend to discover server capabilities; discovery failures appear inline.",
+                            "Deleting an MCP server requires confirmation and then selects the first remaining server.",
+                            "Agents only receive MCP capabilities after the server is selected in that agent's configuration.",
+                          ]
+                    }
+                  />
                 </div>
               </section>
 
@@ -373,6 +603,26 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       description={zh ? "角色可配置语音打断、TTS 播放和声纹验证。若关闭打断，回复播放期间的语音不会延迟发送。" : "Agents can configure interruption, TTS playback, and speaker verification. If interruption is off, speech during playback is suppressed."}
                     />
                   </div>
+                  <InteractionBlock
+                    title={zh ? "语音状态的交互逻辑" : "Voice state interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "语音按钮启动后会进入监听、转写、处理和播放等状态；实时转写会同步显示在输入框。",
+                            "识别到完整语音后会直接发送文本，不依赖输入框异步更新，避免空消息。",
+                            "AI 回复播放期间，如果角色允许打断，新的语音会触发停止并立即处理；如果关闭打断，播放期间捕获的语音会被抑制。",
+                            "启用声纹验证时，需要先在用户设置中注册声纹并在角色中绑定，否则会拒绝未授权声音。",
+                            "离开页面或组件卸载时，前端会停止语音模式、清空等待队列并终止未完成的语音状态。",
+                          ]
+                        : [
+                            "The voice button moves through listening, transcribing, processing, and speaking states; interim transcript text appears in the input.",
+                            "A final transcript is sent directly and does not depend on asynchronous input state updates.",
+                            "During playback, interruption-enabled agents stop the current response and process the new speech; if interruption is disabled, speech captured during playback is suppressed.",
+                            "Speaker verification requires a registered voiceprint in User Settings and a bound voiceprint on the agent.",
+                            "Leaving the page stops voice mode, clears queued voice messages, and ends unfinished voice state.",
+                          ]
+                    }
+                  />
                 </div>
               </section>
 
@@ -403,6 +653,30 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       description={zh ? "需要重置工作区时，可在用户设置中清理历史对话。删除后无法从侧边栏恢复。" : "When you need to reset the workspace, clear conversation history in User Settings. Deleted threads will not reappear in the sidebar."}
                     />
                   </div>
+                  <InteractionBlock
+                    title={zh ? "账号设置的交互逻辑" : "Account settings interaction logic"}
+                    items={
+                      zh
+                        ? [
+                            "用户设置左侧目录会随滚动高亮当前区域；点击目录项会平滑滚动到对应设置块。",
+                            "个人偏好和安全开关会自动保存；保存中、保存成功和失败都会显示状态反馈。",
+                            "手机号绑定和密码修改使用短信验证码；发送验证码后按钮会进入倒计时。",
+                            "工作区管理入口用于切换或管理当前工作区；没有管理权限的账号只能发起需要审批的配置变更。",
+                            "声纹管理支持录音或上传音频注册声纹；删除声纹会影响使用该声纹验证的角色。",
+                            "API Key 创建后只完整显示一次；复制后可用于外部系统调用角色和表单接口。",
+                            "清理对话和删除账号属于危险操作，会先打开确认弹窗并要求输入确认文本。",
+                          ]
+                        : [
+                            "The settings side nav highlights the section in view; selecting an item smoothly scrolls to that section.",
+                            "Preferences and safety switches auto-save and show saving, success, or error feedback.",
+                            "Phone binding and password changes use SMS codes; code buttons enter cooldown after sending.",
+                            "Workspace management switches or manages the active workspace; users without manage permission submit pending configuration changes.",
+                            "Voiceprints can be enrolled by recording or uploading audio. Deleting one affects agents that use it for verification.",
+                            "API keys are shown in full only once after creation and can then be used by external systems for agent and form APIs.",
+                            "Clearing conversations and deleting the account are danger actions with confirmation dialogs and required confirmation text.",
+                          ]
+                    }
+                  />
                 </div>
               </section>
             </div>
