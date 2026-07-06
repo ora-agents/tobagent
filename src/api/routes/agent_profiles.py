@@ -472,10 +472,12 @@ async def restore_agent_profile_version(
 async def create_agent_share_link(
     id: str,
     share_data: AgentShareLinkRequest,
-    workspace_id: str | None = Depends(get_workspace_header),
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
+    workspace_id: str | None = Depends(get_workspace_header),
 ):
+    if not isinstance(workspace_id, str):
+        workspace_id = None
     workspace, _member = require_workspace_manager(db, current_user, workspace_id)
     owner_user_id = workspace.owner_user_id
     profile = db.query(AgentProfileTable).filter(
@@ -498,9 +500,12 @@ async def create_agent_share_link(
         existing.updated_at = now
         share = existing
     else:
+        token = secrets.token_urlsafe(24)
+        while db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first():
+            token = secrets.token_urlsafe(24)
         share = AgentShareLinkTable(
             id=f"share-{uuid.uuid4()}",
-            token=secrets.token_urlsafe(24),
+            token=token,
             owner_user_id=owner_user_id,
             agent_profile_id=id,
             include_options=include_options,
