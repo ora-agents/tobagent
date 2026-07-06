@@ -322,6 +322,56 @@ def test_reset_password_requires_bound_phone_code(auth_sms_client):
     assert login.status_code == 200
 
 
+def test_anonymous_forgot_password_resets_registered_phone(auth_sms_client):
+    client, Session, sent_codes = auth_sms_client
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    with Session() as db:
+        db.add(UserTable(
+            id="user-forgot-password",
+            username="forgot",
+            phone="13800138013",
+            password_hash=hash_password("old-secret"),
+            created_at=now,
+        ))
+        db.commit()
+
+    sent = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138013", "purpose": "reset_password"},
+    )
+    assert sent.status_code == 200
+    assert sent_codes[-1][2] == "reset_password"
+
+    changed = client.post(
+        "/api/auth/password/reset",
+        json={"phone": "13800138013", "code": sent_codes[-1][1], "password": "new-secret"},
+    )
+    assert changed.status_code == 200
+
+    old_login = client.post(
+        "/api/auth/login",
+        json={"phone": "13800138013", "password": "old-secret"},
+    )
+    assert old_login.status_code == 401
+
+    new_login = client.post(
+        "/api/auth/login",
+        json={"phone": "13800138013", "password": "new-secret"},
+    )
+    assert new_login.status_code == 200
+
+
+def test_forgot_password_rejects_unregistered_phone(auth_sms_client):
+    client, _Session, _sent_codes = auth_sms_client
+
+    sent = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138014", "purpose": "reset_password"},
+    )
+    assert sent.status_code == 400
+    assert sent.json()["detail"] == "Phone is not registered"
+
+
 def test_delete_account_removes_owned_auth_data(auth_sms_client):
     client, Session, _sent_codes = auth_sms_client
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")

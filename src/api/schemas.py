@@ -201,6 +201,10 @@ class UserPasswordUpdateRequest(BaseModel):
         return password
 
 
+class PasswordResetRequest(UserPasswordUpdateRequest):
+    pass
+
+
 class UserApiKeySchema(BaseModel):
     id: str
     name: str

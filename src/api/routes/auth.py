@@ -22,6 +22,7 @@ from src.api.schemas import (
     AuthSessionResponse,
     CreateUserApiKeyRequest,
     CreateUserApiKeyResponse,
+    PasswordResetRequest,
     SmsCodeRequest,
     SmsCodeResponse,
     SmsCodeVerifyRequest,
@@ -134,6 +135,10 @@ async def send_sms_code(
         existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="Phone already exists")
+    elif req.purpose == "reset_password":
+        existing_user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+        if not existing_user:
+            raise HTTPException(status_code=400, detail="Phone is not registered")
     else:
         current_user = _current_user_from_authorization(authorization, db, session_cookie)
         if current_user.phone != req.phone:
@@ -246,6 +251,26 @@ async def login_user(
 )
 async def logout_user(response: Response):
     clear_session_cookie(response)
+    return SmsCodeResponse(ok=True)
+
+
+@router.post(
+    "/api/auth/password/reset",
+    response_model=SmsCodeResponse,
+    summary="Reset password",
+    description="Resets a password after verifying an SMS code sent to the registered phone.",
+)
+async def reset_password(
+    req: PasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Phone is not registered")
+
+    consume_sms_code(db, req.phone, "reset_password", req.code)
+    user.password_hash = hash_password(req.password)
+    db.commit()
     return SmsCodeResponse(ok=True)
 
 
