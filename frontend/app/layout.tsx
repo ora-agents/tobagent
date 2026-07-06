@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ImageAssetProtection } from "@/components/providers/image-asset-protection";
 import { ApiConfigProvider } from "@/lib/config/api-config";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site";
 import { I18nProvider } from "@/lib/i18n";
 
 const inter = Inter({
@@ -27,8 +28,60 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "威思瑞客服智能体平台",
-  description: "AI-powered assistant",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "威思瑞",
+    "客服智能体",
+    "AI 客服",
+    "企业知识库",
+    "智能客服系统",
+    "LangGraph",
+  ],
+  authors: [{ name: "威思瑞" }],
+  creator: "威思瑞",
+  publisher: "威思瑞",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "zh_CN",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: [
+      {
+        url: "/logo.png",
+        width: 512,
+        height: 512,
+        alt: SITE_NAME,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    images: ["/logo.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   icons: {
     icon: [
       { url: '/logo.png', type: 'image/png' },
