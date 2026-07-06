@@ -18,6 +18,28 @@ interface MessageListProps {
   onEditAndRerun?: (messageId: string, newContent: string) => void
 }
 
+function shouldShowAssistantActionsForMessage(messages: Message[], index: number) {
+  const message = messages[index]
+
+  if (message?.role !== "assistant") {
+    return true
+  }
+
+  for (let nextIndex = index + 1; nextIndex < messages.length; nextIndex += 1) {
+    const nextMessage = messages[nextIndex]
+
+    if (nextMessage?.role === "user") {
+      return true
+    }
+
+    if (nextMessage?.role === "assistant") {
+      return false
+    }
+  }
+
+  return true
+}
+
 export const MessageList = memo(function MessageList({
   messages,
   forceAutoScroll = false,
@@ -414,11 +436,8 @@ export const MessageList = memo(function MessageList({
           {isLoadingThread && messages.length === 0 ? historySkeleton : messages.map((message, idx) => {
             const isLastMessage = idx === messages.length - 1
             const previousMessage = messages[idx - 1]
-            const nextMessage = messages[idx + 1]
             const isNearToolMessage = message.role === "tool" || previousMessage?.role === "tool"
-            const showAssistantActions =
-              message.role !== "assistant" ||
-              nextMessage?.role !== "assistant"
+            const showAssistantActions = shouldShowAssistantActionsForMessage(messages, idx)
             return (
               <div
                 key={message.id}
