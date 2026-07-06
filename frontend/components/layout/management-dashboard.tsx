@@ -124,6 +124,7 @@ interface ManagementDashboardProps {
   onEditAgentChange?: (id: string | null) => void
   createOnOpen?: boolean
   onCreateChange?: (creating: boolean) => void
+  scopedAgentProfileId?: string | null
   // User voiceprints
   userVoiceprints: { id: string; name: string; sampleText: string | null; enrolledAt: string | null; createdAt: string }[]
   onNavigateToUserSettings: () => void
@@ -267,6 +268,7 @@ export function ManagementDashboard({
   onEditAgentChange,
   createOnOpen = false,
   onCreateChange,
+  scopedAgentProfileId = null,
   userVoiceprints,
   onNavigateToUserSettings,
 }: ManagementDashboardProps) {
@@ -417,6 +419,7 @@ export function ManagementDashboard({
   })
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
+  const isScopedAgentConfig = !!scopedAgentProfileId
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [newWakeWord, setNewWakeWord] = useState("")
@@ -560,6 +563,27 @@ export function ManagementDashboard({
   useEffect(() => {
     setActiveTab(initialTab)
   }, [initialTab])
+
+  useEffect(() => {
+    if (!scopedAgentProfileId || activeTab !== "agents") return
+    if (selectedAgentId === scopedAgentProfileId || isEditingAgent || isCreatingAgent) return
+
+    const scopedProfile = agentProfiles.find(profile => profile.id === scopedAgentProfileId && !isSystemAgentProfile(profile))
+    if (scopedProfile) {
+      setSelectedAgentId(scopedProfile.id)
+      setIsEditingAgent(false)
+      setIsCreatingAgent(false)
+      onEditAgentChange?.(null)
+    }
+  }, [
+    activeTab,
+    agentProfiles,
+    isCreatingAgent,
+    isEditingAgent,
+    onEditAgentChange,
+    scopedAgentProfileId,
+    selectedAgentId,
+  ])
 
   // Sync selectedAgentId with selectedAgentProfileId from props when entering the
   // agents tab or when the active chat role changes. Do not re-run this sync just
@@ -853,6 +877,7 @@ export function ManagementDashboard({
   }
 
   const handleStartCreateAgent = useCallback(() => {
+    if (isScopedAgentConfig) return
     onCreateChange?.(true)
     setSelectedAgentId(null)
     setIsCreatingAgent(true)
@@ -888,7 +913,7 @@ export function ManagementDashboard({
       userVoiceprintId: null
     })
     setDeleteConfirmId(null)
-  }, [onCreateChange, onEditAgentChange])
+  }, [isScopedAgentConfig, onCreateChange, onEditAgentChange])
 
   const handleStartEditAgent = (profile: AgentProfile) => {
     onCreateChange?.(false)
@@ -1121,6 +1146,7 @@ export function ManagementDashboard({
   }
 
   const handleDeleteAgent = (id: string) => {
+    if (isScopedAgentConfig) return
     if (!canManageWorkspace) return
     deleteAgentProfile(id)
     setDeleteConfirmId(null)
@@ -1958,7 +1984,11 @@ export function ManagementDashboard({
     [selectedSkill]
   )
   const selectedAgent = selectedAgentId
-    ? agentProfiles.find(p => p.id === selectedAgentId && !isSystemAgentProfile(p)) || null
+    ? agentProfiles.find(p => (
+      p.id === selectedAgentId
+      && !isSystemAgentProfile(p)
+      && (!scopedAgentProfileId || p.id === scopedAgentProfileId)
+    )) || null
     : null
   const selectedAgentLinkedForms = useMemo(
     () => getLinkedFormsForAgent(selectedAgent, forms),
@@ -2321,7 +2351,10 @@ export function ManagementDashboard({
     () => groupFormsByCategory(filteredAgentForms, locale === "zh" ? "未分类" : "Uncategorized"),
     [filteredAgentForms, locale],
   )
-  const configurableAgentProfiles = agentProfiles.filter(profile => !isSystemAgentProfile(profile))
+  const configurableAgentProfiles = agentProfiles.filter(profile => (
+    !isSystemAgentProfile(profile)
+    && (!scopedAgentProfileId || profile.id === scopedAgentProfileId)
+  ))
   const linkableAgentProfiles = configurableAgentProfiles.filter(p => p.id !== activeEditingAgentId)
   const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
     const query = agentRoleSearch.trim().toLowerCase()
@@ -3026,14 +3059,16 @@ export function ManagementDashboard({
                   <span className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
                     {t.agentsManager}
                   </span>
-                  <Button
-                    size="sm"
-                    onClick={handleStartCreateAgent}
-                    className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none"
-                    title={t.addAgent}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
+                  {!isScopedAgentConfig && (
+                    <Button
+                      size="sm"
+                      onClick={handleStartCreateAgent}
+                      className="h-7 w-7 rounded-md p-0 bg-primary hover:bg-primary-active text-primary-foreground border-none"
+                      title={t.addAgent}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
 
                 <ScrollArea
@@ -3154,13 +3189,15 @@ export function ManagementDashboard({
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="unstyled"
-                              onClick={() => setDeleteConfirmId(profile.id)}
-                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                              title={t.deleteTitle}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+                              {!isScopedAgentConfig && (
+                                <Button variant="unstyled"
+                                  onClick={() => setDeleteConfirmId(profile.id)}
+                                  className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  title={t.deleteTitle}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
                           </>
                         )}
                       </div>
@@ -4672,15 +4709,17 @@ export function ManagementDashboard({
                     <div>
                       <Bot className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
                       <p className="text-sm font-medium text-muted-foreground">{t.selectAgentToViewOrCreate}</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleStartCreateAgent}
-                        className="mt-3 gap-1.5 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 rounded-lg"
-                      >
-                        <Plus className="w-4 h-4 text-primary" />
-                        {t.addAgent}
-                      </Button>
+                      {!isScopedAgentConfig && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleStartCreateAgent}
+                          className="mt-3 gap-1.5 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 rounded-lg"
+                        >
+                          <Plus className="w-4 h-4 text-primary" />
+                          {t.addAgent}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}

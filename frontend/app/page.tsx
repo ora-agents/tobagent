@@ -103,6 +103,7 @@ function DashboardContent() {
   const dedicatedAgentAppId = isAgentAppRoute ? agentAppParam?.trim() || null : null
   const isDedicatedAgentApp = isAgentAppRoute && !!dedicatedAgentAppId
   const currentView: DashboardView = isDashboardView(viewParam) ? viewParam : "chat"
+  const isConfigView = currentView === "skills" || currentView === "agents" || currentView === "knowledge" || currentView === "forms" || currentView === "mcp"
   const setCurrentView = useCallback((view: DashboardView) => {
     if (view !== "agents") {
       setEditAgentIdParam(null)
@@ -142,12 +143,25 @@ function DashboardContent() {
     }
   }, [currentView, hasInitialPrompt, setCurrentView])
 
+  const isDedicatedAgentAppView = useCallback((view: DashboardView) => {
+    return view === "chat"
+      || view === "skills"
+      || view === "agents"
+      || view === "knowledge"
+      || view === "forms"
+      || view === "mcp"
+      || view === "settings"
+      || view === "user-manual"
+      || view === "developer-manual"
+      || view === "traces"
+  }, [])
+
   useEffect(() => {
     if (!dedicatedAgentAppId || !agentProfilesLoaded) return
 
     const appAgent = agentProfiles.find((profile) => profile.id === dedicatedAgentAppId)
     if (!appAgent && sharedAgentProfile?.id === dedicatedAgentAppId) {
-      if (currentView !== "chat") {
+      if (!isDedicatedAgentAppView(currentView)) {
         setCurrentView("chat")
       }
       if (editAgentIdParam) {
@@ -168,7 +182,7 @@ function DashboardContent() {
     if (selectedAgentProfileId !== dedicatedAgentAppId) {
       setSelectedAgentProfileId(dedicatedAgentAppId)
     }
-    if (currentView !== "chat") {
+    if (!isDedicatedAgentAppView(currentView)) {
       setCurrentView("chat")
     }
     if (editAgentIdParam) {
@@ -191,6 +205,7 @@ function DashboardContent() {
     setEditAgentIdParam,
     setSelectedAgentProfileId,
     sharedAgentProfile,
+    isDedicatedAgentAppView,
   ])
 
   useEffect(() => {
@@ -493,22 +508,21 @@ function DashboardContent() {
     if (!token || !user || processedAgentShareRef.current === token) return
 
     processedAgentShareRef.current = token
-    fetchAgentSharePreview(token)
-      .then((preview) => {
-        if (!preview) {
+    Promise.all([
+      fetchAgentSharePreview(token),
+      importAgentShareLink(token),
+    ])
+      .then(([preview, imported]) => {
+        if (!preview || !imported) {
           processedAgentShareRef.current = null
           return
         }
-        setSharedAgentProfile({
-          ...preview.agent,
-          ownerUserId: preview.ownerUserId,
-          shareToken: preview.token,
-          isSharedApp: true,
-        })
+        setSharedAgentProfile(null)
+        setSelectedAgentProfileId(imported.agent.id)
         const url = new URL(window.location.href)
         url.pathname = "/agentapp/"
-        url.searchParams.set("agentApp", preview.agent.id)
-        url.searchParams.set("agentShare", preview.token)
+        url.searchParams.set("agentApp", imported.agent.id)
+        url.searchParams.delete("agentShare")
         url.searchParams.delete("threadId")
         url.searchParams.delete("q")
         url.searchParams.delete("view")
@@ -518,9 +532,9 @@ function DashboardContent() {
       })
       .catch((err) => {
         processedAgentShareRef.current = null
-        console.error("Failed to load shared agent from URL parameter", err)
+        console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, fetchAgentSharePreview, router, user])
+  }, [agentShareToken, fetchAgentSharePreview, importAgentShareLink, router, setSelectedAgentProfileId, user])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -766,6 +780,7 @@ function DashboardContent() {
               onCopySharedAgent={isDedicatedAgentApp && activeAgentProfile?.isSharedApp ? handleCopySharedAgent : undefined}
               copySharedAgentStatus={copySharedAgentStatus}
               onOpenSidebar={() => setIsMobileSidebarOpen(true)}
+              hideWorkspaceControls={isDedicatedAgentApp}
             />
             <ChatInterface
               key={chatSessionKey}
@@ -787,7 +802,7 @@ function DashboardContent() {
             />
         </DashboardViewPane>
 
-        {!isDedicatedAgentApp && currentView === "settings" ? (
+        {currentView === "settings" ? (
           <UserSettingsPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
@@ -796,21 +811,21 @@ function DashboardContent() {
             onClearAllConversations={handleClearAllConversations}
             conversationCount={threads.length}
           />
-        ) : !isDedicatedAgentApp && currentView === "user-manual" ? (
+        ) : currentView === "user-manual" ? (
           <UserManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : !isDedicatedAgentApp && currentView === "developer-manual" ? (
+        ) : currentView === "developer-manual" ? (
           <DeveloperManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : !isDedicatedAgentApp && currentView === "traces" && capabilities.langfuseTracing ? (
+        ) : currentView === "traces" && capabilities.langfuseTracing ? (
           <TraceBrowserPage
             onBackToChat={() => setCurrentView("chat")}
           />
-        ) : !isDedicatedAgentApp && currentView !== "chat" ? (
+        ) : currentView !== "chat" && (!isDedicatedAgentApp || isConfigView) ? (
           <DashboardViewPane>
             <ManagementDashboard
               initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : currentView === "forms" ? "forms" : "knowledge"}
@@ -830,6 +845,7 @@ function DashboardContent() {
               onEditAgentChange={setEditAgentIdParam}
               createOnOpen={createParam === "1"}
               onCreateChange={(creating) => setCreateParam(creating ? "1" : null)}
+              scopedAgentProfileId={isDedicatedAgentApp ? currentAgentId : null}
             />
           </DashboardViewPane>
         ) : null}

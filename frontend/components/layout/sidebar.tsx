@@ -310,6 +310,119 @@ export const Sidebar = memo(function Sidebar({
                 <Sparkles className="w-5 h-5" />
               </Button>
             )}
+            <Button variant="unstyled"
+              onClick={() => setIsConfigOpen((open) => !open)}
+              className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                isConfigView
+                  ? "bg-primary-soft text-primary dark:bg-sidebar-accent dark:text-sidebar-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              }`}
+              title={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
+              aria-label={isConfigOpen ? t.collapseConfiguration : t.expandConfiguration}
+              aria-expanded={isConfigOpen}
+            >
+              <Settings className="w-5 h-5" />
+            </Button>
+            {isConfigOpen && (
+              <div className="flex flex-col items-center gap-3.5">
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("skills")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "skills"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={t.skills}
+                >
+                  <Wrench className="w-5 h-5" />
+                </Button>
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("agents")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "agents"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={t.agents}
+                >
+                  <Bot className="w-5 h-5" />
+                </Button>
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("knowledge")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "knowledge"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={t.knowledgeBase}
+                >
+                  <Database className="w-5 h-5" />
+                </Button>
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("forms")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "forms"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={locale === "zh" ? "后台管理" : "Backend Admin"}
+                >
+                  <TableProperties className="w-5 h-5" />
+                </Button>
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("mcp")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "mcp"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={t.mcpServers}
+                >
+                  <Cpu className="w-5 h-5" />
+                </Button>
+              </div>
+            )}
+            <Button variant="unstyled"
+              onClick={() => setIsDevelopmentOpen((open) => !open)}
+              className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                isDevelopmentView
+                  ? "bg-primary-soft text-primary dark:bg-sidebar-accent dark:text-sidebar-foreground"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              }`}
+              title={isDevelopmentOpen ? t.collapseDevelopment : t.expandDevelopment}
+              aria-label={isDevelopmentOpen ? t.collapseDevelopment : t.expandDevelopment}
+              aria-expanded={isDevelopmentOpen}
+            >
+              <Code2 className="w-5 h-5" />
+            </Button>
+            {isDevelopmentOpen && (
+              <div className="flex flex-col items-center gap-3.5">
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("developer-manual")}
+                  className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "developer-manual"
+                      ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                  title={t.developerManual}
+                >
+                  <BookOpenText className="w-5 h-5" />
+                </Button>
+                {capabilities.langfuseTracing && (
+                  <Button variant="unstyled"
+                    onClick={() => handleViewChange("traces")}
+                    className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                      currentView === "traces"
+                        ? "bg-primary-soft text-primary dark:bg-primary dark:text-primary-foreground"
+                        : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                    }`}
+                    title={locale === "zh" ? "Agent 轨迹" : "Agent traces"}
+                  >
+                    <Sparkles className="w-5 h-5" />
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col items-center gap-3.5 pb-6">
@@ -581,7 +694,147 @@ export const Sidebar = memo(function Sidebar({
       </ScrollArea>
 
       {/* Bottom Management Navigation */}
-      {!isAgentAppSidebar && (
+      {isAgentAppSidebar ? (
+        <div className="flex flex-shrink-0 flex-col gap-1 px-3 py-2">
+          <Button variant="unstyled"
+            onClick={() => setIsConfigOpen((open) => !open)}
+            className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+              isConfigView
+                ? "bg-primary-soft text-primary font-medium dark:bg-sidebar-accent dark:text-sidebar-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent"
+            }`}
+            aria-expanded={isConfigOpen}
+          >
+            <Settings className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+            <span className="truncate flex-1 text-left">{t.configuration}</span>
+            <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
+          </Button>
+          {isConfigOpen && (
+            <div className="flex flex-col gap-1 pl-3">
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("skills")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "skills"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                }`}
+              >
+                <Wrench className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{t.skills}</span>
+              </Button>
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("agents")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "agents"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                }`}
+              >
+                <Bot className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{t.agents}</span>
+              </Button>
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("knowledge")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "knowledge"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                }`}
+              >
+                <Database className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{t.knowledgeBase}</span>
+              </Button>
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("forms")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "forms"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                }`}
+              >
+                <TableProperties className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{locale === "zh" ? "后台管理" : "Backend Admin"}</span>
+              </Button>
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("mcp")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "mcp"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent"
+                }`}
+              >
+                <Cpu className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{t.mcpServers}</span>
+              </Button>
+            </div>
+          )}
+          <Button variant="unstyled"
+            onClick={() => setIsDevelopmentOpen((open) => !open)}
+            className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+              isDevelopmentView
+                ? "bg-primary-soft text-primary font-medium dark:bg-sidebar-accent dark:text-sidebar-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent"
+            }`}
+            aria-expanded={isDevelopmentOpen}
+          >
+            <Code2 className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+            <span className="truncate flex-1 text-left">{t.development}</span>
+            <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isDevelopmentOpen ? "rotate-180" : ""}`} />
+          </Button>
+          {isDevelopmentOpen && (
+            <div className="flex flex-col gap-1 pl-3">
+              <Button variant="unstyled"
+                onClick={() => handleViewChange("developer-manual")}
+                className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                  currentView === "developer-manual"
+                    ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+                }`}
+              >
+                <BookOpenText className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                <span className="truncate">{t.developerManual}</span>
+              </Button>
+              {capabilities.langfuseTracing && (
+                <Button variant="unstyled"
+                  onClick={() => handleViewChange("traces")}
+                  className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+                    currentView === "traces"
+                      ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+                  <span className="truncate">{locale === "zh" ? "Agent 轨迹" : "Agent Traces"}</span>
+                </Button>
+              )}
+            </div>
+          )}
+          <Button variant="unstyled"
+            onClick={() => handleViewChange("user-manual")}
+            className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
+              currentView === "user-manual"
+                ? "bg-primary-soft text-primary font-medium dark:bg-primary dark:text-primary-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+            }`}
+          >
+            <CircleHelp className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+            <span className="truncate">{t.userManual}</span>
+          </Button>
+          <Button variant="unstyled"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground"
+          >
+            {mounted && resolvedTheme === "dark" ? (
+              <Sun className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+            ) : (
+              <Moon className="w-4 h-4 flex-shrink-0 text-current opacity-80" />
+            )}
+            <span className="truncate">
+              {mounted && resolvedTheme === "dark" ? t.lightMode : t.darkMode}
+            </span>
+          </Button>
+        </div>
+      ) : (
       <div className="flex flex-shrink-0 flex-col gap-1 px-3 py-2">
         <Button variant="unstyled"
           onClick={() => setIsConfigOpen((open) => !open)}

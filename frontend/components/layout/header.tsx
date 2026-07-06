@@ -41,6 +41,7 @@ interface HeaderProps {
   onCopySharedAgent?: () => void
   copySharedAgentStatus?: "idle" | "copying" | "copied" | "error"
   onOpenSidebar?: () => void
+  hideWorkspaceControls?: boolean
 }
 
 export function Header({
@@ -59,6 +60,7 @@ export function Header({
   onCopySharedAgent,
   copySharedAgentStatus = "idle",
   onOpenSidebar,
+  hideWorkspaceControls = false,
 }: HeaderProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -282,30 +284,34 @@ export function Header({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
-          <WorkspaceNotifications />
+          {!hideWorkspaceControls && (
+            <>
+              <WorkspaceNotifications />
 
-          {workspaces.length > 1 && (
-            <Select
-              value={activeWorkspaceId ?? ""}
-              onValueChange={(value) => setActiveWorkspaceId(value || null)}
-            >
-              <SelectTrigger
-                className="h-9 max-w-36 border border-border bg-background px-2 text-foreground focus-visible:ring-primary/30 sm:max-w-44"
-                aria-label={locale === "zh" ? "选择工作间" : "Select workspace"}
-                title={locale === "zh" ? "选择工作间" : "Select workspace"}
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {workspaces.map((workspace) => (
-                    <SelectItem key={workspace.id} value={workspace.id}>
-                      {workspace.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+              {workspaces.length > 1 && (
+                <Select
+                  value={activeWorkspaceId ?? ""}
+                  onValueChange={(value) => setActiveWorkspaceId(value || null)}
+                >
+                  <SelectTrigger
+                    className="h-9 max-w-36 border border-border bg-background px-2 text-foreground focus-visible:ring-primary/30 sm:max-w-44"
+                    aria-label={locale === "zh" ? "选择工作间" : "Select workspace"}
+                    title={locale === "zh" ? "选择工作间" : "Select workspace"}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {workspaces.map((workspace) => (
+                        <SelectItem key={workspace.id} value={workspace.id}>
+                          {workspace.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              )}
+            </>
           )}
 
           {/* Shared agent copy button */}
