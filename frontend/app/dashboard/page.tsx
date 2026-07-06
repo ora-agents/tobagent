@@ -15,6 +15,7 @@ import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { UserManualPage } from "@/components/layout/user-manual-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
+import { WechatPayQrCode } from "@/components/payments/wechat-pay-qr-code"
 import { Button } from "@/components/ui/button"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -888,12 +889,7 @@ function DashboardContent() {
                     ) : (
                       <div className="flex flex-col items-center gap-3">
                         {purchaseOrder.codeUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(purchaseOrder.codeUrl)}`}
-                            alt="WeChat Pay QR code"
-                            className="size-[220px] rounded-md border border-border bg-background p-2"
-                          />
+                          <WechatPayQrCode value={purchaseOrder.codeUrl} />
                         ) : null}
                         <div className="break-all text-center font-mono text-[11px] text-muted-foreground">
                           {purchaseOrder.codeUrl || purchaseOrder.outTradeNo}
