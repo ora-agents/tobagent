@@ -52,6 +52,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
+local-backend = ["pyqt6>=6.7.0"]
 
 [build-system]
 requires = ["setuptools>=73.0.0", "wheel"]
@@ -93,12 +94,14 @@ convention = "google"
 
 [dependency-groups]
 desktop-build = [
-    "nuitka>=2.7.0",
+    "pyqt6>=6.7.0",
 ]
 dev = [
     "anyio>=4.7.0",
     "mypy>=1.13.0",
-    "nuitka>=2.7.0",
     "pytest>=8.3.5",
     "ruff>=0.8.2",
+]
+local-backend = [
+    "pyqt6>=6.7.0",
 ]

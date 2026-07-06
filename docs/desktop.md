@@ -5,6 +5,7 @@ This project can be packaged as a local desktop app with:
 - Tauri for the desktop shell.
 - A static Next.js export for the UI.
 - A configurable remote or user-managed FastAPI backend.
+- An optional PyQt local backend manager for individual users.
 
 ## Build Flow
 
@@ -32,20 +33,22 @@ The Tauri app does not start a bundled backend process automatically. The UI
 connects to the configured backend URL, so users can use the official service or
 a backend they run themselves.
 
-The `desktop-backend` target builds a local backend binary that starts the full
-Aegra server (`aegra_api.main:app`) instead of only the custom FastAPI routes.
-It installs a desktop-local Aegra database manager before importing Aegra, so
-the Agent Protocol routes such as `/threads`, `/runs`, `/assistants`, and
-`/store` use local SQLite files.
+Run the PyQt local backend manager with:
 
-`scripts/build_desktop_backend.py` copies the full Nuitka standalone output into
-`bin/`, so platform runtime files such as Python DLLs stay next to the backend
-executable. It includes `assets/` and `models/` only when those directories
-exist. Source directories are not copied into the release `resources/` payload.
-This keeps CI builds working when local model files are not checked into the
-repository while avoiding source disclosure in backend release assets.
+```bash
+make local-backend-manager
+```
 
-The desktop backend entrypoint sets local defaults before importing the app:
+`make desktop-backend` is kept as an alias for the same manager. The manager
+edits the repository `.env`, starts and stops the local backend process, displays
+logs, and checks `http://127.0.0.1:2026/health` by default. It launches
+`desktop/backend_entry.py`, which starts the full Aegra server
+(`aegra_api.main:app`) instead of only the custom FastAPI routes. The entrypoint
+installs a desktop-local Aegra database manager before importing Aegra, so the
+Agent Protocol routes such as `/threads`, `/runs`, `/assistants`, and `/store`
+use local SQLite files.
+
+The backend entrypoint sets local defaults before importing the app:
 
 - `AEGRA_CONFIG` points to the bundled or source `langgraph.json`.
 - Aegra startup migrations are disabled because the local runtime creates its
@@ -62,15 +65,15 @@ The desktop backend entrypoint sets local defaults before importing the app:
 
 ## Platform Notes
 
-Linux Nuitka standalone builds require `patchelf`:
+Install the PyQt manager dependencies with:
 
 ```bash
-sudo apt install patchelf
+uv sync --group local-backend
 ```
 
 Windows desktop builds should be run on Windows so Tauri produces a Windows
-installer. If you manually build the optional local backend there, Nuitka emits
-`tobagent-backend.exe`.
+installer. The local backend manager is a Python/PyQt application and is not
+bundled into the Tauri installer by default.
 
 ## GitHub Actions
 

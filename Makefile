@@ -5,6 +5,7 @@
 	check-backend-port check-frontend-port check-ports \
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
+	local-backend-manager \
 	desktop desktop-backend desktop-frontend desktop-tauri \
 	dev-desktop dev-tauri tauri check-tauri-frontend \
 	update-assets refresh-assets \
@@ -209,11 +210,9 @@ install-backend:
 desktop: desktop-frontend desktop-tauri
 
 desktop-backend:
-	@if [ "$$(uname -s)" = "Linux" ] && ! command -v patchelf >/dev/null 2>&1; then \
-		echo "Nuitka standalone builds on Linux require patchelf. Install it first, for example: sudo apt install patchelf"; \
-		exit 1; \
-	fi
-	uv run python scripts/build_desktop_backend.py
+	uv run --group local-backend python -m desktop.local_backend.manager
+
+local-backend-manager: desktop-backend
 
 desktop-frontend:
 	cd frontend && bun run build:desktop
