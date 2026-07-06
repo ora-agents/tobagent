@@ -62,6 +62,21 @@ def _find_config_file(resource_dir: Path) -> Path:
     )
 
 
+def _find_resource_path(resource_dir: Path, name: str) -> Path | None:
+    """Find a bundled resource next to the binary or in the package resources."""
+    candidates = [
+        resource_dir / name,
+        resource_dir.parent / name,
+        resource_dir / "resources" / name,
+        resource_dir.parent / "resources" / name,
+        Path.cwd() / name,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return None
+
+
 def _prepend_origins(existing: str, origins: list[str]) -> str:
     values = [item.strip() for item in existing.split(",") if item.strip()]
     for origin in reversed(origins):
@@ -91,12 +106,12 @@ def configure_desktop_environment(host: str, port: int) -> None:
     os.environ.setdefault("VOICE_AUDIO_LOG_DIR", str(logs_dir / "voice_audio"))
     os.environ.setdefault("TOB_AGENT_DEBUG_LOG_FILE", str(logs_dir / "debug.jsonl"))
 
-    assets_dir = resource_dir / "assets"
-    if assets_dir.exists():
+    assets_dir = _find_resource_path(resource_dir, "assets")
+    if assets_dir:
         os.environ.setdefault("TOB_ASSETS_DIR", str(assets_dir))
 
-    bundled_models_dir = resource_dir / "models"
-    models_dir = bundled_models_dir if bundled_models_dir.exists() else data_dir / "models"
+    bundled_models_dir = _find_resource_path(resource_dir, "models")
+    models_dir = bundled_models_dir if bundled_models_dir else data_dir / "models"
     os.environ.setdefault("KWS_MODEL_DIR", str(models_dir / "kws"))
 
     vad_model = models_dir / "vad" / "ten-vad.onnx"
