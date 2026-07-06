@@ -148,6 +148,24 @@ def _find_agent_share(db: Session, token_or_slug: str) -> AgentShareLinkTable | 
     ).first()
 
 
+def _share_slug_user_prefix(user: UserTable) -> str:
+    source = (getattr(user, "username", None) or user.id or "user").strip().lower()
+    prefix = "".join(
+        ch if ("a" <= ch <= "z" or "0" <= ch <= "9") else "-"
+        for ch in source
+    ).strip("-")
+    return (prefix or f"user-{user.id[:8]}")[:48].strip("-") or "user"
+
+
+def _with_share_slug_user_prefix(custom_slug: str | None, user: UserTable) -> str | None:
+    if not custom_slug:
+        return None
+    prefix = _share_slug_user_prefix(user)
+    if custom_slug == prefix or custom_slug.startswith(f"{prefix}-"):
+        return custom_slug
+    return f"{prefix}-{custom_slug}"
+
+
 def _share_requires_purchase(share: AgentShareLinkTable, user_id: str | None = None) -> bool:
     if user_id and user_id == share.owner_user_id:
         return False
@@ -518,7 +536,9 @@ async def create_agent_share_link(
         AgentShareLinkTable.owner_user_id == owner_user_id,
     ).first()
     include_options = share_data.include.model_dump(mode="json")
-    custom_slug = share_data.customSlug
+    custom_slug = _with_share_slug_user_prefix(share_data.customSlug, current_user)
+    if existing and share_data.customSlug and existing.custom_slug == share_data.customSlug:
+        custom_slug = existing.custom_slug
     if custom_slug:
         slug_owner = db.query(AgentShareLinkTable).filter(
             AgentShareLinkTable.custom_slug == custom_slug,

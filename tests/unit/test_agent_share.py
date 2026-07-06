@@ -107,7 +107,7 @@ async def test_create_agent_share_link_updates_existing_options(db_session):
 
 
 @pytest.mark.anyio
-async def test_create_agent_share_link_supports_custom_slug_and_price(db_session):
+async def test_create_agent_share_link_prefixes_custom_slug_and_price(db_session):
     owner = _user("user-owner")
     db_session.add(owner)
     db_session.add(_agent("agent-source", owner.id))
@@ -123,13 +123,56 @@ async def test_create_agent_share_link_supports_custom_slug_and_price(db_session
         db_session,
         owner,
     )
-    preview = await get_agent_share_preview("sales-helper", db_session)
+    preview = await get_agent_share_preview("user-owner-sales-helper", db_session)
 
-    assert share.customSlug == "sales-helper"
+    assert share.customSlug == "user-owner-sales-helper"
     assert share.priceCents == 1999
     assert preview.token == share.token
-    assert preview.customSlug == "sales-helper"
+    assert preview.customSlug == "user-owner-sales-helper"
     assert preview.isPaid is True
+
+
+@pytest.mark.anyio
+async def test_create_agent_share_link_allows_same_custom_slug_per_user_prefix(db_session):
+    first_owner = _user("first-owner")
+    second_owner = _user("second-owner")
+    db_session.add_all([first_owner, second_owner])
+    db_session.add(_agent("agent-first", first_owner.id))
+    db_session.add(_agent("agent-second", second_owner.id))
+    db_session.commit()
+
+    first = await create_agent_share_link(
+        "agent-first",
+        AgentShareLinkRequest(customSlug="sales-helper"),
+        db_session,
+        first_owner,
+    )
+    second = await create_agent_share_link(
+        "agent-second",
+        AgentShareLinkRequest(customSlug="sales-helper"),
+        db_session,
+        second_owner,
+    )
+
+    assert first.customSlug == "first-owner-sales-helper"
+    assert second.customSlug == "second-owner-sales-helper"
+
+
+@pytest.mark.anyio
+async def test_create_agent_share_link_does_not_repeat_user_prefix(db_session):
+    owner = _user("user-owner")
+    db_session.add(owner)
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="user-owner-sales-helper"),
+        db_session,
+        owner,
+    )
+
+    assert share.customSlug == "user-owner-sales-helper"
 
 
 @pytest.mark.anyio

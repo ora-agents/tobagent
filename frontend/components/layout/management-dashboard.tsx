@@ -173,6 +173,17 @@ function getSkillTemplateForCategory(category: string) {
   )
 }
 
+function shareSlugUserPrefix(value: string | null | undefined) {
+  const prefix = (value || "user")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/g, "")
+  return prefix || "user"
+}
+
 function isPendingChangeResponse(value: unknown): value is PendingChangeResponse {
   return Boolean(
     value &&
@@ -2366,6 +2377,10 @@ export function ManagementDashboard({
     () => groupFormsByCategory(filteredAgentForms, locale === "zh" ? "未分类" : "Uncategorized"),
     [filteredAgentForms, locale],
   )
+  const shareSlugPrefix = useMemo(
+    () => shareSlugUserPrefix(user?.username || user?.id),
+    [user?.id, user?.username],
+  )
   const configurableAgentProfiles = agentProfiles.filter(profile => (
     !isSystemAgentProfile(profile)
     && (!scopedAgentProfileId || profile.id === scopedAgentProfileId)
@@ -4346,6 +4361,11 @@ export function ManagementDashboard({
                               placeholder={locale === "zh" ? "例如 sales-helper" : "sales-helper"}
                               className="h-9"
                             />
+                            <div className="text-[11px] text-muted-foreground">
+                              {locale === "zh"
+                                ? `实际地址会默认加账号前缀：${shareSlugPrefix}-sales-helper`
+                                : `The final address is prefixed by your account: ${shareSlugPrefix}-sales-helper`}
+                            </div>
                           </div>
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
                             <Label htmlFor="agent-share-price" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

@@ -362,8 +362,8 @@ class AgentShareLinkRequest(BaseModel):
         slug = value.strip().lower()
         if not slug:
             return None
-        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,63}", slug):
-            raise ValueError("customSlug must be 3-64 chars using lowercase letters, numbers, hyphen, or underscore")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,127}", slug):
+            raise ValueError("customSlug must be 3-128 chars using lowercase letters, numbers, hyphen, or underscore")
         return slug
 
 
