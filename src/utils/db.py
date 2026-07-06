@@ -170,6 +170,21 @@ class WorkspaceChangeRequestTable(Base):
     reviewed_at = Column(String(50), nullable=True)
 
 
+class SiteTestimonialTable(Base):
+    """Public homepage testimonial submitted by an authenticated user."""
+    __tablename__ = "site_testimonials"
+
+    id = Column(String(255), primary_key=True, index=True)
+    user_id = Column(String(255), unique=True, index=True, nullable=False)
+    author_name = Column(String(255), nullable=False)
+    role = Column(String(255), nullable=True)
+    company = Column(String(255), nullable=True)
+    rating = Column(Integer, nullable=False, default=5)
+    quote = Column(Text, nullable=False)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
 
 class AgentProfileTable(Base):
     """Configurable Agent Profiles."""

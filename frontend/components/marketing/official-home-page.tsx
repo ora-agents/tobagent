@@ -1,5 +1,8 @@
+"use client"
+
 import Image from "next/image"
 import Link from "next/link"
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowRight,
   Bot,
@@ -11,6 +14,7 @@ import {
   Mic2,
   ShieldCheck,
   Sparkles,
+  Star,
   Workflow,
 } from "lucide-react"
 
@@ -22,7 +26,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { FormField } from "@/components/ui/form-field"
+import { Input } from "@/components/ui/input"
+import { StatusNotice } from "@/components/ui/status-notice"
+import { Textarea } from "@/components/ui/textarea"
+import { backendFetch } from "@/lib/api/backend-fetch"
 import { ICP_RECORD, SITE_DESCRIPTION, SITE_NAME } from "@/lib/constants/site"
+import { useApiConfig } from "@/lib/config/api-config"
+import { useAuth } from "@/components/providers/auth-provider"
+import { cn } from "@/lib/utils"
 import logoImage from "@/public/logo.png"
 
 const productHighlights = [
@@ -48,24 +60,6 @@ const productHighlights = [
   },
 ]
 
-const testimonials = [
-  {
-    name: "售后服务负责人",
-    company: "智能硬件企业",
-    quote: "知识库和 Agent 配置放在同一个工作台后，新客服可以更快接手复杂产品线，回复口径也更统一。",
-  },
-  {
-    name: "运营主管",
-    company: "连锁服务品牌",
-    quote: "我们把高频咨询、表单收集和人工转接放进一套流程里，日常问题的处理速度明显稳定了。",
-  },
-  {
-    name: "信息化经理",
-    company: "制造业集团",
-    quote: "平台对模型、工具和权限的配置足够清晰，便于先在一个部门试点，再逐步扩展到更多业务场景。",
-  },
-]
-
 const faqs = [
   {
     question: "适合哪些企业场景？",
@@ -84,6 +78,208 @@ const faqs = [
     answer: "支持语音输入、TTS 播放、状态同步和中断控制等能力，可与原生端语音提供方协同工作。",
   },
 ]
+
+interface SiteTestimonial {
+  id: string
+  authorName: string
+  role: string | null
+  company: string | null
+  rating: number
+  quote: string
+  createdAt: string
+  updatedAt: string
+  isOwn?: boolean
+}
+
+function TestimonialStars({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: number
+  onChange?: (value: number) => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-1" aria-label={`${value} 星评价`}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        const active = star <= value
+        return onChange ? (
+          <button
+            key={star}
+            type="button"
+            disabled={disabled}
+            aria-label={`选择 ${star} 星`}
+            onClick={() => onChange(star)}
+            className="flex size-8 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-50"
+          >
+            <Star className={cn("size-4", active && "fill-current")} />
+          </button>
+        ) : (
+          <Star key={star} className={cn("size-4 text-primary", active && "fill-current")} />
+        )
+      })}
+    </div>
+  )
+}
+
+function TestimonialCard({ item }: { item: SiteTestimonial }) {
+  const subtitle = [item.role, item.company].filter(Boolean).join(" · ")
+
+  return (
+    <Card className="shadow-depth-xs">
+      <CardHeader className="gap-3 p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="truncate text-base">{item.authorName}</CardTitle>
+            {subtitle ? <CardDescription className="mt-1 truncate">{subtitle}</CardDescription> : null}
+          </div>
+          {item.isOwn ? (
+            <div className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
+              我的评价
+            </div>
+          ) : null}
+        </div>
+        <TestimonialStars value={item.rating} />
+      </CardHeader>
+      <CardContent className="p-5 pt-0">
+        <p className="text-sm leading-7 text-foreground">“{item.quote}”</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+function TestimonialComposer({
+  onPublished,
+}: {
+  onPublished: (testimonial: SiteTestimonial) => void
+}) {
+  const { user, loading: authLoading } = useAuth()
+  const [role, setRole] = useState("")
+  const [company, setCompany] = useState("")
+  const [rating, setRating] = useState(5)
+  const [quote, setQuote] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const canSubmit = user && quote.trim().length >= 10 && !submitting
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!canSubmit) return
+
+    setSubmitting(true)
+    setMessage(null)
+    setError(null)
+    try {
+      const resp = await backendFetch("/api/site-testimonials", {
+        method: "POST",
+        json: {
+          role,
+          company,
+          rating,
+          quote,
+        },
+      })
+      if (!resp.ok) {
+        throw new Error("评价发布失败，请稍后再试。")
+      }
+      const saved = (await resp.json()) as SiteTestimonial
+      onPublished(saved)
+      setMessage("评价已发布。再次提交会更新你的评价。")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "评价发布失败，请稍后再试。")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <Card className="shadow-depth-xs">
+        <CardHeader className="p-5">
+          <CardTitle className="text-base">正在检查登录状态</CardTitle>
+          <CardDescription>登录后可以发表你的真实评价。</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  if (!user) {
+    return (
+      <Card className="shadow-depth-xs">
+        <CardHeader className="gap-3 p-5">
+          <CardTitle className="text-base">登录后发表真实评价</CardTitle>
+          <CardDescription className="leading-6">
+            评价会使用你的账号名称展示，未登录访客只能浏览已发布评价。
+          </CardDescription>
+          <Button asChild className="w-fit">
+            <Link href="/login">登录后评价</Link>
+          </Button>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="shadow-depth-xs">
+      <CardHeader className="p-5">
+        <CardTitle className="text-base">发表真实评价</CardTitle>
+        <CardDescription>当前账号：{user.username}</CardDescription>
+      </CardHeader>
+      <CardContent className="p-5 pt-0">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField label="你的角色" id="testimonial-role" description="可选，例如：客服主管">
+              <Input
+                id="testimonial-role"
+                value={role}
+                maxLength={80}
+                onChange={(event) => setRole(event.target.value)}
+                placeholder="客服主管"
+              />
+            </FormField>
+            <FormField label="公司或行业" id="testimonial-company" description="可选，例如：智能硬件企业">
+              <Input
+                id="testimonial-company"
+                value={company}
+                maxLength={80}
+                onChange={(event) => setCompany(event.target.value)}
+                placeholder="智能硬件企业"
+              />
+            </FormField>
+          </div>
+          <FormField label="评分" id="testimonial-rating">
+            <TestimonialStars value={rating} onChange={setRating} disabled={submitting} />
+          </FormField>
+          <FormField
+            label="评价内容"
+            id="testimonial-quote"
+            required
+            description="至少 10 个字，建议描述真实使用感受。"
+          >
+            <Textarea
+              id="testimonial-quote"
+              value={quote}
+              minLength={10}
+              maxLength={800}
+              rows={5}
+              onChange={(event) => setQuote(event.target.value)}
+              placeholder="请写下你的真实体验..."
+              aria-invalid={quote.trim().length > 0 && quote.trim().length < 10}
+            />
+          </FormField>
+          {message ? <StatusNotice tone="success">{message}</StatusNotice> : null}
+          {error ? <StatusNotice tone="error">{error}</StatusNotice> : null}
+          <Button type="submit" className="w-fit" disabled={!canSubmit}>
+            {submitting ? "发布中..." : "发布评价"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
 
 const interfaceCapabilities = [
   {
@@ -199,6 +395,44 @@ function InterfacePreview() {
 }
 
 export function OfficialHomePage() {
+  const { apiUrl, loading: apiConfigLoading } = useApiConfig()
+  const [testimonials, setTestimonials] = useState<SiteTestimonial[]>([])
+  const [testimonialsLoading, setTestimonialsLoading] = useState(true)
+  const [testimonialsError, setTestimonialsError] = useState<string | null>(null)
+
+  const visibleTestimonials = useMemo(
+    () => testimonials.slice(0, 6),
+    [testimonials],
+  )
+
+  const fetchTestimonials = useCallback(async () => {
+    setTestimonialsLoading(true)
+    setTestimonialsError(null)
+    try {
+      const resp = await backendFetch("/api/site-testimonials", { anonymous: true })
+      if (!resp.ok) {
+        throw new Error("暂时无法加载用户评价。")
+      }
+      setTestimonials((await resp.json()) as SiteTestimonial[])
+    } catch (err) {
+      setTestimonialsError(err instanceof Error ? err.message : "暂时无法加载用户评价。")
+    } finally {
+      setTestimonialsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (apiConfigLoading) return
+    void fetchTestimonials()
+  }, [apiConfigLoading, apiUrl, fetchTestimonials])
+
+  const handlePublishedTestimonial = useCallback((testimonial: SiteTestimonial) => {
+    setTestimonials((current) => [
+      { ...testimonial, isOwn: true },
+      ...current.filter((item) => item.id !== testimonial.id),
+    ])
+  }, [])
+
   return (
     <main className="h-svh overflow-y-auto bg-background text-foreground">
       <header className="sticky top-0 z-10 bg-background/90 backdrop-blur">
@@ -321,21 +555,36 @@ export function OfficialHomePage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-10">
           <SectionHeading
             eyebrow="用户评价"
-            title="来自客服、运营与信息化团队的反馈"
-            description="平台面向真实企业服务流程设计，帮助团队把分散经验沉淀为稳定的 Agent 能力。"
+            title="来自已登录用户的真实反馈"
+            description="登录账号后可以发布自己的使用评价，内容会展示在首页评价模块中。"
           />
-          <div className="grid gap-4 md:grid-cols-3">
-            {testimonials.map((item) => (
-              <Card key={item.name} className="shadow-depth-xs">
-                <CardHeader className="p-5">
-                  <CardTitle className="text-base">{item.name}</CardTitle>
-                  <CardDescription>{item.company}</CardDescription>
-                </CardHeader>
-                <CardContent className="p-5 pt-0">
-                  <p className="text-sm leading-7 text-foreground">“{item.quote}”</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(22rem,0.65fr)]">
+            <div className="flex flex-col gap-4">
+              {testimonialsLoading ? (
+                <Card className="shadow-depth-xs">
+                  <CardHeader className="p-5">
+                    <CardTitle className="text-base">正在加载评价</CardTitle>
+                    <CardDescription>请稍候。</CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : testimonialsError ? (
+                <StatusNotice tone="warning">{testimonialsError}</StatusNotice>
+              ) : visibleTestimonials.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {visibleTestimonials.map((item) => (
+                    <TestimonialCard key={item.id} item={item} />
+                  ))}
+                </div>
+              ) : (
+                <Card className="shadow-depth-xs">
+                  <CardHeader className="p-5">
+                    <CardTitle className="text-base">暂无评价</CardTitle>
+                    <CardDescription>登录后发布第一条真实评价。</CardDescription>
+                  </CardHeader>
+                </Card>
+              )}
+            </div>
+            <TestimonialComposer onPublished={handlePublishedTestimonial} />
           </div>
         </div>
       </section>

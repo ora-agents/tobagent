@@ -53,6 +53,7 @@ from src.utils.db import (
     FormTable,
     KnowledgeBaseTable,
     McpServerTable,
+    SiteTestimonialTable,
     SkillTable,
     UserApiKeyTable,
     UserTable,
@@ -384,8 +385,12 @@ async def delete_user_account(
         KnowledgeBaseTable,
         UserVoiceprintTable,
         UserApiKeyTable,
+        SiteTestimonialTable,
     ):
-        db.query(table).filter(table.owner_user_id == current_user.id).delete(synchronize_session=False)
+        owner_column = getattr(table, "owner_user_id", None)
+        if owner_column is None:
+            owner_column = getattr(table, "user_id")
+        db.query(table).filter(owner_column == current_user.id).delete(synchronize_session=False)
 
     if owned_workspace_ids:
         db.query(WorkspaceChangeRequestTable).filter(

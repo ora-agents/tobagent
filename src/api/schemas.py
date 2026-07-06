@@ -221,6 +221,45 @@ class CreateUserApiKeyResponse(UserApiKeySchema):
     apiKey: str
 
 
+class SiteTestimonialSchema(BaseModel):
+    id: str
+    authorName: str
+    role: str | None = None
+    company: str | None = None
+    rating: int
+    quote: str
+    createdAt: str
+    updatedAt: str
+    isOwn: bool = False
+
+
+class SiteTestimonialRequest(BaseModel):
+    role: str | None = None
+    company: str | None = None
+    rating: int = Field(default=5, ge=1, le=5)
+    quote: str = Field(min_length=10, max_length=800)
+
+    @field_validator("role", "company")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        text = value.strip()
+        if not text:
+            return None
+        if len(text) > 80:
+            raise ValueError("Value must be at most 80 characters")
+        return text
+
+    @field_validator("quote")
+    @classmethod
+    def validate_quote(cls, value: str) -> str:
+        text = value.strip()
+        if len(text) < 10:
+            raise ValueError("Quote must be at least 10 characters")
+        return text
+
+
 WorkspaceRole = Literal["owner", "admin", "member"]
 WorkspaceChangeStatus = Literal["pending", "approved", "rejected", "applied"]
 WorkspaceChangeAction = Literal["create", "update", "delete"]
