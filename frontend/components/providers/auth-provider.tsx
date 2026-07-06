@@ -441,9 +441,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = useCallback(async (phone: string, code: string, password: string): Promise<void> => {
     setError(null)
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (isDesktopRuntime) {
+      headers['X-Tob-Desktop-Session'] = 'true'
+    }
     const resp = await backendFetch(`${apiUrl}/api/auth/password/reset`, {
       method: 'POST',
       anonymous: true,
+      headers,
       json: { phone, code, password },
     })
     if (!resp.ok) {
@@ -451,7 +456,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(message)
       throw new Error(message)
     }
-  }, [apiUrl, t])
+    const resetUser = (await resp.json()) as AuthResponse
+    if (isDesktopRuntime) {
+      const token = resetUser.sessionToken || null
+      setDesktopSessionToken(token)
+      await saveStoredDesktopSessionToken(token)
+    }
+    const nextUser = userWithoutSessionToken(resetUser)
+    setUser(nextUser)
+    localStorage.setItem(USER_SESSION_KEY, JSON.stringify(nextUser))
+  }, [apiUrl, isDesktopRuntime, t])
 
   // 4. Logout function
   const logout = useCallback(() => {

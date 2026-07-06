@@ -117,13 +117,6 @@ export function AuthPanel({
         await register(username.trim(), normalizedPhone, smsCode.trim(), password.trim())
       } else {
         await resetPassword(normalizedPhone, smsCode.trim(), password.trim())
-        setPassword('')
-        setConfirmPassword('')
-        setSmsCode('')
-        setPhone('')
-        setActiveTab('login')
-        setSuccessMessage(t.resetPasswordSuccess)
-        return
       }
       onOpenChange(false)
       setUsername('')
