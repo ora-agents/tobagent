@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { AuthPanel } from '@/components/layout/auth-panel'
+import { SiteComplianceFooter } from '@/components/layout/site-compliance-footer'
 import { useAuth } from '@/components/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -159,8 +160,8 @@ export function AuthPage({ mode }: AuthPageProps) {
   }
 
   return (
-    <div className="h-svh overflow-hidden bg-background p-3 text-foreground sm:p-4 lg:p-6">
-      <div className="grid h-full min-h-0 overflow-hidden rounded-xl bg-card shadow-depth-sm lg:grid-cols-[minmax(25rem,0.95fr)_minmax(24rem,1.05fr)]">
+    <div className="flex h-svh flex-col overflow-hidden bg-background p-3 text-foreground sm:p-4 lg:p-6">
+      <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl bg-card shadow-depth-sm lg:grid-cols-[minmax(25rem,0.95fr)_minmax(24rem,1.05fr)]">
         <main className="relative flex min-h-0 flex-col gap-5 px-6 py-6 sm:px-10 lg:px-14 lg:py-8">
           <div className={`flex justify-center gap-3 md:justify-start ${activeView === 'login' ? 'absolute inset-x-6 top-6 z-10 sm:inset-x-10 lg:inset-x-14 lg:top-8' : ''}`}>
             <div className="flex min-w-0 flex-1 items-center justify-center gap-3 md:justify-start">
@@ -234,6 +235,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           </div>
         </aside>
       </div>
+      <SiteComplianceFooter className="pt-2" />
     </div>
   )
 }

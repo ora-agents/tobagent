@@ -1,5 +1,6 @@
 import type * as React from "react"
 
+import { SiteComplianceFooter } from "@/components/layout/site-compliance-footer"
 import { AppMain, AppShell } from "@/components/ui/app-shell"
 import { cn } from "@/lib/utils"
 
@@ -15,7 +16,10 @@ export function DashboardWorkspace({ children, className, mobileSidebar, sidebar
     <AppShell className={className}>
       {sidebar}
       {mobileSidebar}
-      <AppMain className="flex min-h-0 flex-col bg-background">{children}</AppMain>
+      <AppMain className="flex min-h-0 flex-col bg-background">
+        {children}
+        <SiteComplianceFooter className="border-t border-border/60 bg-background py-2" />
+      </AppMain>
     </AppShell>
   )
 }

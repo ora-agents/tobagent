@@ -7,7 +7,6 @@ import { SegmentProvider } from "@/components/providers/segment-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ImageAssetProtection } from "@/components/providers/image-asset-protection";
-import { SiteComplianceFooter } from "@/components/layout/site-compliance-footer";
 import { ApiConfigProvider } from "@/lib/config/api-config";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site";
 import { I18nProvider } from "@/lib/i18n";
@@ -142,7 +141,6 @@ analytics.page();
                 <SegmentProvider>
                   <NuqsAdapter>
                     {children}
-                    <SiteComplianceFooter />
                   </NuqsAdapter>
                 </SegmentProvider>
               </AuthProvider>
