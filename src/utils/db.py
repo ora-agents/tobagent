@@ -244,8 +244,62 @@ class AgentShareLinkTable(Base):
     owner_user_id = Column(String(255), index=True, nullable=False)
     agent_profile_id = Column(String(255), index=True, nullable=False)
     include_options = Column(JSON, nullable=False, default=dict)
+    custom_slug = Column(String(255), unique=True, index=True, nullable=True)
+    price_cents = Column(Integer, nullable=False, default=0)
+    currency = Column(String(10), nullable=False, default="CNY")
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
+
+
+class AgentPurchaseTable(Base):
+    """A user's paid access grant for one shared agent."""
+    __tablename__ = "agent_purchases"
+
+    id = Column(String(255), primary_key=True, index=True)
+    buyer_user_id = Column(String(255), index=True, nullable=False)
+    seller_user_id = Column(String(255), index=True, nullable=False)
+    agent_profile_id = Column(String(255), index=True, nullable=False)
+    share_id = Column(String(255), index=True, nullable=False)
+    order_id = Column(String(255), index=True, nullable=False)
+    price_cents = Column(Integer, nullable=False, default=0)
+    currency = Column(String(10), nullable=False, default="CNY")
+    created_at = Column(String(50), nullable=False)
+
+
+class PaymentOrderTable(Base):
+    """Payment order state for paid shared agents."""
+    __tablename__ = "payment_orders"
+
+    id = Column(String(255), primary_key=True, index=True)
+    out_trade_no = Column(String(64), unique=True, index=True, nullable=False)
+    buyer_user_id = Column(String(255), index=True, nullable=False)
+    seller_user_id = Column(String(255), index=True, nullable=False)
+    agent_profile_id = Column(String(255), index=True, nullable=False)
+    share_id = Column(String(255), index=True, nullable=False)
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(String(10), nullable=False, default="CNY")
+    provider = Column(String(32), nullable=False, default="wechat_native")
+    status = Column(String(32), index=True, nullable=False, default="pending")
+    code_url = Column(Text, nullable=True)
+    provider_transaction_id = Column(String(255), nullable=True)
+    provider_payload = Column(JSON, nullable=True, default=dict)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+    paid_at = Column(String(50), nullable=True)
+
+
+class WalletLedgerEntryTable(Base):
+    """Append-only internal wallet ledger."""
+    __tablename__ = "wallet_ledger_entries"
+
+    id = Column(String(255), primary_key=True, index=True)
+    user_id = Column(String(255), index=True, nullable=False)
+    order_id = Column(String(255), index=True, nullable=True)
+    entry_type = Column(String(32), index=True, nullable=False)
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(String(10), nullable=False, default="CNY")
+    description = Column(Text, nullable=True)
+    created_at = Column(String(50), nullable=False)
 
 
 class UserVoiceprintTable(Base):
@@ -432,6 +486,9 @@ def ensure_database_schema() -> None:
             "imported_from_agent_profile_id VARCHAR(255)",
         ),
         ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),
+        ("agent_share_links", "custom_slug", "custom_slug VARCHAR(255)"),
+        ("agent_share_links", "price_cents", "price_cents INTEGER DEFAULT 0"),
+        ("agent_share_links", "currency", "currency VARCHAR(10) DEFAULT 'CNY'"),
         ("agent_profiles", "workspace_id", "workspace_id VARCHAR(255)"),
         ("agent_profile_versions", "workspace_id", "workspace_id VARCHAR(255)"),
         ("skills", "workspace_id", "workspace_id VARCHAR(255)"),

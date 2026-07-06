@@ -50,6 +50,7 @@ from src.api.workspace_utils import (
 from src.utils.db import (
     AgentProfileTable,
     AgentProfileVersionTable,
+    AgentPurchaseTable,
     AgentShareLinkTable,
     FormRecordTable,
     FormTable,
@@ -138,6 +139,28 @@ def _find_existing_agent_share_import(
             return candidate
 
     return None
+
+
+def _find_agent_share(db: Session, token_or_slug: str) -> AgentShareLinkTable | None:
+    value = token_or_slug.strip()
+    return db.query(AgentShareLinkTable).filter(
+        (AgentShareLinkTable.token == value) | (AgentShareLinkTable.custom_slug == value)
+    ).first()
+
+
+def _share_requires_purchase(share: AgentShareLinkTable, user_id: str | None = None) -> bool:
+    if user_id and user_id == share.owner_user_id:
+        return False
+    return int(getattr(share, "price_cents", 0) or 0) > 0
+
+
+def _user_has_share_purchase(db: Session, share: AgentShareLinkTable, user_id: str) -> bool:
+    if not _share_requires_purchase(share, user_id):
+        return True
+    return db.query(AgentPurchaseTable).filter(
+        AgentPurchaseTable.share_id == share.id,
+        AgentPurchaseTable.buyer_user_id == user_id,
+    ).first() is not None
 
 
 # ---------------------------------------------------------------------------
@@ -495,8 +518,19 @@ async def create_agent_share_link(
         AgentShareLinkTable.owner_user_id == owner_user_id,
     ).first()
     include_options = share_data.include.model_dump(mode="json")
+    custom_slug = share_data.customSlug
+    if custom_slug:
+        slug_owner = db.query(AgentShareLinkTable).filter(
+            AgentShareLinkTable.custom_slug == custom_slug,
+            AgentShareLinkTable.agent_profile_id != id,
+        ).first()
+        if slug_owner:
+            raise HTTPException(status_code=409, detail="Custom share address is already in use")
     if existing:
         existing.include_options = include_options
+        existing.custom_slug = custom_slug
+        existing.price_cents = share_data.priceCents
+        existing.currency = share_data.currency
         existing.updated_at = now
         share = existing
     else:
@@ -509,6 +543,9 @@ async def create_agent_share_link(
             owner_user_id=owner_user_id,
             agent_profile_id=id,
             include_options=include_options,
+            custom_slug=custom_slug,
+            price_cents=share_data.priceCents,
+            currency=share_data.currency,
             created_at=now,
             updated_at=now,
         )
@@ -529,7 +566,7 @@ async def get_agent_share_preview(
     token: str,
     db: Session = Depends(get_db),
 ):
-    share = db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first()
+    share = _find_agent_share(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Agent share link not found")
 
@@ -564,6 +601,10 @@ async def get_agent_share_preview(
         ownerUserId=share.owner_user_id,
         include=include,
         resources=resources,
+        customSlug=getattr(share, "custom_slug", None),
+        priceCents=int(getattr(share, "price_cents", 0) or 0),
+        currency=getattr(share, "currency", None) or "CNY",
+        isPaid=int(getattr(share, "price_cents", 0) or 0) > 0,
         createdAt=share.created_at,
     )
 
@@ -580,9 +621,11 @@ async def import_agent_share(
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
-    share = db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first()
+    share = _find_agent_share(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Agent share link not found")
+    if not _user_has_share_purchase(db, share, current_user.id):
+        raise HTTPException(status_code=402, detail="Purchase required before importing this agent")
 
     source_profile = db.query(AgentProfileTable).filter(
         AgentProfileTable.id == share.agent_profile_id,

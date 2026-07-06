@@ -311,12 +311,30 @@ class AgentShareOptions(BaseModel):
 
 class AgentShareLinkRequest(BaseModel):
     include: AgentShareOptions = Field(default_factory=AgentShareOptions)
+    customSlug: str | None = None
+    priceCents: int = Field(default=0, ge=0)
+    currency: Literal["CNY"] = "CNY"
+
+    @field_validator("customSlug")
+    @classmethod
+    def validate_custom_slug(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        slug = value.strip().lower()
+        if not slug:
+            return None
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,63}", slug):
+            raise ValueError("customSlug must be 3-64 chars using lowercase letters, numbers, hyphen, or underscore")
+        return slug
 
 
 class AgentShareLinkSchema(BaseModel):
     token: str
     agentProfileId: str
     include: AgentShareOptions
+    customSlug: str | None = None
+    priceCents: int = 0
+    currency: str = "CNY"
     createdAt: str
     updatedAt: str
 
@@ -327,6 +345,10 @@ class AgentSharePreview(BaseModel):
     ownerUserId: str
     include: AgentShareOptions
     resources: dict[str, int]
+    customSlug: str | None = None
+    priceCents: int = 0
+    currency: str = "CNY"
+    isPaid: bool = False
     createdAt: str
 
 
@@ -338,6 +360,47 @@ class AgentShareImportResponse(BaseModel):
     agent: "AgentProfileSchema"
     resourceIdMap: dict[str, dict[str, str]]
     warnings: list[str] = []
+
+
+class AgentShareAccessResponse(BaseModel):
+    token: str
+    agentProfileId: str
+    purchased: bool
+    requiresPurchase: bool
+    priceCents: int = 0
+    currency: str = "CNY"
+
+
+class AgentSharePurchaseRequest(BaseModel):
+    pass
+
+
+class AgentSharePurchaseResponse(BaseModel):
+    orderId: str
+    outTradeNo: str
+    status: str
+    amountCents: int
+    currency: str = "CNY"
+    codeUrl: str | None = None
+    paymentProvider: str = "wechat_native"
+    paymentConfigured: bool = False
+
+
+class PaymentOrderResponse(BaseModel):
+    orderId: str
+    outTradeNo: str
+    status: str
+    amountCents: int
+    currency: str = "CNY"
+    codeUrl: str | None = None
+    paidAt: str | None = None
+
+
+class WalletSummaryResponse(BaseModel):
+    userId: str
+    balanceCents: int
+    currency: str = "CNY"
+    entries: list[dict] = []
 
 
 class AgentConfigTomlImportRequest(BaseModel):

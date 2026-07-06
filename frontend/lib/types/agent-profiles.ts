@@ -55,6 +55,15 @@ export interface AgentProfile {
   updatedAt: string
 }
 
+export interface AgentShareAccess {
+  token: string
+  agentProfileId: string
+  purchased: boolean
+  requiresPurchase: boolean
+  priceCents: number
+  currency: string
+}
+
 export interface AgentProfileVersion {
   id: string
   agentProfileId: string
@@ -75,6 +84,9 @@ export interface AgentShareLink {
   token: string
   agentProfileId: string
   include: AgentShareOptions
+  customSlug?: string | null
+  priceCents: number
+  currency: string
   createdAt: string
   updatedAt: string
 }
@@ -91,7 +103,22 @@ export interface AgentSharePreview {
   ownerUserId: string
   include: AgentShareOptions
   resources: Record<string, number>
+  customSlug?: string | null
+  priceCents: number
+  currency: string
+  isPaid: boolean
   createdAt: string
+}
+
+export interface AgentSharePurchase {
+  orderId: string
+  outTradeNo: string
+  status: string
+  amountCents: number
+  currency: string
+  codeUrl?: string | null
+  paymentProvider: string
+  paymentConfigured: boolean
 }
 
 export interface AgentConfigTomlImportResponse {

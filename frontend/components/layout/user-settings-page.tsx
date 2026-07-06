@@ -20,6 +20,7 @@ import {
   Upload,
   Waves,
   Building2,
+  Wallet,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -82,6 +83,21 @@ interface UserApiKey {
   lastUsedAt: string | null
 }
 
+interface WalletSummary {
+  userId: string
+  balanceCents: number
+  currency: string
+  entries: {
+    id: string
+    orderId: string | null
+    type: string
+    amountCents: number
+    currency: string
+    description: string | null
+    createdAt: string
+  }[]
+}
+
 // ---------------------------------------------------------------------------
 // Sample text for voiceprint enrollment
 // ---------------------------------------------------------------------------
@@ -89,6 +105,10 @@ interface UserApiKey {
 const SPEAKER_SAMPLE_TEXT = {
   zh: "请用自然语速朗读：我是本智能体的授权使用者，正在完成声纹绑定。",
   en: "Please read naturally: I am the authorized user of this agent and I am completing voiceprint binding.",
+}
+
+function formatCny(cents: number) {
+  return `¥${(cents / 100).toFixed(2)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +124,7 @@ interface NavSection {
 
 const NAV_SECTIONS: NavSection[] = [
   { id: "section-profile", icon: User, labelZh: "基本信息", labelEn: "Profile" },
+  { id: "section-wallet", icon: Wallet, labelZh: "账户余额", labelEn: "Wallet" },
   { id: "section-account-security", icon: KeyRound, labelZh: "账号安全", labelEn: "Account Security" },
   { id: "section-workspace", icon: Building2, labelZh: "工作区", labelEn: "Workspace" },
   { id: "section-prefs", icon: Settings2, labelZh: "通用偏好", labelEn: "Preferences" },
@@ -148,6 +169,8 @@ export function UserSettingsPage({
   const [newApiKey, setNewApiKey] = useState<string | null>(null)
   const [apiKeysLoading, setApiKeysLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [wallet, setWallet] = useState<WalletSummary | null>(null)
+  const [walletLoading, setWalletLoading] = useState(false)
 
   // ---- Dangerous actions state ----
   const [clearConversationsOpen, setClearConversationsOpen] = useState(false)
@@ -218,6 +241,27 @@ export function UserSettingsPage({
       }
     }
     loadApiKeys()
+  }, [authHeaders, user])
+
+  useEffect(() => {
+    if (!user) {
+      setWallet(null)
+      return
+    }
+    const loadWallet = async () => {
+      setWalletLoading(true)
+      try {
+        const resp = await backendFetch("/api/wallet", { authHeaders })
+        if (resp.ok) {
+          setWallet(await resp.json())
+        }
+      } catch (err) {
+        console.error("[UserSettingsPage] Failed to load wallet:", err)
+      } finally {
+        setWalletLoading(false)
+      }
+    }
+    loadWallet()
   }, [authHeaders, user])
 
   // ---- Auto-hide success message ----
@@ -670,10 +714,10 @@ export function UserSettingsPage({
           ) : null}
           <div className="min-w-0">
             <h1 className={`${elderOptimized ? "text-xl gap-2 sm:text-2xl" : "text-base gap-1.5 tracking-wide"} flex min-w-0 items-center font-display font-semibold`}>
-              <span className="truncate">{zh ? "用户设置" : "User Settings"}</span>
+              <span className="truncate">{zh ? "用户中心" : "User Center"}</span>
             </h1>
             <p className={`${elderOptimized ? "mt-1 text-sm leading-snug" : "text-[11px] leading-none"} hidden text-muted-foreground/80 sm:block`}>
-              {zh ? "管理您的个人信息、偏好设置和安全选项" : "Manage your profile, preferences, and safety options"}
+              {zh ? "管理个人信息、账户余额、偏好设置和安全选项" : "Manage your profile, wallet, preferences, and safety options"}
             </p>
           </div>
         </div>
@@ -783,6 +827,58 @@ export function UserSettingsPage({
                 labelClassName={elderOptimized ? "text-base" : undefined}
                 className={`${elderOptimized ? "h-14 pl-12 text-lg" : ""} bg-secondary`}
               />
+            </PageSection>
+
+            {/* ============ Section: Wallet ============ */}
+            <PageSection
+              id="section-wallet"
+              ref={registerSectionRef("section-wallet")}
+              density={sectionDensity}
+            >
+              <PageSectionTitle icon={Wallet} compact={sectionTitleCompact}>
+                {zh ? "账户余额" : "Wallet Balance"}
+              </PageSectionTitle>
+
+              <div className="flex flex-col gap-3">
+                <div className="rounded-lg border border-border/60 bg-secondary px-4 py-3">
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    {zh ? "可结算余额" : "Available balance"}
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-foreground">
+                    {walletLoading ? "..." : formatCny(wallet?.balanceCents || 0)}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {zh ? "余额来自付费 Agent 销售收入，提现/结算可后续接入。" : "Balance is from paid agent sales. Payout settlement can be added next."}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    {zh ? "最近流水" : "Recent ledger"}
+                  </div>
+                  {walletLoading ? (
+                    <div className="rounded-lg bg-secondary px-4 py-3 text-sm text-muted-foreground">
+                      {zh ? "加载中..." : "Loading..."}
+                    </div>
+                  ) : wallet?.entries.length ? (
+                    wallet.entries.map((entry) => (
+                      <ListItem
+                        key={entry.id}
+                        title={entry.description || (zh ? "Agent 销售收入" : "Agent sale")}
+                        description={new Date(entry.createdAt).toLocaleString()}
+                        actions={<span className="text-sm font-semibold text-foreground">{formatCny(entry.amountCents)}</span>}
+                        actionsClassName="opacity-100 md:opacity-100"
+                      />
+                    ))
+                  ) : (
+                    <EmptyState
+                      icon={<Wallet className="h-6 w-6" />}
+                      title={zh ? "暂无流水" : "No ledger entries"}
+                      description={zh ? "付费 Agent 产生收入后会显示在这里。" : "Paid agent revenue will appear here."}
+                    />
+                  )}
+                </div>
+              </div>
             </PageSection>
 
             {/* ============ Section: Account Security ============ */}

@@ -119,7 +119,11 @@ interface ManagementDashboardProps {
   deleteAgentProfile: (id: string) => void
   fetchAgentProfileVersions: (id: string) => Promise<AgentProfileVersion[]>
   restoreAgentProfileVersion: (id: string, versionId: string) => Promise<AgentProfile | null>
-  createAgentShareLink: (id: string, include: AgentShareOptions) => Promise<AgentShareLink | null>
+  createAgentShareLink: (
+    id: string,
+    include: AgentShareOptions,
+    options?: { customSlug?: string | null; priceCents?: number; currency?: string },
+  ) => Promise<AgentShareLink | null>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
   createOnOpen?: boolean
@@ -418,6 +422,8 @@ export function ManagementDashboard({
     forms: true,
   })
   const [shareLink, setShareLink] = useState<string | null>(null)
+  const [shareSlug, setShareSlug] = useState("")
+  const [sharePrice, setSharePrice] = useState("")
   const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
   const isScopedAgentConfig = !!scopedAgentProfileId
 
@@ -970,13 +976,22 @@ export function ManagementDashboard({
 
   const handleCreateAgentShare = async (id: string) => {
     if (!canManageWorkspace) return
+    const priceYuan = sharePrice.trim() === "" ? 0 : Number(sharePrice)
+    if (!Number.isFinite(priceYuan) || priceYuan < 0) {
+      window.alert(locale === "zh" ? "价格必须是大于等于 0 的数字。" : "Price must be a number greater than or equal to 0.")
+      return
+    }
     setSharingAgentId(id)
     try {
-      const share = await createAgentShareLink(id, shareOptions)
+      const share = await createAgentShareLink(id, shareOptions, {
+        customSlug: shareSlug.trim() || null,
+        priceCents: Math.round(priceYuan * 100),
+        currency: "CNY",
+      })
       if (!share) return
       const url = new URL(window.location.origin)
       url.pathname = "/agentapp/"
-      url.searchParams.set("agentShare", share.token)
+      url.searchParams.set("agentShare", share.customSlug || share.token)
       url.searchParams.delete("threadId")
       const nextLink = url.toString()
       setShareLink(nextLink)
@@ -4320,6 +4335,31 @@ export function ManagementDashboard({
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
+                            <Label htmlFor="agent-share-slug" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "自定义地址" : "Custom address"}
+                            </Label>
+                            <Input
+                              id="agent-share-slug"
+                              value={shareSlug}
+                              onChange={(event) => setShareSlug(event.target.value)}
+                              placeholder={locale === "zh" ? "例如 sales-helper" : "sales-helper"}
+                              className="h-9"
+                            />
+                          </div>
+                          <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
+                            <Label htmlFor="agent-share-price" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "价格（元）" : "Price (CNY)"}
+                            </Label>
+                            <Input
+                              id="agent-share-price"
+                              value={sharePrice}
+                              onChange={(event) => setSharePrice(event.target.value)}
+                              placeholder="0"
+                              inputMode="decimal"
+                              className="h-9"
+                            />
+                          </div>
                           {([
                             ["knowledgeBases", locale === "zh" ? "知识库" : "KBs"],
                             ["skills", locale === "zh" ? "Skills" : "Skills"],

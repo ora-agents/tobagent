@@ -15,6 +15,8 @@ import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { UserManualPage } from "@/components/layout/user-manual-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
+import { Button } from "@/components/ui/button"
+import { StatusNotice } from "@/components/ui/status-notice"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
 import { useUserId, useClientProfile } from "@/lib/hooks/auth"
@@ -41,6 +43,10 @@ type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
   return DASHBOARD_VIEWS.includes(value as DashboardView)
+}
+
+function formatCny(cents: number) {
+  return `¥${(cents / 100).toFixed(2)}`
 }
 
 function AuthRedirect() {
@@ -81,10 +87,16 @@ function DashboardContent() {
     createShareLink: createAgentShareLink,
     fetchSharePreview: fetchAgentSharePreview,
     importShareLink: importAgentShareLink,
+    fetchShareAccess,
+    purchaseShare,
+    fetchPaymentOrder,
     refreshProfiles: refreshAgentProfiles,
   } = useAgentProfiles()
   const [sharedAgentProfile, setSharedAgentProfile] = useState<import("@/lib/types/agent-profiles").AgentProfile | null>(null)
   const [copySharedAgentStatus, setCopySharedAgentStatus] = useState<"idle" | "copying" | "copied" | "error">("idle")
+  const [pendingPaidShare, setPendingPaidShare] = useState<import("@/lib/types/agent-profiles").AgentSharePreview | null>(null)
+  const [purchaseOrder, setPurchaseOrder] = useState<import("@/lib/types/agent-profiles").AgentSharePurchase | null>(null)
+  const [purchaseStatus, setPurchaseStatus] = useState<"idle" | "creating" | "waiting" | "paid" | "error">("idle")
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -510,14 +522,27 @@ function DashboardContent() {
     processedAgentShareRef.current = token
     Promise.all([
       fetchAgentSharePreview(token),
-      importAgentShareLink(token),
+      fetchShareAccess(token),
     ])
-      .then(([preview, imported]) => {
-        if (!preview || !imported) {
+      .then(async ([preview, access]) => {
+        if (!preview || !access) {
+          processedAgentShareRef.current = null
+          return
+        }
+        if (access.requiresPurchase && !access.purchased) {
+          setPendingPaidShare(preview)
+          setPurchaseOrder(null)
+          setPurchaseStatus("idle")
+          setCurrentView("chat")
+          return
+        }
+        const imported = await importAgentShareLink(token)
+        if (!imported) {
           processedAgentShareRef.current = null
           return
         }
         setSharedAgentProfile(null)
+        setPendingPaidShare(null)
         setSelectedAgentProfileId(imported.agent.id)
         const url = new URL(window.location.href)
         url.pathname = "/agentapp/"
@@ -534,7 +559,58 @@ function DashboardContent() {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, fetchAgentSharePreview, importAgentShareLink, router, setSelectedAgentProfileId, user])
+  }, [agentShareToken, fetchShareAccess, fetchAgentSharePreview, importAgentShareLink, router, setCurrentView, setSelectedAgentProfileId, user])
+
+  const completePaidShareImport = useCallback(async () => {
+    const token = agentShareToken?.trim()
+    if (!token) return
+    const imported = await importAgentShareLink(token)
+    if (!imported) return
+    setPendingPaidShare(null)
+    setPurchaseOrder(null)
+    setPurchaseStatus("paid")
+    setSelectedAgentProfileId(imported.agent.id)
+
+    const url = new URL(window.location.href)
+    url.pathname = "/agentapp/"
+    url.searchParams.set("agentApp", imported.agent.id)
+    url.searchParams.delete("agentShare")
+    url.searchParams.delete("threadId")
+    url.searchParams.delete("q")
+    url.searchParams.delete("view")
+    url.searchParams.delete("editAgent")
+    url.searchParams.delete("create")
+    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
+  }, [agentShareToken, importAgentShareLink, router, setSelectedAgentProfileId])
+
+  const handlePurchaseSharedAgent = useCallback(async () => {
+    const token = agentShareToken?.trim()
+    if (!token || purchaseStatus === "creating") return
+    setPurchaseStatus("creating")
+    const order = await purchaseShare(token)
+    if (!order) {
+      setPurchaseStatus("error")
+      return
+    }
+    setPurchaseOrder(order)
+    if (order.status === "paid") {
+      await completePaidShareImport()
+      return
+    }
+    setPurchaseStatus("waiting")
+  }, [agentShareToken, completePaidShareImport, purchaseShare, purchaseStatus])
+
+  useEffect(() => {
+    if (!purchaseOrder || purchaseStatus !== "waiting") return
+    const timer = window.setInterval(async () => {
+      const order = await fetchPaymentOrder(purchaseOrder.orderId)
+      if (order?.status === "paid") {
+        window.clearInterval(timer)
+        await completePaidShareImport()
+      }
+    }, 2500)
+    return () => window.clearInterval(timer)
+  }, [completePaidShareImport, fetchPaymentOrder, purchaseOrder, purchaseStatus])
 
   // Handle switching active thread or creating a new one when active agent changes
   const previousSyncedAgentIdRef = useRef<string | null>(null)
@@ -782,24 +858,81 @@ function DashboardContent() {
               onOpenSidebar={() => setIsMobileSidebarOpen(true)}
               hideWorkspaceControls={isDedicatedAgentApp}
             />
-            <ChatInterface
-              key={chatSessionKey}
-              threadId={activeThreadId}
-              onCreateThread={handleCreateThreadForSend}
-              onThreadUpdate={handleThreadUpdate}
-              onThreadNotFound={handleThreadNotFound}
-              agentConfig={agentConfig}
-              onAgentConfigChange={setAgentConfig}
-              agentProfile={activeAgentProfile}
-              agentProfilesLoaded={agentProfilesLoaded}
-              onCreateAgent={handleOpenCreateAgent}
-              onAgentProfilesChanged={refreshAgentProfiles}
-              isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
-              initialMessage={initialPrompt}
-              autoSend={!!initialPrompt}
-              onInitialMessageSent={() => setInitialPrompt(null)}
-              conversationSource={isDedicatedAgentApp ? "agent_app" : "main"}
-            />
+            {pendingPaidShare ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-6">
+                <div className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-sm">
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xl font-semibold text-foreground">
+                      {pendingPaidShare.agent.name}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {pendingPaidShare.agent.description || t.noDescriptionProvided}
+                    </div>
+                    <div className="rounded-lg bg-secondary px-4 py-3">
+                      <div className="text-xs font-semibold text-muted-foreground">
+                        付费访问
+                      </div>
+                      <div className="mt-1 text-2xl font-semibold text-foreground">
+                        {formatCny(pendingPaidShare.priceCents)}
+                      </div>
+                    </div>
+                    {!purchaseOrder ? (
+                      <Button
+                        type="button"
+                        onClick={handlePurchaseSharedAgent}
+                        disabled={purchaseStatus === "creating"}
+                        className="w-full"
+                      >
+                        {purchaseStatus === "creating" ? "创建订单中..." : "微信支付购买"}
+                      </Button>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3">
+                        {purchaseOrder.codeUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(purchaseOrder.codeUrl)}`}
+                            alt="WeChat Pay QR code"
+                            className="size-[220px] rounded-md border border-border bg-background p-2"
+                          />
+                        ) : null}
+                        <div className="break-all text-center font-mono text-[11px] text-muted-foreground">
+                          {purchaseOrder.codeUrl || purchaseOrder.outTradeNo}
+                        </div>
+                        <StatusNotice tone={purchaseOrder.paymentConfigured ? "info" : "warning"}>
+                          {purchaseOrder.paymentConfigured
+                            ? "请使用微信扫码支付，支付成功后会自动进入 Agent。"
+                            : "微信支付环境变量尚未配置。订单已创建，但无法完成真实支付。"}
+                        </StatusNotice>
+                      </div>
+                    )}
+                    {purchaseStatus === "error" && (
+                      <StatusNotice tone="error">
+                        创建支付订单失败，请稍后重试。
+                      </StatusNotice>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <ChatInterface
+                key={chatSessionKey}
+                threadId={activeThreadId}
+                onCreateThread={handleCreateThreadForSend}
+                onThreadUpdate={handleThreadUpdate}
+                onThreadNotFound={handleThreadNotFound}
+                agentConfig={agentConfig}
+                onAgentConfigChange={setAgentConfig}
+                agentProfile={activeAgentProfile}
+                agentProfilesLoaded={agentProfilesLoaded}
+                onCreateAgent={handleOpenCreateAgent}
+                onAgentProfilesChanged={refreshAgentProfiles}
+                isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
+                initialMessage={initialPrompt}
+                autoSend={!!initialPrompt}
+                onInitialMessageSent={() => setInitialPrompt(null)}
+                conversationSource={isDedicatedAgentApp ? "agent_app" : "main"}
+              />
+            )}
         </DashboardViewPane>
 
         {currentView === "settings" ? (

@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from "react"
 import type {
   AgentProfile,
+  AgentShareAccess,
+  AgentSharePurchase,
   AgentConfigTomlImportResponse,
   AgentProfileVersion,
   AgentShareImportResponse,
@@ -194,6 +196,7 @@ export function useAgentProfiles() {
   const createShareLink = useCallback(async (
     id: string,
     include: AgentShareOptions,
+    options?: { customSlug?: string | null; priceCents?: number; currency?: string },
   ): Promise<AgentShareLink | null> => {
     if (!user || !canManageWorkspace) return null
 
@@ -202,7 +205,12 @@ export function useAgentProfiles() {
         method: "POST",
         authHeaders,
         workspaceHeaders,
-        json: { include },
+        json: {
+          include,
+          customSlug: options?.customSlug || null,
+          priceCents: options?.priceCents || 0,
+          currency: options?.currency || "CNY",
+        },
       })
       if (resp.ok) {
         return await resp.json()
@@ -212,6 +220,61 @@ export function useAgentProfiles() {
     }
     return null
   }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
+
+  const fetchShareAccess = useCallback(async (
+    token: string,
+  ): Promise<AgentShareAccess | null> => {
+    if (!user) return null
+    try {
+      const resp = await backendFetch(`/api/agent-shares/${encodeURIComponent(token)}/access`, {
+        authHeaders,
+        workspaceHeaders,
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to load shared agent access ${token}`, err)
+    }
+    return null
+  }, [authHeaders, user, workspaceHeaders])
+
+  const purchaseShare = useCallback(async (
+    token: string,
+  ): Promise<AgentSharePurchase | null> => {
+    if (!user) return null
+    try {
+      const resp = await backendFetch(`/api/agent-shares/${encodeURIComponent(token)}/purchase`, {
+        method: "POST",
+        authHeaders,
+        workspaceHeaders,
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to purchase shared agent ${token}`, err)
+    }
+    return null
+  }, [authHeaders, user, workspaceHeaders])
+
+  const fetchPaymentOrder = useCallback(async (
+    orderId: string,
+  ): Promise<{ status: string; paidAt?: string | null } | null> => {
+    if (!user) return null
+    try {
+      const resp = await backendFetch(`/api/payment-orders/${encodeURIComponent(orderId)}`, {
+        authHeaders,
+        workspaceHeaders,
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to load payment order ${orderId}`, err)
+    }
+    return null
+  }, [authHeaders, user, workspaceHeaders])
 
   const importShareLink = useCallback(async (
     token: string,
@@ -325,6 +388,9 @@ export function useAgentProfiles() {
     fetchProfileVersions,
     restoreProfileVersion,
     createShareLink,
+    fetchShareAccess,
+    purchaseShare,
+    fetchPaymentOrder,
     fetchSharePreview,
     importShareLink,
     importTomlConfig,

@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -11,14 +12,19 @@ from src.api.fastapi_app import (
     create_agent_share_link,
     import_agent_share,
 )
+from src.api.routes.agent_profiles import get_agent_share_preview
+from src.api.routes.payments import _grant_paid_access
 from src.utils.db import (
     AgentProfileTable,
+    AgentPurchaseTable,
     AgentShareLinkTable,
     Base,
     KnowledgeBaseTable,
     McpServerTable,
+    PaymentOrderTable,
     SkillTable,
     UserTable,
+    WalletLedgerEntryTable,
 )
 
 
@@ -98,6 +104,107 @@ async def test_create_agent_share_link_updates_existing_options(db_session):
     assert second.token == first.token
     assert second.include.skills is False
     assert second.include.mcpServers is True
+
+
+@pytest.mark.anyio
+async def test_create_agent_share_link_supports_custom_slug_and_price(db_session):
+    owner = _user("user-owner")
+    db_session.add(owner)
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(
+            include=AgentShareOptions(skills=True),
+            customSlug="sales-helper",
+            priceCents=1999,
+        ),
+        db_session,
+        owner,
+    )
+    preview = await get_agent_share_preview("sales-helper", db_session)
+
+    assert share.customSlug == "sales-helper"
+    assert share.priceCents == 1999
+    assert preview.token == share.token
+    assert preview.customSlug == "sales-helper"
+    assert preview.isPaid is True
+
+
+@pytest.mark.anyio
+async def test_import_paid_agent_share_requires_purchase(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="paid-agent", priceCents=500),
+        db_session,
+        owner,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await import_agent_share(
+            share.customSlug,
+            AgentShareImportRequest(),
+            db_session,
+            receiver,
+        )
+
+    assert exc.value.status_code == 402
+
+
+def test_grant_paid_access_creates_purchase_and_wallet_ledger(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    now = datetime.now(UTC).isoformat()
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    share = AgentShareLinkTable(
+        id="share-paid",
+        token="paid-token",
+        owner_user_id=owner.id,
+        agent_profile_id="agent-source",
+        include_options={},
+        custom_slug="paid-agent",
+        price_cents=880,
+        currency="CNY",
+        created_at=now,
+        updated_at=now,
+    )
+    order = PaymentOrderTable(
+        id="order-paid",
+        out_trade_no="TOBTEST",
+        buyer_user_id=receiver.id,
+        seller_user_id=owner.id,
+        agent_profile_id="agent-source",
+        share_id=share.id,
+        amount_cents=880,
+        currency="CNY",
+        status="pending",
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add_all([share, order])
+    db_session.commit()
+
+    _grant_paid_access(db_session, order, now, {"transaction_id": "wx-1"})
+    _grant_paid_access(db_session, order, now, {"transaction_id": "wx-1"})
+    db_session.commit()
+
+    purchases = db_session.query(AgentPurchaseTable).all()
+    ledger = db_session.query(WalletLedgerEntryTable).all()
+    assert order.status == "paid"
+    assert order.provider_transaction_id == "wx-1"
+    assert len(purchases) == 1
+    assert purchases[0].buyer_user_id == receiver.id
+    assert len(ledger) == 1
+    assert ledger[0].user_id == owner.id
+    assert ledger[0].amount_cents == 880
 
 
 @pytest.mark.anyio
