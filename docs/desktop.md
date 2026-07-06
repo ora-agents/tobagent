@@ -38,9 +38,12 @@ It installs a desktop-local Aegra database manager before importing Aegra, so
 the Agent Protocol routes such as `/threads`, `/runs`, `/assistants`, and
 `/store` use local SQLite files.
 
-`scripts/build_desktop_backend.py` includes `assets/` and `models/` only when
-those directories exist. This keeps CI builds working when local model files are
-not checked into the repository.
+`scripts/build_desktop_backend.py` copies the full Nuitka standalone output into
+`bin/`, so platform runtime files such as Python DLLs stay next to the backend
+executable. It includes `assets/` and `models/` only when those directories
+exist. Source directories are not copied into the release `resources/` payload.
+This keeps CI builds working when local model files are not checked into the
+repository while avoiding source disclosure in backend release assets.
 
 The desktop backend entrypoint sets local defaults before importing the app:
 
