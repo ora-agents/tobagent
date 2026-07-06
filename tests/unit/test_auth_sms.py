@@ -347,6 +347,10 @@ def test_anonymous_forgot_password_resets_registered_phone(auth_sms_client):
         json={"phone": "13800138013", "code": sent_codes[-1][1], "password": "new-secret"},
     )
     assert changed.status_code == 200
+    assert "tob_session" in changed.cookies
+    assert "httponly" in changed.headers["set-cookie"].lower()
+    assert changed.json()["id"] == "user-forgot-password"
+    assert changed.json()["sessionToken"] is None
 
     old_login = client.post(
         "/api/auth/login",
@@ -359,6 +363,36 @@ def test_anonymous_forgot_password_resets_registered_phone(auth_sms_client):
         json={"phone": "13800138013", "password": "new-secret"},
     )
     assert new_login.status_code == 200
+
+
+def test_anonymous_forgot_password_returns_desktop_session_token(auth_sms_client):
+    client, Session, sent_codes = auth_sms_client
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    with Session() as db:
+        db.add(UserTable(
+            id="user-forgot-desktop",
+            username="forgot-desktop",
+            phone="13800138015",
+            password_hash=hash_password("old-secret"),
+            created_at=now,
+        ))
+        db.commit()
+
+    sent = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138015", "purpose": "reset_password"},
+    )
+    assert sent.status_code == 200
+
+    changed = client.post(
+        "/api/auth/password/reset",
+        json={"phone": "13800138015", "code": sent_codes[-1][1], "password": "new-secret"},
+        headers={"X-Tob-Desktop-Session": "true"},
+    )
+    assert changed.status_code == 200
+    token = changed.json()["sessionToken"]
+    assert isinstance(token, str)
+    assert token.count(".") == 2
 
 
 def test_forgot_password_rejects_unregistered_phone(auth_sms_client):

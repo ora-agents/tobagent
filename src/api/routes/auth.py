@@ -256,12 +256,14 @@ async def logout_user(response: Response):
 
 @router.post(
     "/api/auth/password/reset",
-    response_model=SmsCodeResponse,
+    response_model=AuthSessionResponse,
     summary="Reset password",
     description="Resets a password after verifying an SMS code sent to the registered phone.",
 )
 async def reset_password(
     req: PasswordResetRequest,
+    response: Response,
+    desktop_session: str | None = Header(default=None, alias=DESKTOP_SESSION_HEADER),
     db: Session = Depends(get_db),
 ):
     user = db.query(UserTable).filter(UserTable.phone == req.phone).first()
@@ -271,7 +273,8 @@ async def reset_password(
     consume_sms_code(db, req.phone, "reset_password", req.code)
     user.password_hash = hash_password(req.password)
     db.commit()
-    return SmsCodeResponse(ok=True)
+    set_session_cookie(response, user.id)
+    return _auth_session_response(user, wants_desktop_session_token(desktop_session))
 
 
 @router.get(
