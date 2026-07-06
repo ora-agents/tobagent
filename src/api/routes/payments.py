@@ -64,10 +64,12 @@ def _wechat_configured() -> bool:
         "WECHAT_PAY_APPID",
         "WECHAT_PAY_MCHID",
         "WECHAT_PAY_SERIAL_NO",
-        "WECHAT_PAY_PRIVATE_KEY_PATH",
         "WECHAT_PAY_NOTIFY_URL",
     ]
-    return all(os.getenv(key) for key in required)
+    private_key_path = os.getenv("WECHAT_PAY_PRIVATE_KEY_PATH", "").strip()
+    return all(os.getenv(key) for key in required) and bool(
+        private_key_path and os.path.isfile(private_key_path)
+    )
 
 
 def _wechat_authorization(method: str, url_path: str, body: str) -> str:

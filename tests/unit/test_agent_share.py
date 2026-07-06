@@ -13,7 +13,7 @@ from src.api.fastapi_app import (
     import_agent_share,
 )
 from src.api.routes.agent_profiles import get_agent_share_preview
-from src.api.routes.payments import _grant_paid_access
+from src.api.routes.payments import _grant_paid_access, _wechat_configured
 from src.utils.db import (
     AgentProfileTable,
     AgentPurchaseTable,
@@ -205,6 +205,22 @@ def test_grant_paid_access_creates_purchase_and_wallet_ledger(db_session):
     assert len(ledger) == 1
     assert ledger[0].user_id == owner.id
     assert ledger[0].amount_cents == 880
+
+
+def test_wechat_configured_requires_private_key_file(monkeypatch, tmp_path):
+    monkeypatch.setenv("WECHAT_PAY_APPID", "wx-app")
+    monkeypatch.setenv("WECHAT_PAY_MCHID", "mch-id")
+    monkeypatch.setenv("WECHAT_PAY_SERIAL_NO", "serial")
+    monkeypatch.setenv("WECHAT_PAY_NOTIFY_URL", "https://example.com/notify")
+    monkeypatch.setenv("WECHAT_PAY_PRIVATE_KEY_PATH", str(tmp_path / "missing.pem"))
+
+    assert _wechat_configured() is False
+
+    private_key_path = tmp_path / "apiclient_key.pem"
+    private_key_path.write_text("private-key")
+    monkeypatch.setenv("WECHAT_PAY_PRIVATE_KEY_PATH", str(private_key_path))
+
+    assert _wechat_configured() is True
 
 
 @pytest.mark.anyio
