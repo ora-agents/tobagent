@@ -53,6 +53,7 @@ interface AuthContextType {
   sendSmsCode: (phone: string, purpose: 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => Promise<void>
   login: (accountOrPhone: string, password: string) => Promise<void>
   register: (username: string, phone: string, code: string, password: string) => Promise<void>
+  resetPassword: (phone: string, code: string, password: string) => Promise<void>
   logout: () => void
   bindPhone: (phone: string, code: string) => Promise<User>
   changePassword: (phone: string, code: string, password: string) => Promise<void>
@@ -438,6 +439,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [apiUrl, isDesktopRuntime, t])
 
+  const resetPassword = useCallback(async (phone: string, code: string, password: string): Promise<void> => {
+    setError(null)
+    const resp = await backendFetch(`${apiUrl}/api/auth/password/reset`, {
+      method: 'POST',
+      anonymous: true,
+      json: { phone, code, password },
+    })
+    if (!resp.ok) {
+      const message = await getAuthErrorMessage(resp, t, t.passwordResetFailed)
+      setError(message)
+      throw new Error(message)
+    }
+  }, [apiUrl, t])
+
   // 4. Logout function
   const logout = useCallback(() => {
     void backendFetch(`${apiUrl}/api/auth/logout`, {
@@ -575,6 +590,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sendSmsCode,
     login,
     register,
+    resetPassword,
     logout,
     bindPhone,
     changePassword,

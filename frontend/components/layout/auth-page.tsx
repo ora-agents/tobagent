@@ -19,7 +19,7 @@ import logoImage from '@/public/logo.png'
 import { LogIn, RotateCcw, Save, ServerCog } from 'lucide-react'
 
 interface AuthPageProps {
-  mode: 'login' | 'register'
+  mode: 'login' | 'register' | 'reset'
 }
 
 function AuthPageFallback() {
@@ -143,6 +143,11 @@ export function AuthPage({ mode }: AuthPageProps) {
   const { isDesktopRuntime } = useApiConfig()
   const zh = locale === 'zh'
   const [activeView, setActiveView] = useState<'login' | 'backend'>('login')
+  const [authMode, setAuthMode] = useState<AuthPageProps['mode']>(mode)
+
+  useEffect(() => {
+    setAuthMode(mode)
+  }, [mode])
 
   useEffect(() => {
     if (!loading && user) {
@@ -191,8 +196,11 @@ export function AuthPage({ mode }: AuthPageProps) {
                 open={true}
                 onOpenChange={() => {}}
                 inline
-                mode={mode}
-                onModeChange={(nextMode) => router.push(nextMode === 'login' ? '/login' : '/register')}
+                mode={authMode}
+                onModeChange={(nextMode) => {
+                  setAuthMode(nextMode)
+                  router.push(nextMode === 'login' ? '/login' : nextMode === 'register' ? '/register' : '/forgot-password')
+                }}
                 onAuthenticated={() => router.replace('/')}
               />
             </div>
