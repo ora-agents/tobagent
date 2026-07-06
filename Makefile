@@ -5,7 +5,7 @@
 	check-backend-port check-frontend-port check-ports \
 	stop-backend-port stop-frontend-port stop-ports \
 	install install-frontend install-backend \
-	desktop desktop-backend desktop-frontend desktop-tauri \
+	desktop desktop-frontend desktop-tauri \
 	dev-desktop dev-tauri tauri check-tauri-frontend \
 	update-assets refresh-assets \
 	lint-actions \
@@ -207,13 +207,6 @@ install-backend:
 	uv sync
 
 desktop: desktop-frontend desktop-tauri
-
-desktop-backend:
-	@if [ "$$(uname -s)" = "Linux" ] && ! command -v patchelf >/dev/null 2>&1; then \
-		echo "Nuitka standalone builds on Linux require patchelf. Install it first, for example: sudo apt install patchelf"; \
-		exit 1; \
-	fi
-	uv run python scripts/build_desktop_backend.py
 
 desktop-frontend:
 	cd frontend && bun run build:desktop

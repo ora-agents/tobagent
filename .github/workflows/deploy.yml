@@ -18,8 +18,6 @@ on:
       - 'langgraph.json'
       - 'assets/**'
       - 'models/**'
-      - 'desktop/**'
-      - 'scripts/build_desktop_backend.py'
       - 'frontend/**'
       - 'services/speaker/**'
       - 'docker-compose.yml'
@@ -73,8 +71,6 @@ jobs:
               - 'langgraph.json'
               - 'assets/**'
               - 'models/**'
-              - 'desktop/**'
-              - 'scripts/build_desktop_backend.py'
               - 'frontend/**'
               - '.github/workflows/deploy.yml'
               - '.github/workflows/desktop-release.yml'
@@ -136,7 +132,7 @@ jobs:
           touches_desktop() {
             local commit="$1"
 
-            git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^(frontend/|src/|assets/|models/|desktop/|pyproject[.]toml$|uv[.]lock$|aegra[.]json$|langgraph[.]json$|scripts/build_desktop_backend[.]py$|[.]github/workflows/(deploy|desktop-release)[.]yml$)'
+            git diff-tree --no-commit-id --name-only -r "$commit" | grep -Eq '^(frontend/|src/|assets/|models/|pyproject[.]toml$|uv[.]lock$|aegra[.]json$|langgraph[.]json$|[.]github/workflows/(deploy|desktop-release)[.]yml$)'
           }
 
           commit_bump() {

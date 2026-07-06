@@ -4,7 +4,7 @@ This project can be packaged as a local desktop app with:
 
 - Tauri for the desktop shell.
 - A static Next.js export for the UI.
-- A configurable remote or user-managed FastAPI backend.
+- A configurable remote or user-managed backend.
 
 ## Build Flow
 
@@ -28,49 +28,14 @@ cd frontend && bun run build:desktop
 
 ## Backend Runtime
 
-The Tauri app does not start a bundled backend process automatically. The UI
-connects to the configured backend URL, so users can use the official service or
-a backend they run themselves.
-
-The `desktop-backend` target builds a local backend binary that starts the full
-Aegra server (`aegra_api.main:app`) instead of only the custom FastAPI routes.
-It installs a desktop-local Aegra database manager before importing Aegra, so
-the Agent Protocol routes such as `/threads`, `/runs`, `/assistants`, and
-`/store` use local SQLite files.
-
-`scripts/build_desktop_backend.py` copies the full Nuitka standalone output into
-`bin/`, so platform runtime files such as Python DLLs stay next to the backend
-executable. It includes `assets/` and `models/` only when those directories
-exist. Source directories are not copied into the release `resources/` payload.
-This keeps CI builds working when local model files are not checked into the
-repository while avoiding source disclosure in backend release assets.
-
-The desktop backend entrypoint sets local defaults before importing the app:
-
-- `AEGRA_CONFIG` points to the bundled or source `langgraph.json`.
-- Aegra startup migrations are disabled because the local runtime creates its
-  own SQLite metadata tables.
-- Aegra run streaming uses the in-process broker rather than Redis.
-- Aegra metadata, checkpoints, and store data are persisted in SQLite files in
-  the user's app data directory.
-- `DATABASE_URL` points to a SQLite file in the user's app data directory for
-  the repository's custom FastAPI routes.
-- `LANCEDB_PATH` points to the user's app data directory.
-- `KWS_MODEL_DIR` uses bundled `models/kws` when available.
-- `VOICE_TEN_VAD_MODEL_PATH` uses bundled `models/vad/ten-vad.onnx`.
-- `TOB_ASSETS_DIR` points to bundled `assets` when available.
+The Tauri app does not start or bundle a backend process. The UI connects to the
+configured backend URL, so users can use the official service or a backend they
+run themselves. Desktop builds default to `https://gen.wsiri.cn`.
 
 ## Platform Notes
 
-Linux Nuitka standalone builds require `patchelf`:
-
-```bash
-sudo apt install patchelf
-```
-
 Windows desktop builds should be run on Windows so Tauri produces a Windows
-installer. If you manually build the optional local backend there, Nuitka emits
-`tobagent-backend.exe`.
+installer.
 
 ## GitHub Actions
 

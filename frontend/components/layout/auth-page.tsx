@@ -4,7 +4,6 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { AuthPanel } from '@/components/layout/auth-panel'
-import { DesktopBackendDeploymentSection } from '@/components/layout/desktop-backend-deployment-section'
 import { useAuth } from '@/components/providers/auth-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -214,12 +213,6 @@ export function AuthPage({ mode }: AuthPageProps) {
                       logout()
                       clearError()
                     }}
-                  />
-                  <DesktopBackendDeploymentSection
-                    zh={zh}
-                    density="compact"
-                    compactTitle
-                    className="w-full shadow-none"
                   />
                 </div>
               </div>
