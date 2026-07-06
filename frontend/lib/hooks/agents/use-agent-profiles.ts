@@ -35,11 +35,7 @@ export function useAgentProfiles() {
   const [profilesLoaded, setProfilesLoaded] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // 1. Fetch all profiles from PostgreSQL on mount
-  useEffect(() => {
-    setSelectedIdState(loadSelectedId())
-    setMounted(true)
-
+  const refreshProfiles = useCallback(async () => {
     if (!user) {
       setProfiles([])
       setSelectedIdState(null)
@@ -47,26 +43,29 @@ export function useAgentProfiles() {
       return
     }
 
-    async function fetchProfiles() {
-      try {
-        const resp = await backendFetch("/api/agent-profiles", {
-          authHeaders,
-          workspaceHeaders,
-        })
-        if (resp.ok) {
-          const data = await resp.json()
-          setProfiles(data)
-        }
-      } catch (err) {
-        console.error("Failed to load agent profiles from PostgreSQL", err)
-      } finally {
-        setProfilesLoaded(true)
-      }
-    }
-
     setProfilesLoaded(false)
-    fetchProfiles()
-  }, [activeWorkspaceId, authHeaders, user, workspaceHeaders])
+    try {
+      const resp = await backendFetch("/api/agent-profiles", {
+        authHeaders,
+        workspaceHeaders,
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        setProfiles(data)
+      }
+    } catch (err) {
+      console.error("Failed to load agent profiles from PostgreSQL", err)
+    } finally {
+      setProfilesLoaded(true)
+    }
+  }, [authHeaders, user, workspaceHeaders])
+
+  // 1. Fetch all profiles from PostgreSQL on mount
+  useEffect(() => {
+    setSelectedIdState(loadSelectedId())
+    setMounted(true)
+    void refreshProfiles()
+  }, [activeWorkspaceId, refreshProfiles])
 
   const visibleProfiles = useMemo(
     () => profiles.filter((profile) => !profile.isHidden),
@@ -322,6 +321,7 @@ export function useAgentProfiles() {
     createProfile,
     updateProfile,
     deleteProfile,
+    refreshProfiles,
     fetchProfileVersions,
     restoreProfileVersion,
     createShareLink,

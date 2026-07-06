@@ -41,8 +41,21 @@ import type { AgentProfile } from "../../types/agent-profiles"
 
 import { LANGGRAPH_API_URL } from "../../constants/api"
 
+const AGENT_CONFIG_MUTATION_TOOLS = new Set([
+  "upsert_agent_profile",
+  "upsert_skill",
+  "upsert_form",
+  "upsert_mcp_server",
+  "upsert_knowledge_base",
+  "link_agent_resources",
+])
+
 function isSubagentToolName(name?: string): boolean {
   return name === "task" || !!name?.startsWith("call_agent_")
+}
+
+function isAgentConfigMutationTool(name?: string): boolean {
+  return !!name && AGENT_CONFIG_MUTATION_TOOLS.has(name)
 }
 
 function getStreamMessageMetadata(data: any, chunk?: any): Record<string, any> {
@@ -761,6 +774,8 @@ interface UseStreamHandlerProps {
   onTextChunk?: (delta: string) => void
   /** Called when the stream completes (after all chunks). */
   onStreamEnd?: () => void
+  /** Called when a platform-agent tool mutates agent configuration. */
+  onAgentProfilesChanged?: () => void | Promise<void>
 }
 
 /**
@@ -827,6 +842,7 @@ export function useStreamHandler({
   conversationSource = "main",
   onTextChunk,
   onStreamEnd,
+  onAgentProfilesChanged,
 }: UseStreamHandlerProps): UseStreamHandlerReturn {
   /**
    * Processes the stream of agent responses.
@@ -966,6 +982,15 @@ export function useStreamHandler({
       let finalAssistantCheckpointId: string | undefined
       let orderedResponseMessagesFromValues: Message[] = []
       const streamedToolCallChunks = new Map<string, StreamedToolCallChunk>()
+      const refreshedConfigToolCallIds = new Set<string>()
+
+      const refreshAgentProfilesForTool = (tool?: ToolCall) => {
+        if (!tool || !isAgentConfigMutationTool(tool.name)) return
+        if (refreshedConfigToolCallIds.has(tool.id)) return
+
+        refreshedConfigToolCallIds.add(tool.id)
+        void onAgentProfilesChanged?.()
+      }
 
       const isCustomProfile = !!agentProfile
       const agentType = agentProfile?.graphId?.trim() || "generic_agent"
@@ -1216,6 +1241,7 @@ export function useStreamHandler({
           if (nextState.tool) {
             queueStreamedToolMessage(nextState.tool)
             flushQueuedMessageUpdates()
+            refreshAgentProfilesForTool(nextState.tool)
           }
         }
 
@@ -1361,6 +1387,7 @@ export function useStreamHandler({
           if (nextState.tool) {
             queueStreamedToolMessage(nextState.tool)
             flushQueuedMessageUpdates()
+            refreshAgentProfilesForTool(nextState.tool)
           }
         })
 
@@ -1465,7 +1492,7 @@ export function useStreamHandler({
     onStreamEnd?.()
 
     return { assistantContent, runId }
-  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName, conversationSource, onTextChunk, onStreamEnd])
+  }, [client, threadId, setMessages, agentConfig, agentProfile, userId, userEmail, userName, conversationSource, onTextChunk, onStreamEnd, onAgentProfilesChanged])
 
   return { processStream }
 }

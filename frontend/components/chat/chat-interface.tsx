@@ -44,6 +44,7 @@ interface ChatInterfaceProps {
   /** Called after auto-send completes (use to clear URL params, etc.) */
   onInitialMessageSent?: () => void
   onCreateAgent?: () => void
+  onAgentProfilesChanged?: () => void | Promise<void>
   conversationSource?: "main" | "agent_app"
 }
 
@@ -128,6 +129,7 @@ export function ChatInterface({
   autoSend = false,
   onInitialMessageSent,
   onCreateAgent,
+  onAgentProfilesChanged,
   conversationSource = "main",
 }: ChatInterfaceProps) {
   const t = useT()
@@ -352,6 +354,7 @@ export function ChatInterface({
     conversationSource,
     onTextChunk: voiceAgent.feedTtsChunk,
     onStreamEnd: voiceAgent.onAgentStreamEnd,
+    onAgentProfilesChanged,
   })
 
   // ============================================================================

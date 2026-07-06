@@ -81,6 +81,7 @@ function DashboardContent() {
     createShareLink: createAgentShareLink,
     fetchSharePreview: fetchAgentSharePreview,
     importShareLink: importAgentShareLink,
+    refreshProfiles: refreshAgentProfiles,
   } = useAgentProfiles()
   const [sharedAgentProfile, setSharedAgentProfile] = useState<import("@/lib/types/agent-profiles").AgentProfile | null>(null)
   const [copySharedAgentStatus, setCopySharedAgentStatus] = useState<"idle" | "copying" | "copied" | "error">("idle")
@@ -777,6 +778,7 @@ function DashboardContent() {
               agentProfile={activeAgentProfile}
               agentProfilesLoaded={agentProfilesLoaded}
               onCreateAgent={handleOpenCreateAgent}
+              onAgentProfilesChanged={refreshAgentProfiles}
               isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
               initialMessage={initialPrompt}
               autoSend={!!initialPrompt}
