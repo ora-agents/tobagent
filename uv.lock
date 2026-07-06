@@ -181,6 +181,9 @@ dev = [
 ]
 
 [package.dev-dependencies]
+desktop-build = [
+    { name = "nuitka" },
+]
 dev = [
     { name = "anyio" },
     { name = "mypy" },
@@ -235,6 +238,7 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
+desktop-build = [{ name = "nuitka", specifier = ">=2.7.0" }]
 dev = [
     { name = "anyio", specifier = ">=4.7.0" },
     { name = "mypy", specifier = ">=1.13.0" },

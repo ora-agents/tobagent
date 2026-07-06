@@ -235,6 +235,9 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
 
       - name: Install Linux dependencies
         if: matrix.runner == 'ubuntu-22.04'
@@ -243,7 +246,7 @@ jobs:
           sudo apt-get install -y patchelf
 
       - name: Install backend dependencies
-        run: uv sync --frozen --group dev
+        run: uv sync --frozen --group desktop-build
 
       - name: Build backend binary
         run: uv run python scripts/build_desktop_backend.py
