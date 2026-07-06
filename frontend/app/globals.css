@@ -33,6 +33,10 @@ img {
   user-select: none;
 }
 
+html[data-tauri-runtime="true"] .site-compliance-footer {
+  display: none !important;
+}
+
 /* ============================================================
    Light theme (default) — white-first WSIRI workspace
    ============================================================ */

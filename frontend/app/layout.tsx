@@ -7,6 +7,7 @@ import { SegmentProvider } from "@/components/providers/segment-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { ImageAssetProtection } from "@/components/providers/image-asset-protection";
+import { SiteComplianceFooter } from "@/components/layout/site-compliance-footer";
 import { ApiConfigProvider } from "@/lib/config/api-config";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site";
 import { I18nProvider } from "@/lib/i18n";
@@ -101,6 +102,19 @@ export default function RootLayout({
   return (
     <html lang="zh" suppressHydrationWarning>
       <head>
+        <Script
+          id="tauri-runtime-marker"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+try {
+  if (window.__TAURI__ || window.__TAURI_INTERNALS__) {
+    document.documentElement.setAttribute("data-tauri-runtime", "true");
+  }
+} catch (_) {}
+            `,
+          }}
+        />
         {/* Segment Analytics */}
         {segmentWriteKey && (
           <Script
@@ -128,6 +142,7 @@ analytics.page();
                 <SegmentProvider>
                   <NuqsAdapter>
                     {children}
+                    <SiteComplianceFooter />
                   </NuqsAdapter>
                 </SegmentProvider>
               </AuthProvider>
