@@ -72,6 +72,7 @@ services:
       start_period: 10s
     volumes:
       - lancedb_data:/app/data/lancedb
+      - ./secrets:/app/secrets:ro
       - ./models/vad:/app/models/vad:ro
       - ./models/kws:/app/models/kws:rw
 
