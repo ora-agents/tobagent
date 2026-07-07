@@ -471,7 +471,8 @@ export function OfficialHomePage() {
             </div>
             <div className="flex flex-col gap-5">
               <h1 className="text-4xl font-semibold leading-tight text-foreground sm:text-5xl lg:text-6xl">
-                {SITE_NAME}
+                <span className="block">威思瑞</span>
+                <span className="block">客服智能体平台</span>
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
                 {SITE_DESCRIPTION} 从知识沉淀、Agent 配置到语音交互与运行追踪，帮助企业构建可管理、可复用的智能客服工作台。
@@ -480,7 +481,7 @@ export function OfficialHomePage() {
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <a href="https://wsr.wsiri.cn/agentapp/?agentShare=wsiri-sales-helper">
-                  立即体验
+                  立即试用
                   <ArrowRight data-icon="inline-end" />
                 </a>
               </Button>
