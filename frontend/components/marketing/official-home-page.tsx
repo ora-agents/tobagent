@@ -4,14 +4,19 @@ import Image from "next/image"
 import Link from "next/link"
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
+  Activity,
   ArrowRight,
+  BarChart3,
   Bot,
   CheckCircle2,
   CircleHelp,
   DatabaseZap,
+  FileSearch,
   Headphones,
+  Layers3,
   MessageSquareText,
   Mic2,
+  PanelLeft,
   ShieldCheck,
   Sparkles,
   Star,
@@ -58,6 +63,12 @@ const productHighlights = [
     title: "语音交互能力",
     description: "支持唤醒、听写、播报与打断等语音链路，为桌面与移动场景提供自然交互。",
   },
+]
+
+const workflowStats = [
+  { label: "知识覆盖", value: "96.8%" },
+  { label: "平均响应", value: "1.2s" },
+  { label: "人工接管", value: "12%" },
 ]
 
 const faqs = [
@@ -326,68 +337,99 @@ function SectionHeading({
 
 function InterfacePreview() {
   return (
-    <div className="rounded-xl bg-card p-3 shadow-depth-lg">
-      <div className="overflow-hidden rounded-lg bg-background text-foreground">
-        <div className="flex items-center justify-between bg-secondary px-4 py-3">
-          <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-error" />
-            <span className="size-2 rounded-full bg-warning" />
-            <span className="size-2 rounded-full bg-accent-cyan" />
-          </div>
-          <div className="rounded-md bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-            威思瑞 Agent 控制台
-          </div>
-        </div>
-        <div className="grid min-h-[30rem] grid-cols-1 md:grid-cols-[13rem_1fr]">
-          <aside className="hidden bg-secondary p-4 md:flex md:flex-col md:gap-3">
-            {["客服助手", "知识库", "工具编排", "运行追踪"].map((item, index) => (
-              <div
-                key={item}
-                className={index === 0 ? "rounded-lg bg-primary-soft px-3 py-2 text-sm font-semibold text-primary" : "rounded-lg px-3 py-2 text-sm text-muted-foreground"}
-              >
-                {item}
-              </div>
-            ))}
-          </aside>
-          <main className="flex min-w-0 flex-col">
-            <div className="flex items-center justify-between px-5 py-4">
-              <div>
-                <div className="text-sm font-semibold">售前客服 Agent</div>
-                <div className="text-xs text-muted-foreground">知识库已同步 · 工具权限已校验 · 语音就绪</div>
-              </div>
-              <div className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-                在线
-              </div>
+    <div className="relative">
+      <div className="absolute -left-5 top-10 hidden h-[calc(100%-5rem)] w-5 rounded-l-xl bg-primary lg:block" />
+      <div className="rounded-xl bg-[#181715] p-3 text-[#faf9f5] shadow-depth-lg">
+        <div className="overflow-hidden rounded-lg bg-[#1f1e1b]">
+          <div className="flex items-center justify-between bg-[#252320] px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="size-2 rounded-full bg-error" />
+              <span className="size-2 rounded-full bg-warning" />
+              <span className="size-2 rounded-full bg-accent-cyan" />
             </div>
-            <div className="flex flex-1 flex-col gap-4 bg-background-tint p-5">
-              <div className="max-w-[82%] rounded-lg bg-card p-4 shadow-depth-xs">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-primary">
-                  <Headphones className="size-4" />
-                  客户咨询
-                </div>
-                <p className="text-sm leading-6 text-foreground">
-                  请问企业知识库可以按不同产品线配置不同客服吗？
-                </p>
+            <div className="rounded-md bg-[#1f1e1b] px-3 py-1 text-xs font-medium text-[#a09d96]">
+              WSIRI Agent Operations
+            </div>
+          </div>
+          <div className="grid min-h-[34rem] grid-cols-1 lg:grid-cols-[12.5rem_1fr]">
+            <aside className="hidden bg-[#181715] p-4 lg:flex lg:flex-col lg:gap-3">
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-[#faf9f5]">
+                <PanelLeft className="size-4 text-accent-cyan" />
+                服务工作台
               </div>
-              <div className="ml-auto max-w-[88%] rounded-lg bg-primary p-4 text-primary-foreground shadow-depth-xs">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
-                  <Sparkles className="size-4" />
-                  Agent 回复
+              {["售前接待", "知识库管理", "工具编排", "运行追踪"].map((item, index) => (
+                <div
+                  key={item}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-sm",
+                    index === 0
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-[#252320] text-[#a09d96]",
+                  )}
+                >
+                  {item}
                 </div>
-                <p className="text-sm leading-6">
-                  可以。你可以为每条产品线创建独立 Agent，绑定对应知识库、工具权限和回复策略。
-                </p>
+              ))}
+              <div className="mt-auto rounded-lg bg-[#252320] p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#faf9f5]">
+                  <Activity className="size-4 text-accent-cyan" />
+                  今日状态
+                </div>
+                <div className="text-xs leading-5 text-[#a09d96]">在线 Agent 8 个，知识同步正常，语音服务就绪。</div>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {["命中知识", "调用工具", "转人工规则"].map((item) => (
-                  <div key={item} className="rounded-lg bg-card p-3 text-xs font-medium text-muted-foreground shadow-depth-xs">
-                    <CheckCircle2 className="mb-2 size-4 text-primary" />
-                    {item}
+            </aside>
+            <main className="flex min-w-0 flex-col">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#37342f] px-5 py-4">
+                <div>
+                  <div className="text-sm font-semibold text-[#faf9f5]">企业客服中枢</div>
+                  <div className="mt-1 text-xs text-[#a09d96]">知识库已同步 · 工具权限已校验 · 语音就绪</div>
+                </div>
+                <div className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
+                  生产环境
+                </div>
+              </div>
+              <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
+                {workflowStats.map((item) => (
+                  <div key={item.label} className="rounded-lg bg-[#252320] p-3">
+                    <div className="text-xs text-[#a09d96]">{item.label}</div>
+                    <div className="mt-2 text-xl font-semibold text-[#faf9f5]">{item.value}</div>
                   </div>
                 ))}
               </div>
-            </div>
-          </main>
+              <div className="flex flex-1 flex-col gap-4 bg-[#181715] p-5">
+                <div className="max-w-[84%] rounded-lg bg-[#252320] p-4">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-accent-cyan">
+                    <Headphones className="size-4" />
+                    客户咨询
+                  </div>
+                  <p className="text-sm leading-6 text-[#faf9f5]">
+                    请问企业知识库可以按不同产品线配置不同客服吗？
+                  </p>
+                </div>
+                <div className="ml-auto max-w-[88%] rounded-lg bg-primary p-4 text-primary-foreground">
+                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
+                    <Sparkles className="size-4" />
+                    Agent 回复
+                  </div>
+                  <p className="text-sm leading-6">
+                    可以。你可以为每条产品线创建独立 Agent，绑定对应知识库、工具权限和回复策略。
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[
+                    { icon: FileSearch, label: "命中知识" },
+                    { icon: Layers3, label: "调用工具" },
+                    { icon: BarChart3, label: "转人工规则" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg bg-[#252320] p-3 text-xs font-medium text-[#a09d96]">
+                      <item.icon className="mb-2 size-4 text-accent-cyan" />
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </main>
+          </div>
         </div>
       </div>
     </div>
