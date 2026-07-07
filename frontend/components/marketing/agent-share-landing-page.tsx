@@ -381,9 +381,6 @@ export function AgentShareLandingPage({ token }: { token: string }) {
               <MessageSquareText className="size-5" />
             </div>
             <h2 className="mt-5 text-3xl font-semibold leading-tight sm:text-4xl">这个 Agent 的用户评价</h2>
-            <p className="mt-5 text-base leading-7 text-muted-foreground">
-              这里的评价只归属于当前分享 Agent，不会和官网首页或其他 Agent 混在一起。
-            </p>
           </div>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(22rem,0.65fr)]">
             <div className="flex flex-col gap-4">
