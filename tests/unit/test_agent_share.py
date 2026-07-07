@@ -13,11 +13,16 @@ from src.api.fastapi_app import (
     import_agent_share,
 )
 from src.api.routes.agent_profiles import get_agent_share_preview
-from src.api.routes.payments import _grant_paid_access, _wechat_configured
+from src.api.routes.payments import (
+    _grant_paid_access,
+    _wechat_configured,
+    get_agent_share_access,
+)
 from src.utils.db import (
     AgentProfileTable,
     AgentPurchaseTable,
     AgentShareLinkTable,
+    AgentShareTrialTable,
     Base,
     KnowledgeBaseTable,
     McpServerTable,
@@ -119,6 +124,7 @@ async def test_create_agent_share_link_prefixes_custom_slug_and_price(db_session
             include=AgentShareOptions(skills=True),
             customSlug="sales-helper",
             priceCents=1999,
+            trialDurationMinutes=30,
         ),
         db_session,
         owner,
@@ -127,9 +133,36 @@ async def test_create_agent_share_link_prefixes_custom_slug_and_price(db_session
 
     assert share.customSlug == "user-owner-sales-helper"
     assert share.priceCents == 1999
+    assert share.trialDurationMinutes == 30
     assert preview.token == share.token
     assert preview.customSlug == "user-owner-sales-helper"
     assert preview.isPaid is True
+    assert preview.trialDurationMinutes == 30
+
+
+@pytest.mark.anyio
+async def test_paid_agent_share_access_starts_configured_trial(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="paid-agent", priceCents=500, trialDurationMinutes=45),
+        db_session,
+        owner,
+    )
+
+    access = await get_agent_share_access(share.customSlug, db_session, receiver)
+
+    assert access.requiresPurchase is True
+    assert access.purchased is False
+    assert access.trialDurationMinutes == 45
+    assert access.trialActive is True
+    assert access.trialExpiresAt is not None
+    assert db_session.query(AgentShareTrialTable).count() == 1
 
 
 @pytest.mark.anyio
@@ -199,6 +232,62 @@ async def test_import_paid_agent_share_requires_purchase(db_session):
         )
 
     assert exc.value.status_code == 402
+
+
+@pytest.mark.anyio
+async def test_import_paid_agent_share_allows_active_trial_as_hidden_copy(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="paid-agent", priceCents=500, trialDurationMinutes=30),
+        db_session,
+        owner,
+    )
+    await get_agent_share_access(share.customSlug, db_session, receiver)
+
+    imported = await import_agent_share(
+        share.customSlug,
+        AgentShareImportRequest(),
+        db_session,
+        receiver,
+    )
+
+    assert imported.agent.isHidden is True
+    assert imported.agent.ownerUserId == receiver.id
+
+    now = datetime.now(UTC).isoformat()
+    order = PaymentOrderTable(
+        id="order-trial-upgrade",
+        out_trade_no="TOBTRIAL",
+        buyer_user_id=receiver.id,
+        seller_user_id=owner.id,
+        agent_profile_id="agent-source",
+        share_id=db_session.query(AgentShareLinkTable).filter_by(token=share.token).one().id,
+        amount_cents=500,
+        currency="CNY",
+        status="pending",
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(order)
+    db_session.commit()
+    _grant_paid_access(db_session, order, now)
+    db_session.commit()
+
+    upgraded = await import_agent_share(
+        share.customSlug,
+        AgentShareImportRequest(),
+        db_session,
+        receiver,
+    )
+
+    assert upgraded.agent.id == imported.agent.id
+    assert upgraded.agent.isHidden is False
 
 
 def test_grant_paid_access_creates_purchase_and_wallet_ledger(db_session):

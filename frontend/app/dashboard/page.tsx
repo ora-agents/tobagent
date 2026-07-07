@@ -50,6 +50,26 @@ function formatCny(cents: number) {
   return `¥${(cents / 100).toFixed(2)}`
 }
 
+function formatTrialDuration(minutes: number) {
+  if (minutes <= 0) return ""
+  if (minutes % 1440 === 0) return `${minutes / 1440} 天`
+  if (minutes % 60 === 0) return `${minutes / 60} 小时`
+  return `${minutes} 分钟`
+}
+
+function formatTrialRemaining(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (days > 0) return `${days} 天 ${hours} 小时`
+  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
+  if (minutes > 0) return `${minutes} 分钟 ${seconds} 秒`
+  return `${seconds} 秒`
+}
+
 function AuthRedirect() {
   const router = useRouter()
 
@@ -94,8 +114,10 @@ function DashboardContent() {
     refreshProfiles: refreshAgentProfiles,
   } = useAgentProfiles()
   const [sharedAgentProfile, setSharedAgentProfile] = useState<import("@/lib/types/agent-profiles").AgentProfile | null>(null)
-  const [copySharedAgentStatus, setCopySharedAgentStatus] = useState<"idle" | "copying" | "copied" | "error">("idle")
   const [pendingPaidShare, setPendingPaidShare] = useState<import("@/lib/types/agent-profiles").AgentSharePreview | null>(null)
+  const [trialPaidShare, setTrialPaidShare] = useState<import("@/lib/types/agent-profiles").AgentSharePreview | null>(null)
+  const [trialShareAccess, setTrialShareAccess] = useState<import("@/lib/types/agent-profiles").AgentShareAccess | null>(null)
+  const [trialNow, setTrialNow] = useState(() => Date.now())
   const [purchaseOrder, setPurchaseOrder] = useState<import("@/lib/types/agent-profiles").AgentSharePurchase | null>(null)
   const [purchaseStatus, setPurchaseStatus] = useState<"idle" | "creating" | "waiting" | "paid" | "error">("idle")
 
@@ -319,6 +341,42 @@ function DashboardContent() {
   const activeAgentProfile = dedicatedAgentAppId
     ? agentProfiles.find((profile) => profile.id === dedicatedAgentAppId) ?? sharedAgentProfile ?? selectedAgentProfile
     : selectedAgentProfile
+  const trialExpiresAtMs = useMemo(() => {
+    if (!trialShareAccess?.trialExpiresAt) return null
+    const time = new Date(trialShareAccess.trialExpiresAt).getTime()
+    return Number.isFinite(time) ? time : null
+  }, [trialShareAccess?.trialExpiresAt])
+  const trialRemainingMs = trialExpiresAtMs === null ? null : Math.max(0, trialExpiresAtMs - trialNow)
+  const isTrialAgentApp = Boolean(
+    isDedicatedAgentApp
+    && activeAgentProfile?.isSharedApp
+    && trialShareAccess?.requiresPurchase
+    && !trialShareAccess.purchased
+  )
+  const isTrialActive = isTrialAgentApp && trialShareAccess?.trialActive && trialRemainingMs !== null && trialRemainingMs > 0
+
+  useEffect(() => {
+    if (!isTrialAgentApp) return
+    if (currentView !== "chat" && currentView !== "settings") {
+      setCurrentView("chat")
+    }
+  }, [currentView, isTrialAgentApp, setCurrentView])
+
+  useEffect(() => {
+    if (!isTrialAgentApp || !trialExpiresAtMs) return
+    setTrialNow(Date.now())
+    const timer = window.setInterval(() => setTrialNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [isTrialAgentApp, trialExpiresAtMs])
+
+  useEffect(() => {
+    if (!isTrialAgentApp || isTrialActive || !trialPaidShare) return
+    setPendingPaidShare(trialPaidShare)
+    setSharedAgentProfile(null)
+    setPurchaseOrder(null)
+    setPurchaseStatus("idle")
+    setCurrentView("chat")
+  }, [isTrialActive, isTrialAgentApp, setCurrentView, trialPaidShare])
 
   // Filter threads based on active agent
   const filteredThreads = useMemo(() => {
@@ -530,7 +588,31 @@ function DashboardContent() {
           processedAgentShareRef.current = null
           return
         }
+        setTrialShareAccess(null)
+        setTrialPaidShare(null)
+        if (access.requiresPurchase && !access.purchased && access.trialActive) {
+          const imported = await importAgentShareLink(token)
+          if (!imported) {
+            console.error("Failed to copy trial shared agent into user configuration")
+          }
+          const trialAgent = {
+            ...preview.agent,
+            ownerUserId: preview.ownerUserId,
+            shareToken: preview.token,
+            isSharedApp: true,
+          }
+          setSharedAgentProfile(trialAgent)
+          setTrialShareAccess(access)
+          setTrialPaidShare(preview)
+          setPendingPaidShare(null)
+          setPurchaseOrder(null)
+          setPurchaseStatus("idle")
+          setAgentAppParam(preview.agent.id)
+          setCurrentView("chat")
+          return
+        }
         if (access.requiresPurchase && !access.purchased) {
+          setSharedAgentProfile(null)
           setPendingPaidShare(preview)
           setPurchaseOrder(null)
           setPurchaseStatus("idle")
@@ -543,6 +625,8 @@ function DashboardContent() {
           return
         }
         setSharedAgentProfile(null)
+        setTrialShareAccess(null)
+        setTrialPaidShare(null)
         setPendingPaidShare(null)
         setSelectedAgentProfileId(imported.agent.id)
         const url = new URL(window.location.href)
@@ -560,7 +644,7 @@ function DashboardContent() {
         processedAgentShareRef.current = null
         console.error("Failed to import shared agent from URL parameter", err)
       })
-  }, [agentShareToken, fetchShareAccess, fetchAgentSharePreview, importAgentShareLink, router, setCurrentView, setSelectedAgentProfileId, user])
+  }, [agentShareToken, fetchShareAccess, fetchAgentSharePreview, importAgentShareLink, router, setAgentAppParam, setCurrentView, setSelectedAgentProfileId, user])
 
   const completePaidShareImport = useCallback(async () => {
     const token = agentShareToken?.trim()
@@ -568,6 +652,9 @@ function DashboardContent() {
     const imported = await importAgentShareLink(token)
     if (!imported) return
     setPendingPaidShare(null)
+    setTrialPaidShare(null)
+    setTrialShareAccess(null)
+    setSharedAgentProfile(null)
     setPurchaseOrder(null)
     setPurchaseStatus("paid")
     setSelectedAgentProfileId(imported.agent.id)
@@ -598,8 +685,11 @@ function DashboardContent() {
       await completePaidShareImport()
       return
     }
+    if (trialPaidShare) {
+      setPendingPaidShare(trialPaidShare)
+    }
     setPurchaseStatus("waiting")
-  }, [agentShareToken, completePaidShareImport, purchaseShare, purchaseStatus])
+  }, [agentShareToken, completePaidShareImport, purchaseShare, purchaseStatus, trialPaidShare])
 
   useEffect(() => {
     if (!purchaseOrder || purchaseStatus !== "waiting") return
@@ -687,44 +777,6 @@ function DashboardContent() {
     setCurrentView("agents")
     setCreateParam("1")
   }
-
-  const handleCopySharedAgent = useCallback(async () => {
-    const token = activeAgentProfile?.shareToken || agentShareToken?.trim()
-    if (!token || copySharedAgentStatus === "copying") return
-
-    setCopySharedAgentStatus("copying")
-    const imported = await importAgentShareLink(token)
-    if (!imported) {
-      setCopySharedAgentStatus("error")
-      return
-    }
-
-    setCopySharedAgentStatus("copied")
-    setSharedAgentProfile(null)
-    setSelectedAgentProfileId(imported.agent.id)
-
-    const url = new URL(window.location.href)
-    url.pathname = "/agentapp/"
-    url.searchParams.set("agentApp", imported.agent.id)
-    url.searchParams.delete("agentShare")
-    url.searchParams.delete("threadId")
-    url.searchParams.delete("q")
-    url.searchParams.delete("view")
-    url.searchParams.delete("editAgent")
-    url.searchParams.delete("create")
-    router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
-
-    window.setTimeout(() => {
-      setCopySharedAgentStatus((current) => current === "copied" ? "idle" : current)
-    }, 1600)
-  }, [
-    activeAgentProfile?.shareToken,
-    agentShareToken,
-    copySharedAgentStatus,
-    importAgentShareLink,
-    router,
-    setSelectedAgentProfileId,
-  ])
 
   // Keyboard shortcuts
   useKeyboardShortcuts([
@@ -817,6 +869,7 @@ function DashboardContent() {
             variant="agentApp"
             agentName={activeAgentProfile.name}
             onNewChat={handleNewChat}
+            hideAgentAppRestrictedNav={isTrialAgentApp}
           />
         ) : null}
         mobileSidebar={
@@ -836,6 +889,7 @@ function DashboardContent() {
               variant: isDedicatedAgentApp ? "agentApp" : "default",
               agentName: isDedicatedAgentApp ? activeAgentProfile?.name : undefined,
               onNewChat: isDedicatedAgentApp ? handleNewChat : undefined,
+              hideAgentAppRestrictedNav: isTrialAgentApp,
             }}
           />
         }
@@ -854,8 +908,6 @@ function DashboardContent() {
               onAgentProfileChange={isDedicatedAgentApp ? undefined : setSelectedAgentProfileId}
               onCreateAgent={isDedicatedAgentApp ? undefined : handleOpenCreateAgent}
               onOpenAgentSettings={isDedicatedAgentApp ? undefined : handleOpenActiveAgentSettings}
-              onCopySharedAgent={isDedicatedAgentApp && activeAgentProfile?.isSharedApp ? handleCopySharedAgent : undefined}
-              copySharedAgentStatus={copySharedAgentStatus}
               onOpenSidebar={() => setIsMobileSidebarOpen(true)}
               hideWorkspaceControls={isDedicatedAgentApp}
             />
@@ -876,6 +928,13 @@ function DashboardContent() {
                       <div className="mt-1 text-2xl font-semibold text-foreground">
                         {formatCny(pendingPaidShare.priceCents)}
                       </div>
+                      {pendingPaidShare.trialDurationMinutes > 0 ? (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          {isTrialActive && trialRemainingMs !== null
+                            ? `当前仍可试用 ${formatTrialRemaining(trialRemainingMs)}，购买后可长期使用。`
+                            : `试用 ${formatTrialDuration(pendingPaidShare.trialDurationMinutes)} 已结束或不可用，购买后可导入并长期使用。`}
+                        </div>
+                      ) : null}
                     </div>
                     {!purchaseOrder ? (
                       <Button
@@ -910,24 +969,47 @@ function DashboardContent() {
                 </div>
               </div>
             ) : (
-              <ChatInterface
-                key={chatSessionKey}
-                threadId={activeThreadId}
-                onCreateThread={handleCreateThreadForSend}
-                onThreadUpdate={handleThreadUpdate}
-                onThreadNotFound={handleThreadNotFound}
-                agentConfig={agentConfig}
-                onAgentConfigChange={setAgentConfig}
-                agentProfile={activeAgentProfile}
-                agentProfilesLoaded={agentProfilesLoaded}
-                onCreateAgent={handleOpenCreateAgent}
-                onAgentProfilesChanged={refreshAgentProfiles}
-                isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
-                initialMessage={initialPrompt}
-                autoSend={!!initialPrompt}
-                onInitialMessageSent={() => setInitialPrompt(null)}
-                conversationSource={isDedicatedAgentApp ? "agent_app" : "main"}
-              />
+              <div className="flex min-h-0 flex-1 flex-col">
+                {isTrialActive && trialRemainingMs !== null ? (
+                  <div className="flex shrink-0 flex-col gap-3 border-y border-border bg-secondary/45 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-foreground">
+                        试用中，剩余 {formatTrialRemaining(trialRemainingMs)}
+                      </div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        购买后可长期使用，试用期间不可修改或浏览配置文件。
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handlePurchaseSharedAgent}
+                      disabled={purchaseStatus === "creating"}
+                      className="w-full sm:w-auto"
+                    >
+                      {purchaseStatus === "creating" ? "创建订单中..." : "购买"}
+                    </Button>
+                  </div>
+                ) : null}
+                <ChatInterface
+                  key={chatSessionKey}
+                  threadId={activeThreadId}
+                  onCreateThread={handleCreateThreadForSend}
+                  onThreadUpdate={handleThreadUpdate}
+                  onThreadNotFound={handleThreadNotFound}
+                  agentConfig={agentConfig}
+                  onAgentConfigChange={setAgentConfig}
+                  agentProfile={activeAgentProfile}
+                  agentProfilesLoaded={agentProfilesLoaded}
+                  onCreateAgent={handleOpenCreateAgent}
+                  onAgentProfilesChanged={refreshAgentProfiles}
+                  isNewThread={activeThreadId ? newThreads.has(activeThreadId) : false}
+                  initialMessage={initialPrompt}
+                  autoSend={!!initialPrompt}
+                  onInitialMessageSent={() => setInitialPrompt(null)}
+                  conversationSource={isDedicatedAgentApp ? "agent_app" : "main"}
+                />
+              </div>
             )}
         </DashboardViewPane>
 
@@ -940,21 +1022,21 @@ function DashboardContent() {
             onClearAllConversations={handleClearAllConversations}
             conversationCount={threads.length}
           />
-        ) : currentView === "user-manual" ? (
+        ) : currentView === "user-manual" && !isTrialAgentApp ? (
           <UserManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : currentView === "developer-manual" ? (
+        ) : currentView === "developer-manual" && !isTrialAgentApp ? (
           <DeveloperManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : currentView === "traces" && capabilities.langfuseTracing ? (
+        ) : currentView === "traces" && capabilities.langfuseTracing && !isTrialAgentApp ? (
           <TraceBrowserPage
             onBackToChat={() => setCurrentView("chat")}
           />
-        ) : currentView !== "chat" && (!isDedicatedAgentApp || isConfigView) ? (
+        ) : currentView !== "chat" && !isTrialAgentApp && (!isDedicatedAgentApp || isConfigView) ? (
           <DashboardViewPane>
             <ManagementDashboard
               initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : currentView === "forms" ? "forms" : "knowledge"}

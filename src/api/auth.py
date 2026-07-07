@@ -774,6 +774,7 @@ def validate_agent_context(
             agent_id,
             requested_agent_owner_user_id.strip(),
             share_token.strip(),
+            workspace_owner_user_id,
         )
         resource_owner_user_id = requested_agent_owner_user_id.strip()
     else:
@@ -919,10 +920,18 @@ def _load_workspace_agent_profile(
         raise Auth.exceptions.HTTPException(500, f"Failed to validate workspace agent: {err}") from err
 
 
-def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: str):
+def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: str, viewer_user_id: str):
     """Return an agent profile when a share token authorizes direct app use."""
     try:
-        from src.utils.db import AgentProfileTable, AgentShareLinkTable, SessionLocal
+        from datetime import UTC, datetime
+
+        from src.utils.db import (
+            AgentProfileTable,
+            AgentPurchaseTable,
+            AgentShareLinkTable,
+            AgentShareTrialTable,
+            SessionLocal,
+        )
 
         db = SessionLocal()
         try:
@@ -933,6 +942,22 @@ def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: s
             ).first()
             if not share:
                 return None
+            if viewer_user_id != owner_user_id and int(getattr(share, "price_cents", 0) or 0) > 0:
+                purchase = db.query(AgentPurchaseTable).filter(
+                    AgentPurchaseTable.share_id == share.id,
+                    AgentPurchaseTable.buyer_user_id == viewer_user_id,
+                ).first()
+                if not purchase:
+                    trial = db.query(AgentShareTrialTable).filter(
+                        AgentShareTrialTable.share_id == share.id,
+                        AgentShareTrialTable.user_id == viewer_user_id,
+                    ).first()
+                    try:
+                        expires_at = datetime.fromisoformat((trial.expires_at if trial else "").replace("Z", "+00:00"))
+                    except ValueError:
+                        expires_at = None
+                    if not expires_at or expires_at <= datetime.now(UTC):
+                        return None
             return db.query(AgentProfileTable).filter(
                 AgentProfileTable.id == agent_id,
                 AgentProfileTable.owner_user_id == owner_user_id,

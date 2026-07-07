@@ -52,6 +52,7 @@ from src.utils.db import (
     AgentProfileVersionTable,
     AgentPurchaseTable,
     AgentShareLinkTable,
+    AgentShareTrialTable,
     FormRecordTable,
     FormTable,
     UserTable,
@@ -179,6 +180,26 @@ def _user_has_share_purchase(db: Session, share: AgentShareLinkTable, user_id: s
         AgentPurchaseTable.share_id == share.id,
         AgentPurchaseTable.buyer_user_id == user_id,
     ).first() is not None
+
+
+def _parse_share_trial_expires_at(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _user_has_active_share_trial(db: Session, share: AgentShareLinkTable, user_id: str) -> bool:
+    if not _share_requires_purchase(share, user_id):
+        return True
+    trial = db.query(AgentShareTrialTable).filter(
+        AgentShareTrialTable.share_id == share.id,
+        AgentShareTrialTable.user_id == user_id,
+    ).first()
+    expires_at = _parse_share_trial_expires_at(trial.expires_at if trial else None)
+    return bool(expires_at and expires_at > datetime.now(UTC))
 
 
 # ---------------------------------------------------------------------------
@@ -551,6 +572,7 @@ async def create_agent_share_link(
         existing.custom_slug = custom_slug
         existing.price_cents = share_data.priceCents
         existing.currency = share_data.currency
+        existing.trial_duration_minutes = share_data.trialDurationMinutes if share_data.priceCents > 0 else 0
         existing.updated_at = now
         share = existing
     else:
@@ -566,6 +588,7 @@ async def create_agent_share_link(
             custom_slug=custom_slug,
             price_cents=share_data.priceCents,
             currency=share_data.currency,
+            trial_duration_minutes=share_data.trialDurationMinutes if share_data.priceCents > 0 else 0,
             created_at=now,
             updated_at=now,
         )
@@ -625,6 +648,7 @@ async def get_agent_share_preview(
         priceCents=int(getattr(share, "price_cents", 0) or 0),
         currency=getattr(share, "currency", None) or "CNY",
         isPaid=int(getattr(share, "price_cents", 0) or 0) > 0,
+        trialDurationMinutes=int(getattr(share, "trial_duration_minutes", 0) or 0),
         createdAt=share.created_at,
     )
 
@@ -644,7 +668,9 @@ async def import_agent_share(
     share = _find_agent_share(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Agent share link not found")
-    if not _user_has_share_purchase(db, share, current_user.id):
+    has_purchase = _user_has_share_purchase(db, share, current_user.id)
+    has_trial_access = _user_has_active_share_trial(db, share, current_user.id)
+    if not has_purchase and not has_trial_access:
         raise HTTPException(status_code=402, detail="Purchase required before importing this agent")
 
     source_profile = db.query(AgentProfileTable).filter(
@@ -668,6 +694,11 @@ async def import_agent_share(
         current_user.id,
     )
     if existing_import:
+        if has_purchase and existing_import.is_hidden:
+            existing_import.is_hidden = False
+            existing_import.updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            db.commit()
+            db.refresh(existing_import)
         return AgentShareImportResponse(
             agent=_agent_profile_schema(existing_import),
             resourceIdMap=_empty_share_resource_map(),
@@ -716,7 +747,7 @@ async def import_agent_share(
         persona_style=source_profile.persona_style,
         boundary_mode=source_profile.boundary_mode,
         tts_voice=source_profile.tts_voice,
-        is_hidden=bool(source_profile.is_hidden),
+        is_hidden=bool(source_profile.is_hidden) or (not has_purchase and has_trial_access),
         voice_interruption_enabled=source_profile.voice_interruption_enabled is not False,
         speaker_verification_enabled=False,
         imported_from_share_id=share.id,

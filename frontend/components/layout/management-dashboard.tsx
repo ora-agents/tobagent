@@ -122,7 +122,7 @@ interface ManagementDashboardProps {
   createAgentShareLink: (
     id: string,
     include: AgentShareOptions,
-    options?: { customSlug?: string | null; priceCents?: number; currency?: string },
+    options?: { customSlug?: string | null; priceCents?: number; currency?: string; trialDurationMinutes?: number },
   ) => Promise<AgentShareLink | null>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
@@ -435,6 +435,7 @@ export function ManagementDashboard({
   const [shareLink, setShareLink] = useState<string | null>(null)
   const [shareSlug, setShareSlug] = useState("")
   const [sharePrice, setSharePrice] = useState("")
+  const [shareTrialMinutes, setShareTrialMinutes] = useState("")
   const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
   const isScopedAgentConfig = !!scopedAgentProfileId
 
@@ -992,12 +993,18 @@ export function ManagementDashboard({
       window.alert(locale === "zh" ? "价格必须是大于等于 0 的数字。" : "Price must be a number greater than or equal to 0.")
       return
     }
+    const trialMinutes = shareTrialMinutes.trim() === "" ? 0 : Number(shareTrialMinutes)
+    if (!Number.isInteger(trialMinutes) || trialMinutes < 0) {
+      window.alert(locale === "zh" ? "试用时间必须是大于等于 0 的整数分钟。" : "Trial time must be an integer number of minutes greater than or equal to 0.")
+      return
+    }
     setSharingAgentId(id)
     try {
       const share = await createAgentShareLink(id, shareOptions, {
         customSlug: shareSlug.trim() || null,
         priceCents: Math.round(priceYuan * 100),
         currency: "CNY",
+        trialDurationMinutes: priceYuan > 0 ? trialMinutes : 0,
       })
       if (!share) return
       const url = new URL(window.location.origin)
@@ -4379,6 +4386,24 @@ export function ManagementDashboard({
                               inputMode="decimal"
                               className="h-9"
                             />
+                          </div>
+                          <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
+                            <Label htmlFor="agent-share-trial" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "试用时间（分钟）" : "Trial (minutes)"}
+                            </Label>
+                            <Input
+                              id="agent-share-trial"
+                              value={shareTrialMinutes}
+                              onChange={(event) => setShareTrialMinutes(event.target.value)}
+                              placeholder="0"
+                              inputMode="numeric"
+                              className="h-9"
+                            />
+                            <div className="text-[11px] text-muted-foreground">
+                              {locale === "zh"
+                                ? "仅对付费分享生效；0 表示不开放试用。"
+                                : "Only applies to paid shares; 0 disables trials."}
+                            </div>
                           </div>
                           {([
                             ["knowledgeBases", locale === "zh" ? "知识库" : "KBs"],

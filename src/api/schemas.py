@@ -353,6 +353,7 @@ class AgentShareLinkRequest(BaseModel):
     customSlug: str | None = None
     priceCents: int = Field(default=0, ge=0)
     currency: Literal["CNY"] = "CNY"
+    trialDurationMinutes: int = Field(default=0, ge=0, le=43200)
 
     @field_validator("customSlug")
     @classmethod
@@ -374,6 +375,7 @@ class AgentShareLinkSchema(BaseModel):
     customSlug: str | None = None
     priceCents: int = 0
     currency: str = "CNY"
+    trialDurationMinutes: int = 0
     createdAt: str
     updatedAt: str
 
@@ -388,6 +390,7 @@ class AgentSharePreview(BaseModel):
     priceCents: int = 0
     currency: str = "CNY"
     isPaid: bool = False
+    trialDurationMinutes: int = 0
     createdAt: str
 
 
@@ -408,6 +411,9 @@ class AgentShareAccessResponse(BaseModel):
     requiresPurchase: bool
     priceCents: int = 0
     currency: str = "CNY"
+    trialDurationMinutes: int = 0
+    trialActive: bool = False
+    trialExpiresAt: str | None = None
 
 
 class AgentSharePurchaseRequest(BaseModel):

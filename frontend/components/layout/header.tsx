@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronLeft, ChevronRight, Copy, GripVertical, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
+import { ChevronLeft, ChevronRight, GripVertical, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
 import {
@@ -38,8 +38,6 @@ interface HeaderProps {
   onCreateAgent?: () => void
   /** Callback to open agent profiles configuration dialog. */
   onOpenAgentSettings?: () => void
-  onCopySharedAgent?: () => void
-  copySharedAgentStatus?: "idle" | "copying" | "copied" | "error"
   onOpenSidebar?: () => void
   hideWorkspaceControls?: boolean
 }
@@ -57,8 +55,6 @@ export function Header({
   onAgentProfileChange,
   onCreateAgent,
   onOpenAgentSettings,
-  onCopySharedAgent,
-  copySharedAgentStatus = "idle",
   onOpenSidebar,
   hideWorkspaceControls = false,
 }: HeaderProps) {
@@ -312,36 +308,6 @@ export function Header({
                 </Select>
               )}
             </>
-          )}
-
-          {/* Shared agent copy button */}
-          {onCopySharedAgent && (
-            <NavActionButton
-              type="button"
-              variant="ghost"
-              onClick={onCopySharedAgent}
-              disabled={copySharedAgentStatus === "copying"}
-              className="group bg-primary-soft text-primary hover:bg-primary hover:text-primary-foreground"
-              title={locale === "zh" ? "复制 Agent 到我的账号" : "Copy agent to my account"}
-              aria-label={locale === "zh" ? "复制 Agent 到我的账号" : "Copy agent to my account"}
-            >
-              {copySharedAgentStatus === "copying" ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : copySharedAgentStatus === "copied" ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline">
-                {copySharedAgentStatus === "copying"
-                  ? (locale === "zh" ? "复制中" : "Copying")
-                  : copySharedAgentStatus === "copied"
-                    ? (locale === "zh" ? "已复制" : "Copied")
-                    : copySharedAgentStatus === "error"
-                      ? (locale === "zh" ? "重试复制" : "Retry copy")
-                      : (locale === "zh" ? "复制 Agent" : "Copy Agent")}
-              </span>
-            </NavActionButton>
           )}
 
           {/* Agent configuration button */}

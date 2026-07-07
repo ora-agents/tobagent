@@ -62,6 +62,9 @@ export interface AgentShareAccess {
   requiresPurchase: boolean
   priceCents: number
   currency: string
+  trialDurationMinutes: number
+  trialActive: boolean
+  trialExpiresAt?: string | null
 }
 
 export interface AgentProfileVersion {
@@ -87,6 +90,7 @@ export interface AgentShareLink {
   customSlug?: string | null
   priceCents: number
   currency: string
+  trialDurationMinutes: number
   createdAt: string
   updatedAt: string
 }
@@ -107,6 +111,7 @@ export interface AgentSharePreview {
   priceCents: number
   currency: string
   isPaid: boolean
+  trialDurationMinutes: number
   createdAt: string
 }
 

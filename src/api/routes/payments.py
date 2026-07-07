@@ -6,7 +6,7 @@ import json
 import os
 import secrets
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from cryptography.hazmat.primitives import hashes, serialization
@@ -28,6 +28,7 @@ from src.utils.db import (
     AgentProfileTable,
     AgentPurchaseTable,
     AgentShareLinkTable,
+    AgentShareTrialTable,
     PaymentOrderTable,
     UserTable,
     WalletLedgerEntryTable,
@@ -57,6 +58,59 @@ def _has_purchase(db: Session, share: AgentShareLinkTable, user_id: str) -> bool
         AgentPurchaseTable.share_id == share.id,
         AgentPurchaseTable.buyer_user_id == user_id,
     ).first() is not None
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _ensure_share_trial(
+    db: Session,
+    share: AgentShareLinkTable,
+    user_id: str,
+    now: datetime,
+) -> AgentShareTrialTable | None:
+    duration_minutes = int(getattr(share, "trial_duration_minutes", 0) or 0)
+    if user_id == share.owner_user_id or int(share.price_cents or 0) <= 0 or duration_minutes <= 0:
+        return None
+
+    trial = db.query(AgentShareTrialTable).filter(
+        AgentShareTrialTable.share_id == share.id,
+        AgentShareTrialTable.user_id == user_id,
+    ).first()
+    if trial:
+        return trial
+
+    started_at = now.isoformat().replace("+00:00", "Z")
+    expires_at = (now + timedelta(minutes=duration_minutes)).isoformat().replace("+00:00", "Z")
+    trial = AgentShareTrialTable(
+        id=f"trial-{uuid.uuid4()}",
+        share_id=share.id,
+        user_id=user_id,
+        started_at=started_at,
+        expires_at=expires_at,
+    )
+    db.add(trial)
+    db.commit()
+    db.refresh(trial)
+    return trial
+
+
+def _share_trial_state(
+    db: Session,
+    share: AgentShareLinkTable,
+    user_id: str,
+    now: datetime,
+) -> tuple[bool, str | None]:
+    trial = _ensure_share_trial(db, share, user_id, now)
+    expires_at = _parse_iso_datetime(trial.expires_at if trial else None)
+    expires_text = trial.expires_at if trial else None
+    return bool(expires_at and expires_at > now), expires_text
 
 
 def _wechat_configured() -> bool:
@@ -187,13 +241,21 @@ async def get_agent_share_access(
     share = _find_share(db, token)
     if not share:
         raise HTTPException(status_code=404, detail="Agent share link not found")
+    now = datetime.now(UTC)
+    purchased = _has_purchase(db, share, current_user.id)
+    trial_active, trial_expires_at = (False, None)
+    if not purchased:
+        trial_active, trial_expires_at = _share_trial_state(db, share, current_user.id, now)
     return AgentShareAccessResponse(
         token=share.token,
         agentProfileId=share.agent_profile_id,
-        purchased=_has_purchase(db, share, current_user.id),
+        purchased=purchased,
         requiresPurchase=int(share.price_cents or 0) > 0 and current_user.id != share.owner_user_id,
         priceCents=int(share.price_cents or 0),
         currency=share.currency or "CNY",
+        trialDurationMinutes=int(getattr(share, "trial_duration_minutes", 0) or 0),
+        trialActive=trial_active,
+        trialExpiresAt=trial_expires_at,
     )
 
 

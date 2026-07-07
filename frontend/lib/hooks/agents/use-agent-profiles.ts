@@ -196,7 +196,7 @@ export function useAgentProfiles() {
   const createShareLink = useCallback(async (
     id: string,
     include: AgentShareOptions,
-    options?: { customSlug?: string | null; priceCents?: number; currency?: string },
+    options?: { customSlug?: string | null; priceCents?: number; currency?: string; trialDurationMinutes?: number },
   ): Promise<AgentShareLink | null> => {
     if (!user || !canManageWorkspace) return null
 
@@ -210,6 +210,7 @@ export function useAgentProfiles() {
           customSlug: options?.customSlug || null,
           priceCents: options?.priceCents || 0,
           currency: options?.currency || "CNY",
+          trialDurationMinutes: options?.trialDurationMinutes || 0,
         },
       })
       if (resp.ok) {
