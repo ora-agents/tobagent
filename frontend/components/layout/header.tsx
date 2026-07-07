@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, GripVertical, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
+import Link from "next/link"
+import { ChevronLeft, ChevronRight, GripVertical, Home, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
 import {
@@ -280,6 +281,19 @@ export function Header({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors hover:bg-primary-soft hover:text-primary"
+            title={locale === "zh" ? "返回首页" : "Back to home"}
+            aria-label={locale === "zh" ? "返回首页" : "Back to home"}
+          >
+            <Link href="/">
+              <Home className="h-4 w-4" />
+            </Link>
+          </Button>
+
           {!hideWorkspaceControls && (
             <>
               <WorkspaceNotifications />

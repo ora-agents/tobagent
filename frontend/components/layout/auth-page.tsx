@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { AuthPanel } from '@/components/layout/auth-panel'
@@ -16,7 +17,7 @@ import { StatusNotice } from '@/components/ui/status-notice'
 import { normalizeLangGraphApiUrl, useApiConfig } from '@/lib/config/api-config'
 import { useI18n, useT } from '@/lib/i18n'
 import logoImage from '@/public/logo.png'
-import { LogIn, RotateCcw, Save, ServerCog } from 'lucide-react'
+import { Home, LogIn, RotateCcw, Save, ServerCog } from 'lucide-react'
 
 interface AuthPageProps {
   mode: 'login' | 'register' | 'reset'
@@ -171,6 +172,12 @@ export function AuthPage({ mode }: AuthPageProps) {
                 <div className="text-xs text-muted-foreground">{t.loginBrandSub}</div>
               </div>
             </div>
+            <Button asChild variant="secondary" size="sm" className="h-9 shrink-0 rounded-lg">
+              <Link href="/" aria-label={zh ? '返回首页' : 'Back to home'}>
+                <Home data-icon="inline-start" />
+                {zh ? '首页' : 'Home'}
+              </Link>
+            </Button>
             {isDesktopRuntime && (
               <Button
                 type="button"
