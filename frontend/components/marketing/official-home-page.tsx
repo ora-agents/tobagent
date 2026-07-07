@@ -399,10 +399,11 @@ export function OfficialHomePage() {
   const [testimonials, setTestimonials] = useState<SiteTestimonial[]>([])
   const [testimonialsLoading, setTestimonialsLoading] = useState(true)
   const [testimonialsError, setTestimonialsError] = useState<string | null>(null)
+  const [showAllTestimonials, setShowAllTestimonials] = useState(false)
 
   const visibleTestimonials = useMemo(
-    () => testimonials.slice(0, 6),
-    [testimonials],
+    () => showAllTestimonials ? testimonials : testimonials.slice(0, 6),
+    [showAllTestimonials, testimonials],
   )
 
   const fetchTestimonials = useCallback(async () => {
@@ -570,10 +571,27 @@ export function OfficialHomePage() {
               ) : testimonialsError ? (
                 <StatusNotice tone="warning">{testimonialsError}</StatusNotice>
               ) : visibleTestimonials.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {visibleTestimonials.map((item) => (
-                    <TestimonialCard key={item.id} item={item} />
-                  ))}
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-muted-foreground">
+                      已展示 {visibleTestimonials.length} 条，共 {testimonials.length} 条评价
+                    </div>
+                    {testimonials.length > 6 ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setShowAllTestimonials((value) => !value)}
+                      >
+                        {showAllTestimonials ? "收起评价" : "查看全部评价"}
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {visibleTestimonials.map((item) => (
+                      <TestimonialCard key={item.id} item={item} />
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <Card className="shadow-depth-xs">
