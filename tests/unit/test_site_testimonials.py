@@ -113,3 +113,24 @@ def test_logged_in_user_can_publish_and_update_one_testimonial(testimonials_clie
 
     with Session() as db:
         assert db.query(SiteTestimonialTable).count() == 1
+
+
+def test_testimonial_role_and_company_are_optional(testimonials_client):
+    client, Session = testimonials_client
+    _add_user(Session)
+
+    response = client.post(
+        "/api/site-testimonials",
+        headers={"Authorization": "Bearer user-testimonial"},
+        json={
+            "role": "",
+            "company": " ",
+            "rating": 5,
+            "quote": "不填写角色和行业也可以发布真实评价。",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["role"] is None
+    assert body["company"] is None
