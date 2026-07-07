@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/ui/password-input'
 import { useAuth } from '@/components/providers/auth-provider'
 import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react'
 import { useT } from '@/lib/i18n'
@@ -231,9 +232,8 @@ export function AuthPanel({
             <Label htmlFor="password" className="text-sm font-medium text-foreground">
               {activeTab === 'reset' ? t.newPassword : t.password} <span className="text-destructive">*</span>
             </Label>
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               placeholder={activeTab === 'reset' ? t.enterNewPassword : t.enterPassword}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -248,9 +248,8 @@ export function AuthPanel({
               <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
                 {t.confirmPassword} <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 placeholder={t.confirmPasswordPlaceholder}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
 import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { AppHeader, AppShell } from "@/components/ui/app-shell"
@@ -983,15 +984,13 @@ export function UserSettingsPage({
                     </ActionButton>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder={zh ? "新密码" : "New password"}
                       className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
                     />
-                    <Input
-                      type="password"
+                    <PasswordInput
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
                       placeholder={zh ? "确认新密码" : "Confirm new password"}
