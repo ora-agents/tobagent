@@ -65,6 +65,12 @@ const productHighlights = [
   },
 ]
 
+const heroMetrics = [
+  { value: "01", label: "知识沉淀", description: "文档、FAQ、流程统一归档" },
+  { value: "02", label: "能力编排", description: "Agent、工具、策略按场景配置" },
+  { value: "03", label: "运行追踪", description: "知识命中与工具调用可回溯" },
+]
+
 const workflowStats = [
   { label: "知识覆盖", value: "96.8%" },
   { label: "平均响应", value: "1.2s" },
@@ -478,8 +484,8 @@ export function OfficialHomePage() {
 
   return (
     <main className="h-svh overflow-y-auto bg-background text-foreground">
-      <header className="sticky top-0 z-10 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label={SITE_NAME}>
             <Image src={logoImage} alt="威思瑞 WSIRI" width={112} height={72} priority className="h-10 w-auto" />
             <span className="hidden text-sm font-semibold sm:inline">{SITE_NAME}</span>
@@ -504,19 +510,19 @@ export function OfficialHomePage() {
         </div>
       </header>
 
-      <section className="bg-background-tint">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-20">
-          <div className="flex flex-col gap-7">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-card px-3 py-1 text-xs font-semibold text-primary shadow-depth-xs">
+      <section className="bg-background">
+        <div className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[0.84fr_1.16fr] lg:px-8 lg:py-16">
+          <div className="flex flex-col gap-8">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
               <ShieldCheck className="size-4" />
               企业客服智能体平台
             </div>
             <div className="flex flex-col gap-5">
-              <h1 className="text-4xl font-semibold leading-tight text-foreground sm:text-5xl lg:text-6xl">
+              <h1 className="max-w-3xl text-5xl font-semibold leading-[1.08] text-foreground sm:text-6xl lg:text-[4.25rem] xl:text-7xl">
                 <span className="block">威思瑞</span>
-                <span className="block">客服智能体平台</span>
+                <span className="block whitespace-nowrap">客服智能体平台</span>
               </h1>
-              <p className="max-w-2xl text-lg leading-8 text-muted-foreground">
+              <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
                 {SITE_DESCRIPTION} 从知识沉淀、Agent 配置到语音交互与运行追踪，帮助企业构建可管理、可复用的智能客服工作台。
               </p>
             </div>
@@ -531,10 +537,12 @@ export function OfficialHomePage() {
                 <a href="#product">了解产品</a>
               </Button>
             </div>
-            <div className="grid max-w-xl grid-cols-3 gap-3">
-              {["知识库", "多 Agent", "语音交互"].map((item) => (
-                <div key={item} className="rounded-lg bg-card px-3 py-3 text-center text-sm font-semibold shadow-depth-xs">
-                  {item}
+            <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
+              {heroMetrics.map((item) => (
+                <div key={item.label} className="rounded-lg bg-secondary p-4">
+                  <div className="text-xs font-semibold text-primary">{item.value}</div>
+                  <div className="mt-2 text-sm font-semibold text-foreground">{item.label}</div>
+                  <div className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</div>
                 </div>
               ))}
             </div>
@@ -543,8 +551,8 @@ export function OfficialHomePage() {
         </div>
       </section>
 
-      <section id="product" className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-10">
+      <section id="product" className="border-t border-border/60 bg-background-tint px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-12">
           <SectionHeading
             eyebrow="产品介绍"
             title="围绕企业服务场景构建智能体工作台"
@@ -566,8 +574,8 @@ export function OfficialHomePage() {
         </div>
       </section>
 
-      <section id="interface" className="bg-secondary px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8">
+      <section id="interface" className="bg-background px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.72fr_1fr] lg:items-start">
           <div className="max-w-3xl">
             <div className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <MessageSquareText className="size-5" />
@@ -577,7 +585,7 @@ export function OfficialHomePage() {
               工作台把会话、Agent、知识库、工具和追踪放在同一套结构里。客服可以专注处理问题，管理员可以快速调整能力边界。
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {interfaceCapabilities.map((item) => (
               <Card key={item.title} className="shadow-depth-xs">
                 <CardHeader className="gap-3 p-5">
