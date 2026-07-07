@@ -13,8 +13,11 @@ from src.api.fastapi_app import (
     import_agent_share,
 )
 from src.api.routes.agent_profiles import (
+    delete_agent_share_link,
     get_agent_share_preview,
+    list_agent_share_links,
     list_agent_share_testimonials,
+    update_agent_share_link,
     upsert_agent_share_testimonial,
 )
 from src.api.routes.payments import (
@@ -91,7 +94,7 @@ def _agent(agent_id: str, owner_user_id: str) -> AgentProfileTable:
 
 
 @pytest.mark.anyio
-async def test_create_agent_share_link_updates_existing_options(db_session):
+async def test_create_agent_share_link_allows_multiple_links_per_agent(db_session):
     owner = _user("user-owner")
     db_session.add(owner)
     db_session.add(_agent("agent-source", owner.id))
@@ -111,10 +114,56 @@ async def test_create_agent_share_link_updates_existing_options(db_session):
     )
 
     shares = db_session.query(AgentShareLinkTable).all()
-    assert len(shares) == 1
-    assert second.token == first.token
-    assert second.include.skills is False
+    listed = await list_agent_share_links("agent-source", db_session, owner)
+
+    assert len(shares) == 2
+    assert len(listed) == 2
+    assert second.token != first.token
+    assert first.include.skills is True
     assert second.include.mcpServers is True
+
+
+@pytest.mark.anyio
+async def test_update_and_delete_agent_share_link_are_scoped_to_one_share(db_session):
+    owner = _user("user-owner")
+    db_session.add(owner)
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    first = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="first-share", include=AgentShareOptions(skills=True)),
+        db_session,
+        owner,
+    )
+    second = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="second-share", include=AgentShareOptions(mcpServers=True)),
+        db_session,
+        owner,
+    )
+
+    updated = await update_agent_share_link(
+        first.token,
+        AgentShareLinkRequest(customSlug="first-edited", include=AgentShareOptions(forms=True), priceCents=900),
+        db_session,
+        owner,
+    )
+    second_preview = await get_agent_share_preview(second.customSlug or second.token, db_session)
+
+    assert updated.token == first.token
+    assert updated.customSlug == "user-owner-first-edited"
+    assert updated.include.forms is True
+    assert updated.priceCents == 900
+    assert second_preview.include.mcpServers is True
+
+    await delete_agent_share_link(updated.token, db_session, owner)
+    remaining = await list_agent_share_links("agent-source", db_session, owner)
+
+    assert [share.token for share in remaining] == [second.token]
+    with pytest.raises(HTTPException) as exc_info:
+        await get_agent_share_preview(updated.token, db_session)
+    assert exc_info.value.status_code == 404
 
 
 @pytest.mark.anyio

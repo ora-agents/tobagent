@@ -545,10 +545,10 @@ async def restore_agent_profile_version(
 @router.post(
     "/api/agent-profiles/{id}/share",
     response_model=AgentShareLinkSchema,
-    summary="Create or update an agent share link",
+    summary="Create an agent share link",
     description=(
-        "Creates a share token for an owned agent profile or updates the existing token's "
-        "resource include options."
+        "Creates a share token for an owned agent profile with its own resource include options "
+        "and landing-page configuration."
     ),
 )
 async def create_agent_share_link(
@@ -572,63 +572,171 @@ async def create_agent_share_link(
     _reject_system_agent_profile(profile)
 
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-    existing = db.query(AgentShareLinkTable).filter(
-        AgentShareLinkTable.agent_profile_id == id,
-        AgentShareLinkTable.owner_user_id == owner_user_id,
-    ).first()
     include_options = share_data.include.model_dump(mode="json")
     custom_slug = _with_share_slug_user_prefix(share_data.customSlug, current_user)
-    if existing and share_data.customSlug and existing.custom_slug == share_data.customSlug:
-        custom_slug = existing.custom_slug
     if custom_slug:
         slug_owner = db.query(AgentShareLinkTable).filter(
             AgentShareLinkTable.custom_slug == custom_slug,
-            AgentShareLinkTable.agent_profile_id != id,
         ).first()
         if slug_owner:
             raise HTTPException(status_code=409, detail="Custom share address is already in use")
-    if existing:
-        existing.include_options = include_options
-        existing.custom_slug = custom_slug
-        existing.price_cents = share_data.priceCents
-        existing.currency = share_data.currency
-        existing.trial_duration_minutes = share_data.trialDurationMinutes if share_data.priceCents > 0 else 0
-        existing.landing_intro = share_data.introductionText
-        existing.landing_faqs = [
+
+    token = secrets.token_urlsafe(24)
+    while db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first():
+        token = secrets.token_urlsafe(24)
+    share = AgentShareLinkTable(
+        id=f"share-{uuid.uuid4()}",
+        token=token,
+        owner_user_id=owner_user_id,
+        agent_profile_id=id,
+        include_options=include_options,
+        custom_slug=custom_slug,
+        price_cents=share_data.priceCents,
+        currency=share_data.currency,
+        trial_duration_minutes=share_data.trialDurationMinutes if share_data.priceCents > 0 else 0,
+        landing_intro=share_data.introductionText,
+        landing_faqs=[
             item.model_dump(mode="json")
             for item in share_data.faqItems
             if item.question.strip() and item.answer.strip()
-        ]
-        existing.updated_at = now
-        share = existing
-    else:
-        token = secrets.token_urlsafe(24)
-        while db.query(AgentShareLinkTable).filter(AgentShareLinkTable.token == token).first():
-            token = secrets.token_urlsafe(24)
-        share = AgentShareLinkTable(
-            id=f"share-{uuid.uuid4()}",
-            token=token,
-            owner_user_id=owner_user_id,
-            agent_profile_id=id,
-            include_options=include_options,
-            custom_slug=custom_slug,
-            price_cents=share_data.priceCents,
-            currency=share_data.currency,
-            trial_duration_minutes=share_data.trialDurationMinutes if share_data.priceCents > 0 else 0,
-            landing_intro=share_data.introductionText,
-            landing_faqs=[
-                item.model_dump(mode="json")
-                for item in share_data.faqItems
-                if item.question.strip() and item.answer.strip()
-            ],
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(share)
+        ],
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(share)
 
     db.commit()
     db.refresh(share)
     return _share_link_schema(share)
+
+
+@router.get(
+    "/api/agent-profiles/{id}/shares",
+    response_model=list[AgentShareLinkSchema],
+    summary="List agent share links",
+    description="Returns every share link configured for an owned agent profile.",
+)
+async def list_agent_share_links(
+    id: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+    workspace_id: str | None = Depends(get_workspace_header),
+):
+    if not isinstance(workspace_id, str):
+        workspace_id = None
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Agent profile not found")
+
+    shares = (
+        db.query(AgentShareLinkTable)
+        .filter(
+            AgentShareLinkTable.agent_profile_id == id,
+            AgentShareLinkTable.owner_user_id == owner_user_id,
+        )
+        .order_by(AgentShareLinkTable.updated_at.desc())
+        .all()
+    )
+    return [_share_link_schema(share) for share in shares]
+
+
+@router.put(
+    "/api/agent-shares/{token}",
+    response_model=AgentShareLinkSchema,
+    summary="Update an agent share link",
+    description="Updates the address, include options, pricing, and landing-page configuration for one owned share link.",
+)
+async def update_agent_share_link(
+    token: str,
+    share_data: AgentShareLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+    workspace_id: str | None = Depends(get_workspace_header),
+):
+    if not isinstance(workspace_id, str):
+        workspace_id = None
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    share = _find_agent_share(db, token)
+    if not share or share.owner_user_id != owner_user_id:
+        raise HTTPException(status_code=404, detail="Agent share link not found")
+
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == share.agent_profile_id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Shared agent profile not found")
+    _reject_system_agent_profile(profile)
+
+    custom_slug = _with_share_slug_user_prefix(share_data.customSlug, current_user)
+    if custom_slug:
+        slug_owner = db.query(AgentShareLinkTable).filter(
+            AgentShareLinkTable.custom_slug == custom_slug,
+            AgentShareLinkTable.id != share.id,
+        ).first()
+        if slug_owner:
+            raise HTTPException(status_code=409, detail="Custom share address is already in use")
+
+    share.include_options = share_data.include.model_dump(mode="json")
+    share.custom_slug = custom_slug
+    share.price_cents = share_data.priceCents
+    share.currency = share_data.currency
+    share.trial_duration_minutes = share_data.trialDurationMinutes if share_data.priceCents > 0 else 0
+    share.landing_intro = share_data.introductionText
+    share.landing_faqs = [
+        item.model_dump(mode="json")
+        for item in share_data.faqItems
+        if item.question.strip() and item.answer.strip()
+    ]
+    share.updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+    db.commit()
+    db.refresh(share)
+    return _share_link_schema(share)
+
+
+@router.delete(
+    "/api/agent-shares/{token}",
+    response_class=PlainTextResponse,
+    summary="Delete an agent share link",
+    description="Deletes one owned share link without deleting the source agent profile.",
+)
+async def delete_agent_share_link(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+    workspace_id: str | None = Depends(get_workspace_header),
+):
+    if not isinstance(workspace_id, str):
+        workspace_id = None
+    workspace, _member = require_workspace_manager(db, current_user, workspace_id)
+    owner_user_id = workspace.owner_user_id
+    share = _find_agent_share(db, token)
+    if not share or share.owner_user_id != owner_user_id:
+        raise HTTPException(status_code=404, detail="Agent share link not found")
+
+    profile = db.query(AgentProfileTable).filter(
+        AgentProfileTable.id == share.agent_profile_id,
+        AgentProfileTable.owner_user_id == owner_user_id,
+        workspace_scoped_resource_filter(AgentProfileTable, owner_user_id, workspace.id),
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Shared agent profile not found")
+    _reject_system_agent_profile(profile)
+
+    db.query(AgentShareTestimonialTable).filter(AgentShareTestimonialTable.share_id == share.id).delete()
+    db.query(AgentShareTrialTable).filter(AgentShareTrialTable.share_id == share.id).delete()
+    db.delete(share)
+    db.commit()
+    return "OK"
 
 
 @router.get(
