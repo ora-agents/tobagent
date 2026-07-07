@@ -1,88 +1,91 @@
 # TOB Agent
 
-TOB Agent 是一个面向业务场景的 LangGraph 智能体平台，包含可配置的智能体运行时、Next.js 聊天界面、管理后台、知识库 RAG、技能/表单/MCP 配置和语音交互。
+[中文文档](README.zh-CN.md)
 
-后端基于 LangGraph/Aegra 与 FastAPI，前端基于 Next.js、React 和 Tailwind CSS。项目支持 OpenAI 兼容模型接口，可接入 OpenAI、Ollama、OpenRouter、vLLM 或其他兼容 `/v1` 协议的模型服务。
+TOB Agent is a business-oriented LangGraph agent platform. It combines a configurable agent runtime, a Next.js management and chat UI, knowledge-base RAG, reusable skills, structured forms, MCP server configuration, voice interaction, and a Tauri desktop shell.
 
-## 主要功能
+The backend is built with LangGraph/Aegra and FastAPI. The frontend is built with Next.js, React, TypeScript, Tailwind CSS, and Radix UI. The runtime works with OpenAI-compatible model APIs, including OpenAI, Ollama, OpenRouter, vLLM, and other services that expose a `/v1`-compatible interface.
 
-- **可配置智能体**：通过智能体配置管理系统提示词、模型、启用工具、知识库、技能、表单、MCP 服务、唤醒词、TTS 声音和声纹绑定。
-- **LangGraph 对话运行时**：内置 `generic_agent` 通用智能体和 `agent_builder` 平台配置智能体，支持线程、检查点、上下文摘要、模型重试和工具重试。
-- **知识库 RAG**：支持上传文档、按智能体关联知识库、向量检索和默认资产导入，向量数据存储在 LanceDB。
-- **技能系统**：用户可维护可复用的系统提示词技能，智能体通过 `read_skill` 工具读取。
-- **结构化表单**：支持自定义表单、表单记录、权限配置，智能体可查询和维护业务数据。
-- **MCP 服务配置**：支持用户级 MCP server 配置，并在智能体工具层动态接入。
-- **语音交互**：提供 DashScope ASR/TTS 代理、KWS 唤醒词检测、VAD、语音打断、语音遥测和声纹验证。
-- **配置包导入导出**：可导出/导入智能体、技能、知识库、MCP 服务和表单配置。
-- **账号与 API Key**：支持注册、登录、用户资料、用户 API Key 和外部 LangGraph SDK 调用。
-- **管理后台**：前端内置聊天、智能体、知识库、技能、表单、MCP、用户设置和开发手册视图。
+## Features
 
-## 技术栈
+- **Configurable agents**: manage system prompts, models, tools, knowledge bases, skills, forms, MCP servers, wake words, TTS voices, and speaker profiles per agent.
+- **LangGraph runtime**: includes the `generic_agent` business agent and the `agent_builder` configuration agent, with threads, checkpoints, context summarization, model retries, and tool retries.
+- **Knowledge-base RAG**: upload documents, attach knowledge bases to agents, run vector retrieval, and import default assets. Vector data is stored in LanceDB.
+- **Skills**: maintain reusable system-prompt skills and let agents read them through the `read_skill` tool.
+- **Structured forms**: define forms, records, and access rules so agents can query and maintain business data.
+- **MCP configuration**: configure user-scoped MCP servers and attach them dynamically to agent tools.
+- **Voice interaction**: supports DashScope ASR/TTS proxying, KWS wake-word detection, VAD, interruption, voice telemetry, and speaker verification.
+- **Configuration bundles**: import and export agents, skills, knowledge bases, MCP servers, and form configuration.
+- **Accounts and API keys**: includes registration, login, user profile management, user API keys, and external LangGraph SDK access.
+- **Web and desktop surfaces**: the same Next.js UI powers the website and the Tauri desktop app.
 
-- **后端**：Python 3.11+、LangGraph、LangChain、Aegra、FastAPI、SQLAlchemy、PostgreSQL、Redis、LanceDB
-- **前端**：Next.js、React、TypeScript、Tailwind CSS、Radix UI、Bun
-- **语音**：DashScope Realtime API、sherpa-onnx、Ten VAD、SpeechBrain ECAPA 声纹服务
-- **观测**：Langfuse tracing，部分 LangSmith 分享辅助接口
-- **部署**：Docker Compose，包含 PostgreSQL、Redis、后端、前端和 speaker 服务
+## Tech Stack
 
-## 目录结构
+- **Backend**: Python 3.11+, LangGraph, LangChain, Aegra, FastAPI, SQLAlchemy, PostgreSQL, Redis, LanceDB
+- **Frontend**: Next.js, React, TypeScript, Tailwind CSS, Radix UI, Bun
+- **Voice**: DashScope Realtime API, sherpa-onnx, Ten VAD, SpeechBrain ECAPA speaker verification service
+- **Observability**: Langfuse tracing and selected LangSmith sharing helpers
+- **Deployment**: Docker Compose with PostgreSQL, Redis, backend, frontend, and speaker services
+
+## Repository Layout
 
 ```text
 .
 ├── src/
-│   ├── agent/              # LangGraph 智能体图与模型配置
-│   ├── api/                # FastAPI 路由、鉴权、语音代理和服务层
-│   ├── middleware/         # 动态配置、模型重试、工具重试中间件
-│   ├── prompts/            # 智能体提示词
-│   ├── tools/              # RAG、fetch、技能、表单、MCP 等工具
-│   └── utils/              # 数据库、资产导入、追踪、运行时上下文等工具函数
+│   ├── agent/              # LangGraph agent graphs and model configuration
+│   ├── api/                # FastAPI routes, auth, voice proxy, and services
+│   ├── middleware/         # Dynamic configuration, model retry, and tool retry middleware
+│   ├── prompts/            # Agent prompts
+│   ├── tools/              # RAG, fetch, skills, forms, MCP, and related tools
+│   └── utils/              # Database, asset import, tracing, and runtime helpers
 ├── frontend/
-│   ├── app/                # Next.js 页面入口
-│   ├── components/         # 聊天、管理后台和通用 UI 组件
-│   ├── lib/                # API 客户端、hooks、类型和配置
-│   └── public/             # 静态资源、字体、语音 worklet
-├── services/speaker/       # 声纹验证服务
-├── assets/                 # 默认业务文档资产
-├── models/                 # 本地语音/唤醒/声纹模型
-├── tests/                  # 单元测试和 eval 测试
-├── docs/                   # 设计、配置导入导出、版本等文档
-├── langgraph.json          # LangGraph/Aegra 配置
-├── aegra.json              # Aegra 本地/部署配置
-└── docker-compose.yml      # 本地基础设施与完整部署编排
+│   ├── app/                # Next.js routes
+│   ├── components/         # Chat, management, marketing, and shared UI components
+│   ├── lib/                # API clients, hooks, types, and configuration
+│   ├── public/             # Static assets, fonts, and voice worklets
+│   └── src-tauri/          # Tauri desktop shell
+├── services/speaker/       # Speaker verification service
+├── assets/                 # Default business document assets
+├── models/                 # Local voice, wake-word, and speaker models
+├── tests/                  # Unit and evaluation tests
+├── docs/                   # Design, import/export, versioning, and SDK docs
+├── langgraph.json          # LangGraph/Aegra configuration
+├── aegra.json              # Aegra local/deployment configuration
+└── docker-compose.yml      # Local infrastructure and full-stack deployment
 ```
 
-## 环境要求
+## Requirements
 
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv)
 - [Bun](https://bun.sh/)
 - Docker / Docker Compose
-- 一个 OpenAI 兼容模型服务和 API Key
-- 如需语音功能，需要 DashScope API Key
+- An OpenAI-compatible model service and API key
+- DashScope API key for voice features
 
-## 快速开始
+## Quick Start
 
-### 1. 安装依赖
+### 1. Install Dependencies
 
 ```bash
 make install
 ```
 
-等价命令：
+Equivalent commands:
 
 ```bash
 uv sync
 cd frontend && bun install
 ```
 
-### 2. 配置环境变量
+### 2. Configure Environment Variables
 
 ```bash
 cp .env.minimal .env
 cp frontend/.env.example frontend/.env.local
 ```
 
-至少需要在 `.env` 中配置：
+At minimum, configure the model service in `.env`:
 
 ```env
 OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
@@ -90,156 +93,148 @@ OPENAI_COMPATIBLE_API_KEY=sk-your_api_key_here
 OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
 ```
 
-这套最小配置会使用默认 CORS、本地 SQLite fallback 和 OpenAI 兼容模型服务，足够启动基础账号、管理后台、智能体对话、技能/表单/MCP 配置页面和模型代理。生产环境建议额外设置：
+This minimal setup uses the default CORS policy, local SQLite fallback, and an OpenAI-compatible model service. It is enough to start accounts, the management UI, agent chat, skills, forms, MCP configuration, and model proxying.
+
+For production, also set:
 
 ```env
 SESSION_JWT_SECRET=change_me_to_a_random_session_secret
 SESSION_COOKIE_SECURE=true
-# 前后端跨站部署时设置 SESSION_COOKIE_SAMESITE=none
+# Use SESSION_COOKIE_SAMESITE=none for cross-site frontend/backend deployments.
 CORS_ALLOW_ORIGINS=https://your-frontend.example.com
 ```
 
-前端默认读取：
+The frontend defaults to:
 
 ```env
 NEXT_PUBLIC_LANGGRAPH_API_URL=http://localhost:2025
 NEXT_PUBLIC_OPENAI_DEFAULT_MODEL=gpt-4o
 ```
 
-如需完整配置模板，使用：
+For the full configuration template:
 
 ```bash
 cp .env.example .env
 ```
 
-`.env.example` 中的扩展模块默认保持注释，按需取消注释即可。
+Optional modules in `.env.example` are commented out by default. Enable only what you need.
 
-### 3. 启动本地开发环境
+### 3. Start Local Development
 
-启动 PostgreSQL、Redis、speaker 服务，并同时启动后端和前端：
+Start PostgreSQL, Redis, the speaker service, backend, and frontend together:
 
 ```bash
 make dev-local
 ```
 
-默认地址：
+Default local URLs:
 
-- 前端 UI：<http://localhost:3000>
-- 后端 API：<http://localhost:2025>
-- API 文档：<http://localhost:2025/docs>
-- LangGraph Studio：<https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2025>
+- Web UI: <http://localhost:3000>
+- Backend API: <http://localhost:2025>
+- API docs: <http://localhost:2025/docs>
+- LangGraph Studio: <https://smith.langchain.com/studio/?baseUrl=http://127.0.0.1:2025>
 
-也可以分别启动：
+You can also start services separately:
 
 ```bash
 make dev-backend
 make dev-frontend
 ```
 
-## 常用命令
+## Common Commands
 
 ```bash
-# 安装前后端依赖
+# Install backend and frontend dependencies
 make install
 
-# 启动完整本地开发环境
+# Start the full local development environment
 make dev-local
 
-# 只启动后端
+# Start only the backend
 make dev-backend
 
-# 只启动前端
+# Start only the frontend
 make dev-frontend
 
-# 构建前端
+# Build the website frontend
 cd frontend && bun run build
 
-# 运行后端测试
+# Build the static export used by Tauri
+cd frontend && bun run build:desktop
+
+# Build the desktop app for the current platform
+cd frontend && bun run tauri:build
+
+# Run backend tests
 uv run pytest
 
-# 运行 Python lint
+# Run Python lint
 uv run ruff check src tests
 
-# 导入/刷新 assets 下的默认知识库资产
+# Import or refresh default knowledge-base assets
 make update-assets
 
-# Docker Compose 部署完整栈
+# Deploy the full Docker Compose stack
 make deploy-all
 
-# 查看完整栈日志
+# View full-stack logs
 make deploy-all-logs
 ```
 
-## 后端接口概览
+## API Overview
 
-FastAPI 应用挂载在 Aegra/LangGraph HTTP 服务中，主要接口包括：
+The FastAPI app is mounted inside the Aegra/LangGraph HTTP service. Key endpoints include:
 
-- `/health`：健康检查
-- `/api/auth/*`：注册、登录、用户资料、API Key
-- `/api/agent-profiles`：智能体配置 CRUD、版本恢复、分享导入
-- `/api/knowledge-bases`：知识库管理、文档上传、RAG 状态
-- `/api/skills`：技能管理
-- `/api/forms`：表单和表单记录管理
-- `/api/mcp-servers`：MCP 服务配置
-- `/api/models`：OpenAI 兼容模型列表代理
-- `/api/capabilities`：后端模块能力清单，前端据此动态显示可用 UI
-- `/api/config-bundles/*`：配置包导入导出
-- `/ws/voice/*`：ASR/TTS 语音 WebSocket
-- `/langsmith/*`：LangSmith run 查询和分享辅助
+- `/health`: health check
+- `/api/auth/*`: registration, login, user profile, and API keys
+- `/api/agent-profiles`: agent profile CRUD, version restore, and share import
+- `/api/knowledge-bases`: knowledge-base management, document upload, and RAG status
+- `/api/skills`: skill management
+- `/api/forms`: form and form-record management
+- `/api/mcp-servers`: MCP server configuration
+- `/api/models`: OpenAI-compatible model list proxy
+- `/api/capabilities`: backend capability metadata used by the frontend
+- `/api/config-bundles/*`: configuration bundle import/export
+- `/ws/voice/*`: ASR/TTS voice WebSockets
+- `/langsmith/*`: LangSmith run lookup and sharing helpers
 
-交互式接口文档见 `/docs`，OpenAPI Schema 见 `/openapi.json`。
+Interactive API docs are available at `/docs`; the OpenAPI schema is available at `/openapi.json`.
 
-## 环境变量与模块能力
+## Runtime Configuration
 
-后端通过 `/api/capabilities` 暴露当前环境可用能力。响应保留旧字段 `smsAuth`、`langfuseTracing`，同时提供结构化 `modules`，每个模块包含：
+The backend exposes available modules through `/api/capabilities`. Each module reports whether it is enabled, its category, required environment variables, optional environment variables, and defaults.
 
-- `enabled`：当前环境是否启用
-- `category`：模块分类
-- `requiredEnv`：启用该模块需要配置的环境变量名
-- `optionalEnv`：可调整默认行为的环境变量名
-- `defaults`：未配置时使用的默认参数
+Core modules:
 
-前端会在启动时读取该接口；目前短信认证和 Langfuse Trace 菜单已经按能力动态显示，后续语音、模型、RAG 等 UI 也可直接读取 `capabilities.modules`。
-
-### 基础必需配置
-
-| 模块 | 用途 | 必需环境变量 | 默认/说明 |
+| Module | Purpose | Required env | Notes |
 | --- | --- | --- | --- |
-| `core.model` | 智能体运行、模型调用、上下文摘要 | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_COMPATIBLE_BASE_URL` 默认可留空使用 OpenAI 标准端点；`OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o` |
-| `core.database` | 用户、工作区、智能体配置、表单、技能、MCP 元数据 | 无 | 未设置 PostgreSQL 时使用 `./chat_langchain.db` SQLite fallback |
-| `core.cors` | 允许前端访问后端 | 无 | 默认允许本地开发地址；生产配置 `CORS_ALLOW_ORIGINS` |
-| `auth.password` | 密码登录、注册、用户资料、API Key | 无 | 浏览器使用 HttpOnly session cookie；生产建议设置 `SESSION_JWT_SECRET` |
+| `core.model` | Agent execution, model calls, and context summaries | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_COMPATIBLE_BASE_URL` can be omitted for the OpenAI default endpoint; `OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o` |
+| `core.database` | Users, workspaces, agent profiles, forms, skills, and MCP metadata | None | Uses `./chat_langchain.db` SQLite fallback when PostgreSQL is not configured |
+| `core.cors` | Allows frontend access to the backend | None | Defaults to local development origins; configure `CORS_ALLOW_ORIGINS` in production |
+| `auth.password` | Password login, registration, user profiles, and API keys | None | Browser sessions use HttpOnly cookies; set `SESSION_JWT_SECRET` in production |
 
-最小 `.env`：
+Optional modules:
 
-```env
-OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
-OPENAI_COMPATIBLE_API_KEY=sk-your_api_key_here
-OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
-```
-
-### 可选扩展模块
-
-| 模块 | 启用条件 | 主要环境变量 | 默认参数 |
+| Module | Enabled by | Main env vars | Defaults |
 | --- | --- | --- | --- |
-| `models.proxy` | 配置 OpenAI 兼容 base URL 和 API key | `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY` | `MODEL_LIST_CACHE_TTL_SECONDS=300` |
-| `knowledge.rag` | 配置模型 API key | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_EMBEDDING_MODEL=text-embedding-v3`, `LANCEDB_PATH=/tmp/lancedb_agents`, `KNOWLEDGE_DOCUMENTS_PATH=/tmp/tobagent_knowledge_documents` |
-| `agent.skills` | 默认开启 | 数据库配置 | 用户在 UI 中维护技能内容 |
-| `agent.forms` | 默认开启 | 数据库配置 | 用户在 UI 中维护表单和权限 |
-| `agent.mcp` | 默认开启 | 数据库配置 | 用户在 UI 中配置 streamable HTTP MCP server |
-| `agent.subagents` | 默认开启 | 数据库配置 | 用户在智能体配置中链接子智能体 |
-| `auth.sms` | 配置 Aliyun SMS 或开发日志模式 | `ALIYUN_SMS_TEMPLATE_CODE`, `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME` | `SMS_CODE_TTL_SECONDS=300`, `SMS_RESEND_INTERVAL_SECONDS=60`; 本地可用 `SMS_DEV_LOG_CODE=true` |
-| `observability.langfuse` | 配置 Langfuse 公钥和私钥 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | `LANGFUSE_BASE_URL=https://cloud.langfuse.com` |
-| `voice.asr` | 配置 DashScope API key | `DASHSCOPE_API_KEY` | `ASR_MODEL=qwen3-asr-flash`, VAD 阈值 `0.5` |
-| `voice.tts` | 配置 DashScope API key | `DASHSCOPE_API_KEY` | `TTS_MODEL=qwen3-tts-instruct-flash-realtime`, `TTS_VOICE=Cherry` |
-| `voice.wakeWord` | 本地 KWS 模型目录存在 | `KWS_MODEL_DIR` | `KWS_MODEL_DIR=./models/kws`, `KWS_NUM_THREADS=2` |
-| `voice.speakerVerification` | 显式开启声纹模块 | `VOICE_SPEAKER_VERIFICATION_ENABLED=true` | `SPEAKER_SERVICE_URL=http://speaker:8090`, `VOICE_SPEAKER_PROFILE_THRESHOLD=0.72` |
+| `models.proxy` | OpenAI-compatible base URL and API key | `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY` | `MODEL_LIST_CACHE_TTL_SECONDS=300` |
+| `knowledge.rag` | Model API key | `OPENAI_COMPATIBLE_API_KEY` | `OPENAI_EMBEDDING_MODEL=text-embedding-v3`, `LANCEDB_PATH=/tmp/lancedb_agents`, `KNOWLEDGE_DOCUMENTS_PATH=/tmp/tobagent_knowledge_documents` |
+| `agent.skills` | Enabled by default | Database configuration | Skills are managed in the UI |
+| `agent.forms` | Enabled by default | Database configuration | Forms and permissions are managed in the UI |
+| `agent.mcp` | Enabled by default | Database configuration | Users configure streamable HTTP MCP servers |
+| `agent.subagents` | Enabled by default | Database configuration | Profiles can link child agents |
+| `auth.sms` | Aliyun SMS credentials or dev log mode | `ALIYUN_SMS_TEMPLATE_CODE`, `ALIYUN_ACCESS_KEY_ID`, `ALIYUN_ACCESS_KEY_SECRET`, `ALIYUN_SMS_SIGN_NAME` | `SMS_CODE_TTL_SECONDS=300`, `SMS_RESEND_INTERVAL_SECONDS=60`; local dev can use `SMS_DEV_LOG_CODE=true` |
+| `observability.langfuse` | Langfuse public and secret keys | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | `LANGFUSE_BASE_URL=https://cloud.langfuse.com` |
+| `voice.asr` | DashScope API key | `DASHSCOPE_API_KEY` | `ASR_MODEL=qwen3-asr-flash`, VAD threshold `0.5` |
+| `voice.tts` | DashScope API key | `DASHSCOPE_API_KEY` | `TTS_MODEL=qwen3-tts-instruct-flash-realtime`, `TTS_VOICE=Cherry` |
+| `voice.wakeWord` | Local KWS model directory | `KWS_MODEL_DIR` | `KWS_MODEL_DIR=./models/kws`, `KWS_NUM_THREADS=2` |
+| `voice.speakerVerification` | Explicit speaker verification enablement | `VOICE_SPEAKER_VERIFICATION_ENABLED=true` | `SPEAKER_SERVICE_URL=http://speaker:8090`, `VOICE_SPEAKER_PROFILE_THRESHOLD=0.72` |
 
-模块化分两层：系统级模块由 env 决定并通过 `/api/capabilities` 暴露；智能体运行时模块由数据库中的 agent profile 决定，包括启用工具、知识库、技能、表单、MCP server、子智能体、模型和温度。
+System-level modules are controlled by environment variables and exposed through `/api/capabilities`. Agent runtime modules are controlled by the agent profile stored in the database, including tools, knowledge bases, skills, forms, MCP servers, subagents, model, and temperature.
 
-## 智能体运行方式
+## Agent Runtime
 
-`generic_agent` 是主要业务智能体。前端会把当前智能体配置作为运行时上下文传给 LangGraph，包括：
+`generic_agent` is the main business agent. The frontend passes the active agent profile as LangGraph runtime context, including:
 
 - `system_prompt`
 - `model`
@@ -250,9 +245,9 @@ OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
 - `skill_ids`
 - `mcp_ids`
 - `form_ids`
-- 语音相关配置
+- voice-related settings
 
-后端通过 `dynamic_config_middleware` 将这些配置注入运行时，并按智能体/用户范围限制资源访问。内置工具包括：
+The backend injects those values through `dynamic_config_middleware` and scopes resource access by agent and user. Built-in tools include:
 
 - `rag_search`
 - `fetch`
@@ -260,19 +255,19 @@ OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4o
 - `query_form_data`
 - `manage_form_data`
 
-## 语音与 Android WebView
+## Voice And Android WebView
 
-Web 前端支持浏览器语音模式，也支持 Android WebView 原生桥接。Android 项目路径：
+The web frontend supports both browser voice mode and an Android WebView native bridge. The Android project is expected at:
 
 ```text
 /mnt/c/Users/wrsi/Documents/wsrtobandroid
 ```
 
-涉及语音、唤醒词、ASR/VAD、TTS 播放、语音打断、声纹验证、WebView bridge、telemetry 或智能体配置语义时，需要同时检查 Android 侧 `TobNativeVoice` / `__TOB_NATIVE_VOICE__` 和前端 `nativeVoiceEvent` 消费逻辑，保持 `idle`、`kws`、`listening`、`transcribing`、`processing`、`speaking` 等状态一致。
+When changing voice, wake-word, ASR/VAD, TTS playback, interruption, speaker verification, WebView bridge, telemetry, or agent-profile voice semantics, inspect the Android side as well. Keep `TobNativeVoice` / `__TOB_NATIVE_VOICE__` and frontend `nativeVoiceEvent` handling aligned for states such as `idle`, `kws`, `listening`, `transcribing`, `processing`, and `speaking`.
 
-## 测试与质量
+## Testing
 
-后端：
+Backend:
 
 ```bash
 uv run pytest
@@ -280,49 +275,52 @@ uv run pytest tests/unit
 uv run ruff check src tests
 ```
 
-前端：
+Frontend:
 
 ```bash
 cd frontend && bun run build
+cd frontend && bun run build:desktop
 ```
 
-提交前建议至少运行与改动范围相关的测试。UI 改动建议执行 `bun run build`。
+Run the checks that match the scope of your change before submitting. For UI changes, run the frontend production build.
 
-## 部署
+## Deployment
 
-完整 Docker Compose 栈包含：
+The full Docker Compose stack includes:
 
-- `postgres`：PostgreSQL + pgvector
-- `redis`：LangGraph/运行时 broker
-- `tobagent`：后端 Aegra/FastAPI/LangGraph 服务
-- `speaker`：声纹验证服务
-- `frontend`：Next.js 前端
+- `postgres`: PostgreSQL + pgvector
+- `redis`: LangGraph/runtime broker
+- `tobagent`: backend Aegra/FastAPI/LangGraph service
+- `speaker`: speaker verification service
+- `frontend`: Next.js frontend
 
-启动：
+Start the full stack:
 
 ```bash
 make deploy-all
 ```
 
-查看日志：
+View logs:
 
 ```bash
 make deploy-all-logs
 ```
 
-停止：
+Stop services:
 
 ```bash
 docker compose down
 ```
 
-## 相关文档
+## Related Documentation
 
-- [设计规范](docs/design.md)
-- [配置导入导出](docs/config-import-export.md)
-- [版本管理](docs/versioning.md)
-- [LangGraph SDK 外部调用](docs/langgraph-sdk-custom-agent.md)
+- [Design guidelines](docs/design.md)
+- [Configuration import/export](docs/config-import-export.md)
+- [Versioning](docs/versioning.md)
+- [LangGraph SDK external calls](docs/langgraph-sdk-custom-agent.md)
 
 ## License
 
-MIT
+This repository is based on an upstream MIT-licensed project. The original MIT license text and copyright notice are preserved in [LICENSE](LICENSE).
+
+Project-specific additions and modifications are described as being provided under the Elastic License 2.0. See [LICENSE-ELASTIC-2.0](LICENSE-ELASTIC-2.0) for the ELv2 terms. This section is only a summary for repository readers; review the license files for the complete terms.
