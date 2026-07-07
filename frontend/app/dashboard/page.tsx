@@ -106,6 +106,9 @@ function DashboardContent() {
     fetchProfileVersions: fetchAgentProfileVersions,
     restoreProfileVersion: restoreAgentProfileVersion,
     createShareLink: createAgentShareLink,
+    listShareLinks: listAgentShareLinks,
+    updateShareLink: updateAgentShareLink,
+    deleteShareLink: deleteAgentShareLink,
     fetchSharePreview: fetchAgentSharePreview,
     importShareLink: importAgentShareLink,
     fetchShareAccess,
@@ -674,6 +677,12 @@ function DashboardContent() {
   const handlePurchaseSharedAgent = useCallback(async () => {
     const token = agentShareToken?.trim()
     if (!token || purchaseStatus === "creating") return
+    if (purchaseOrder && purchaseStatus === "waiting") {
+      if (trialPaidShare) {
+        setPendingPaidShare(trialPaidShare)
+      }
+      return
+    }
     setPurchaseStatus("creating")
     const order = await purchaseShare(token)
     if (!order) {
@@ -689,7 +698,13 @@ function DashboardContent() {
       setPendingPaidShare(trialPaidShare)
     }
     setPurchaseStatus("waiting")
-  }, [agentShareToken, completePaidShareImport, purchaseShare, purchaseStatus, trialPaidShare])
+  }, [agentShareToken, completePaidShareImport, purchaseOrder, purchaseShare, purchaseStatus, trialPaidShare])
+
+  const handleReturnToTrialSharedAgent = useCallback(() => {
+    if (!isTrialActive) return
+    setPendingPaidShare(null)
+    setCurrentView("chat")
+  }, [isTrialActive, setCurrentView])
 
   useEffect(() => {
     if (!purchaseOrder || purchaseStatus !== "waiting") return
@@ -965,6 +980,16 @@ function DashboardContent() {
                         创建支付订单失败，请稍后重试。
                       </StatusNotice>
                     )}
+                    {isTrialActive ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleReturnToTrialSharedAgent}
+                        className="w-full"
+                      >
+                        返回试用
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -1049,6 +1074,9 @@ function DashboardContent() {
               fetchAgentProfileVersions={fetchAgentProfileVersions}
               restoreAgentProfileVersion={restoreAgentProfileVersion}
               createAgentShareLink={createAgentShareLink}
+              listAgentShareLinks={listAgentShareLinks}
+              updateAgentShareLink={updateAgentShareLink}
+              deleteAgentShareLink={deleteAgentShareLink}
               userVoiceprints={userVoiceprints}
               onNavigateToUserSettings={() => setCurrentView("settings")}
               deleteAgentProfile={deleteAgentProfile}

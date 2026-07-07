@@ -232,6 +232,77 @@ export function useAgentProfiles() {
     return null
   }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
+  const listShareLinks = useCallback(async (id: string): Promise<AgentShareLink[]> => {
+    if (!user || !canManageWorkspace) return []
+
+    try {
+      const resp = await backendFetch(`/api/agent-profiles/${id}/shares`, {
+        authHeaders,
+        workspaceHeaders,
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to list share links for agent profile ${id}`, err)
+    }
+    return []
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
+
+  const updateShareLink = useCallback(async (
+    token: string,
+    include: AgentShareOptions,
+    options?: {
+      customSlug?: string | null
+      priceCents?: number
+      currency?: string
+      trialDurationMinutes?: number
+      introductionText?: string | null
+      faqItems?: AgentShareFaqItem[]
+    },
+  ): Promise<AgentShareLink | null> => {
+    if (!user || !canManageWorkspace) return null
+
+    try {
+      const resp = await backendFetch(`/api/agent-shares/${encodeURIComponent(token)}`, {
+        method: "PUT",
+        authHeaders,
+        workspaceHeaders,
+        json: {
+          include,
+          customSlug: options?.customSlug || null,
+          priceCents: options?.priceCents || 0,
+          currency: options?.currency || "CNY",
+          trialDurationMinutes: options?.trialDurationMinutes || 0,
+          introductionText: options?.introductionText || null,
+          faqItems: options?.faqItems || [],
+        },
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to update share link ${token}`, err)
+    }
+    return null
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
+
+  const deleteShareLink = useCallback(async (token: string): Promise<boolean> => {
+    if (!user || !canManageWorkspace) return false
+
+    try {
+      const resp = await backendFetch(`/api/agent-shares/${encodeURIComponent(token)}`, {
+        method: "DELETE",
+        authHeaders,
+        workspaceHeaders,
+      })
+      return resp.ok
+    } catch (err) {
+      console.error(`Failed to delete share link ${token}`, err)
+    }
+    return false
+  }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
+
   const fetchShareAccess = useCallback(async (
     token: string,
   ): Promise<AgentShareAccess | null> => {
@@ -399,6 +470,9 @@ export function useAgentProfiles() {
     fetchProfileVersions,
     restoreProfileVersion,
     createShareLink,
+    listShareLinks,
+    updateShareLink,
+    deleteShareLink,
     fetchShareAccess,
     purchaseShare,
     fetchPaymentOrder,

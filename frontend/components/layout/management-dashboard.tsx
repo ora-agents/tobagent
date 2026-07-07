@@ -131,6 +131,20 @@ interface ManagementDashboardProps {
       faqItems?: AgentShareFaqItem[]
     },
   ) => Promise<AgentShareLink | null>
+  listAgentShareLinks: (id: string) => Promise<AgentShareLink[]>
+  updateAgentShareLink: (
+    token: string,
+    include: AgentShareOptions,
+    options?: {
+      customSlug?: string | null
+      priceCents?: number
+      currency?: string
+      trialDurationMinutes?: number
+      introductionText?: string | null
+      faqItems?: AgentShareFaqItem[]
+    },
+  ) => Promise<AgentShareLink | null>
+  deleteAgentShareLink: (token: string) => Promise<boolean>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
   createOnOpen?: boolean
@@ -286,6 +300,9 @@ export function ManagementDashboard({
   fetchAgentProfileVersions,
   restoreAgentProfileVersion,
   createAgentShareLink,
+  listAgentShareLinks,
+  updateAgentShareLink,
+  deleteAgentShareLink,
   editAgentIdOnOpen,
   onEditAgentChange,
   createOnOpen = false,
@@ -440,6 +457,10 @@ export function ManagementDashboard({
     forms: true,
   })
   const [shareLink, setShareLink] = useState<string | null>(null)
+  const [agentShareLinks, setAgentShareLinks] = useState<AgentShareLink[]>([])
+  const [agentShareLinksLoading, setAgentShareLinksLoading] = useState(false)
+  const [editingShareToken, setEditingShareToken] = useState<string | null>(null)
+  const [deletingShareToken, setDeletingShareToken] = useState<string | null>(null)
   const [shareSlug, setShareSlug] = useState("")
   const [sharePrice, setSharePrice] = useState("")
   const [shareTrialMinutes, setShareTrialMinutes] = useState("")
@@ -997,6 +1018,74 @@ export function ManagementDashboard({
     }
   }
 
+  useEffect(() => {
+    setAgentShareLinks([])
+    setShareLink(null)
+    setEditingShareToken(null)
+    if (!selectedAgentId || !canManageWorkspace) return
+
+    let cancelled = false
+    setAgentShareLinksLoading(true)
+    void listAgentShareLinks(selectedAgentId)
+      .then((shares) => {
+        if (!cancelled) setAgentShareLinks(shares)
+      })
+      .finally(() => {
+        if (!cancelled) setAgentShareLinksLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [canManageWorkspace, listAgentShareLinks, selectedAgentId])
+
+  const buildAgentShareUrl = useCallback((share: AgentShareLink) => {
+    const url = new URL(window.location.origin)
+    url.pathname = "/share/"
+    url.search = ""
+    url.searchParams.set("agentShare", share.customSlug || share.token)
+    url.searchParams.delete("threadId")
+    return url.toString()
+  }, [])
+
+  const resetShareForm = useCallback(() => {
+    setEditingShareToken(null)
+    setShareLink(null)
+    setShareSlug("")
+    setSharePrice("")
+    setShareTrialMinutes("")
+    setShareIntroduction("")
+    setShareFaqItems([{ question: "", answer: "" }])
+    setShareOptions({
+      knowledgeBases: true,
+      skills: true,
+      mcpServers: true,
+      agents: true,
+      forms: true,
+    })
+  }, [])
+
+  const startEditShare = useCallback((share: AgentShareLink) => {
+    setEditingShareToken(share.token)
+    setShareLink(buildAgentShareUrl(share))
+    setShareSlug(share.customSlug || "")
+    setSharePrice(share.priceCents > 0 ? String(share.priceCents / 100) : "")
+    setShareTrialMinutes(share.trialDurationMinutes > 0 ? String(share.trialDurationMinutes) : "")
+    setShareIntroduction(share.introductionText || "")
+    setShareFaqItems(share.faqItems && share.faqItems.length > 0 ? share.faqItems : [{ question: "", answer: "" }])
+    setShareOptions(share.include)
+  }, [buildAgentShareUrl])
+
+  const handleCopyAgentShareLink = async (share: AgentShareLink) => {
+    const nextLink = buildAgentShareUrl(share)
+    setShareLink(nextLink)
+    try {
+      await navigator.clipboard.writeText(nextLink)
+    } catch (err) {
+      console.error("Failed to copy agent share link", err)
+    }
+  }
+
   const updateShareFaqItem = (index: number, field: keyof AgentShareFaqItem, value: string) => {
     setShareFaqItems((current) => current.map((item, itemIndex) => (
       itemIndex === index ? { ...item, [field]: value } : item
@@ -1017,7 +1106,7 @@ export function ManagementDashboard({
     })
   }
 
-  const handleCreateAgentShare = async (id: string) => {
+  const handleSaveAgentShare = async (id: string) => {
     if (!canManageWorkspace) return
     const priceYuan = sharePrice.trim() === "" ? 0 : Number(sharePrice)
     if (!Number.isFinite(priceYuan) || priceYuan < 0) {
@@ -1031,7 +1120,7 @@ export function ManagementDashboard({
     }
     setSharingAgentId(id)
     try {
-      const share = await createAgentShareLink(id, shareOptions, {
+      const payload = {
         customSlug: shareSlug.trim() || null,
         priceCents: Math.round(priceYuan * 100),
         currency: "CNY",
@@ -1043,20 +1132,41 @@ export function ManagementDashboard({
             answer: item.answer.trim(),
           }))
           .filter((item) => item.question && item.answer),
-      })
+      }
+      const share = editingShareToken
+        ? await updateAgentShareLink(editingShareToken, shareOptions, payload)
+        : await createAgentShareLink(id, shareOptions, payload)
       if (!share) return
-      const url = new URL(window.location.origin)
-      url.pathname = "/share/"
-      url.search = ""
-      url.searchParams.set("agentShare", share.customSlug || share.token)
-      url.searchParams.delete("threadId")
-      const nextLink = url.toString()
+      const nextLink = buildAgentShareUrl(share)
       setShareLink(nextLink)
+      setEditingShareToken(share.token)
+      setAgentShareLinks(prev => {
+        const exists = prev.some(item => item.token === share.token)
+        return exists
+          ? prev.map(item => item.token === share.token ? share : item)
+          : [share, ...prev]
+      })
       await navigator.clipboard.writeText(nextLink)
     } catch (err) {
-      console.error("Failed to create agent share link", err)
+      console.error("Failed to save agent share link", err)
     } finally {
       setSharingAgentId(null)
+    }
+  }
+
+  const handleDeleteAgentShare = async (share: AgentShareLink) => {
+    if (!canManageWorkspace) return
+    const confirmed = window.confirm(locale === "zh" ? "确定删除这个分享链接？删除后该地址将无法访问。" : "Delete this share link? The address will stop working.")
+    if (!confirmed) return
+
+    setDeletingShareToken(share.token)
+    try {
+      const deleted = await deleteAgentShareLink(share.token)
+      if (!deleted) return
+      setAgentShareLinks(prev => prev.filter(item => item.token !== share.token))
+      if (editingShareToken === share.token) resetShareForm()
+    } finally {
+      setDeletingShareToken(null)
     }
   }
 
@@ -4364,15 +4474,29 @@ export function ManagementDashboard({
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => handleCreateAgentShare(selectedAgent.id)}
+                              onClick={() => handleSaveAgentShare(selectedAgent.id)}
                               disabled={sharingAgentId === selectedAgent.id}
                               className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
                             >
                               <Share2 className="h-3.5 w-3.5" />
                               {sharingAgentId === selectedAgent.id
-                                ? (locale === "zh" ? "生成中" : "Creating")
-                                : (locale === "zh" ? "分享链接" : "Share Link")}
+                                ? (locale === "zh" ? "保存中" : "Saving")
+                                : editingShareToken
+                                  ? (locale === "zh" ? "保存分享" : "Save Share")
+                                  : (locale === "zh" ? "新建分享" : "New Share")}
                             </Button>
+                            {editingShareToken && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={resetShareForm}
+                                className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                {locale === "zh" ? "新建" : "New"}
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="outline"
@@ -4393,6 +4517,92 @@ export function ManagementDashboard({
                               {locale === "zh" ? "导出" : "Export"}
                             </Button>
                           </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-background/50 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "分享地址" : "Share Addresses"}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {agentShareLinksLoading
+                                ? (locale === "zh" ? "加载中" : "Loading")
+                                : `${agentShareLinks.length}`}
+                            </div>
+                          </div>
+                          {agentShareLinks.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                              {agentShareLinks.map((share) => {
+                                const isEditing = editingShareToken === share.token
+                                return (
+                                  <div key={share.token} className={cn(
+                                    "grid gap-2 rounded-md border border-border/60 bg-background px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto]",
+                                    isEditing && "border-primary",
+                                  )}>
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditShare(share)}
+                                      className="min-w-0 text-left"
+                                    >
+                                      <div className="truncate font-mono text-[11px] text-foreground">
+                                        {share.customSlug || share.token}
+                                      </div>
+                                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                        <span>{formatDateTime(share.updatedAt)}</span>
+                                        {share.priceCents > 0 && <span>¥{(share.priceCents / 100).toFixed(2)}</span>}
+                                        {share.trialDurationMinutes > 0 && (
+                                          <span>
+                                            {locale === "zh"
+                                              ? `试用 ${share.trialDurationMinutes} 分钟`
+                                              : `${share.trialDurationMinutes} min trial`}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleCopyAgentShareLink(share)}
+                                        className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        {locale === "zh" ? "复制" : "Copy"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => startEditShare(share)}
+                                        className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                        {locale === "zh" ? "编辑" : "Edit"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleDeleteAgentShare(share)}
+                                        disabled={deletingShareToken === share.token}
+                                        className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        {deletingShareToken === share.token
+                                          ? (locale === "zh" ? "删除中" : "Deleting")
+                                          : (locale === "zh" ? "删除" : "Delete")}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-dashed border-border/60 px-3 py-3 text-xs text-muted-foreground">
+                              {locale === "zh" ? "还没有分享地址。填写下方配置后可以为同一个智能体创建多个分享链接。" : "No share addresses yet. Use the form below to create multiple share links for this agent."}
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
