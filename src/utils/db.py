@@ -185,6 +185,23 @@ class SiteTestimonialTable(Base):
     updated_at = Column(String(50), nullable=False)
 
 
+class AgentShareTestimonialTable(Base):
+    """Public testimonial submitted for one shared agent."""
+    __tablename__ = "agent_share_testimonials"
+
+    id = Column(String(255), primary_key=True, index=True)
+    share_id = Column(String(255), index=True, nullable=False)
+    agent_profile_id = Column(String(255), index=True, nullable=False)
+    user_id = Column(String(255), index=True, nullable=False)
+    author_name = Column(String(255), nullable=False)
+    role = Column(String(255), nullable=True)
+    company = Column(String(255), nullable=True)
+    rating = Column(Integer, nullable=False, default=5)
+    quote = Column(Text, nullable=False)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
 
 class AgentProfileTable(Base):
     """Configurable Agent Profiles."""
@@ -263,6 +280,8 @@ class AgentShareLinkTable(Base):
     price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String(10), nullable=False, default="CNY")
     trial_duration_minutes = Column(Integer, nullable=False, default=0)
+    landing_intro = Column(Text, nullable=True)
+    landing_faqs = Column(JSON, nullable=True, default=list)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
 
@@ -517,6 +536,8 @@ def ensure_database_schema() -> None:
         ("agent_share_links", "price_cents", "price_cents INTEGER DEFAULT 0"),
         ("agent_share_links", "currency", "currency VARCHAR(10) DEFAULT 'CNY'"),
         ("agent_share_links", "trial_duration_minutes", "trial_duration_minutes INTEGER DEFAULT 0"),
+        ("agent_share_links", "landing_intro", "landing_intro TEXT"),
+        ("agent_share_links", "landing_faqs", "landing_faqs JSON"),
         ("agent_profiles", "workspace_id", "workspace_id VARCHAR(255)"),
         ("agent_profile_versions", "workspace_id", "workspace_id VARCHAR(255)"),
         ("skills", "workspace_id", "workspace_id VARCHAR(255)"),

@@ -56,7 +56,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentProfileVersion, AgentShareLink, AgentShareOptions, BuiltinToolId, FormRecordPermission } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, AgentShareFaqItem, AgentShareLink, AgentShareOptions, BuiltinToolId, FormRecordPermission } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS, isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -122,7 +122,14 @@ interface ManagementDashboardProps {
   createAgentShareLink: (
     id: string,
     include: AgentShareOptions,
-    options?: { customSlug?: string | null; priceCents?: number; currency?: string; trialDurationMinutes?: number },
+    options?: {
+      customSlug?: string | null
+      priceCents?: number
+      currency?: string
+      trialDurationMinutes?: number
+      introductionText?: string | null
+      faqItems?: AgentShareFaqItem[]
+    },
   ) => Promise<AgentShareLink | null>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
@@ -436,6 +443,10 @@ export function ManagementDashboard({
   const [shareSlug, setShareSlug] = useState("")
   const [sharePrice, setSharePrice] = useState("")
   const [shareTrialMinutes, setShareTrialMinutes] = useState("")
+  const [shareIntroduction, setShareIntroduction] = useState("")
+  const [shareFaqItems, setShareFaqItems] = useState<AgentShareFaqItem[]>([
+    { question: "", answer: "" },
+  ])
   const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
   const isScopedAgentConfig = !!scopedAgentProfileId
 
@@ -986,6 +997,26 @@ export function ManagementDashboard({
     }
   }
 
+  const updateShareFaqItem = (index: number, field: keyof AgentShareFaqItem, value: string) => {
+    setShareFaqItems((current) => current.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, [field]: value } : item
+    )))
+  }
+
+  const addShareFaqItem = () => {
+    setShareFaqItems((current) => [
+      ...current,
+      { question: "", answer: "" },
+    ])
+  }
+
+  const removeShareFaqItem = (index: number) => {
+    setShareFaqItems((current) => {
+      const next = current.filter((_, itemIndex) => itemIndex !== index)
+      return next.length > 0 ? next : [{ question: "", answer: "" }]
+    })
+  }
+
   const handleCreateAgentShare = async (id: string) => {
     if (!canManageWorkspace) return
     const priceYuan = sharePrice.trim() === "" ? 0 : Number(sharePrice)
@@ -1005,10 +1036,18 @@ export function ManagementDashboard({
         priceCents: Math.round(priceYuan * 100),
         currency: "CNY",
         trialDurationMinutes: priceYuan > 0 ? trialMinutes : 0,
+        introductionText: shareIntroduction.trim() || null,
+        faqItems: shareFaqItems
+          .map((item) => ({
+            question: item.question.trim(),
+            answer: item.answer.trim(),
+          }))
+          .filter((item) => item.question && item.answer),
       })
       if (!share) return
       const url = new URL(window.location.origin)
-      url.pathname = "/agentapp/"
+      url.pathname = "/share/"
+      url.search = ""
       url.searchParams.set("agentShare", share.customSlug || share.token)
       url.searchParams.delete("threadId")
       const nextLink = url.toString()
@@ -4403,6 +4442,70 @@ export function ManagementDashboard({
                               {locale === "zh"
                                 ? "仅对付费分享生效；0 表示不开放试用。"
                                 : "Only applies to paid shares; 0 disables trials."}
+                            </div>
+                          </div>
+                          <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-4">
+                            <Label htmlFor="agent-share-introduction" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "分享页介绍" : "Share page intro"}
+                            </Label>
+                            <Textarea
+                              id="agent-share-introduction"
+                              value={shareIntroduction}
+                              onChange={(event) => setShareIntroduction(event.target.value)}
+                              placeholder={locale === "zh"
+                                ? "介绍这个 Agent 的适用场景、能力边界和使用前需要知道的信息。"
+                                : "Describe this agent's use case, capabilities, and expectations."}
+                              rows={4}
+                              maxLength={1600}
+                            />
+                          </div>
+                          <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                {locale === "zh" ? "分享页常见问题" : "Share page FAQ"}
+                              </Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addShareFaqItem}
+                                disabled={shareFaqItems.length >= 12}
+                                className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                {locale === "zh" ? "添加" : "Add"}
+                              </Button>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              {shareFaqItems.map((item, index) => (
+                                <div key={index} className="grid gap-2 rounded-lg border border-border/50 bg-background/50 p-3 sm:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)_auto]">
+                                  <Input
+                                    value={item.question}
+                                    onChange={(event) => updateShareFaqItem(index, "question", event.target.value)}
+                                    placeholder={locale === "zh" ? "问题" : "Question"}
+                                    maxLength={160}
+                                    className="h-9"
+                                  />
+                                  <Input
+                                    value={item.answer}
+                                    onChange={(event) => updateShareFaqItem(index, "answer", event.target.value)}
+                                    placeholder={locale === "zh" ? "答案" : "Answer"}
+                                    maxLength={800}
+                                    className="h-9"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => removeShareFaqItem(index)}
+                                    className="h-9 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                                    title={locale === "zh" ? "删除 FAQ" : "Remove FAQ"}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                    <span className="sr-only">{locale === "zh" ? "删除" : "Remove"}</span>
+                                  </Button>
+                                </div>
+                              ))}
                             </div>
                           </div>
                           {([

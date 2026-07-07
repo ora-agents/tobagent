@@ -206,6 +206,8 @@ def _share_link_schema(share: AgentShareLinkTable) -> AgentShareLinkSchema:
         priceCents=int(getattr(share, "price_cents", 0) or 0),
         currency=getattr(share, "currency", None) or "CNY",
         trialDurationMinutes=int(getattr(share, "trial_duration_minutes", 0) or 0),
+        introductionText=getattr(share, "landing_intro", None),
+        faqItems=getattr(share, "landing_faqs", None) or [],
         createdAt=share.created_at,
         updatedAt=share.updated_at,
     )
