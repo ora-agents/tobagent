@@ -946,7 +946,7 @@ function DashboardContent() {
                       {pendingPaidShare.trialDurationMinutes > 0 ? (
                         <div className="mt-2 text-xs text-muted-foreground">
                           {isTrialActive && trialRemainingMs !== null
-                            ? `当前仍可试用 ${formatTrialRemaining(trialRemainingMs)}，购买后可长期使用。`
+                            ? `当前仍可试用 ${formatTrialRemaining(trialRemainingMs)}，购买后可永久使用。`
                             : `试用 ${formatTrialDuration(pendingPaidShare.trialDurationMinutes)} 已结束或不可用，购买后可导入并长期使用。`}
                         </div>
                       ) : null}
@@ -1002,7 +1002,7 @@ function DashboardContent() {
                         试用中，剩余 {formatTrialRemaining(trialRemainingMs)}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        购买后可长期使用，试用期间不可修改或浏览配置文件。
+                        购买后可永久使用，试用期间不可修改或浏览配置文件。
                       </div>
                     </div>
                     <Button
