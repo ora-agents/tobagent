@@ -260,6 +260,19 @@ class SiteTestimonialRequest(BaseModel):
         return text
 
 
+class AgentShareFaqItem(BaseModel):
+    question: str = Field(min_length=1, max_length=160)
+    answer: str = Field(min_length=1, max_length=800)
+
+    @field_validator("question", "answer")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("FAQ text cannot be empty")
+        return text
+
+
 WorkspaceRole = Literal["owner", "admin", "member"]
 WorkspaceChangeStatus = Literal["pending", "approved", "rejected", "applied"]
 WorkspaceChangeAction = Literal["create", "update", "delete"]
@@ -353,6 +366,8 @@ class AgentShareLinkRequest(BaseModel):
     customSlug: str | None = None
     priceCents: int = Field(default=0, ge=0)
     currency: Literal["CNY"] = "CNY"
+    introductionText: str | None = Field(default=None, max_length=1600)
+    faqItems: list[AgentShareFaqItem] = Field(default_factory=list, max_length=12)
 
     @field_validator("customSlug")
     @classmethod
@@ -366,6 +381,14 @@ class AgentShareLinkRequest(BaseModel):
             raise ValueError("customSlug must be 3-128 chars using lowercase letters, numbers, hyphen, or underscore")
         return slug
 
+    @field_validator("introductionText")
+    @classmethod
+    def validate_introduction_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        text = value.strip()
+        return text or None
+
 
 class AgentShareLinkSchema(BaseModel):
     token: str
@@ -374,6 +397,8 @@ class AgentShareLinkSchema(BaseModel):
     customSlug: str | None = None
     priceCents: int = 0
     currency: str = "CNY"
+    introductionText: str | None = None
+    faqItems: list[AgentShareFaqItem] = Field(default_factory=list)
     createdAt: str
     updatedAt: str
 
@@ -388,6 +413,8 @@ class AgentSharePreview(BaseModel):
     priceCents: int = 0
     currency: str = "CNY"
     isPaid: bool = False
+    introductionText: str | None = None
+    faqItems: list[AgentShareFaqItem] = Field(default_factory=list)
     createdAt: str
 
 

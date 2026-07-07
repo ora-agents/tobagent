@@ -12,12 +12,18 @@ from src.api.fastapi_app import (
     create_agent_share_link,
     import_agent_share,
 )
-from src.api.routes.agent_profiles import get_agent_share_preview
+from src.api.routes.agent_profiles import (
+    get_agent_share_preview,
+    list_agent_share_testimonials,
+    upsert_agent_share_testimonial,
+)
 from src.api.routes.payments import _grant_paid_access, _wechat_configured
+from src.api.schemas import AgentShareFaqItem, SiteTestimonialRequest
 from src.utils.db import (
     AgentProfileTable,
     AgentPurchaseTable,
     AgentShareLinkTable,
+    AgentShareTestimonialTable,
     Base,
     KnowledgeBaseTable,
     McpServerTable,
@@ -130,6 +136,95 @@ async def test_create_agent_share_link_prefixes_custom_slug_and_price(db_session
     assert preview.token == share.token
     assert preview.customSlug == "user-owner-sales-helper"
     assert preview.isPaid is True
+
+
+@pytest.mark.anyio
+async def test_create_agent_share_link_saves_landing_intro_and_faq(db_session):
+    owner = _user("user-owner")
+    db_session.add(owner)
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(
+            customSlug="sales-helper",
+            introductionText="这个 Agent 面向售前线索跟进。",
+            faqItems=[
+                AgentShareFaqItem(
+                    question="适合谁使用？",
+                    answer="适合销售和客服团队。",
+                ),
+            ],
+        ),
+        db_session,
+        owner,
+    )
+    preview = await get_agent_share_preview("user-owner-sales-helper", db_session)
+
+    assert share.introductionText == "这个 Agent 面向售前线索跟进。"
+    assert share.faqItems[0].question == "适合谁使用？"
+    assert preview.introductionText == "这个 Agent 面向售前线索跟进。"
+    assert preview.faqItems[0].answer == "适合销售和客服团队。"
+
+
+@pytest.mark.anyio
+async def test_agent_share_testimonials_are_scoped_to_share(db_session):
+    owner = _user("user-owner")
+    reviewer = _user("user-reviewer")
+    db_session.add_all([owner, reviewer])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.add(_agent("agent-other", owner.id))
+    db_session.commit()
+
+    first_share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="sales-helper"),
+        db_session,
+        owner,
+    )
+    db_session.add(
+        AgentShareLinkTable(
+            id="share-other",
+            token="other-token",
+            owner_user_id=owner.id,
+            agent_profile_id="agent-other",
+            include_options={},
+            custom_slug="user-owner-other",
+            price_cents=0,
+            currency="CNY",
+            created_at=datetime.now(UTC).isoformat(),
+            updated_at=datetime.now(UTC).isoformat(),
+        )
+    )
+    db_session.commit()
+
+    created = await upsert_agent_share_testimonial(
+        "user-owner-sales-helper",
+        SiteTestimonialRequest(rating=5, quote="这个销售 Agent 对线索跟进很有帮助。"),
+        db_session,
+        reviewer,
+    )
+    updated = await upsert_agent_share_testimonial(
+        "user-owner-sales-helper",
+        SiteTestimonialRequest(rating=4, quote="更新后的评价仍然只属于这个 Agent。"),
+        db_session,
+        reviewer,
+    )
+    testimonials = await list_agent_share_testimonials("user-owner-sales-helper", db_session)
+    other_testimonials = await list_agent_share_testimonials("user-owner-other", db_session)
+
+    assert created.id == updated.id
+    assert updated.rating == 4
+    assert len(testimonials) == 1
+    assert testimonials[0].quote == "更新后的评价仍然只属于这个 Agent。"
+    assert other_testimonials == []
+    share_row = db_session.query(AgentShareLinkTable).filter(
+        AgentShareLinkTable.token == first_share.token,
+    ).one()
+    assert db_session.query(AgentShareTestimonialTable).filter(
+        AgentShareTestimonialTable.share_id == share_row.id,
+    ).count() == 1
 
 
 @pytest.mark.anyio

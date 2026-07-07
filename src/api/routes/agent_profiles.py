@@ -22,6 +22,8 @@ from src.api.schemas import (
     AgentShareLinkRequest,
     AgentShareLinkSchema,
     AgentSharePreview,
+    SiteTestimonialRequest,
+    SiteTestimonialSchema,
     WorkspaceChangeRequestSchema,
 )
 from src.api.services import (
@@ -52,6 +54,7 @@ from src.utils.db import (
     AgentProfileVersionTable,
     AgentPurchaseTable,
     AgentShareLinkTable,
+    AgentShareTestimonialTable,
     FormRecordTable,
     FormTable,
     UserTable,
@@ -179,6 +182,23 @@ def _user_has_share_purchase(db: Session, share: AgentShareLinkTable, user_id: s
         AgentPurchaseTable.share_id == share.id,
         AgentPurchaseTable.buyer_user_id == user_id,
     ).first() is not None
+
+
+def _share_testimonial_schema(
+    testimonial: AgentShareTestimonialTable,
+    current_user: UserTable | None = None,
+) -> SiteTestimonialSchema:
+    return SiteTestimonialSchema(
+        id=testimonial.id,
+        authorName=testimonial.author_name,
+        role=testimonial.role,
+        company=testimonial.company,
+        rating=testimonial.rating,
+        quote=testimonial.quote,
+        createdAt=testimonial.created_at,
+        updatedAt=testimonial.updated_at,
+        isOwn=bool(current_user and testimonial.user_id == current_user.id),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -551,6 +571,12 @@ async def create_agent_share_link(
         existing.custom_slug = custom_slug
         existing.price_cents = share_data.priceCents
         existing.currency = share_data.currency
+        existing.landing_intro = share_data.introductionText
+        existing.landing_faqs = [
+            item.model_dump(mode="json")
+            for item in share_data.faqItems
+            if item.question.strip() and item.answer.strip()
+        ]
         existing.updated_at = now
         share = existing
     else:
@@ -566,6 +592,12 @@ async def create_agent_share_link(
             custom_slug=custom_slug,
             price_cents=share_data.priceCents,
             currency=share_data.currency,
+            landing_intro=share_data.introductionText,
+            landing_faqs=[
+                item.model_dump(mode="json")
+                for item in share_data.faqItems
+                if item.question.strip() and item.answer.strip()
+            ],
             created_at=now,
             updated_at=now,
         )
@@ -625,8 +657,88 @@ async def get_agent_share_preview(
         priceCents=int(getattr(share, "price_cents", 0) or 0),
         currency=getattr(share, "currency", None) or "CNY",
         isPaid=int(getattr(share, "price_cents", 0) or 0) > 0,
+        introductionText=getattr(share, "landing_intro", None),
+        faqItems=getattr(share, "landing_faqs", None) or [],
         createdAt=share.created_at,
     )
+
+
+@router.get(
+    "/api/agent-shares/{token}/testimonials",
+    response_model=list[SiteTestimonialSchema],
+    summary="List testimonials for a shared agent",
+    description="Returns public testimonials attached to one shared agent landing page.",
+)
+async def list_agent_share_testimonials(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    share = _find_agent_share(db, token)
+    if not share:
+        raise HTTPException(status_code=404, detail="Agent share link not found")
+
+    rows = (
+        db.query(AgentShareTestimonialTable)
+        .filter(AgentShareTestimonialTable.share_id == share.id)
+        .order_by(AgentShareTestimonialTable.updated_at.desc())
+        .limit(24)
+        .all()
+    )
+    return [_share_testimonial_schema(row) for row in rows]
+
+
+@router.post(
+    "/api/agent-shares/{token}/testimonials",
+    response_model=SiteTestimonialSchema,
+    summary="Create or update the current user's shared agent testimonial",
+    description="Authenticated users can publish one testimonial per shared agent.",
+)
+async def upsert_agent_share_testimonial(
+    token: str,
+    request: SiteTestimonialRequest,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    share = _find_agent_share(db, token)
+    if not share:
+        raise HTTPException(status_code=404, detail="Agent share link not found")
+
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    testimonial = (
+        db.query(AgentShareTestimonialTable)
+        .filter(
+            AgentShareTestimonialTable.share_id == share.id,
+            AgentShareTestimonialTable.user_id == current_user.id,
+        )
+        .first()
+    )
+    if testimonial:
+        testimonial.agent_profile_id = share.agent_profile_id
+        testimonial.author_name = current_user.username
+        testimonial.role = request.role
+        testimonial.company = request.company
+        testimonial.rating = request.rating
+        testimonial.quote = request.quote
+        testimonial.updated_at = now
+    else:
+        testimonial = AgentShareTestimonialTable(
+            id=f"agent-share-testimonial-{uuid.uuid4().hex}",
+            share_id=share.id,
+            agent_profile_id=share.agent_profile_id,
+            user_id=current_user.id,
+            author_name=current_user.username,
+            role=request.role,
+            company=request.company,
+            rating=request.rating,
+            quote=request.quote,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(testimonial)
+
+    db.commit()
+    db.refresh(testimonial)
+    return _share_testimonial_schema(testimonial, current_user)
 
 
 @router.post(

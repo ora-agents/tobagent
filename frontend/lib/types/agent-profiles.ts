@@ -80,6 +80,11 @@ export interface AgentShareOptions {
   forms: boolean
 }
 
+export interface AgentShareFaqItem {
+  question: string
+  answer: string
+}
+
 export interface AgentShareLink {
   token: string
   agentProfileId: string
@@ -87,6 +92,8 @@ export interface AgentShareLink {
   customSlug?: string | null
   priceCents: number
   currency: string
+  introductionText?: string | null
+  faqItems?: AgentShareFaqItem[]
   createdAt: string
   updatedAt: string
 }
@@ -107,6 +114,8 @@ export interface AgentSharePreview {
   priceCents: number
   currency: string
   isPaid: boolean
+  introductionText?: string | null
+  faqItems?: AgentShareFaqItem[]
   createdAt: string
 }
 

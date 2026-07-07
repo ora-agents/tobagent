@@ -4,6 +4,7 @@ import type {
   AgentShareAccess,
   AgentSharePurchase,
   AgentConfigTomlImportResponse,
+  AgentShareFaqItem,
   AgentProfileVersion,
   AgentShareImportResponse,
   AgentShareLink,
@@ -196,7 +197,13 @@ export function useAgentProfiles() {
   const createShareLink = useCallback(async (
     id: string,
     include: AgentShareOptions,
-    options?: { customSlug?: string | null; priceCents?: number; currency?: string },
+    options?: {
+      customSlug?: string | null
+      priceCents?: number
+      currency?: string
+      introductionText?: string | null
+      faqItems?: AgentShareFaqItem[]
+    },
   ): Promise<AgentShareLink | null> => {
     if (!user || !canManageWorkspace) return null
 
@@ -210,6 +217,8 @@ export function useAgentProfiles() {
           customSlug: options?.customSlug || null,
           priceCents: options?.priceCents || 0,
           currency: options?.currency || "CNY",
+          introductionText: options?.introductionText || null,
+          faqItems: options?.faqItems || [],
         },
       })
       if (resp.ok) {
