@@ -33,6 +33,24 @@ function saveSelectedId(id: string | null) {
   } catch { /* noop */ }
 }
 
+async function readBackendError(resp: Response, fallback: string) {
+  try {
+    const data = await resp.json()
+    const detail = data?.detail
+    if (typeof detail === "string") return detail
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => item?.msg || item?.message)
+        .filter(Boolean)
+        .join("; ") || fallback
+    }
+    if (typeof data?.message === "string") return data.message
+  } catch {
+    // Ignore response parse failures and use the fallback below.
+  }
+  return fallback
+}
+
 export function useAgentProfiles() {
   const { user, workspaceHeaders, authHeaders, activeWorkspaceId, canManageWorkspace } = useAuth()
   const [profiles, setProfiles] = useState<AgentProfile[]>([])
@@ -232,10 +250,11 @@ export function useAgentProfiles() {
       if (resp.ok) {
         return await resp.json()
       }
+      throw new Error(await readBackendError(resp, "Failed to create share link"))
     } catch (err) {
       console.error(`Failed to create share link for agent profile ${id}`, err)
+      throw err
     }
-    return null
   }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const listShareLinks = useCallback(async (id: string): Promise<AgentShareLink[]> => {
@@ -291,10 +310,11 @@ export function useAgentProfiles() {
       if (resp.ok) {
         return await resp.json()
       }
+      throw new Error(await readBackendError(resp, "Failed to update share link"))
     } catch (err) {
       console.error(`Failed to update share link ${token}`, err)
+      throw err
     }
-    return null
   }, [authHeaders, user, workspaceHeaders, canManageWorkspace])
 
   const deleteShareLink = useCallback(async (token: string): Promise<boolean> => {
