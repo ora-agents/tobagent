@@ -2,6 +2,7 @@
 # ruff: noqa: D103
 
 import copy
+import json
 import secrets
 import uuid
 from datetime import UTC, datetime
@@ -40,6 +41,7 @@ from src.api.services import (
     _workspace_change_request_schema,
     agent_profiles_to_toml,
     parse_agent_config_toml,
+    remap_custom_function_form_ids,
 )
 from src.api.workspace_utils import (
     MANAGER_ROLES,
@@ -222,6 +224,42 @@ def _share_testimonial_schema(
     )
 
 
+def _custom_functions_from_toml(raw_agent: dict) -> list[dict]:
+    raw_custom_functions = raw_agent.get("customFunctions")
+    if isinstance(raw_custom_functions, str):
+        try:
+            parsed = json.loads(raw_custom_functions)
+        except json.JSONDecodeError:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    if isinstance(raw_custom_functions, list):
+        return [item for item in raw_custom_functions if isinstance(item, dict)]
+    if not isinstance(raw_custom_functions, dict):
+        return []
+
+    custom_functions = []
+    for key, raw_custom_function in raw_custom_functions.items():
+        if not isinstance(raw_custom_function, dict):
+            continue
+        try:
+            parameters = json.loads(str(raw_custom_function.get("parametersJson") or "[]"))
+        except json.JSONDecodeError:
+            parameters = []
+        try:
+            steps = json.loads(str(raw_custom_function.get("stepsJson") or "[]"))
+        except json.JSONDecodeError:
+            steps = []
+        custom_functions.append({
+            "id": str(raw_custom_function.get("id") or key),
+            "name": str(raw_custom_function.get("name") or key),
+            "description": str(raw_custom_function.get("description") or ""),
+            "enabled": raw_custom_function.get("enabled", True) is not False,
+            "parameters": parameters if isinstance(parameters, list) else [],
+            "steps": steps if isinstance(steps, list) else [],
+        })
+    return custom_functions
+
+
 # ---------------------------------------------------------------------------
 # Agent Profile CRUD
 # ---------------------------------------------------------------------------
@@ -328,6 +366,7 @@ async def create_agent_profile(
             profile_data.formIds,
             profile_data.formPermissions,
         ),
+        custom_functions=copy.deepcopy(profile_data.model_dump(mode="json").get("customFunctions", [])),
         wake_words=profile_data.wakeWords,
         role_template_id=profile_data.roleTemplateId,
         persona_style=profile_data.personaStyle,
@@ -411,6 +450,7 @@ async def update_agent_profile(
         profile_data.formIds,
         profile_data.formPermissions,
     )
+    profile.custom_functions = copy.deepcopy(profile_data.model_dump(mode="json").get("customFunctions", []))
     profile.wake_words = profile_data.wakeWords
     profile.role_template_id = profile_data.roleTemplateId
     profile.persona_style = profile_data.personaStyle
@@ -524,6 +564,7 @@ async def restore_agent_profile_version(
         restored.formIds,
         restored.formPermissions,
     )
+    profile.custom_functions = copy.deepcopy(restored.model_dump(mode="json").get("customFunctions", []))
     profile.wake_words = restored.wakeWords
     profile.role_template_id = restored.roleTemplateId
     profile.persona_style = restored.personaStyle
@@ -962,6 +1003,10 @@ async def import_agent_share(
             ).get(source_id, ["read"])
             for source_id, target_id in id_map["formIds"].items()
         },
+        custom_functions=remap_custom_function_form_ids(
+            getattr(source_profile, "custom_functions", None) or [],
+            id_map["formIds"],
+        ) if include.forms else [],
         wake_words=copy.deepcopy(source_profile.wake_words or []),
         role_template_id=source_profile.role_template_id,
         persona_style=source_profile.persona_style,
@@ -1153,6 +1198,10 @@ async def import_agent_profiles_toml(
             form_ids=form_ids,
             form_category_ids=list(raw_agent.get("formCategoryIds") or []),
             form_permissions=normalize_form_permissions(form_ids, form_permissions),
+            custom_functions=remap_custom_function_form_ids(
+                _custom_functions_from_toml(raw_agent),
+                id_map["formIds"],
+            ),
             wake_words=list(raw_agent.get("wakeWords") or []),
             role_template_id=raw_agent.get("roleTemplateId") or None,
             persona_style=raw_agent.get("personaStyle") or None,

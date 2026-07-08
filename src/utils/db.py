@@ -234,6 +234,8 @@ class AgentProfileTable(Base):
     form_category_ids = Column(JSON, nullable=True, default=list)
     # Per-linked-form record permissions, e.g. {"form_1": ["create", "read"]}.
     form_permissions = Column(JSON, nullable=True, default=dict)
+    # custom_functions is a JSON list of macro tool definitions exposed to the agent.
+    custom_functions = Column(JSON, nullable=True, default=list)
     # wake_words is a JSON list of wake word strings for KWS, e.g., ["小梯小梯", "hey assistant"]
     wake_words = Column(JSON, nullable=True, default=list)
     role_template_id = Column(String(100), nullable=True)
@@ -491,6 +493,7 @@ def ensure_database_schema() -> None:
         ("agent_profiles", "form_ids", "form_ids JSON"),
         ("agent_profiles", "form_category_ids", "form_category_ids JSON"),
         ("agent_profiles", "form_permissions", "form_permissions JSON"),
+        ("agent_profiles", "custom_functions", "custom_functions JSON"),
         ("mcp_servers", "headers", "headers JSON"),
         ("mcp_servers", "tools", "tools JSON"),
         ("mcp_servers", "resources", "resources JSON"),

@@ -485,6 +485,68 @@ class AgentConfigTomlImportResponse(BaseModel):
     warnings: list[str] = []
 
 
+class CustomFunctionParameterSchema(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    description: str = Field(default="", max_length=400)
+    type: Literal["string", "number", "boolean"] = "string"
+    required: bool = True
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        name = value.strip()
+        if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]{0,63}", name):
+            raise ValueError("Parameter name must start with a letter or underscore and contain only letters, numbers, or underscores")
+        return name
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, value: str) -> str:
+        return value.strip()
+
+
+class CustomFunctionStepSchema(BaseModel):
+    action: Literal["query", "create", "update", "delete"]
+    formId: str
+    recordId: str = ""
+    data: dict = Field(default_factory=dict)
+    fields: list[str] = Field(default_factory=list)
+    q: str = ""
+    filterField: str = ""
+    filterValue: str = ""
+    filterOp: str = "contains"
+
+    @field_validator("formId", "recordId", "q", "filterField", "filterValue", "filterOp")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class CustomFunctionSchema(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(min_length=1, max_length=800)
+    enabled: bool = True
+    parameters: list[CustomFunctionParameterSchema] = Field(default_factory=list, max_length=20)
+    steps: list[CustomFunctionStepSchema] = Field(default_factory=list, min_length=1, max_length=20)
+
+    @field_validator("id")
+    @classmethod
+    def validate_id(cls, value: str) -> str:
+        item_id = value.strip()
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", item_id):
+            raise ValueError("Function id must contain only letters, numbers, hyphen, or underscore")
+        return item_id
+
+    @field_validator("name", "description")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("Value cannot be empty")
+        return text
+
+
 class AgentProfileSchema(BaseModel):
     id: str
     ownerUserId: str | None = None
@@ -506,6 +568,7 @@ class AgentProfileSchema(BaseModel):
         str,
         list[Literal["create", "read", "update", "delete"]],
     ] = {}
+    customFunctions: list[CustomFunctionSchema] = Field(default_factory=list)
     wakeWords: list[str] = []
     roleTemplateId: str | None = None
     personaStyle: str | None = None

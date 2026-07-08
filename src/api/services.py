@@ -2,6 +2,7 @@
 # ruff: noqa: D401
 
 import copy
+import json
 import logging
 import tomllib
 import uuid
@@ -70,6 +71,7 @@ def _agent_profile_schema(profile: AgentProfileTable) -> AgentProfileSchema:
             profile.form_ids,
             profile.form_permissions,
         ),
+        customFunctions=copy.deepcopy(getattr(profile, "custom_functions", None) or []),
         wakeWords=profile.wake_words or [],
         roleTemplateId=profile.role_template_id,
         personaStyle=profile.persona_style,
@@ -307,6 +309,14 @@ def _validate_agent_profile_links(
             status_code=400,
             detail="Each linked form must grant at least one record permission",
         )
+    linked_form_ids = set(profile_data.formIds)
+    for custom_function in profile_data.customFunctions:
+        for step in custom_function.steps:
+            if step.formId not in linked_form_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail="customFunctions contains steps for forms that are not linked in formIds",
+                )
     if profile_data.userVoiceprintId:
         _require_owned_ids(
             db,
@@ -413,6 +423,27 @@ def _copy_kb_vector_table_best_effort(source_kb_id: str, target_kb_id: str) -> s
     except Exception as exc:
         logger.warning("Failed to copy shared KB vectors %s -> %s: %s", source_kb_id, target_kb_id, exc)
         return "Knowledge base metadata was copied, but vector rows could not be copied."
+
+
+def remap_custom_function_form_ids(
+    custom_functions: list[dict] | None,
+    form_id_map: dict[str, str],
+) -> list[dict]:
+    """Return custom macro definitions with step form ids rewritten."""
+    remapped = copy.deepcopy(custom_functions or [])
+    for custom_function in remapped:
+        if not isinstance(custom_function, dict):
+            continue
+        steps = custom_function.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            form_id = step.get("formId")
+            if isinstance(form_id, str) and form_id in form_id_map:
+                step["formId"] = form_id_map[form_id]
+    return remapped
 
 
 def _copy_shared_agent_resources(
@@ -666,6 +697,7 @@ def agent_profiles_to_toml(
     for profile in profiles:
         payload = _agent_profile_snapshot(profile)
         form_permissions = payload.pop("formPermissions", {})
+        custom_functions = payload.pop("customFunctions", [])
         payload.pop("speakerVerificationBound", None)
         payload.pop("speakerSampleText", None)
         payload.pop("speakerEnrolledAt", None)
@@ -676,6 +708,22 @@ def agent_profiles_to_toml(
             form_permissions,
             lines,
         )
+        for custom_function in custom_functions:
+            if not isinstance(custom_function, dict):
+                continue
+            custom_function_id = str(custom_function.get("id") or uuid.uuid4())
+            _toml_dict(
+                _toml_path("agents", profile.id, "customFunctions", custom_function_id),
+                {
+                    "id": custom_function_id,
+                    "name": custom_function.get("name") or custom_function_id,
+                    "description": custom_function.get("description") or "",
+                    "enabled": custom_function.get("enabled", True) is not False,
+                    "parametersJson": json.dumps(custom_function.get("parameters") or [], ensure_ascii=False),
+                    "stepsJson": json.dumps(custom_function.get("steps") or [], ensure_ascii=False),
+                },
+                lines,
+            )
 
     for form_id, form in forms_by_id.items():
         _toml_dict(
