@@ -172,12 +172,25 @@ def _with_share_slug_user_prefix(custom_slug: str | None, user: UserTable) -> st
     return f"{prefix}-{custom_slug}"
 
 
-def _share_requires_purchase(share: AgentShareLinkTable, user_id: str | None = None) -> bool:
-    if user_id and user_id == share.owner_user_id:
+def _share_requires_purchase(
+    share: AgentShareLinkTable | AgentShareLinkRequest,
+    user_id: str | None = None,
+) -> bool:
+    owner_user_id = getattr(share, "owner_user_id", None)
+    if user_id and owner_user_id and user_id == owner_user_id:
         return False
-    if (getattr(share, "pricing_mode", None) or "one_time") == "subscription":
-        return bool(getattr(share, "subscription_plans", None) or [])
-    return int(getattr(share, "price_cents", 0) or 0) > 0
+    pricing_mode = getattr(share, "pricing_mode", None) or getattr(share, "pricingMode", None) or "one_time"
+    if pricing_mode == "subscription":
+        subscription_plans = (
+            getattr(share, "subscription_plans", None)
+            or getattr(share, "subscriptionPlans", None)
+            or []
+        )
+        return bool(subscription_plans)
+    price_cents = getattr(share, "price_cents", None)
+    if price_cents is None:
+        price_cents = getattr(share, "priceCents", 0)
+    return int(price_cents or 0) > 0
 
 
 def _active_purchase_filter(now: datetime):

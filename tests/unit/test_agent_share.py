@@ -25,7 +25,11 @@ from src.api.routes.payments import (
     _wechat_configured,
     get_agent_share_access,
 )
-from src.api.schemas import AgentShareFaqItem, SiteTestimonialRequest
+from src.api.schemas import (
+    AgentShareFaqItem,
+    AgentShareSubscriptionPlan,
+    SiteTestimonialRequest,
+)
 from src.utils.db import (
     AgentProfileTable,
     AgentPurchaseTable,
@@ -193,6 +197,38 @@ async def test_create_agent_share_link_prefixes_custom_slug_and_price(db_session
     assert preview.customSlug == "user-owner-sales-helper"
     assert preview.isPaid is True
     assert preview.trialDurationMinutes == 30
+
+
+@pytest.mark.anyio
+async def test_create_subscription_agent_share_saves_trial_duration(db_session):
+    owner = _user("user-owner")
+    db_session.add(owner)
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(
+            customSlug="subscription-helper",
+            pricingMode="subscription",
+            subscriptionPlans=[
+                AgentShareSubscriptionPlan(
+                    id="monthly",
+                    label="月度订阅",
+                    durationDays=30,
+                    priceCents=9900,
+                ),
+            ],
+            trialDurationMinutes=60,
+        ),
+        db_session,
+        owner,
+    )
+    preview = await get_agent_share_preview("user-owner-subscription-helper", db_session)
+
+    assert share.trialDurationMinutes == 60
+    assert preview.isPaid is True
+    assert preview.trialDurationMinutes == 60
 
 
 @pytest.mark.anyio
