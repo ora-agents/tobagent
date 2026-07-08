@@ -1,6 +1,35 @@
 /** Built-in tool identifiers for generic agents. */
 export type BuiltinToolId = "rag_search" | "fetch" | "query_form_data" | "manage_form_data"
 export type FormRecordPermission = "create" | "read" | "update" | "delete"
+export type CustomFunctionParameterType = "string" | "number" | "boolean"
+
+export interface CustomFunctionParameter {
+  name: string
+  description: string
+  type: CustomFunctionParameterType
+  required: boolean
+}
+
+export interface CustomFunctionStep {
+  action: "query" | "create" | "update" | "delete"
+  formId: string
+  recordId?: string
+  data?: Record<string, unknown>
+  fields?: string[]
+  q?: string
+  filterField?: string
+  filterValue?: string
+  filterOp?: string
+}
+
+export interface CustomFunction {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  parameters: CustomFunctionParameter[]
+  steps: CustomFunctionStep[]
+}
 
 export const BUILTIN_TOOLS: { id: BuiltinToolId; label: string; description: string }[] = [
   {
@@ -33,6 +62,7 @@ export interface AgentProfile {
   formIds?: string[]
   formCategoryIds?: string[]
   formPermissions?: Record<string, FormRecordPermission[]>
+  customFunctions?: CustomFunction[]
   wakeWords?: string[]
   roleTemplateId?: string | null
   personaStyle?: string | null

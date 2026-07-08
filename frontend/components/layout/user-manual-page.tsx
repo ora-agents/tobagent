@@ -416,7 +416,34 @@ export function UserManualPage({ onBackToChat, onOpenSidebar }: UserManualPagePr
                       title={zh ? "分享前先检查权限" : "Check permissions before sharing"}
                       description={zh ? "分享角色前确认其绑定的技能、工具和知识库是否适合被接收方使用。" : "Before sharing an agent, review whether its attached skills, tools, and knowledge bases are appropriate for recipients."}
                     />
+                    <FeatureTile
+                      icon={TableProperties}
+                      title={zh ? "宏工具适合固化表单操作" : "Use macro tools for fixed form operations"}
+                      description={zh ? "在角色编辑页的自定义宏工具中，把一组查询、新增、更新或删除表单记录的步骤暴露成 agent 可调用的 toolcall。" : "In Custom Macro Tools, expose a fixed sequence of form query, create, update, or delete steps as an agent-callable tool."}
+                    />
                   </div>
+                  <InteractionBlock
+                    title={zh ? "自定义宏工具配置方法" : "Custom macro tool setup"}
+                    items={
+                      zh
+                        ? [
+                            "先在角色编辑器中关联需要操作的表单，并为每个表单配置读取、新增、更新或删除权限；宏步骤只能使用已关联的表单。",
+                            "在关联表单数据下方点击自定义宏工具的新增宏，填写宏名称和描述；描述会作为 agent 判断何时调用该 toolcall 的依据。",
+                            "参数 JSON 用数组定义入参，例如 [{\"name\":\"customerName\",\"description\":\"客户名称\",\"type\":\"string\",\"required\":true}]。",
+                            "步骤 JSON 用数组定义表单操作，支持 action 为 query、create、update 或 delete；字段值可用 {{customerName}} 引用参数。",
+                            "保存角色后，对话运行时会自动注入 macro_ 开头的工具；当用户请求匹配宏名称或描述时，agent 可直接调用该宏完成预定义表单操作。",
+                            "分享角色或导入 TOML 配置时，宏配置会一起保留；复制表单资源时，宏步骤中的表单 ID 会自动改写为新表单 ID。",
+                          ]
+                        : [
+                            "First link the forms the agent may operate on, then grant read, create, update, or delete permissions. Macro steps can only target linked forms.",
+                            "Under Link Forms, add a Custom Macro Tool, then set its name and description. The description helps the agent decide when to call the tool.",
+                            "Arguments JSON defines inputs, for example [{\"name\":\"customerName\",\"description\":\"Customer name\",\"type\":\"string\",\"required\":true}].",
+                            "Steps JSON defines form operations. action supports query, create, update, and delete. Values can reference arguments with {{customerName}}.",
+                            "After saving the agent, runtime injects a macro_ tool. When a user request matches the macro name or description, the agent can call it directly.",
+                            "Shared agents and TOML imports keep macro configuration. When form resources are copied, form IDs inside macro steps are rewritten automatically.",
+                          ]
+                    }
+                  />
                   <InteractionBlock
                     title={zh ? "角色配置的交互逻辑" : "Agent configuration interaction logic"}
                     items={

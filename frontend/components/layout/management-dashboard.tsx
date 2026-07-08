@@ -58,7 +58,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentProfileVersion, AgentShareFaqItem, AgentShareLink, AgentShareOptions, BuiltinToolId, FormRecordPermission } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, AgentShareFaqItem, AgentShareLink, AgentShareOptions, BuiltinToolId, CustomFunction, FormRecordPermission } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS, isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -400,6 +400,7 @@ export function ManagementDashboard({
     formIds: string[]
     formCategoryIds: string[]
     formPermissions: Record<string, FormRecordPermission[]>
+    customFunctions: CustomFunction[]
     wakeWords: string[]
     roleTemplateId: string
     personaStyle: PersonaStyle
@@ -424,6 +425,7 @@ export function ManagementDashboard({
     formIds: [],
     formCategoryIds: [],
     formPermissions: {},
+    customFunctions: [],
     wakeWords: [],
     roleTemplateId: "",
     personaStyle: "professional",
@@ -954,6 +956,7 @@ export function ManagementDashboard({
       formIds: [],
       formCategoryIds: [],
       formPermissions: {},
+      customFunctions: [],
       wakeWords: [],
       roleTemplateId: "",
       personaStyle: "professional",
@@ -997,6 +1000,7 @@ export function ManagementDashboard({
           profile.formPermissions?.[formId] || ["read"],
         ]),
       ),
+      customFunctions: profile.customFunctions || [],
       wakeWords: (profile as any).wakeWords || [],
       roleTemplateId: profile.roleTemplateId || "",
       personaStyle: (profile.personaStyle || "professional") as PersonaStyle,
@@ -1245,6 +1249,7 @@ export function ManagementDashboard({
       formIds: agentForm.formIds,
       formCategoryIds: agentForm.formCategoryIds,
       formPermissions: agentForm.formPermissions,
+      customFunctions: agentForm.customFunctions,
       wakeWords: agentForm.wakeWords,
       roleTemplateId: agentForm.roleTemplateId || null,
       personaStyle: agentForm.personaStyle,
@@ -1370,6 +1375,46 @@ export function ManagementDashboard({
         : [...prev.enabledTools, toolId]
       return { ...prev, enabledTools: nextTools }
     })
+  }
+
+  const handleAddCustomFunction = () => {
+    const firstFormId = agentForm.formIds[0] || forms[0]?.id || ""
+    setAgentForm(prev => ({
+      ...prev,
+      customFunctions: [
+        ...prev.customFunctions,
+        {
+          id: `macro_${generateUUID().slice(0, 8)}`,
+          name: locale === "zh" ? "新宏操作" : "New macro",
+          description: locale === "zh" ? "执行预定义的表单操作。" : "Run predefined form operations.",
+          enabled: true,
+          parameters: [],
+          steps: [
+            {
+              action: "create",
+              formId: firstFormId,
+              data: {},
+            },
+          ],
+        },
+      ],
+    }))
+  }
+
+  const handleUpdateCustomFunction = (id: string, patch: Partial<CustomFunction>) => {
+    setAgentForm(prev => ({
+      ...prev,
+      customFunctions: prev.customFunctions.map(item =>
+        item.id === id ? { ...item, ...patch } : item
+      ),
+    }))
+  }
+
+  const handleRemoveCustomFunction = (id: string) => {
+    setAgentForm(prev => ({
+      ...prev,
+      customFunctions: prev.customFunctions.filter(item => item.id !== id),
+    }))
   }
 
   const visibleBuiltinTools = BUILTIN_TOOLS
@@ -4347,6 +4392,141 @@ export function ManagementDashboard({
                             </div>
                           )}
                         </ScrollArea>
+                    </div>
+
+                    <div className="space-y-3 pt-2 border-t border-border/40">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            {locale === "zh" ? "自定义宏工具" : "Custom Macro Tools"}
+                          </Label>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {locale === "zh"
+                              ? "把一组预定义表单操作暴露成 agent 可调用的 toolcall。参数可在步骤中用 {{name}} 引用。"
+                              : "Expose predefined form operations as agent-callable tools. Use {{name}} in steps to reference arguments."}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddCustomFunction}
+                          className="h-8 rounded-lg"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          {locale === "zh" ? "新增宏" : "Add"}
+                        </Button>
+                      </div>
+
+                      {agentForm.customFunctions.length > 0 && (
+                        <div className="space-y-3">
+                          {agentForm.customFunctions.map((customFunction) => (
+                            <div key={customFunction.id} className="rounded-xl border border-border/50 bg-background/50 p-3">
+                              <div className="mb-3 flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-medium text-foreground">
+                                    {customFunction.name || customFunction.id}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                    macro_{customFunction.name.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "macro"}_{customFunction.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 12)}
+                                  </div>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant={customFunction.enabled ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => handleUpdateCustomFunction(customFunction.id, { enabled: !customFunction.enabled })}
+                                    className="h-7 rounded-md px-2 text-xs"
+                                  >
+                                    {customFunction.enabled ? (locale === "zh" ? "启用" : "Enabled") : (locale === "zh" ? "停用" : "Disabled")}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveCustomFunction(customFunction.id)}
+                                    className="h-7 w-7 rounded-md p-0 text-muted-foreground hover:text-destructive"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs">{locale === "zh" ? "名称" : "Name"}</Label>
+                                  <Input
+                                    value={customFunction.name}
+                                    onChange={event => handleUpdateCustomFunction(customFunction.id, { name: event.target.value })}
+                                    className="h-8 rounded-lg text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs">ID</Label>
+                                  <Input
+                                    value={customFunction.id}
+                                    readOnly
+                                    className="h-8 rounded-lg bg-muted/40 text-xs"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="mt-3 space-y-1.5">
+                                <Label className="text-xs">{locale === "zh" ? "描述" : "Description"}</Label>
+                                <Textarea
+                                  value={customFunction.description}
+                                  onChange={event => handleUpdateCustomFunction(customFunction.id, { description: event.target.value })}
+                                  className="min-h-16 rounded-lg text-xs"
+                                />
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs">
+                                    {locale === "zh" ? "参数 JSON" : "Arguments JSON"}
+                                  </Label>
+                                  <Textarea
+                                    defaultValue={JSON.stringify(customFunction.parameters || [], null, 2)}
+                                    onBlur={event => {
+                                      try {
+                                        const parsed = JSON.parse(event.target.value)
+                                        if (Array.isArray(parsed)) {
+                                          handleUpdateCustomFunction(customFunction.id, { parameters: parsed })
+                                        }
+                                      } catch {
+                                        return
+                                      }
+                                    }}
+                                    placeholder='[{"name":"customerName","description":"Customer name","type":"string","required":true}]'
+                                    className="min-h-32 rounded-lg font-mono text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs">
+                                    {locale === "zh" ? "步骤 JSON" : "Steps JSON"}
+                                  </Label>
+                                  <Textarea
+                                    defaultValue={JSON.stringify(customFunction.steps || [], null, 2)}
+                                    onBlur={event => {
+                                      try {
+                                        const parsed = JSON.parse(event.target.value)
+                                        if (Array.isArray(parsed)) {
+                                          handleUpdateCustomFunction(customFunction.id, { steps: parsed })
+                                        }
+                                      } catch {
+                                        return
+                                      }
+                                    }}
+                                    placeholder='[{"action":"create","formId":"form-id","data":{"customer":"{{customerName}}"}}]'
+                                    className="min-h-32 rounded-lg font-mono text-xs"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {linkableAgentProfiles.length > 0 && (
