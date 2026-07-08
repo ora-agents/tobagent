@@ -35,6 +35,7 @@ import {
   ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  CircleAlert,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
@@ -53,6 +54,15 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
@@ -104,7 +114,10 @@ import {
   type McpServer,
   type McpTransport,
 } from "@/components/layout/management-dashboard/types"
-import { ConfigBundleDialog } from "@/components/layout/management-dashboard/config-bundle-dialog"
+import {
+  ConfigBundleDialog,
+  type ConfigBundleImportResult,
+} from "@/components/layout/management-dashboard/config-bundle-dialog"
 
 // ---------------------------------------------------------------------------
 // Properties Interface
@@ -151,6 +164,7 @@ interface ManagementDashboardProps {
     },
   ) => Promise<AgentShareLink | null>
   deleteAgentShareLink: (token: string) => Promise<boolean>
+  onConfigBundleImported?: (results: ConfigBundleImportResult[]) => void | Promise<void>
   editAgentIdOnOpen?: string | null
   onEditAgentChange?: (id: string | null) => void
   createOnOpen?: boolean
@@ -193,6 +207,12 @@ type PendingChangeResponse = {
   id: string
 }
 
+type NoticeDialogState = {
+  title: string
+  description: string
+  tone?: "default" | "error"
+} | null
+
 const UNCATEGORIZED_SKILL_CATEGORY = "__uncategorized__"
 const UNCATEGORIZED_FORM_CATEGORY = "__uncategorized_form__"
 
@@ -217,6 +237,15 @@ function shareSlugUserPrefix(value: string | null | undefined) {
     .slice(0, 48)
     .replace(/-+$/g, "")
   return prefix || "user"
+}
+
+function isValidAgentShareSlug(value: string) {
+  const slug = value.trim().toLowerCase()
+  return !slug || /^[a-z0-9][a-z0-9_-]{2,127}$/.test(slug)
+}
+
+function getErrorMessage(err: unknown) {
+  return err instanceof Error ? err.message : String(err)
 }
 
 function isPendingChangeResponse(value: unknown): value is PendingChangeResponse {
@@ -317,6 +346,7 @@ export function ManagementDashboard({
   listAgentShareLinks,
   updateAgentShareLink,
   deleteAgentShareLink,
+  onConfigBundleImported,
   editAgentIdOnOpen,
   onEditAgentChange,
   createOnOpen = false,
@@ -489,6 +519,7 @@ export function ManagementDashboard({
     { question: "", answer: "" },
   ])
   const [sharingAgentId, setSharingAgentId] = useState<string | null>(null)
+  const [noticeDialog, setNoticeDialog] = useState<NoticeDialogState>(null)
   const isScopedAgentConfig = !!scopedAgentProfileId
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -512,68 +543,64 @@ export function ManagementDashboard({
     onCreateChange?.(false)
   }, [locale, onCreateChange])
 
+  const loadConfigResources = useCallback(async () => {
+    if (!authHeaders) return
+
+    try {
+      const resp = await apiFetch("/api/skills")
+      if (resp.ok) {
+        const data = await resp.json()
+        setSkills(data)
+        if (data.length > 0) setSelectedSkillId(data[0].id)
+      }
+    } catch (err) {
+      console.error("Failed to load skills from database", err)
+    }
+
+    try {
+      const resp = await apiFetch("/api/knowledge-bases")
+      if (resp.ok) {
+        const data = await resp.json()
+        setKnowledgeBases(data)
+        if (data.length > 0) setSelectedKBId(data[0].id)
+      }
+    } catch (err) {
+      console.error("Failed to load knowledge bases from database", err)
+    }
+
+    try {
+      const resp = await apiFetch("/api/mcp-servers")
+      if (resp.ok) {
+        const data = await resp.json()
+        const servers = data.map((server: McpServer) => ({
+          ...server,
+          type: normalizeMcpTransport(server.type)
+        }))
+        setMcpServers(servers)
+        if (servers.length > 0) setSelectedMcpId(servers[0].id)
+      }
+    } catch (err) {
+      console.error("Failed to load MCP servers from database", err)
+    }
+
+    try {
+      const resp = await apiFetch("/api/forms")
+      if (resp.ok) {
+        const data = await resp.json()
+        setForms(data)
+        if (data.length > 0) setSelectedFormId(data[0].id)
+      }
+    } catch (err) {
+      console.error("Failed to load forms from database", err)
+    }
+  }, [apiFetch, authHeaders])
+
   // ---------------------------------------------------------------------------
   // Load local data on Mount via Backend API
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    if (!authHeaders) return
-
-    async function loadData() {
-      // 1. Fetch Skills
-      try {
-        const resp = await apiFetch("/api/skills")
-        if (resp.ok) {
-          const data = await resp.json()
-          setSkills(data)
-          if (data.length > 0) setSelectedSkillId(data[0].id)
-        }
-      } catch (err) {
-        console.error("Failed to load skills from database", err)
-      }
-
-      // 2. Fetch Knowledge Bases
-      try {
-        const resp = await apiFetch("/api/knowledge-bases")
-        if (resp.ok) {
-          const data = await resp.json()
-          setKnowledgeBases(data)
-          if (data.length > 0) setSelectedKBId(data[0].id)
-        }
-      } catch (err) {
-        console.error("Failed to load knowledge bases from database", err)
-      }
-
-      // 3. Fetch MCP Servers
-      try {
-        const resp = await apiFetch("/api/mcp-servers")
-        if (resp.ok) {
-          const data = await resp.json()
-          const servers = data.map((server: McpServer) => ({
-            ...server,
-            type: normalizeMcpTransport(server.type)
-          }))
-          setMcpServers(servers)
-          if (servers.length > 0) setSelectedMcpId(servers[0].id)
-        }
-      } catch (err) {
-        console.error("Failed to load MCP servers from database", err)
-      }
-
-      // 4. Fetch Forms
-      try {
-        const resp = await apiFetch("/api/forms")
-        if (resp.ok) {
-          const data = await resp.json()
-          setForms(data)
-          if (data.length > 0) setSelectedFormId(data[0].id)
-        }
-      } catch (err) {
-        console.error("Failed to load forms from database", err)
-      }
-    }
-
-    loadData()
-  }, [apiFetch, authHeaders])
+    void loadConfigResources()
+  }, [loadConfigResources])
 
   useEffect(() => {
     if (!authHeaders || !knowledgeBases.some(kb => kb.importStatus === "importing")) {
@@ -725,6 +752,10 @@ export function ManagementDashboard({
     setIsCreatingSkill(false)
     setDeleteConfirmId(null)
   }
+
+  const showNoticeDialog = useCallback((dialog: NonNullable<NoticeDialogState>) => {
+    setNoticeDialog(dialog)
+  }, [])
 
   const handleStartCreateSkill = (category = "") => {
     localCreateHandledRef.current = true
@@ -1178,9 +1209,23 @@ export function ManagementDashboard({
 
   const handleSaveAgentShare = async (id: string) => {
     if (!canManageWorkspace) return
+    if (!isValidAgentShareSlug(shareSlug)) {
+      showNoticeDialog({
+        tone: "error",
+        title: locale === "zh" ? "自定义地址格式不正确" : "Invalid custom address",
+        description: locale === "zh"
+          ? "自定义地址可以留空；填写时只能使用 3-128 位小写字母、数字、连字符或下划线，并且必须以字母或数字开头。"
+          : "Custom address is optional. If filled, use 3-128 lowercase letters, numbers, hyphens, or underscores, and start with a letter or number.",
+      })
+      return
+    }
     const priceYuan = sharePrice.trim() === "" ? 0 : Number(sharePrice)
     if (sharePricingMode === "one_time" && (!Number.isFinite(priceYuan) || priceYuan < 0)) {
-      window.alert(locale === "zh" ? "价格必须是大于等于 0 的数字。" : "Price must be a number greater than or equal to 0.")
+      showNoticeDialog({
+        tone: "error",
+        title: locale === "zh" ? "价格格式不正确" : "Invalid price",
+        description: locale === "zh" ? "价格必须是大于等于 0 的数字。" : "Price must be a number greater than or equal to 0.",
+      })
       return
     }
     const subscriptionPlans = shareSubscriptionPlans.map((plan, index) => ({
@@ -1200,13 +1245,31 @@ export function ManagementDashboard({
         || plan.priceCents <= 0
       ))
       if (subscriptionPlans.length === 0 || invalidPlan) {
-        window.alert(locale === "zh" ? "订阅套餐需要填写名称、正整数天数和大于 0 的价格。" : "Subscription plans need a name, positive day count, and price greater than 0.")
+        showNoticeDialog({
+          tone: "error",
+          title: locale === "zh" ? "订阅套餐不完整" : "Incomplete subscription plan",
+          description: locale === "zh" ? "订阅套餐需要填写名称、正整数天数和大于 0 的价格。" : "Subscription plans need a name, positive day count, and price greater than 0.",
+        })
         return
       }
     }
     const trialMinutes = shareTrialMinutes.trim() === "" ? 0 : Number(shareTrialMinutes)
     if (!Number.isInteger(trialMinutes) || trialMinutes < 0) {
-      window.alert(locale === "zh" ? "试用时间必须是大于等于 0 的整数分钟。" : "Trial time must be an integer number of minutes greater than or equal to 0.")
+      showNoticeDialog({
+        tone: "error",
+        title: locale === "zh" ? "试用时间格式不正确" : "Invalid trial time",
+        description: locale === "zh" ? "试用时间必须是大于等于 0 的整数分钟。" : "Trial time must be an integer number of minutes greater than or equal to 0.",
+      })
+      return
+    }
+    if (sharePricingMode === "one_time" && priceYuan <= 0 && trialMinutes > 0) {
+      showNoticeDialog({
+        tone: "error",
+        title: locale === "zh" ? "试用时间未保存" : "Trial time was not saved",
+        description: locale === "zh"
+          ? "试用时间仅对付费分享生效。请先设置大于 0 的价格，或把试用时间设为 0。"
+          : "Trial time only applies to paid shares. Set a price greater than 0, or set trial time to 0.",
+      })
       return
     }
     setSharingAgentId(id)
@@ -1231,7 +1294,14 @@ export function ManagementDashboard({
       const share = editingShareToken
         ? await updateAgentShareLink(editingShareToken, shareOptions, payload)
         : await createAgentShareLink(id, shareOptions, payload)
-      if (!share) return
+      if (!share) {
+        showNoticeDialog({
+          tone: "error",
+          title: locale === "zh" ? "保存分享失败" : "Failed to save share",
+          description: locale === "zh" ? "请确认你有管理权限后重试。" : "Check your manager permission and try again.",
+        })
+        return
+      }
       const nextLink = buildAgentShareUrl(share)
       setShareLink(nextLink)
       setEditingShareToken(share.token)
@@ -1241,9 +1311,19 @@ export function ManagementDashboard({
           ? prev.map(item => item.token === share.token ? share : item)
           : [share, ...prev]
       })
-      await navigator.clipboard.writeText(nextLink)
+      try {
+        await navigator.clipboard.writeText(nextLink)
+      } catch (err) {
+        console.error("Failed to copy agent share link", err)
+      }
     } catch (err) {
       console.error("Failed to save agent share link", err)
+      const message = getErrorMessage(err)
+      showNoticeDialog({
+        tone: "error",
+        title: locale === "zh" ? "保存分享失败" : "Failed to save share",
+        description: message,
+      })
     } finally {
       setSharingAgentId(null)
     }
@@ -2692,6 +2772,22 @@ export function ManagementDashboard({
     mcpServers: mcpServers.map(item => ({ id: item.id, name: item.name })),
     forms: forms.map(item => ({ id: item.id, name: item.name })),
   }), [configurableAgentProfiles, forms, knowledgeBases, mcpServers, skills])
+
+  const handleConfigBundleImported = async (results: ConfigBundleImportResult[]) => {
+    await onConfigBundleImported?.(results)
+    await loadConfigResources()
+    const importedAgentId = results.flatMap(result => result.resources.agents || [])[0]
+    if (importedAgentId) {
+      setSelectedAgentProfileId(importedAgentId)
+      setActiveTab("agents")
+      setSelectedAgentId(importedAgentId)
+      setIsCreatingAgent(false)
+      setIsEditingAgent(false)
+      onCreateChange?.(false)
+      onEditAgentChange?.(null)
+    }
+  }
+
   return (
     <div className="flex h-dvh w-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       {/* 1. Header Area */}
@@ -2716,28 +2812,32 @@ export function ManagementDashboard({
 
         <div className="flex flex-wrap items-center justify-end gap-2">
           {renderHeaderConfigActions()}
-          <Button
-            variant="outline"
-            onClick={() => {
-              setConfigBundleInitialSelection(undefined)
-              setConfigBundleMode("import")
-            }}
-            className="gap-1.5 rounded-lg"
-          >
-            <Download className="h-3.5 w-3.5" />
-            {locale === "zh" ? "导入配置" : "Import config"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setConfigBundleInitialSelection(undefined)
-              setConfigBundleMode("export")
-            }}
-            className="gap-1.5 rounded-lg"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {locale === "zh" ? "导出配置" : "Export config"}
-          </Button>
+          {!isScopedAgentConfig && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfigBundleInitialSelection(undefined)
+                  setConfigBundleMode("import")
+                }}
+                className="gap-1.5 rounded-lg"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                {locale === "zh" ? "导入配置" : "Import config"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfigBundleInitialSelection(undefined)
+                  setConfigBundleMode("export")
+                }}
+                className="gap-1.5 rounded-lg"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {locale === "zh" ? "导出配置" : "Export config"}
+              </Button>
+            </>
+          )}
           <NavActionButton
             asChild
             variant="outline"
@@ -2767,7 +2867,30 @@ export function ManagementDashboard({
         authHeaders={authHeaders}
         resources={configBundleResources}
         initialSelection={configBundleInitialSelection}
+        onImported={handleConfigBundleImported}
       />
+      <Dialog open={noticeDialog !== null} onOpenChange={open => {
+        if (!open) setNoticeDialog(null)
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CircleAlert className={cn("h-5 w-5", noticeDialog?.tone === "error" ? "text-destructive" : "text-primary")} />
+              {noticeDialog?.title}
+            </DialogTitle>
+            <DialogDescription className="leading-6">
+              {noticeDialog?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button">
+                {locale === "zh" ? "知道了" : "OK"}
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 2. Main Content Area */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
@@ -4779,25 +4902,27 @@ export function ManagementDashboard({
                                 {locale === "zh" ? "新建" : "New"}
                               </Button>
                             )}
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setConfigBundleInitialSelection({
-                                  agents: [selectedAgent.id],
-                                  skills: [],
-                                  knowledgeBases: [],
-                                  mcpServers: [],
-                                  forms: [],
-                                })
-                                setConfigBundleMode("export")
-                              }}
-                              className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              {locale === "zh" ? "导出" : "Export"}
-                            </Button>
+                            {!isScopedAgentConfig && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setConfigBundleInitialSelection({
+                                    agents: [selectedAgent.id],
+                                    skills: [],
+                                    knowledgeBases: [],
+                                    mcpServers: [],
+                                    forms: [],
+                                  })
+                                  setConfigBundleMode("export")
+                                }}
+                                className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                {locale === "zh" ? "导出" : "Export"}
+                              </Button>
+                            )}
                           </div>
                         </div>
 
@@ -4907,8 +5032,8 @@ export function ManagementDashboard({
                             />
                             <div className="text-[11px] text-muted-foreground">
                               {locale === "zh"
-                                ? `实际地址会默认加账号前缀：${shareSlugPrefix}-sales-helper`
-                                : `The final address is prefixed by your account: ${shareSlugPrefix}-sales-helper`}
+                                ? `可留空自动生成地址；填写时会默认加账号前缀，例如 ${shareSlugPrefix}-sales-helper。`
+                                : `Leave blank to generate an address automatically. Custom addresses are prefixed by your account, for example ${shareSlugPrefix}-sales-helper.`}
                             </div>
                           </div>
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
@@ -5032,12 +5157,13 @@ export function ManagementDashboard({
                               onChange={(event) => setShareTrialMinutes(event.target.value)}
                               placeholder="0"
                               inputMode="numeric"
+                              disabled={sharePricingMode === "one_time" && (sharePrice.trim() === "" || Number(sharePrice) <= 0)}
                               className="h-9"
                             />
                             <div className="text-[11px] text-muted-foreground">
                               {locale === "zh"
-                                ? "仅对付费分享生效；0 表示不开放试用。"
-                                : "Only applies to paid shares; 0 disables trials."}
+                                ? "仅对付费分享生效；买断价格为 0 时不会保存试用时间。"
+                                : "Only applies to paid shares; one-time shares priced at 0 do not save trial time."}
                             </div>
                           </div>
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-4">

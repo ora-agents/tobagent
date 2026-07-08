@@ -47,6 +47,13 @@ interface InspectedFile {
   inspection: Inspection
 }
 
+export interface ConfigBundleImportResult {
+  resources: Record<ResourceKey, string[]>
+  resourceIdMap: Record<string, Record<string, string>>
+  warnings: string[]
+  jobs: string[]
+}
+
 interface ConfigBundleDialogProps {
   mode: "import" | "export" | null
   onOpenChange: (open: boolean) => void
@@ -54,6 +61,7 @@ interface ConfigBundleDialogProps {
   authHeaders?: Record<string, string>
   resources: Record<ResourceKey, ResourceOption[]>
   initialSelection?: Partial<Record<ResourceKey, string[]>>
+  onImported?: (results: ConfigBundleImportResult[]) => void | Promise<void>
 }
 
 const resourceKeys: ResourceKey[] = ["agents", "skills", "knowledgeBases", "mcpServers", "forms"]
@@ -81,6 +89,7 @@ export function ConfigBundleDialog({
   authHeaders,
   resources,
   initialSelection,
+  onImported,
 }: ConfigBundleDialogProps) {
   const zh = locale === "zh"
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -196,6 +205,7 @@ export function ConfigBundleDialog({
     setBusy(true)
     setError("")
     try {
+      const results: ConfigBundleImportResult[] = []
       for (const item of inspections) {
         const response = await backendFetch("/api/config-bundles/import", {
           method: "POST",
@@ -208,12 +218,14 @@ export function ConfigBundleDialog({
         if (!response.ok) {
           throw new Error(`${item.filename}: ${await response.text()}`)
         }
+        results.push(await response.json())
       }
-      window.location.reload()
+      await onImported?.(results)
+      close(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
-      setBusy(false)
     }
+    setBusy(false)
   }
 
   const selectedCount = resourceKeys.reduce((total, key) => total + selection[key].length, 0)
@@ -449,7 +461,7 @@ export function ConfigBundleDialog({
             variant="outline"
             className="flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-xl bg-muted text-sm hover:bg-muted/80"
           >
-            {busy ? <LoaderCircle className="animate-spin text-primary" /> : <Download className="text-primary" />}
+            {busy ? <LoaderCircle className="animate-spin text-primary" /> : <Upload className="text-primary" />}
             {zh ? "选择一个或多个配置包" : "Choose one or more configuration bundles"}
           </Button>
         )}
@@ -481,13 +493,13 @@ export function ConfigBundleDialog({
           </Button>
           {mode === "export" && (
             <Button onClick={exportBundle} disabled={busy || selectedCount === 0}>
-              {busy ? <LoaderCircle className="animate-spin" /> : <Upload />}
+              {busy ? <LoaderCircle className="animate-spin" /> : <Download />}
               {zh ? `导出 ${selectedCount} 项` : `Export ${selectedCount}`}
             </Button>
           )}
           {mode === "import" && inspections.length > 0 && (
             <Button onClick={importBundles} disabled={busy}>
-              {busy ? <LoaderCircle className="animate-spin" /> : <Download />}
+              {busy ? <LoaderCircle className="animate-spin" /> : <Upload />}
               {zh ? `导入 ${inspections.length} 个文件` : `Import ${inspections.length} files`}
             </Button>
           )}
