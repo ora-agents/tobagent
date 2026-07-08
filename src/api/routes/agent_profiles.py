@@ -914,7 +914,7 @@ async def import_agent_share(
         current_user.id,
     )
     if existing_import:
-        if has_purchase and existing_import.is_hidden:
+        if (has_purchase or has_trial_access) and existing_import.is_hidden:
             existing_import.is_hidden = False
             existing_import.updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             db.commit()
@@ -967,7 +967,7 @@ async def import_agent_share(
         persona_style=source_profile.persona_style,
         boundary_mode=source_profile.boundary_mode,
         tts_voice=source_profile.tts_voice,
-        is_hidden=bool(source_profile.is_hidden) or (not has_purchase and has_trial_access),
+        is_hidden=bool(source_profile.is_hidden),
         voice_interruption_enabled=source_profile.voice_interruption_enabled is not False,
         speaker_verification_enabled=False,
         imported_from_share_id=share.id,

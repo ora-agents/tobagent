@@ -379,7 +379,7 @@ async def test_import_paid_agent_share_requires_purchase(db_session):
 
 
 @pytest.mark.anyio
-async def test_import_paid_agent_share_allows_active_trial_as_hidden_copy(db_session):
+async def test_import_paid_agent_share_allows_active_trial_as_full_copy(db_session):
     owner = _user("user-owner")
     receiver = _user("user-receiver")
     db_session.add_all([owner, receiver])
@@ -401,7 +401,7 @@ async def test_import_paid_agent_share_allows_active_trial_as_hidden_copy(db_ses
         receiver,
     )
 
-    assert imported.agent.isHidden is True
+    assert imported.agent.isHidden is False
     assert imported.agent.ownerUserId == receiver.id
 
     now = datetime.now(UTC).isoformat()
