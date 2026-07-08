@@ -942,10 +942,21 @@ def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: s
             ).first()
             if not share:
                 return None
-            if viewer_user_id != owner_user_id and int(getattr(share, "price_cents", 0) or 0) > 0:
+            pricing_mode = getattr(share, "pricing_mode", None) or "one_time"
+            requires_purchase = (
+                bool(getattr(share, "subscription_plans", None) or [])
+                if pricing_mode == "subscription"
+                else int(getattr(share, "price_cents", 0) or 0) > 0
+            )
+            if viewer_user_id != owner_user_id and requires_purchase:
+                now = datetime.now(UTC)
                 purchase = db.query(AgentPurchaseTable).filter(
                     AgentPurchaseTable.share_id == share.id,
                     AgentPurchaseTable.buyer_user_id == viewer_user_id,
+                    (
+                        (AgentPurchaseTable.access_expires_at.is_(None))
+                        | (AgentPurchaseTable.access_expires_at > now.isoformat().replace("+00:00", "Z"))
+                    ),
                 ).first()
                 if not purchase:
                     trial = db.query(AgentShareTrialTable).filter(
@@ -956,7 +967,7 @@ def _load_shared_agent_profile(agent_id: str, owner_user_id: str, share_token: s
                         expires_at = datetime.fromisoformat((trial.expires_at if trial else "").replace("Z", "+00:00"))
                     except ValueError:
                         expires_at = None
-                    if not expires_at or expires_at <= datetime.now(UTC):
+                    if not expires_at or expires_at <= now:
                         return None
             return db.query(AgentProfileTable).filter(
                 AgentProfileTable.id == agent_id,

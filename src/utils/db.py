@@ -279,8 +279,10 @@ class AgentShareLinkTable(Base):
     agent_profile_id = Column(String(255), index=True, nullable=False)
     include_options = Column(JSON, nullable=False, default=dict)
     custom_slug = Column(String(255), unique=True, index=True, nullable=True)
+    pricing_mode = Column(String(32), nullable=False, default="one_time")
     price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String(10), nullable=False, default="CNY")
+    subscription_plans = Column(JSON, nullable=True, default=list)
     trial_duration_minutes = Column(Integer, nullable=False, default=0)
     landing_intro = Column(Text, nullable=True)
     landing_faqs = Column(JSON, nullable=True, default=list)
@@ -309,8 +311,11 @@ class AgentPurchaseTable(Base):
     agent_profile_id = Column(String(255), index=True, nullable=False)
     share_id = Column(String(255), index=True, nullable=False)
     order_id = Column(String(255), index=True, nullable=False)
+    pricing_mode = Column(String(32), nullable=False, default="one_time")
+    pricing_plan_id = Column(String(255), nullable=True)
     price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String(10), nullable=False, default="CNY")
+    access_expires_at = Column(String(50), nullable=True)
     created_at = Column(String(50), nullable=False)
 
 
@@ -324,6 +329,8 @@ class PaymentOrderTable(Base):
     seller_user_id = Column(String(255), index=True, nullable=False)
     agent_profile_id = Column(String(255), index=True, nullable=False)
     share_id = Column(String(255), index=True, nullable=False)
+    pricing_mode = Column(String(32), nullable=False, default="one_time")
+    pricing_plan_id = Column(String(255), nullable=True)
     amount_cents = Column(Integer, nullable=False)
     currency = Column(String(10), nullable=False, default="CNY")
     provider = Column(String(32), nullable=False, default="wechat_native")
@@ -331,6 +338,7 @@ class PaymentOrderTable(Base):
     code_url = Column(Text, nullable=True)
     provider_transaction_id = Column(String(255), nullable=True)
     provider_payload = Column(JSON, nullable=True, default=dict)
+    access_expires_at = Column(String(50), nullable=True)
     created_at = Column(String(50), nullable=False)
     updated_at = Column(String(50), nullable=False)
     paid_at = Column(String(50), nullable=True)
@@ -536,11 +544,19 @@ def ensure_database_schema() -> None:
         ),
         ("agent_share_links", "updated_at", "updated_at VARCHAR(50)"),
         ("agent_share_links", "custom_slug", "custom_slug VARCHAR(255)"),
+        ("agent_share_links", "pricing_mode", "pricing_mode VARCHAR(32) DEFAULT 'one_time'"),
         ("agent_share_links", "price_cents", "price_cents INTEGER DEFAULT 0"),
         ("agent_share_links", "currency", "currency VARCHAR(10) DEFAULT 'CNY'"),
+        ("agent_share_links", "subscription_plans", "subscription_plans JSON"),
         ("agent_share_links", "trial_duration_minutes", "trial_duration_minutes INTEGER DEFAULT 0"),
         ("agent_share_links", "landing_intro", "landing_intro TEXT"),
         ("agent_share_links", "landing_faqs", "landing_faqs JSON"),
+        ("agent_purchases", "pricing_mode", "pricing_mode VARCHAR(32) DEFAULT 'one_time'"),
+        ("agent_purchases", "pricing_plan_id", "pricing_plan_id VARCHAR(255)"),
+        ("agent_purchases", "access_expires_at", "access_expires_at VARCHAR(50)"),
+        ("payment_orders", "pricing_mode", "pricing_mode VARCHAR(32) DEFAULT 'one_time'"),
+        ("payment_orders", "pricing_plan_id", "pricing_plan_id VARCHAR(255)"),
+        ("payment_orders", "access_expires_at", "access_expires_at VARCHAR(50)"),
         ("agent_profiles", "workspace_id", "workspace_id VARCHAR(255)"),
         ("agent_profile_versions", "workspace_id", "workspace_id VARCHAR(255)"),
         ("skills", "workspace_id", "workspace_id VARCHAR(255)"),

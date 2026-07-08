@@ -4,7 +4,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 PHONE_PATTERN = r"^\+?\d{6,20}$"
 SMS_CODE_PATTERN = r"^\d{4,8}$"
@@ -361,11 +361,29 @@ class AgentShareOptions(BaseModel):
     forms: bool = False
 
 
+class AgentShareSubscriptionPlan(BaseModel):
+    id: str | None = None
+    label: str = Field(min_length=1, max_length=80)
+    durationDays: int = Field(ge=1, le=3650)
+    priceCents: int = Field(ge=1)
+    currency: Literal["CNY"] = "CNY"
+
+    @field_validator("id", "label")
+    @classmethod
+    def validate_plan_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        text = value.strip()
+        return text or None
+
+
 class AgentShareLinkRequest(BaseModel):
     include: AgentShareOptions = Field(default_factory=AgentShareOptions)
     customSlug: str | None = None
+    pricingMode: Literal["one_time", "subscription"] = "one_time"
     priceCents: int = Field(default=0, ge=0)
     currency: Literal["CNY"] = "CNY"
+    subscriptionPlans: list[AgentShareSubscriptionPlan] = Field(default_factory=list, max_length=12)
     trialDurationMinutes: int = Field(default=0, ge=0, le=43200)
     introductionText: str | None = Field(default=None, max_length=1600)
     faqItems: list[AgentShareFaqItem] = Field(default_factory=list, max_length=12)
@@ -390,14 +408,33 @@ class AgentShareLinkRequest(BaseModel):
         text = value.strip()
         return text or None
 
+    @model_validator(mode="after")
+    def validate_pricing(self):
+        if self.pricingMode == "subscription":
+            if not self.subscriptionPlans:
+                raise ValueError("subscriptionPlans is required when pricingMode is subscription")
+            seen_ids: set[str] = set()
+            for index, plan in enumerate(self.subscriptionPlans):
+                if not plan.id:
+                    plan.id = f"plan-{index + 1}"
+                if plan.id in seen_ids:
+                    raise ValueError("subscription plan ids must be unique")
+                seen_ids.add(plan.id)
+            self.priceCents = min(plan.priceCents for plan in self.subscriptionPlans)
+        else:
+            self.subscriptionPlans = []
+        return self
+
 
 class AgentShareLinkSchema(BaseModel):
     token: str
     agentProfileId: str
     include: AgentShareOptions
     customSlug: str | None = None
+    pricingMode: Literal["one_time", "subscription"] = "one_time"
     priceCents: int = 0
     currency: str = "CNY"
+    subscriptionPlans: list[AgentShareSubscriptionPlan] = Field(default_factory=list)
     trialDurationMinutes: int = 0
     introductionText: str | None = None
     faqItems: list[AgentShareFaqItem] = Field(default_factory=list)
@@ -412,8 +449,10 @@ class AgentSharePreview(BaseModel):
     include: AgentShareOptions
     resources: dict[str, int]
     customSlug: str | None = None
+    pricingMode: Literal["one_time", "subscription"] = "one_time"
     priceCents: int = 0
     currency: str = "CNY"
+    subscriptionPlans: list[AgentShareSubscriptionPlan] = Field(default_factory=list)
     isPaid: bool = False
     trialDurationMinutes: int = 0
     introductionText: str | None = None
@@ -436,15 +475,18 @@ class AgentShareAccessResponse(BaseModel):
     agentProfileId: str
     purchased: bool
     requiresPurchase: bool
+    pricingMode: Literal["one_time", "subscription"] = "one_time"
     priceCents: int = 0
     currency: str = "CNY"
+    subscriptionPlans: list[AgentShareSubscriptionPlan] = Field(default_factory=list)
+    accessExpiresAt: str | None = None
     trialDurationMinutes: int = 0
     trialActive: bool = False
     trialExpiresAt: str | None = None
 
 
 class AgentSharePurchaseRequest(BaseModel):
-    pass
+    planId: str | None = None
 
 
 class AgentSharePurchaseResponse(BaseModel):
@@ -453,6 +495,9 @@ class AgentSharePurchaseResponse(BaseModel):
     status: str
     amountCents: int
     currency: str = "CNY"
+    pricingMode: Literal["one_time", "subscription"] = "one_time"
+    pricingPlanId: str | None = None
+    accessExpiresAt: str | None = None
     codeUrl: str | None = None
     paymentProvider: str = "wechat_native"
     paymentConfigured: bool = False

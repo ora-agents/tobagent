@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from src.api.deps import get_current_user
 from src.api.schemas import (
     AgentShareAccessResponse,
+    AgentSharePurchaseRequest,
     AgentSharePurchaseResponse,
     PaymentOrderResponse,
     WalletSummaryResponse,
@@ -52,12 +53,57 @@ def _find_share(db: Session, token_or_slug: str) -> AgentShareLinkTable | None:
 def _has_purchase(db: Session, share: AgentShareLinkTable, user_id: str) -> bool:
     if user_id == share.owner_user_id:
         return True
-    if int(share.price_cents or 0) <= 0:
+    if not _share_requires_purchase(share):
         return True
     return db.query(AgentPurchaseTable).filter(
         AgentPurchaseTable.share_id == share.id,
         AgentPurchaseTable.buyer_user_id == user_id,
+        (
+            (AgentPurchaseTable.access_expires_at.is_(None))
+            | (AgentPurchaseTable.access_expires_at > _now())
+        ),
     ).first() is not None
+
+
+def _active_purchase(db: Session, share: AgentShareLinkTable, user_id: str) -> AgentPurchaseTable | None:
+    if user_id == share.owner_user_id or not _share_requires_purchase(share):
+        return None
+    now = _now()
+    return db.query(AgentPurchaseTable).filter(
+        AgentPurchaseTable.share_id == share.id,
+        AgentPurchaseTable.buyer_user_id == user_id,
+        (
+            (AgentPurchaseTable.access_expires_at.is_(None))
+            | (AgentPurchaseTable.access_expires_at > now)
+        ),
+    ).order_by(AgentPurchaseTable.created_at.desc()).first()
+
+
+def _share_requires_purchase(share: AgentShareLinkTable) -> bool:
+    if (getattr(share, "pricing_mode", None) or "one_time") == "subscription":
+        return bool(getattr(share, "subscription_plans", None) or [])
+    return int(share.price_cents or 0) > 0
+
+
+def _find_subscription_plan(share: AgentShareLinkTable, plan_id: str | None) -> dict:
+    plans = getattr(share, "subscription_plans", None) or []
+    if not plans:
+        raise HTTPException(status_code=400, detail="This share has no subscription plans")
+    if plan_id:
+        plan = next((item for item in plans if str(item.get("id") or "") == plan_id), None)
+        if not plan:
+            raise HTTPException(status_code=400, detail="Subscription plan not found")
+        return plan
+    return plans[0]
+
+
+def _share_access_expires_at(share: AgentShareLinkTable, plan: dict | None, now: datetime) -> str | None:
+    if (getattr(share, "pricing_mode", None) or "one_time") != "subscription":
+        return None
+    duration_days = int((plan or {}).get("durationDays") or 0)
+    if duration_days <= 0:
+        raise HTTPException(status_code=400, detail="Subscription plan duration is invalid")
+    return (now + timedelta(days=duration_days)).isoformat().replace("+00:00", "Z")
 
 
 def _parse_iso_datetime(value: str | None) -> datetime | None:
@@ -76,7 +122,7 @@ def _ensure_share_trial(
     now: datetime,
 ) -> AgentShareTrialTable | None:
     duration_minutes = int(getattr(share, "trial_duration_minutes", 0) or 0)
-    if user_id == share.owner_user_id or int(share.price_cents or 0) <= 0 or duration_minutes <= 0:
+    if user_id == share.owner_user_id or not _share_requires_purchase(share) or duration_minutes <= 0:
         return None
 
     trial = db.query(AgentShareTrialTable).filter(
@@ -197,8 +243,11 @@ def _grant_paid_access(db: Session, order: PaymentOrderTable, paid_at: str, payl
             agent_profile_id=order.agent_profile_id,
             share_id=order.share_id,
             order_id=order.id,
+            pricing_mode=order.pricing_mode,
+            pricing_plan_id=order.pricing_plan_id,
             price_cents=order.amount_cents,
             currency=order.currency,
+            access_expires_at=order.access_expires_at,
             created_at=paid_at,
         ))
 
@@ -243,6 +292,7 @@ async def get_agent_share_access(
         raise HTTPException(status_code=404, detail="Agent share link not found")
     now = datetime.now(UTC)
     purchased = _has_purchase(db, share, current_user.id)
+    purchase = _active_purchase(db, share, current_user.id) if purchased else None
     trial_active, trial_expires_at = (False, None)
     if not purchased:
         trial_active, trial_expires_at = _share_trial_state(db, share, current_user.id, now)
@@ -250,9 +300,12 @@ async def get_agent_share_access(
         token=share.token,
         agentProfileId=share.agent_profile_id,
         purchased=purchased,
-        requiresPurchase=int(share.price_cents or 0) > 0 and current_user.id != share.owner_user_id,
+        requiresPurchase=_share_requires_purchase(share) and current_user.id != share.owner_user_id,
+        pricingMode=getattr(share, "pricing_mode", None) or "one_time",
         priceCents=int(share.price_cents or 0),
         currency=share.currency or "CNY",
+        subscriptionPlans=getattr(share, "subscription_plans", None) or [],
+        accessExpiresAt=purchase.access_expires_at if purchase else None,
         trialDurationMinutes=int(getattr(share, "trial_duration_minutes", 0) or 0),
         trialActive=trial_active,
         trialExpiresAt=trial_expires_at,
@@ -262,6 +315,7 @@ async def get_agent_share_access(
 @router.post("/api/agent-shares/{token}/purchase", response_model=AgentSharePurchaseResponse)
 async def purchase_agent_share(
     token: str,
+    purchase_data: AgentSharePurchaseRequest | None = None,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -274,7 +328,10 @@ async def purchase_agent_share(
     ).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Shared agent profile not found")
-    amount = int(share.price_cents or 0)
+    pricing_mode = getattr(share, "pricing_mode", None) or "one_time"
+    selected_plan = _find_subscription_plan(share, purchase_data.planId if purchase_data else None) if pricing_mode == "subscription" else None
+    amount = int((selected_plan or {}).get("priceCents") or share.price_cents or 0)
+    access_expires_at = _share_access_expires_at(share, selected_plan, datetime.now(UTC))
     if amount <= 0 or current_user.id == share.owner_user_id:
         now = _now()
         order = PaymentOrderTable(
@@ -284,9 +341,12 @@ async def purchase_agent_share(
             seller_user_id=share.owner_user_id,
             agent_profile_id=share.agent_profile_id,
             share_id=share.id,
+            pricing_mode=pricing_mode,
+            pricing_plan_id=(selected_plan or {}).get("id"),
             amount_cents=0,
             currency=share.currency or "CNY",
             status="paid",
+            access_expires_at=access_expires_at,
             created_at=now,
             updated_at=now,
             paid_at=now,
@@ -300,12 +360,19 @@ async def purchase_agent_share(
             status=order.status,
             amountCents=order.amount_cents,
             currency=order.currency,
+            pricingMode=order.pricing_mode,
+            pricingPlanId=order.pricing_plan_id,
+            accessExpiresAt=order.access_expires_at,
             paymentConfigured=_wechat_configured(),
         )
 
     existing_paid = db.query(AgentPurchaseTable).filter(
         AgentPurchaseTable.share_id == share.id,
         AgentPurchaseTable.buyer_user_id == current_user.id,
+        (
+            (AgentPurchaseTable.access_expires_at.is_(None))
+            | (AgentPurchaseTable.access_expires_at > _now())
+        ),
     ).first()
     if existing_paid:
         raise HTTPException(status_code=409, detail="Agent share already purchased")
@@ -313,6 +380,7 @@ async def purchase_agent_share(
     pending = db.query(PaymentOrderTable).filter(
         PaymentOrderTable.share_id == share.id,
         PaymentOrderTable.buyer_user_id == current_user.id,
+        PaymentOrderTable.pricing_plan_id == ((selected_plan or {}).get("id")),
         PaymentOrderTable.status == "pending",
     ).order_by(PaymentOrderTable.created_at.desc()).first()
     if pending and pending.code_url:
@@ -322,6 +390,9 @@ async def purchase_agent_share(
             status=pending.status,
             amountCents=pending.amount_cents,
             currency=pending.currency,
+            pricingMode=pending.pricing_mode,
+            pricingPlanId=pending.pricing_plan_id,
+            accessExpiresAt=pending.access_expires_at,
             codeUrl=pending.code_url,
             paymentConfigured=_wechat_configured(),
         )
@@ -334,9 +405,12 @@ async def purchase_agent_share(
         seller_user_id=share.owner_user_id,
         agent_profile_id=share.agent_profile_id,
         share_id=share.id,
+        pricing_mode=pricing_mode,
+        pricing_plan_id=(selected_plan or {}).get("id"),
         amount_cents=amount,
         currency=share.currency or "CNY",
         status="pending",
+        access_expires_at=access_expires_at,
         created_at=now,
         updated_at=now,
     )
@@ -351,6 +425,9 @@ async def purchase_agent_share(
         status=order.status,
         amountCents=order.amount_cents,
         currency=order.currency,
+        pricingMode=order.pricing_mode,
+        pricingPlanId=order.pricing_plan_id,
+        accessExpiresAt=order.access_expires_at,
         codeUrl=order.code_url,
         paymentConfigured=_wechat_configured(),
     )

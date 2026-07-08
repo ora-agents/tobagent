@@ -175,7 +175,16 @@ def _with_share_slug_user_prefix(custom_slug: str | None, user: UserTable) -> st
 def _share_requires_purchase(share: AgentShareLinkTable, user_id: str | None = None) -> bool:
     if user_id and user_id == share.owner_user_id:
         return False
+    if (getattr(share, "pricing_mode", None) or "one_time") == "subscription":
+        return bool(getattr(share, "subscription_plans", None) or [])
     return int(getattr(share, "price_cents", 0) or 0) > 0
+
+
+def _active_purchase_filter(now: datetime):
+    return (
+        (AgentPurchaseTable.access_expires_at.is_(None))
+        | (AgentPurchaseTable.access_expires_at > now.isoformat().replace("+00:00", "Z"))
+    )
 
 
 def _user_has_share_purchase(db: Session, share: AgentShareLinkTable, user_id: str) -> bool:
@@ -184,6 +193,7 @@ def _user_has_share_purchase(db: Session, share: AgentShareLinkTable, user_id: s
     return db.query(AgentPurchaseTable).filter(
         AgentPurchaseTable.share_id == share.id,
         AgentPurchaseTable.buyer_user_id == user_id,
+        _active_purchase_filter(datetime.now(UTC)),
     ).first() is not None
 
 
@@ -632,9 +642,14 @@ async def create_agent_share_link(
         agent_profile_id=id,
         include_options=include_options,
         custom_slug=custom_slug,
+        pricing_mode=share_data.pricingMode,
         price_cents=share_data.priceCents,
         currency=share_data.currency,
-        trial_duration_minutes=share_data.trialDurationMinutes if share_data.priceCents > 0 else 0,
+        subscription_plans=[
+            plan.model_dump(mode="json")
+            for plan in share_data.subscriptionPlans
+        ],
+        trial_duration_minutes=share_data.trialDurationMinutes if _share_requires_purchase(share_data) else 0,
         landing_intro=share_data.introductionText,
         landing_faqs=[
             item.model_dump(mode="json")
@@ -728,9 +743,14 @@ async def update_agent_share_link(
 
     share.include_options = share_data.include.model_dump(mode="json")
     share.custom_slug = custom_slug
+    share.pricing_mode = share_data.pricingMode
     share.price_cents = share_data.priceCents
     share.currency = share_data.currency
-    share.trial_duration_minutes = share_data.trialDurationMinutes if share_data.priceCents > 0 else 0
+    share.subscription_plans = [
+        plan.model_dump(mode="json")
+        for plan in share_data.subscriptionPlans
+    ]
+    share.trial_duration_minutes = share_data.trialDurationMinutes if _share_requires_purchase(share_data) else 0
     share.landing_intro = share_data.introductionText
     share.landing_faqs = [
         item.model_dump(mode="json")
@@ -826,9 +846,11 @@ async def get_agent_share_preview(
         include=include,
         resources=resources,
         customSlug=getattr(share, "custom_slug", None),
+        pricingMode=getattr(share, "pricing_mode", None) or "one_time",
         priceCents=int(getattr(share, "price_cents", 0) or 0),
         currency=getattr(share, "currency", None) or "CNY",
-        isPaid=int(getattr(share, "price_cents", 0) or 0) > 0,
+        subscriptionPlans=getattr(share, "subscription_plans", None) or [],
+        isPaid=_share_requires_purchase(share),
         trialDurationMinutes=int(getattr(share, "trial_duration_minutes", 0) or 0),
         introductionText=getattr(share, "landing_intro", None),
         faqItems=getattr(share, "landing_faqs", None) or [],
