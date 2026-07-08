@@ -30,7 +30,6 @@ interface SidebarProps {
   variant?: "default" | "agentApp"
   agentName?: string
   onNewChat?: () => void
-  hideAgentAppRestrictedNav?: boolean
 }
 
 function getRelativeTime(date: Date, lang: "zh" | "en" = "zh"): string {
@@ -181,7 +180,6 @@ export const Sidebar = memo(function Sidebar({
   variant = "default",
   agentName,
   onNewChat,
-  hideAgentAppRestrictedNav = false,
 }: SidebarProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -195,7 +193,6 @@ export const Sidebar = memo(function Sidebar({
   const [isConfigOpen, setIsConfigOpen] = useState(true)
   const [isDevelopmentOpen, setIsDevelopmentOpen] = useState(true)
   const isAgentAppSidebar = variant === "agentApp"
-  const showAgentAppManagementNav = !isAgentAppSidebar || !hideAgentAppRestrictedNav
   const isConfigView = currentView === "skills" || currentView === "agents" || currentView === "knowledge" || currentView === "forms" || currentView === "mcp"
   const isDevelopmentView = currentView === "developer-manual" || (capabilities.langfuseTracing && currentView === "traces")
 
@@ -313,7 +310,7 @@ export const Sidebar = memo(function Sidebar({
                 <Sparkles className="w-5 h-5" />
               </Button>
             )}
-            {showAgentAppManagementNav && (
+            {(
               <Button variant="unstyled"
                 onClick={() => setIsConfigOpen((open) => !open)}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
@@ -328,7 +325,7 @@ export const Sidebar = memo(function Sidebar({
                 <Settings className="w-5 h-5" />
               </Button>
             )}
-            {showAgentAppManagementNav && isConfigOpen && (
+            {isConfigOpen && (
               <div className="flex flex-col items-center gap-3.5">
                 <Button variant="unstyled"
                   onClick={() => handleViewChange("skills")}
@@ -387,7 +384,7 @@ export const Sidebar = memo(function Sidebar({
                 </Button>
               </div>
             )}
-            {showAgentAppManagementNav && (
+            {(
               <Button variant="unstyled"
                 onClick={() => setIsDevelopmentOpen((open) => !open)}
                 className={`p-2.5 rounded-lg transition-all duration-200 cursor-pointer ${
@@ -402,7 +399,7 @@ export const Sidebar = memo(function Sidebar({
                 <Code2 className="w-5 h-5" />
               </Button>
             )}
-            {showAgentAppManagementNav && isDevelopmentOpen && (
+            {isDevelopmentOpen && (
               <div className="flex flex-col items-center gap-3.5">
                 <Button variant="unstyled"
                   onClick={() => handleViewChange("developer-manual")}
@@ -703,7 +700,7 @@ export const Sidebar = memo(function Sidebar({
       {/* Bottom Management Navigation */}
       {isAgentAppSidebar ? (
         <div className="flex flex-shrink-0 flex-col gap-1 px-3 py-2">
-          {showAgentAppManagementNav && (
+          {(
             <Button variant="unstyled"
               onClick={() => setIsConfigOpen((open) => !open)}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
@@ -718,7 +715,7 @@ export const Sidebar = memo(function Sidebar({
               <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isConfigOpen ? "rotate-180" : ""}`} />
             </Button>
           )}
-          {showAgentAppManagementNav && isConfigOpen && (
+          {isConfigOpen && (
             <div className="flex flex-col gap-1 pl-3">
               <Button variant="unstyled"
                 onClick={() => handleViewChange("skills")}
@@ -777,7 +774,7 @@ export const Sidebar = memo(function Sidebar({
               </Button>
             </div>
           )}
-          {showAgentAppManagementNav && (
+          {(
             <Button variant="unstyled"
               onClick={() => setIsDevelopmentOpen((open) => !open)}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${
@@ -792,7 +789,7 @@ export const Sidebar = memo(function Sidebar({
               <ChevronDown className={`w-4 h-4 flex-shrink-0 text-current opacity-80 transition-transform duration-200 ${isDevelopmentOpen ? "rotate-180" : ""}`} />
             </Button>
           )}
-          {showAgentAppManagementNav && isDevelopmentOpen && (
+          {isDevelopmentOpen && (
             <div className="flex flex-col gap-1 pl-3">
               <Button variant="unstyled"
                 onClick={() => handleViewChange("developer-manual")}
@@ -820,7 +817,7 @@ export const Sidebar = memo(function Sidebar({
               )}
             </div>
           )}
-          {showAgentAppManagementNav && (
+          {(
             <Button variant="unstyled"
               onClick={() => handleViewChange("user-manual")}
               className={`flex items-center gap-3 px-3 py-2 text-sm w-full rounded-lg transition-all duration-200 cursor-pointer ${

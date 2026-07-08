@@ -352,18 +352,11 @@ function DashboardContent() {
   const trialRemainingMs = trialExpiresAtMs === null ? null : Math.max(0, trialExpiresAtMs - trialNow)
   const isTrialAgentApp = Boolean(
     isDedicatedAgentApp
-    && activeAgentProfile?.isSharedApp
     && trialShareAccess?.requiresPurchase
     && !trialShareAccess.purchased
+    && trialPaidShare
   )
   const isTrialActive = isTrialAgentApp && trialShareAccess?.trialActive && trialRemainingMs !== null && trialRemainingMs > 0
-
-  useEffect(() => {
-    if (!isTrialAgentApp) return
-    if (currentView !== "chat" && currentView !== "settings") {
-      setCurrentView("chat")
-    }
-  }, [currentView, isTrialAgentApp, setCurrentView])
 
   useEffect(() => {
     if (!isTrialAgentApp || !trialExpiresAtMs) return
@@ -597,20 +590,17 @@ function DashboardContent() {
           const imported = await importAgentShareLink(token)
           if (!imported) {
             console.error("Failed to copy trial shared agent into user configuration")
+            processedAgentShareRef.current = null
+            return
           }
-          const trialAgent = {
-            ...preview.agent,
-            ownerUserId: preview.ownerUserId,
-            shareToken: preview.token,
-            isSharedApp: true,
-          }
-          setSharedAgentProfile(trialAgent)
+          setSharedAgentProfile(null)
           setTrialShareAccess(access)
           setTrialPaidShare(preview)
           setPendingPaidShare(null)
           setPurchaseOrder(null)
           setPurchaseStatus("idle")
-          setAgentAppParam(preview.agent.id)
+          setSelectedAgentProfileId(imported.agent.id)
+          setAgentAppParam(imported.agent.id)
           setCurrentView("chat")
           return
         }
@@ -884,7 +874,6 @@ function DashboardContent() {
             variant="agentApp"
             agentName={activeAgentProfile.name}
             onNewChat={handleNewChat}
-            hideAgentAppRestrictedNav={isTrialAgentApp}
           />
         ) : null}
         mobileSidebar={
@@ -904,7 +893,6 @@ function DashboardContent() {
               variant: isDedicatedAgentApp ? "agentApp" : "default",
               agentName: isDedicatedAgentApp ? activeAgentProfile?.name : undefined,
               onNewChat: isDedicatedAgentApp ? handleNewChat : undefined,
-              hideAgentAppRestrictedNav: isTrialAgentApp,
             }}
           />
         }
@@ -1002,7 +990,7 @@ function DashboardContent() {
                         试用中，剩余 {formatTrialRemaining(trialRemainingMs)}
                       </div>
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        购买后可永久使用，试用期间不可修改或浏览配置文件。
+                        试用期间可完整体验购买后的 Agent 配置和对话能力，购买后可永久使用。
                       </div>
                     </div>
                     <Button
@@ -1047,21 +1035,21 @@ function DashboardContent() {
             onClearAllConversations={handleClearAllConversations}
             conversationCount={threads.length}
           />
-        ) : currentView === "user-manual" && !isTrialAgentApp ? (
+        ) : currentView === "user-manual" ? (
           <UserManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : currentView === "developer-manual" && !isTrialAgentApp ? (
+        ) : currentView === "developer-manual" ? (
           <DeveloperManualPage
             onBackToChat={() => setCurrentView("chat")}
             onOpenSidebar={() => setIsMobileSidebarOpen(true)}
           />
-        ) : currentView === "traces" && capabilities.langfuseTracing && !isTrialAgentApp ? (
+        ) : currentView === "traces" && capabilities.langfuseTracing ? (
           <TraceBrowserPage
             onBackToChat={() => setCurrentView("chat")}
           />
-        ) : currentView !== "chat" && !isTrialAgentApp && (!isDedicatedAgentApp || isConfigView) ? (
+        ) : currentView !== "chat" && (!isDedicatedAgentApp || isConfigView) ? (
           <DashboardViewPane>
             <ManagementDashboard
               initialTab={currentView === "skills" ? "skills" : currentView === "agents" ? "agents" : currentView === "mcp" ? "mcp" : currentView === "forms" ? "forms" : "knowledge"}
