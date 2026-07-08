@@ -13,9 +13,10 @@ from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ToolCallRequest
 from langchain_core.messages import SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool, tool
+from langchain_core.tools import BaseTool, StructuredTool, tool
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
+from pydantic import Field, create_model
 from sqlalchemy import or_, text
 
 from src.agent.config import (
@@ -23,6 +24,7 @@ from src.agent.config import (
     OPENAI_COMPATIBLE_API_KEY,
     OPENAI_COMPATIBLE_BASE_URL,
 )
+from src.tools.form_tool import ManageFormDataTool, QueryFormDataTool
 from src.utils.db import (
     AgentProfileTable,
     FormTable,
@@ -61,6 +63,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
     enabled_tools = getattr(agent_row, "enabled_tools", None)
     agent_ids = getattr(agent_row, "agent_ids", None)
     form_ids = getattr(agent_row, "form_ids", None)
+    custom_functions = getattr(agent_row, "custom_functions", None)
     knowledge_base_ids = getattr(agent_row, "knowledge_base_ids", None)
     skill_ids = getattr(agent_row, "skill_ids", None)
     skill_category_ids = getattr(agent_row, "skill_category_ids", None)
@@ -82,6 +85,7 @@ def _extract_agent_data(agent_row: AgentProfileTable) -> dict:
         "enabled_tools": list(enabled_tools) if isinstance(enabled_tools, list) else [],
         "agent_ids": list(agent_ids) if isinstance(agent_ids, list) else [],
         "form_ids": list(form_ids) if isinstance(form_ids, list) else [],
+        "custom_functions": list(custom_functions) if isinstance(custom_functions, list) else [],
         "knowledge_base_ids": list(knowledge_base_ids) if isinstance(knowledge_base_ids, list) else [],
         "skill_ids": list(skill_ids) if isinstance(skill_ids, list) else [],
         "skill_category_ids": list(skill_category_ids) if isinstance(skill_category_ids, list) else [],
@@ -178,6 +182,133 @@ def _format_linked_forms_for_prompt(forms: list[dict[str, Any]]) -> str:
         else:
             form_instructions += "  - No custom fields configured.\n"
     return form_instructions
+
+
+def _custom_function_tool_name(custom_function: dict[str, Any]) -> str:
+    """Return a stable LangChain-compatible tool name for a custom function."""
+    raw = str(custom_function.get("name") or custom_function.get("id") or "macro").strip().lower()
+    clean = re.sub(r"[^a-zA-Z0-9_]", "_", raw).strip("_") or "macro"
+    suffix = re.sub(r"[^a-zA-Z0-9_]", "_", str(custom_function.get("id") or ""))[:12]
+    return f"macro_{clean}_{suffix}" if suffix else f"macro_{clean}"
+
+
+def _template_value(value: Any, arguments: dict[str, Any]) -> Any:
+    """Resolve {{argument}} placeholders in nested macro step values."""
+    if isinstance(value, str):
+        exact = re.fullmatch(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}", value)
+        if exact:
+            return arguments.get(exact.group(1), "")
+
+        def replace(match: re.Match[str]) -> str:
+            replacement = arguments.get(match.group(1), "")
+            return "" if replacement is None else str(replacement)
+
+        return re.sub(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}", replace, value)
+    if isinstance(value, list):
+        return [_template_value(item, arguments) for item in value]
+    if isinstance(value, dict):
+        return {key: _template_value(item, arguments) for key, item in value.items()}
+    return value
+
+
+def _custom_function_args_schema(custom_function: dict[str, Any]):
+    """Build a pydantic args schema for a configured macro tool."""
+    fields: dict[str, tuple[Any, Any]] = {}
+    type_map = {
+        "string": str,
+        "number": float,
+        "boolean": bool,
+    }
+    for parameter in custom_function.get("parameters", []):
+        if not isinstance(parameter, dict):
+            continue
+        name = str(parameter.get("name") or "").strip()
+        if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]{0,63}", name):
+            continue
+        annotation = type_map.get(str(parameter.get("type") or "string"), str)
+        description = str(parameter.get("description") or "").strip()
+        default = ... if parameter.get("required", True) else None
+        fields[name] = (annotation, Field(default, description=description))
+    model_name = f"CustomFunctionArgs_{re.sub(r'[^a-zA-Z0-9_]', '_', str(custom_function.get('id') or 'macro'))}"
+    return create_model(model_name, **fields)
+
+
+def _make_custom_function_tool(custom_function: dict[str, Any]) -> BaseTool:
+    """Create a dynamic macro tool backed by configured form operations."""
+    tool_name = _custom_function_tool_name(custom_function)
+    description = str(custom_function.get("description") or "").strip()
+    steps = [
+        step
+        for step in custom_function.get("steps", [])
+        if isinstance(step, dict)
+    ]
+
+    async def run_macro(**kwargs: Any) -> str:
+        results = []
+        query_tool = QueryFormDataTool()
+        manage_tool = ManageFormDataTool()
+        for index, step in enumerate(steps, start=1):
+            action = str(step.get("action") or "").strip()
+            resolved = _template_value(step, kwargs)
+            if action == "query":
+                result = await query_tool._arun(
+                    form_id=str(resolved.get("formId") or ""),
+                    fields=resolved.get("fields") or [],
+                    q=str(resolved.get("q") or ""),
+                    filter_field=str(resolved.get("filterField") or ""),
+                    filter_value=str(resolved.get("filterValue") or ""),
+                    filter_op=str(resolved.get("filterOp") or "contains"),
+                )
+            elif action in {"create", "update", "delete"}:
+                result = await manage_tool._arun(
+                    action=action,
+                    form_id=str(resolved.get("formId") or ""),
+                    record_id=str(resolved.get("recordId") or ""),
+                    data=resolved.get("data") if isinstance(resolved.get("data"), dict) else {},
+                )
+            else:
+                result = f"Unsupported macro step action: {action}"
+            results.append({"step": index, "action": action, "result": result})
+        return "\n".join(
+            f"Step {item['step']} ({item['action']}): {item['result']}"
+            for item in results
+        )
+
+    return StructuredTool.from_function(
+        coroutine=run_macro,
+        name=tool_name,
+        description=description,
+        args_schema=_custom_function_args_schema(custom_function),
+    )
+
+
+def _format_custom_functions_for_prompt(custom_functions: list[dict[str, Any]]) -> str:
+    """Build system prompt instructions for custom macro tools."""
+    enabled = [
+        custom_function
+        for custom_function in custom_functions
+        if isinstance(custom_function, dict) and custom_function.get("enabled", True)
+    ]
+    if not enabled:
+        return ""
+    lines = [
+        "\n\nYou have access to custom macro tools configured by the administrator. "
+        "These tools perform predefined form operations. Use them when the user's request "
+        "matches the macro name or description, instead of manually composing lower-level form operations.",
+        "Custom Macro Tools:",
+    ]
+    for custom_function in enabled:
+        parameters = [
+            str(parameter.get("name"))
+            for parameter in custom_function.get("parameters", [])
+            if isinstance(parameter, dict) and parameter.get("name")
+        ]
+        params = f" Args: {', '.join(parameters)}." if parameters else ""
+        lines.append(
+            f"- Tool `{_custom_function_tool_name(custom_function)}`: "
+            f"{custom_function.get('name', 'Macro')} - {custom_function.get('description', '')}.{params}"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def _get_current_config_metadata() -> dict[str, Any]:
@@ -657,6 +788,8 @@ class DynamicConfigMiddleware(AgentMiddleware):
         owner_user_id, owner_resolution = _resolve_owner_user_id(ctx)
         enabled_tools = getattr(ctx, "enabled_tools", None)
         linked_agent_tools: list[BaseTool] = []
+        custom_function_tools: list[BaseTool] = []
+        dynamic_tools_for_agent: dict[str, BaseTool] = {}
         has_linked_skills = False
         has_readable_forms = False
         has_manageable_forms = False
@@ -738,6 +871,19 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         )
                         system_prompt += _format_linked_forms_for_prompt(forms)
 
+                    # ---- Custom macro functions ----
+                    custom_functions = [
+                        custom_function
+                        for custom_function in profile.get("custom_functions", [])
+                        if isinstance(custom_function, dict) and custom_function.get("enabled", True)
+                    ]
+                    if custom_functions:
+                        system_prompt += _format_custom_functions_for_prompt(custom_functions)
+                        for custom_function in custom_functions:
+                            dynamic_tool = _make_custom_function_tool(custom_function)
+                            custom_function_tools.append(dynamic_tool)
+                            dynamic_tools_for_agent[dynamic_tool.name] = dynamic_tool
+
                     # ---- Linked skills ----
                     skills = resources["skills"]
                     if skills:
@@ -781,8 +927,6 @@ class DynamicConfigMiddleware(AgentMiddleware):
                             )
 
                             parent_messages = list(request.state.get("messages", []))
-                            tools_for_agent: dict[str, BaseTool] = {}
-
                             for agent_data in agents_data:
                                 clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', agent_data["name"]).lower()
                                 tool_name = f"call_agent_{clean_name}_{agent_data['id'][:4]}"
@@ -799,16 +943,15 @@ class DynamicConfigMiddleware(AgentMiddleware):
                                     parent_state_messages=parent_messages,
                                 )
                                 linked_agent_tools.append(dynamic_tool)
-                                tools_for_agent[tool_name] = dynamic_tool
+                                dynamic_tools_for_agent[tool_name] = dynamic_tool
 
                             # Cache tools for awrap_tool_call reuse.
-                            self._tools_cache[(owner_user_id, agent_id)] = tools_for_agent
                             system_prompt += agents_instructions
 
                             logger.info(
                                 "[DynamicConfigMiddleware] Agent '%s': injected %d subagent tool(s): %s",
                                 agent_id, len(linked_agent_tools),
-                                list(tools_for_agent.keys()),
+                                [tool.name for tool in linked_agent_tools],
                             )
                         else:
                             logger.info(
@@ -820,6 +963,8 @@ class DynamicConfigMiddleware(AgentMiddleware):
                             "[DynamicConfigMiddleware] Agent '%s': no agent_ids configured.",
                             agent_id,
                         )
+                    if dynamic_tools_for_agent:
+                        self._tools_cache[(owner_user_id, agent_id)] = dynamic_tools_for_agent
                 else:
                     write_debug_event(
                         "middleware.resources.not_found",
@@ -912,6 +1057,10 @@ class DynamicConfigMiddleware(AgentMiddleware):
         if linked_agent_tools:
             filtered.extend(linked_agent_tools)
 
+        # Inject custom macro tools.
+        if custom_function_tools:
+            filtered.extend(custom_function_tools)
+
         # Dynamic MCP tools injection.
         if agent_id and agent_id != "default" and owner_user_id:
             try:
@@ -964,8 +1113,7 @@ class DynamicConfigMiddleware(AgentMiddleware):
             **owner_resolution,
         )
 
-        if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("call_agent_"):
-            # Fast path: reuse cached tool from awrap_model_call.
+        if agent_id and agent_id != "default" and owner_user_id:
             cached_tools = self._tools_cache.get((owner_user_id, agent_id), {})
             if tool_name in cached_tools:
                 logger.info(
@@ -974,6 +1122,49 @@ class DynamicConfigMiddleware(AgentMiddleware):
                 )
                 return await handler(request.override(tool=cached_tools[tool_name]))
 
+        if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("macro_"):
+            logger.info(
+                "[DynamicConfigMiddleware] Macro tool '%s' not in cache, loading profile from DB.",
+                tool_name,
+            )
+            try:
+                resources = await asyncio.to_thread(
+                    _load_agent_runtime_resources,
+                    agent_id,
+                    owner_user_id,
+                    None,
+                )
+                profile = resources.get("profile") or {}
+                tools_for_agent: dict[str, BaseTool] = {}
+                for custom_function in profile.get("custom_functions", []):
+                    if not isinstance(custom_function, dict) or not custom_function.get("enabled", True):
+                        continue
+                    dynamic_tool = _make_custom_function_tool(custom_function)
+                    tools_for_agent[dynamic_tool.name] = dynamic_tool
+
+                if tools_for_agent:
+                    self._tools_cache[(owner_user_id, agent_id)] = {
+                        **self._tools_cache.get((owner_user_id, agent_id), {}),
+                        **tools_for_agent,
+                    }
+                if tool_name in tools_for_agent:
+                    logger.info(
+                        "[DynamicConfigMiddleware] Macro tool '%s' built from DB and cached.",
+                        tool_name,
+                    )
+                    return await handler(request.override(tool=tools_for_agent[tool_name]))
+
+                logger.warning(
+                    "[DynamicConfigMiddleware] Macro tool '%s' not found for agent '%s'.",
+                    tool_name, agent_id,
+                )
+            except Exception as e:
+                logger.warning(
+                    "[DynamicConfigMiddleware] Failed to resolve macro tool '%s' for agent '%s': %s\n%s",
+                    tool_name, agent_id, e, traceback.format_exc(),
+                )
+
+        if agent_id and agent_id != "default" and owner_user_id and tool_name.startswith("call_agent_"):
             # Cold-start fallback: build the tool from DB if cache was empty.
             logger.info(
                 "[DynamicConfigMiddleware] Tool call '%s' not in cache, loading from DB.",
@@ -1002,7 +1193,10 @@ class DynamicConfigMiddleware(AgentMiddleware):
                         tools_for_agent[expected_name] = dynamic_tool
 
                     # Populate cache for subsequent calls.
-                    self._tools_cache[(owner_user_id, agent_id)] = tools_for_agent
+                    self._tools_cache[(owner_user_id, agent_id)] = {
+                        **self._tools_cache.get((owner_user_id, agent_id), {}),
+                        **tools_for_agent,
+                    }
 
                     if tool_name in tools_for_agent:
                         logger.info(
