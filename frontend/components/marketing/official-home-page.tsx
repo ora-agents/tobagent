@@ -8,6 +8,7 @@ import {
   ArrowRight,
   BarChart3,
   Bot,
+  CalendarDays,
   CheckCircle2,
   CircleHelp,
   DatabaseZap,
@@ -63,6 +64,18 @@ const productHighlights = [
     title: "语音交互能力",
     description: "支持唤醒、听写、播报与打断等语音链路，为桌面与移动场景提供自然交互。",
   },
+]
+
+const pricingPlans = [
+  { duration: "3 个月", price: "1200 元", note: "适合短期验证" },
+  { duration: "6 个月", price: "2200 元", note: "适合阶段部署" },
+  { duration: "12 个月", price: "4000 元", note: "适合长期使用" },
+]
+
+const pricingFeatures = [
+  "不限坐席和渠道数量",
+  "金牌客服话术、豆包、DeepSeek、千问等大模型驱动",
+  "设备报修/报警自动提醒家人、创建工单、及时呼叫救援，并实时反馈救援/维修状态",
 ]
 
 const heroMetrics = [
@@ -341,6 +354,53 @@ function SectionHeading({
   )
 }
 
+function ProductPricing() {
+  return (
+    <div id="pricing" className="grid gap-6 lg:grid-cols-[0.76fr_1fr] lg:items-start">
+      <div className="flex flex-col gap-5">
+        <div className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <CalendarDays className="size-5" />
+        </div>
+        <div className="flex flex-col gap-3">
+          <div className="w-fit rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
+            产品价格
+          </div>
+          <h3 className="text-2xl font-semibold leading-tight text-foreground sm:text-3xl">
+            7 天试用，按使用周期灵活购买
+          </h3>
+          <p className="text-base leading-7 text-muted-foreground">
+            企业可先体验核心能力，再根据部署周期选择对应版本。
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          {pricingPlans.map((plan) => (
+            <Card key={plan.duration} className="shadow-depth-xs">
+              <CardHeader className="gap-3 p-5">
+                <CardDescription className="font-semibold text-primary">{plan.duration}</CardDescription>
+                <CardTitle className="text-2xl leading-none">{plan.price}</CardTitle>
+                <CardDescription>{plan.note}</CardDescription>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+        <div className="rounded-xl bg-card p-5 shadow-depth-xs">
+          <div className="text-sm font-semibold text-foreground">包含功能</div>
+          <div className="mt-4 grid gap-3">
+            {pricingFeatures.map((feature) => (
+              <div key={feature} className="flex gap-3 rounded-lg bg-secondary p-3">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span className="text-sm leading-6 text-foreground">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function InterfacePreview() {
   return (
     <div className="relative">
@@ -492,6 +552,7 @@ export function OfficialHomePage() {
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
             <a href="#product" className="hover:text-foreground">产品介绍</a>
+            <a href="#pricing" className="hover:text-foreground">价格</a>
             <a href="#interface" className="hover:text-foreground">界面</a>
             <a href="#reviews" className="hover:text-foreground">用户评价</a>
             <a href="#faq" className="hover:text-foreground">常见问题</a>
@@ -571,6 +632,7 @@ export function OfficialHomePage() {
               </Card>
             ))}
           </div>
+          <ProductPricing />
         </div>
       </section>
 
