@@ -90,8 +90,11 @@ export interface AgentShareAccess {
   agentProfileId: string
   purchased: boolean
   requiresPurchase: boolean
+  pricingMode: AgentSharePricingMode
   priceCents: number
   currency: string
+  subscriptionPlans: AgentShareSubscriptionPlan[]
+  accessExpiresAt?: string | null
   trialDurationMinutes: number
   trialActive: boolean
   trialExpiresAt?: string | null
@@ -118,13 +121,25 @@ export interface AgentShareFaqItem {
   answer: string
 }
 
+export type AgentSharePricingMode = "one_time" | "subscription"
+
+export interface AgentShareSubscriptionPlan {
+  id: string
+  label: string
+  durationDays: number
+  priceCents: number
+  currency: string
+}
+
 export interface AgentShareLink {
   token: string
   agentProfileId: string
   include: AgentShareOptions
   customSlug?: string | null
+  pricingMode: AgentSharePricingMode
   priceCents: number
   currency: string
+  subscriptionPlans?: AgentShareSubscriptionPlan[]
   trialDurationMinutes: number
   introductionText?: string | null
   faqItems?: AgentShareFaqItem[]
@@ -145,8 +160,10 @@ export interface AgentSharePreview {
   include: AgentShareOptions
   resources: Record<string, number>
   customSlug?: string | null
+  pricingMode: AgentSharePricingMode
   priceCents: number
   currency: string
+  subscriptionPlans?: AgentShareSubscriptionPlan[]
   isPaid: boolean
   trialDurationMinutes: number
   introductionText?: string | null
@@ -160,6 +177,9 @@ export interface AgentSharePurchase {
   status: string
   amountCents: number
   currency: string
+  pricingMode: AgentSharePricingMode
+  pricingPlanId?: string | null
+  accessExpiresAt?: string | null
   codeUrl?: string | null
   paymentProvider: string
   paymentConfigured: boolean

@@ -332,7 +332,11 @@ export function AgentShareLandingPage({ token }: { token: string }) {
             </div>
             <div className="grid max-w-xl grid-cols-3 gap-3">
               {[
-                preview.isPaid ? formatCny(preview.priceCents) : "免费体验",
+                preview.isPaid
+                  ? preview.pricingMode === "subscription"
+                    ? `${formatCny(preview.priceCents)} 起 / ${preview.subscriptionPlans?.length || 0} 个套餐`
+                    : formatCny(preview.priceCents)
+                  : "免费体验",
                 `${Object.values(preview.resources).reduce((total, value) => total + value, 0)} 个资源`,
                 preview.agent.model || "默认模型",
               ].map((item) => (

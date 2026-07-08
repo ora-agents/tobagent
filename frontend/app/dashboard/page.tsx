@@ -35,6 +35,7 @@ import {
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts"
 import { useAgentProfiles } from "@/lib/hooks/agents/use-agent-profiles"
 import { isSystemAgentProfile } from "@/lib/types/agent-profiles"
+import type { AgentShareSubscriptionPlan } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { backendFetch } from "@/lib/api/backend-fetch"
@@ -68,6 +69,12 @@ function formatTrialRemaining(milliseconds: number) {
   if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
   if (minutes > 0) return `${minutes} 分钟 ${seconds} 秒`
   return `${seconds} 秒`
+}
+
+function formatPlanDuration(days: number) {
+  if (days % 365 === 0) return `${days / 365} 年`
+  if (days % 30 === 0) return `${days / 30} 个月`
+  return `${days} 天`
 }
 
 function AuthRedirect() {
@@ -123,6 +130,7 @@ function DashboardContent() {
   const [trialNow, setTrialNow] = useState(() => Date.now())
   const [purchaseOrder, setPurchaseOrder] = useState<import("@/lib/types/agent-profiles").AgentSharePurchase | null>(null)
   const [purchaseStatus, setPurchaseStatus] = useState<"idle" | "creating" | "waiting" | "paid" | "error">("idle")
+  const [selectedSharePlanId, setSelectedSharePlanId] = useState<string | null>(null)
 
   // Track threads that have started sending but are not fully visible in the backend list yet.
   const [newThreads, setNewThreads] = useState<Set<string>>(new Set())
@@ -596,6 +604,7 @@ function DashboardContent() {
           setSharedAgentProfile(null)
           setTrialShareAccess(access)
           setTrialPaidShare(preview)
+          setSelectedSharePlanId(preview.subscriptionPlans?.[0]?.id || null)
           setPendingPaidShare(null)
           setPurchaseOrder(null)
           setPurchaseStatus("idle")
@@ -607,6 +616,7 @@ function DashboardContent() {
         if (access.requiresPurchase && !access.purchased) {
           setSharedAgentProfile(null)
           setPendingPaidShare(preview)
+          setSelectedSharePlanId(preview.subscriptionPlans?.[0]?.id || null)
           setPurchaseOrder(null)
           setPurchaseStatus("idle")
           setCurrentView("chat")
@@ -674,7 +684,7 @@ function DashboardContent() {
       return
     }
     setPurchaseStatus("creating")
-    const order = await purchaseShare(token)
+    const order = await purchaseShare(token, selectedSharePlanId)
     if (!order) {
       setPurchaseStatus("error")
       return
@@ -688,7 +698,7 @@ function DashboardContent() {
       setPendingPaidShare(trialPaidShare)
     }
     setPurchaseStatus("waiting")
-  }, [agentShareToken, completePaidShareImport, purchaseOrder, purchaseShare, purchaseStatus, trialPaidShare])
+  }, [agentShareToken, completePaidShareImport, purchaseOrder, purchaseShare, purchaseStatus, selectedSharePlanId, trialPaidShare])
 
   const handleReturnToTrialSharedAgent = useCallback(() => {
     if (!isTrialActive) return
@@ -832,6 +842,10 @@ function DashboardContent() {
     },
   ])
 
+  const selectedSubscriptionPlan: AgentShareSubscriptionPlan | null = pendingPaidShare?.pricingMode === "subscription"
+    ? pendingPaidShare.subscriptionPlans?.find((plan) => plan.id === selectedSharePlanId) || pendingPaidShare.subscriptionPlans?.[0] || null
+    : null
+
   if (authLoading) {
     return <DashboardFallback />
   }
@@ -926,16 +940,43 @@ function DashboardContent() {
                     </div>
                     <div className="rounded-lg bg-secondary px-4 py-3">
                       <div className="text-xs font-semibold text-muted-foreground">
-                        付费访问
+                        {pendingPaidShare.pricingMode === "subscription" ? "订阅访问" : "付费访问"}
                       </div>
                       <div className="mt-1 text-2xl font-semibold text-foreground">
-                        {formatCny(pendingPaidShare.priceCents)}
+                        {formatCny(selectedSubscriptionPlan?.priceCents ?? pendingPaidShare.priceCents)}
                       </div>
+                      {pendingPaidShare.pricingMode === "subscription" && pendingPaidShare.subscriptionPlans && pendingPaidShare.subscriptionPlans.length > 0 ? (
+                        <div className="mt-3 grid gap-2">
+                          {pendingPaidShare.subscriptionPlans.map((plan) => {
+                            const selected = (selectedSubscriptionPlan?.id || selectedSharePlanId) === plan.id
+                            return (
+                              <button
+                                key={plan.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSharePlanId(plan.id)
+                                  setPurchaseOrder(null)
+                                  setPurchaseStatus("idle")
+                                }}
+                                className={`rounded-lg border px-3 py-2 text-left text-sm ${selected ? "border-primary bg-background" : "border-border bg-card"}`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="font-semibold text-foreground">{plan.label}</span>
+                                  <span className="font-semibold text-foreground">{formatCny(plan.priceCents)}</span>
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  有效期 {formatPlanDuration(plan.durationDays)}
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      ) : null}
                       {pendingPaidShare.trialDurationMinutes > 0 ? (
                         <div className="mt-2 text-xs text-muted-foreground">
                           {isTrialActive && trialRemainingMs !== null
                             ? `当前仍可试用 ${formatTrialRemaining(trialRemainingMs)}，购买后可永久使用。`
-                            : `试用 ${formatTrialDuration(pendingPaidShare.trialDurationMinutes)} 已结束或不可用，购买后可导入并长期使用。`}
+                            : `试用 ${formatTrialDuration(pendingPaidShare.trialDurationMinutes)} 已结束或不可用，购买后可导入并使用。`}
                         </div>
                       ) : null}
                     </div>

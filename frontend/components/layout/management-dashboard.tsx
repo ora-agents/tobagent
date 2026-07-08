@@ -58,7 +58,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { ComboboxSkeleton } from "@/components/ui/loading-placeholder"
 import { PromptMarkdownEditor } from "@/components/layout/prompt-markdown-editor"
 import { useT, useI18n } from "@/lib/i18n"
-import type { AgentProfile, AgentProfileVersion, AgentShareFaqItem, AgentShareLink, AgentShareOptions, BuiltinToolId, CustomFunction, FormRecordPermission } from "@/lib/types/agent-profiles"
+import type { AgentProfile, AgentProfileVersion, AgentShareFaqItem, AgentShareLink, AgentShareOptions, AgentSharePricingMode, AgentShareSubscriptionPlan, BuiltinToolId, CustomFunction, FormRecordPermission } from "@/lib/types/agent-profiles"
 import { BUILTIN_TOOLS, isSystemAgentProfile } from "@/lib/types/agent-profiles"
 import {
   fetchAvailableModels,
@@ -126,8 +126,10 @@ interface ManagementDashboardProps {
     include: AgentShareOptions,
     options?: {
       customSlug?: string | null
+      pricingMode?: AgentSharePricingMode
       priceCents?: number
       currency?: string
+      subscriptionPlans?: AgentShareSubscriptionPlan[]
       trialDurationMinutes?: number
       introductionText?: string | null
       faqItems?: AgentShareFaqItem[]
@@ -139,8 +141,10 @@ interface ManagementDashboardProps {
     include: AgentShareOptions,
     options?: {
       customSlug?: string | null
+      pricingMode?: AgentSharePricingMode
       priceCents?: number
       currency?: string
+      subscriptionPlans?: AgentShareSubscriptionPlan[]
       trialDurationMinutes?: number
       introductionText?: string | null
       faqItems?: AgentShareFaqItem[]
@@ -466,7 +470,11 @@ export function ManagementDashboard({
   const [editingShareToken, setEditingShareToken] = useState<string | null>(null)
   const [deletingShareToken, setDeletingShareToken] = useState<string | null>(null)
   const [shareSlug, setShareSlug] = useState("")
+  const [sharePricingMode, setSharePricingMode] = useState<AgentSharePricingMode>("one_time")
   const [sharePrice, setSharePrice] = useState("")
+  const [shareSubscriptionPlans, setShareSubscriptionPlans] = useState<AgentShareSubscriptionPlan[]>([
+    { id: "monthly", label: "月度订阅", durationDays: 30, priceCents: 9900, currency: "CNY" },
+  ])
   const [shareTrialMinutes, setShareTrialMinutes] = useState("")
   const [shareIntroduction, setShareIntroduction] = useState("")
   const [shareFaqItems, setShareFaqItems] = useState<AgentShareFaqItem[]>([
@@ -1058,7 +1066,11 @@ export function ManagementDashboard({
     setEditingShareToken(null)
     setShareLink(null)
     setShareSlug("")
+    setSharePricingMode("one_time")
     setSharePrice("")
+    setShareSubscriptionPlans([
+      { id: "monthly", label: locale === "zh" ? "月度订阅" : "Monthly", durationDays: 30, priceCents: 9900, currency: "CNY" },
+    ])
     setShareTrialMinutes("")
     setShareIntroduction("")
     setShareFaqItems([{ question: "", answer: "" }])
@@ -1075,12 +1087,16 @@ export function ManagementDashboard({
     setEditingShareToken(share.token)
     setShareLink(buildAgentShareUrl(share))
     setShareSlug(share.customSlug || "")
+    setSharePricingMode(share.pricingMode || "one_time")
     setSharePrice(share.priceCents > 0 ? String(share.priceCents / 100) : "")
+    setShareSubscriptionPlans(share.subscriptionPlans && share.subscriptionPlans.length > 0
+      ? share.subscriptionPlans
+      : [{ id: "monthly", label: locale === "zh" ? "月度订阅" : "Monthly", durationDays: 30, priceCents: 9900, currency: "CNY" }])
     setShareTrialMinutes(share.trialDurationMinutes > 0 ? String(share.trialDurationMinutes) : "")
     setShareIntroduction(share.introductionText || "")
     setShareFaqItems(share.faqItems && share.faqItems.length > 0 ? share.faqItems : [{ question: "", answer: "" }])
     setShareOptions(share.include)
-  }, [buildAgentShareUrl])
+  }, [buildAgentShareUrl, locale])
 
   const handleCopyAgentShareLink = async (share: AgentShareLink) => {
     const nextLink = buildAgentShareUrl(share)
@@ -1112,12 +1128,59 @@ export function ManagementDashboard({
     })
   }
 
+  const updateShareSubscriptionPlan = (index: number, updates: Partial<AgentShareSubscriptionPlan>) => {
+    setShareSubscriptionPlans((current) => current.map((plan, planIndex) => (
+      planIndex === index ? { ...plan, ...updates } : plan
+    )))
+  }
+
+  const addShareSubscriptionPlan = () => {
+    setShareSubscriptionPlans((current) => [
+      ...current,
+      {
+        id: `plan-${current.length + 1}`,
+        label: locale === "zh" ? `订阅 ${current.length + 1}` : `Plan ${current.length + 1}`,
+        durationDays: 30,
+        priceCents: 9900,
+        currency: "CNY",
+      },
+    ])
+  }
+
+  const removeShareSubscriptionPlan = (index: number) => {
+    setShareSubscriptionPlans((current) => {
+      const next = current.filter((_, planIndex) => planIndex !== index)
+      return next.length > 0 ? next : [{ id: "monthly", label: locale === "zh" ? "月度订阅" : "Monthly", durationDays: 30, priceCents: 9900, currency: "CNY" }]
+    })
+  }
+
   const handleSaveAgentShare = async (id: string) => {
     if (!canManageWorkspace) return
     const priceYuan = sharePrice.trim() === "" ? 0 : Number(sharePrice)
-    if (!Number.isFinite(priceYuan) || priceYuan < 0) {
+    if (sharePricingMode === "one_time" && (!Number.isFinite(priceYuan) || priceYuan < 0)) {
       window.alert(locale === "zh" ? "价格必须是大于等于 0 的数字。" : "Price must be a number greater than or equal to 0.")
       return
+    }
+    const subscriptionPlans = shareSubscriptionPlans.map((plan, index) => ({
+      id: (plan.id || `plan-${index + 1}`).trim(),
+      label: plan.label.trim(),
+      durationDays: Number(plan.durationDays),
+      priceCents: Number(plan.priceCents),
+      currency: "CNY",
+    }))
+    if (sharePricingMode === "subscription") {
+      const invalidPlan = subscriptionPlans.find((plan) => (
+        !plan.id
+        || !plan.label
+        || !Number.isInteger(plan.durationDays)
+        || plan.durationDays <= 0
+        || !Number.isInteger(plan.priceCents)
+        || plan.priceCents <= 0
+      ))
+      if (subscriptionPlans.length === 0 || invalidPlan) {
+        window.alert(locale === "zh" ? "订阅套餐需要填写名称、正整数天数和大于 0 的价格。" : "Subscription plans need a name, positive day count, and price greater than 0.")
+        return
+      }
     }
     const trialMinutes = shareTrialMinutes.trim() === "" ? 0 : Number(shareTrialMinutes)
     if (!Number.isInteger(trialMinutes) || trialMinutes < 0) {
@@ -1128,9 +1191,13 @@ export function ManagementDashboard({
     try {
       const payload = {
         customSlug: shareSlug.trim() || null,
-        priceCents: Math.round(priceYuan * 100),
+        pricingMode: sharePricingMode,
+        priceCents: sharePricingMode === "subscription"
+          ? Math.min(...subscriptionPlans.map((plan) => plan.priceCents))
+          : Math.round(priceYuan * 100),
         currency: "CNY",
-        trialDurationMinutes: priceYuan > 0 ? trialMinutes : 0,
+        subscriptionPlans: sharePricingMode === "subscription" ? subscriptionPlans : [],
+        trialDurationMinutes: (sharePricingMode === "subscription" || priceYuan > 0) ? trialMinutes : 0,
         introductionText: shareIntroduction.trim() || null,
         faqItems: shareFaqItems
           .map((item) => ({
@@ -4742,7 +4809,13 @@ export function ManagementDashboard({
                                       </div>
                                       <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                                         <span>{formatDateTime(share.updatedAt)}</span>
-                                        {share.priceCents > 0 && <span>¥{(share.priceCents / 100).toFixed(2)}</span>}
+                                        {share.pricingMode === "subscription" ? (
+                                          <span>
+                                            {locale === "zh"
+                                              ? `${share.subscriptionPlans?.length || 0} 个订阅套餐`
+                                              : `${share.subscriptionPlans?.length || 0} subscription plans`}
+                                          </span>
+                                        ) : share.priceCents > 0 && <span>¥{(share.priceCents / 100).toFixed(2)}</span>}
                                         {share.trialDurationMinutes > 0 && (
                                           <span>
                                             {locale === "zh"
@@ -4817,6 +4890,26 @@ export function ManagementDashboard({
                             </div>
                           </div>
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
+                            <Label htmlFor="agent-share-pricing-mode" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                              {locale === "zh" ? "售卖方式" : "Pricing mode"}
+                            </Label>
+                            <Select
+                              value={sharePricingMode}
+                              onValueChange={(value) => setSharePricingMode(value as AgentSharePricingMode)}
+                            >
+                              <SelectTrigger id="agent-share-pricing-mode" className="h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  <SelectItem value="one_time">{locale === "zh" ? "买断制" : "One-time"}</SelectItem>
+                                  <SelectItem value="subscription">{locale === "zh" ? "订阅制" : "Subscription"}</SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {sharePricingMode === "one_time" ? (
+                          <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
                             <Label htmlFor="agent-share-price" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                               {locale === "zh" ? "价格（元）" : "Price (CNY)"}
                             </Label>
@@ -4829,6 +4922,84 @@ export function ManagementDashboard({
                               className="h-9"
                             />
                           </div>
+                          ) : (
+                          <div className="col-span-2 flex flex-col gap-2 sm:col-span-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                {locale === "zh" ? "订阅套餐" : "Subscription plans"}
+                              </Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={addShareSubscriptionPlan}
+                                disabled={shareSubscriptionPlans.length >= 12}
+                                className="h-8 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                {locale === "zh" ? "添加套餐" : "Add plan"}
+                              </Button>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <div className="hidden px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_120px_130px_auto] sm:gap-2">
+                                <div>{locale === "zh" ? "套餐名称" : "Plan name"}</div>
+                                <div>{locale === "zh" ? "有效天数" : "Days"}</div>
+                                <div>{locale === "zh" ? "价格（元）" : "Price (CNY)"}</div>
+                                <div>{locale === "zh" ? "操作" : "Action"}</div>
+                              </div>
+                              {shareSubscriptionPlans.map((plan, index) => (
+                                <div key={index} className="grid gap-2 rounded-lg border border-border/50 bg-background/50 p-3 sm:grid-cols-[minmax(0,1fr)_120px_130px_auto]">
+                                  <div className="flex flex-col gap-1.5">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                                      {locale === "zh" ? "套餐名称" : "Plan name"}
+                                    </Label>
+                                    <Input
+                                      value={plan.label}
+                                      onChange={(event) => updateShareSubscriptionPlan(index, { label: event.target.value })}
+                                      placeholder={locale === "zh" ? "月度订阅" : "Monthly"}
+                                      className="h-9"
+                                    />
+                                  </div>
+                                  <div className="flex flex-col gap-1.5">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                                      {locale === "zh" ? "有效天数" : "Days"}
+                                    </Label>
+                                    <Input
+                                      value={String(plan.durationDays)}
+                                      onChange={(event) => updateShareSubscriptionPlan(index, { durationDays: Number(event.target.value) })}
+                                      placeholder={locale === "zh" ? "天数" : "Days"}
+                                      inputMode="numeric"
+                                      className="h-9"
+                                    />
+                                  </div>
+                                  <div className="flex flex-col gap-1.5">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                                      {locale === "zh" ? "价格（元）" : "Price (CNY)"}
+                                    </Label>
+                                    <Input
+                                      value={String(plan.priceCents / 100)}
+                                      onChange={(event) => updateShareSubscriptionPlan(index, { priceCents: Math.round(Number(event.target.value || 0) * 100) })}
+                                      placeholder={locale === "zh" ? "价格（元）" : "Price"}
+                                      inputMode="decimal"
+                                      className="h-9"
+                                    />
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => removeShareSubscriptionPlan(index)}
+                                    disabled={shareSubscriptionPlans.length <= 1}
+                                    className="h-9 gap-1.5 rounded-lg border-border bg-background px-2.5"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    {locale === "zh" ? "删除" : "Remove"}
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          )}
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
                             <Label htmlFor="agent-share-trial" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                               {locale === "zh" ? "试用时间（分钟）" : "Trial (minutes)"}

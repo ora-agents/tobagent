@@ -10,6 +10,8 @@ import type {
   AgentShareLink,
   AgentShareOptions,
   AgentSharePreview,
+  AgentSharePricingMode,
+  AgentShareSubscriptionPlan,
 } from "@/lib/types/agent-profiles"
 import { SELECTED_AGENT_PROFILE_KEY } from "@/lib/types/agent-profiles"
 import { backendFetch } from "@/lib/api/backend-fetch"
@@ -199,8 +201,10 @@ export function useAgentProfiles() {
     include: AgentShareOptions,
     options?: {
       customSlug?: string | null
+      pricingMode?: AgentSharePricingMode
       priceCents?: number
       currency?: string
+      subscriptionPlans?: AgentShareSubscriptionPlan[]
       trialDurationMinutes?: number
       introductionText?: string | null
       faqItems?: AgentShareFaqItem[]
@@ -216,8 +220,10 @@ export function useAgentProfiles() {
         json: {
           include,
           customSlug: options?.customSlug || null,
+          pricingMode: options?.pricingMode || "one_time",
           priceCents: options?.priceCents || 0,
           currency: options?.currency || "CNY",
+          subscriptionPlans: options?.subscriptionPlans || [],
           trialDurationMinutes: options?.trialDurationMinutes || 0,
           introductionText: options?.introductionText || null,
           faqItems: options?.faqItems || [],
@@ -254,8 +260,10 @@ export function useAgentProfiles() {
     include: AgentShareOptions,
     options?: {
       customSlug?: string | null
+      pricingMode?: AgentSharePricingMode
       priceCents?: number
       currency?: string
+      subscriptionPlans?: AgentShareSubscriptionPlan[]
       trialDurationMinutes?: number
       introductionText?: string | null
       faqItems?: AgentShareFaqItem[]
@@ -271,8 +279,10 @@ export function useAgentProfiles() {
         json: {
           include,
           customSlug: options?.customSlug || null,
+          pricingMode: options?.pricingMode || "one_time",
           priceCents: options?.priceCents || 0,
           currency: options?.currency || "CNY",
+          subscriptionPlans: options?.subscriptionPlans || [],
           trialDurationMinutes: options?.trialDurationMinutes || 0,
           introductionText: options?.introductionText || null,
           faqItems: options?.faqItems || [],
@@ -323,6 +333,7 @@ export function useAgentProfiles() {
 
   const purchaseShare = useCallback(async (
     token: string,
+    planId?: string | null,
   ): Promise<AgentSharePurchase | null> => {
     if (!user) return null
     try {
@@ -330,6 +341,7 @@ export function useAgentProfiles() {
         method: "POST",
         authHeaders,
         workspaceHeaders,
+        json: { planId: planId || null },
       })
       if (resp.ok) {
         return await resp.json()
