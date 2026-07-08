@@ -86,6 +86,8 @@ const matchesShortcut = (
   event: KeyboardEvent,
   shortcut: KeyboardShortcut
 ): boolean => {
+  if (typeof event.key !== 'string') return false
+
   const keyMatches = event.key.toLowerCase() === shortcut.key.toLowerCase()
   const metaMatches = shortcut.metaKey ? (event.metaKey || event.ctrlKey) : !event.metaKey && !event.ctrlKey
   const shiftMatches = shortcut.shiftKey ? event.shiftKey : !event.shiftKey
@@ -105,12 +107,13 @@ export const useKeyboardShortcuts = (
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (!enabled) return
+      const eventKey = typeof event.key === 'string' ? event.key : ''
 
       // Allow shortcuts with Cmd/Ctrl modifier to work in input fields
       // Block shortcuts without modifiers when typing (except Escape)
       if (isInputElement(event.target)) {
         const hasModifier = event.metaKey || event.ctrlKey
-        const isEscape = event.key.toLowerCase() === 'escape'
+        const isEscape = eventKey.toLowerCase() === 'escape'
         if (!hasModifier && !isEscape) {
           return
         }
