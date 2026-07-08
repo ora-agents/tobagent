@@ -173,6 +173,14 @@ type FormCategoryGroup = {
   forms: CustomForm[]
 }
 
+type AgentShareSubscriptionPlanForm = {
+  id: string
+  label: string
+  durationDays: string
+  priceYuan: string
+  currency: "CNY"
+}
+
 type AgentLinkedResourceCreateContext = {
   type: "skill" | "form"
   agentMode: "create" | "edit"
@@ -472,8 +480,8 @@ export function ManagementDashboard({
   const [shareSlug, setShareSlug] = useState("")
   const [sharePricingMode, setSharePricingMode] = useState<AgentSharePricingMode>("one_time")
   const [sharePrice, setSharePrice] = useState("")
-  const [shareSubscriptionPlans, setShareSubscriptionPlans] = useState<AgentShareSubscriptionPlan[]>([
-    { id: "monthly", label: "月度订阅", durationDays: 30, priceCents: 9900, currency: "CNY" },
+  const [shareSubscriptionPlans, setShareSubscriptionPlans] = useState<AgentShareSubscriptionPlanForm[]>([
+    { id: "monthly", label: "月度订阅", durationDays: "30", priceYuan: "99", currency: "CNY" },
   ])
   const [shareTrialMinutes, setShareTrialMinutes] = useState("")
   const [shareIntroduction, setShareIntroduction] = useState("")
@@ -1062,15 +1070,29 @@ export function ManagementDashboard({
     return url.toString()
   }, [])
 
+  const createDefaultShareSubscriptionPlan = useCallback((): AgentShareSubscriptionPlanForm => ({
+    id: "monthly",
+    label: locale === "zh" ? "月度订阅" : "Monthly",
+    durationDays: "30",
+    priceYuan: "99",
+    currency: "CNY",
+  }), [locale])
+
+  const subscriptionPlanToForm = useCallback((plan: AgentShareSubscriptionPlan): AgentShareSubscriptionPlanForm => ({
+    id: plan.id || "",
+    label: plan.label,
+    durationDays: String(plan.durationDays),
+    priceYuan: plan.priceCents > 0 ? String(plan.priceCents / 100) : "",
+    currency: "CNY",
+  }), [])
+
   const resetShareForm = useCallback(() => {
     setEditingShareToken(null)
     setShareLink(null)
     setShareSlug("")
     setSharePricingMode("one_time")
     setSharePrice("")
-    setShareSubscriptionPlans([
-      { id: "monthly", label: locale === "zh" ? "月度订阅" : "Monthly", durationDays: 30, priceCents: 9900, currency: "CNY" },
-    ])
+    setShareSubscriptionPlans([createDefaultShareSubscriptionPlan()])
     setShareTrialMinutes("")
     setShareIntroduction("")
     setShareFaqItems([{ question: "", answer: "" }])
@@ -1081,7 +1103,7 @@ export function ManagementDashboard({
       agents: true,
       forms: true,
     })
-  }, [])
+  }, [createDefaultShareSubscriptionPlan])
 
   const startEditShare = useCallback((share: AgentShareLink) => {
     setEditingShareToken(share.token)
@@ -1090,13 +1112,13 @@ export function ManagementDashboard({
     setSharePricingMode(share.pricingMode || "one_time")
     setSharePrice(share.priceCents > 0 ? String(share.priceCents / 100) : "")
     setShareSubscriptionPlans(share.subscriptionPlans && share.subscriptionPlans.length > 0
-      ? share.subscriptionPlans
-      : [{ id: "monthly", label: locale === "zh" ? "月度订阅" : "Monthly", durationDays: 30, priceCents: 9900, currency: "CNY" }])
+      ? share.subscriptionPlans.map(subscriptionPlanToForm)
+      : [createDefaultShareSubscriptionPlan()])
     setShareTrialMinutes(share.trialDurationMinutes > 0 ? String(share.trialDurationMinutes) : "")
     setShareIntroduction(share.introductionText || "")
     setShareFaqItems(share.faqItems && share.faqItems.length > 0 ? share.faqItems : [{ question: "", answer: "" }])
     setShareOptions(share.include)
-  }, [buildAgentShareUrl, locale])
+  }, [buildAgentShareUrl, createDefaultShareSubscriptionPlan, subscriptionPlanToForm])
 
   const handleCopyAgentShareLink = async (share: AgentShareLink) => {
     const nextLink = buildAgentShareUrl(share)
@@ -1128,7 +1150,7 @@ export function ManagementDashboard({
     })
   }
 
-  const updateShareSubscriptionPlan = (index: number, updates: Partial<AgentShareSubscriptionPlan>) => {
+  const updateShareSubscriptionPlan = (index: number, updates: Partial<AgentShareSubscriptionPlanForm>) => {
     setShareSubscriptionPlans((current) => current.map((plan, planIndex) => (
       planIndex === index ? { ...plan, ...updates } : plan
     )))
@@ -1140,8 +1162,8 @@ export function ManagementDashboard({
       {
         id: `plan-${current.length + 1}`,
         label: locale === "zh" ? `订阅 ${current.length + 1}` : `Plan ${current.length + 1}`,
-        durationDays: 30,
-        priceCents: 9900,
+        durationDays: "30",
+        priceYuan: "99",
         currency: "CNY",
       },
     ])
@@ -1150,7 +1172,7 @@ export function ManagementDashboard({
   const removeShareSubscriptionPlan = (index: number) => {
     setShareSubscriptionPlans((current) => {
       const next = current.filter((_, planIndex) => planIndex !== index)
-      return next.length > 0 ? next : [{ id: "monthly", label: locale === "zh" ? "月度订阅" : "Monthly", durationDays: 30, priceCents: 9900, currency: "CNY" }]
+      return next.length > 0 ? next : [createDefaultShareSubscriptionPlan()]
     })
   }
 
@@ -1165,7 +1187,7 @@ export function ManagementDashboard({
       id: (plan.id || `plan-${index + 1}`).trim(),
       label: plan.label.trim(),
       durationDays: Number(plan.durationDays),
-      priceCents: Number(plan.priceCents),
+      priceCents: Math.round(Number(plan.priceYuan) * 100),
       currency: "CNY",
     }))
     if (sharePricingMode === "subscription") {
@@ -4965,8 +4987,8 @@ export function ManagementDashboard({
                                       {locale === "zh" ? "有效天数" : "Days"}
                                     </Label>
                                     <Input
-                                      value={String(plan.durationDays)}
-                                      onChange={(event) => updateShareSubscriptionPlan(index, { durationDays: Number(event.target.value) })}
+                                      value={plan.durationDays}
+                                      onChange={(event) => updateShareSubscriptionPlan(index, { durationDays: event.target.value })}
                                       placeholder={locale === "zh" ? "天数" : "Days"}
                                       inputMode="numeric"
                                       className="h-9"
@@ -4977,8 +4999,8 @@ export function ManagementDashboard({
                                       {locale === "zh" ? "价格（元）" : "Price (CNY)"}
                                     </Label>
                                     <Input
-                                      value={String(plan.priceCents / 100)}
-                                      onChange={(event) => updateShareSubscriptionPlan(index, { priceCents: Math.round(Number(event.target.value || 0) * 100) })}
+                                      value={plan.priceYuan}
+                                      onChange={(event) => updateShareSubscriptionPlan(index, { priceYuan: event.target.value })}
                                       placeholder={locale === "zh" ? "价格（元）" : "Price"}
                                       inputMode="decimal"
                                       className="h-9"
