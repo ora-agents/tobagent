@@ -37,7 +37,7 @@ import { Input } from "@/components/ui/input"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { Textarea } from "@/components/ui/textarea"
 import { backendFetch } from "@/lib/api/backend-fetch"
-import { ICP_RECORD, SITE_DESCRIPTION, SITE_NAME } from "@/lib/constants/site"
+import { ICP_RECORD, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site"
 import { useApiConfig } from "@/lib/config/api-config"
 import { useAuth } from "@/components/providers/auth-provider"
 import { cn } from "@/lib/utils"
@@ -77,6 +77,8 @@ const pricingFeatures = [
   "金牌客服话术、豆包、DeepSeek、千问等大模型驱动",
   "设备报修/报警自动提醒家人、创建工单、及时呼叫救援，并实时反馈救援/维修状态",
 ]
+
+const salesHelperAgentHref = `${SITE_URL}/agentapp/?agentShare=wsiri-sales-helper`
 
 const heroMetrics = [
   { value: "01", label: "知识沉淀", description: "文档、FAQ、流程统一归档" },
@@ -504,10 +506,12 @@ function InterfacePreview() {
 
 export function OfficialHomePage() {
   const { apiUrl, loading: apiConfigLoading } = useApiConfig()
+  const { user, loading: authLoading } = useAuth()
   const [testimonials, setTestimonials] = useState<SiteTestimonial[]>([])
   const [testimonialsLoading, setTestimonialsLoading] = useState(true)
   const [testimonialsError, setTestimonialsError] = useState<string | null>(null)
   const [showAllTestimonials, setShowAllTestimonials] = useState(false)
+  const accountButtonLabel = user?.username ?? "登录"
 
   const visibleTestimonials = useMemo(
     () => showAllTestimonials ? testimonials : testimonials.slice(0, 6),
@@ -558,11 +562,17 @@ export function OfficialHomePage() {
             <a href="#faq" className="hover:text-foreground">常见问题</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button asChild variant="secondary" size="sm">
-              <Link href="/login">登录</Link>
+            <Button asChild variant="secondary" size="sm" className="max-w-48">
+              <Link
+                href={user ? "/dashboard" : "/login"}
+                title={user?.username ?? "登录"}
+                aria-label={user ? `当前账号 ${user.username}` : "登录"}
+              >
+                <span className="truncate">{authLoading ? "..." : accountButtonLabel}</span>
+              </Link>
             </Button>
             <Button asChild size="sm">
-              <a href="https://wsr.wsiri.cn/agentapp/?agentShare=wsiri-sales-helper">
+              <a href={salesHelperAgentHref}>
                 进入工作台
                 <ArrowRight data-icon="inline-end" />
               </a>
@@ -589,7 +599,7 @@ export function OfficialHomePage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <a href="https://wsr.wsiri.cn/agentapp/?agentShare=wsiri-sales-helper">
+                <a href={salesHelperAgentHref}>
                   立即试用
                   <ArrowRight data-icon="inline-end" />
                 </a>
@@ -752,7 +762,9 @@ export function OfficialHomePage() {
             <span>{SITE_NAME}</span>
           </div>
           <div className="flex flex-wrap gap-4">
-            <Link href="/login" className="hover:text-foreground">登录</Link>
+            <Link href={user ? "/dashboard" : "/login"} className="max-w-48 truncate hover:text-foreground" title={user?.username ?? "登录"}>
+              {authLoading ? "..." : accountButtonLabel}
+            </Link>
             <Link href="/dashboard" className="hover:text-foreground">工作台</Link>
             <a href="#faq" className="hover:text-foreground">常见问题</a>
             <a
