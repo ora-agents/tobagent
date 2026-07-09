@@ -26,6 +26,7 @@ const allowedDevOrigins = [
   "wsrtob.s.odn.cc",
   "wsr.wsiri.cn",
   "gen.wsiri.cn",
+  "agent.wsiri.cn",
   ...localIPs,
 ];
 

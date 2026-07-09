@@ -23,7 +23,8 @@
         "https://gen.wsiri.cn",
         "tauri://localhost",
         "http://tauri.localhost",
-        "https://tauri.localhost"
+        "https://tauri.localhost",
+        "https://agent.wsiri.cn"
       ],
       "allow_methods": ["*"],
       "allow_headers": ["*"]

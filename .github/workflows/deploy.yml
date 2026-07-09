@@ -477,6 +477,7 @@ jobs:
             NEXT_PUBLIC_LANGGRAPH_API_URL=${{ vars.NEXT_PUBLIC_LANGGRAPH_API_URL || 'https://gen.wsiri.cn' }}
             NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG=${{ vars.NEXT_PUBLIC_SHOW_MIC_DEVICE_DEBUG }}
             NEXT_PUBLIC_ADMIN_URL=${{ vars.NEXT_PUBLIC_ADMIN_URL }}
+            NEXT_PUBLIC_SITE_URL=${{ vars.NEXT_PUBLIC_SITE_URL || 'https://agent.wsiri.cn' }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max,ignore-error=true
 
