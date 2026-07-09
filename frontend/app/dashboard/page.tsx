@@ -1041,7 +1041,7 @@ function DashboardContent() {
                       {pendingPaidShare.agent.name}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {pendingPaidShare.agent.description || t.noDescriptionProvided}
+                      {pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description || t.noDescriptionProvided}
                     </div>
                     <div className="rounded-lg bg-secondary px-4 py-3">
                       <div className="text-xs font-semibold text-muted-foreground">
