@@ -152,7 +152,7 @@ export function AuthPage({ mode }: AuthPageProps) {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace('/dashboard')
+      router.replace('/')
     }
   }, [loading, router, user])
 
@@ -208,7 +208,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                   setAuthMode(nextMode)
                   router.push(nextMode === 'login' ? '/login' : nextMode === 'register' ? '/register' : '/forgot-password')
                 }}
-                onAuthenticated={() => router.replace('/dashboard')}
+                onAuthenticated={() => router.replace('/')}
               />
             </div>
           ) : (
