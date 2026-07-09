@@ -18,6 +18,7 @@ import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
 import { WechatPayQrCode } from "@/components/payments/wechat-pay-qr-code"
 import { Button } from "@/components/ui/button"
+import { MarkdownContent } from "@/components/ui/markdown-content"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
@@ -1040,9 +1041,13 @@ function DashboardContent() {
                     <div className="text-xl font-semibold text-foreground">
                       {pendingPaidShare.agent.name}
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description || t.noDescriptionProvided}
-                    </div>
+                    {pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description ? (
+                      <MarkdownContent
+                        value={pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description || ""}
+                      />
+                    ) : (
+                      <div className="text-sm text-muted-foreground">{t.noDescriptionProvided}</div>
+                    )}
                     <div className="rounded-lg bg-secondary px-4 py-3">
                       <div className="text-xs font-semibold text-muted-foreground">
                         {pendingPaidShare.pricingMode === "subscription" ? "订阅访问" : "付费访问"}

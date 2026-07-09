@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card"
 import { FormField } from "@/components/ui/form-field"
 import { Input } from "@/components/ui/input"
+import { MarkdownContent } from "@/components/ui/markdown-content"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -315,9 +316,10 @@ export function AgentShareLandingPage({ token }: { token: string }) {
               <h1 className="text-4xl font-semibold leading-tight text-foreground sm:text-5xl lg:text-6xl">
                 {preview.agent.name}
               </h1>
-              <p className="max-w-2xl whitespace-pre-line text-lg leading-8 text-muted-foreground">
-                {introText}
-              </p>
+              <MarkdownContent
+                value={introText}
+                className="max-w-2xl text-lg leading-8"
+              />
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">

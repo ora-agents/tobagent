@@ -318,6 +318,11 @@ html[data-tauri-runtime="true"] .site-compliance-footer {
   --prompt-mdx-toolbar-sticky-top: -1.5rem;
 }
 
+.agent-description-editor .prompt-mdx-content,
+.agent-description-editor .cm-editor {
+  min-height: 9rem !important;
+}
+
 .skill-content-editor .prompt-mdx-content,
 .skill-content-editor .cm-editor {
   min-height: 24rem !important;

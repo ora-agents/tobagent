@@ -45,6 +45,7 @@ import { FormField } from "@/components/ui/form-field"
 import { Label } from "@/components/ui/label"
 import { ListItem } from "@/components/ui/list-item"
 import { ListPanel } from "@/components/ui/list-panel"
+import { MarkdownContent } from "@/components/ui/markdown-content"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -118,6 +119,7 @@ import {
   ConfigBundleDialog,
   type ConfigBundleImportResult,
 } from "@/components/layout/management-dashboard/config-bundle-dialog"
+import { markdownToPlainText, truncatePlainText } from "@/lib/markdown"
 
 // ---------------------------------------------------------------------------
 // Properties Interface
@@ -2761,7 +2763,7 @@ export function ManagementDashboard({
   const filteredLinkableAgentProfiles = linkableAgentProfiles.filter(profile => {
     const query = agentRoleSearch.trim().toLowerCase()
     if (!query) return true
-    return [profile.name, profile.description, profile.id].some(value => value.toLowerCase().includes(query))
+    return [profile.name, markdownToPlainText(profile.description), profile.id].some(value => value.toLowerCase().includes(query))
   })
   const configBundleResources = useMemo(() => ({
     agents: configurableAgentProfiles.map(item => ({ id: item.id, name: item.name })),
@@ -3556,7 +3558,7 @@ export function ManagementDashboard({
                         {profile.name}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate">
-                        {profile.description || t.noDescriptionProvided}
+                        {truncatePlainText(profile.description) || t.noDescriptionProvided}
                       </div>
 
                       {/* Visual indicators for resources */}
@@ -3878,13 +3880,14 @@ export function ManagementDashboard({
                     <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-1.5">
                         <Label htmlFor="agent-desc">{locale === "zh" ? "角色描述" : "Role Description"}</Label>
-                        <Input
-                          id="agent-desc"
-                          value={agentForm.description}
-                          onChange={e => setAgentForm({ ...agentForm, description: e.target.value })}
-                          placeholder={t.agentDescPlaceholder}
-                          className="rounded-lg"
-                        />
+                        <div className="agent-description-editor">
+                          <PromptMarkdownEditor
+                            id="agent-desc"
+                            value={agentForm.description}
+                            onChange={description => setAgentForm({ ...agentForm, description })}
+                            placeholder={t.agentDescPlaceholder}
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -4785,7 +4788,7 @@ export function ManagementDashboard({
                                   </span>
                                   <div className="min-w-0">
                                     <div className="text-xs font-medium truncate">{agent.name}</div>
-                                    <div className="text-[10px] text-muted-foreground truncate">{agent.description || (locale === "zh" ? "无描述" : "No description")}</div>
+                                    <div className="text-[10px] text-muted-foreground truncate">{truncatePlainText(agent.description) || (locale === "zh" ? "无描述" : "No description")}</div>
                                   </div>
                                   <Button variant="unstyled"
                                     type="button"
@@ -4829,9 +4832,11 @@ export function ManagementDashboard({
                           <Bot className="w-6 h-6 text-primary" />
                           {selectedAgent.name}
                         </h2>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {selectedAgent.description || t.noDescriptionProvided}
-                        </p>
+                        {selectedAgent.description ? (
+                          <MarkdownContent value={selectedAgent.description} compact className="mt-1" />
+                        ) : (
+                          <p className="mt-1 text-sm text-muted-foreground">{t.noDescriptionProvided}</p>
+                        )}
                       </div>
                     </div>
 
@@ -5592,7 +5597,7 @@ export function ManagementDashboard({
                                     <Bot className="w-4 h-4 text-rose-500 flex-shrink-0" />
                                     <div className="min-w-0">
                                       <div className="text-xs font-semibold text-foreground truncate">{p.name}</div>
-                                      <div className="text-[10px] text-muted-foreground truncate">{p.description || (locale === "zh" ? "无描述" : "No description")}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{truncatePlainText(p.description) || (locale === "zh" ? "无描述" : "No description")}</div>
                                     </div>
                                   </div>
                                 ))}
