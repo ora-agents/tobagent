@@ -345,6 +345,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const sendSmsCode = useCallback(async (phone: string, purpose: 'register' | 'sensitive' | 'bind_phone' | 'reset_password') => {
     setError(null)
+    if (capabilities.localDevBypass && !capabilities.smsAuth) {
+      return
+    }
     if (!capabilities.smsAuth) {
       const message = t.smsAuthUnavailable
       setError(message)
@@ -365,7 +368,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(localizeAuthMessage(err.message || '', t, t.smsCodeSendFailed))
       throw err
     }
-  }, [apiUrl, authHeaders, capabilities.smsAuth, t])
+  }, [apiUrl, authHeaders, capabilities.localDevBypass, capabilities.smsAuth, t])
 
   // 2. Login function
   const login = useCallback(async (accountOrPhone: string, password: string) => {

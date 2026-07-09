@@ -5,7 +5,7 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,7 @@ from src.api.deps import (
     hash_password,
     verify_password,
 )
+from src.api.local_dev import is_local_dev_request
 from src.api.schemas import (
     AuthSessionResponse,
     CreateUserApiKeyRequest,
@@ -43,7 +44,11 @@ from src.api.session_auth import (
     verify_session_token,
     wants_desktop_session_token,
 )
-from src.api.sms_verification import consume_sms_code, issue_sms_code
+from src.api.sms_verification import (
+    aliyun_sms_is_configured,
+    consume_sms_code,
+    issue_sms_code,
+)
 from src.api.workspace_utils import ensure_default_workspace
 from src.utils.db import (
     AgentProfileTable,
@@ -65,6 +70,16 @@ from src.utils.db import (
 )
 
 router = APIRouter(tags=["auth"])
+
+
+def _can_bypass_sms(request: Request) -> bool:
+    return is_local_dev_request(request) and not aliyun_sms_is_configured()
+
+
+def _consume_sms_or_bypass(db: Session, phone: str, purpose: str, code: str, request: Request) -> None:
+    if _can_bypass_sms(request):
+        return
+    consume_sms_code(db, phone, purpose, code)
 
 
 def _api_key_schema(api_key: UserApiKeyTable) -> UserApiKeySchema:
@@ -121,6 +136,7 @@ def _current_user_from_authorization(
 )
 async def send_sms_code(
     req: SmsCodeRequest,
+    request: Request,
     db: Session = Depends(get_db),
     authorization: str | None = Header(default=None),
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
@@ -145,7 +161,8 @@ async def send_sms_code(
         if current_user.phone != req.phone:
             raise HTTPException(status_code=403, detail="Cannot verify another account")
 
-    issue_sms_code(db, req.phone, req.purpose)
+    if not _can_bypass_sms(request):
+        issue_sms_code(db, req.phone, req.purpose)
     return SmsCodeResponse(ok=True)
 
 
@@ -157,13 +174,14 @@ async def send_sms_code(
 )
 async def verify_sms_code(
     req: SmsCodeVerifyRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
     if current_user.phone != req.phone:
         raise HTTPException(status_code=403, detail="Cannot verify another account")
 
-    consume_sms_code(db, req.phone, req.purpose, req.code)
+    _consume_sms_or_bypass(db, req.phone, req.purpose, req.code, request)
     db.commit()
     return SmsCodeResponse(ok=True)
 
@@ -176,6 +194,7 @@ async def verify_sms_code(
 )
 async def register_user(
     req: UserRegisterRequest,
+    request: Request,
     response: Response,
     desktop_session: str | None = Header(default=None, alias=DESKTOP_SESSION_HEADER),
     db: Session = Depends(get_db),
@@ -189,7 +208,7 @@ async def register_user(
     if existing_phone:
         raise HTTPException(status_code=400, detail="Phone already exists")
 
-    consume_sms_code(db, req.phone, "register", req.code)
+    _consume_sms_or_bypass(db, req.phone, "register", req.code, request)
     
     # Generate UUID and a random nice avatar color
     user_id = f"user-{uuid.uuid4()}"
@@ -263,6 +282,7 @@ async def logout_user(response: Response):
 )
 async def reset_password(
     req: PasswordResetRequest,
+    request: Request,
     response: Response,
     desktop_session: str | None = Header(default=None, alias=DESKTOP_SESSION_HEADER),
     db: Session = Depends(get_db),
@@ -271,7 +291,7 @@ async def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="Phone is not registered")
 
-    consume_sms_code(db, req.phone, "reset_password", req.code)
+    _consume_sms_or_bypass(db, req.phone, "reset_password", req.code, request)
     user.password_hash = hash_password(req.password)
     db.commit()
     set_session_cookie(response, user.id)
@@ -315,6 +335,7 @@ async def get_user_profile(
 async def bind_user_phone(
     user_id: str,
     req: UserBindPhoneRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -325,7 +346,7 @@ async def bind_user_phone(
     if existing_user:
         raise HTTPException(status_code=400, detail="Phone already exists")
 
-    consume_sms_code(db, req.phone, "bind_phone", req.code)
+    _consume_sms_or_bypass(db, req.phone, "bind_phone", req.code, request)
     current_user.phone = req.phone
     db.commit()
     db.refresh(current_user)
@@ -341,6 +362,7 @@ async def bind_user_phone(
 async def update_user_password(
     user_id: str,
     req: UserPasswordUpdateRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
 ):
@@ -350,7 +372,7 @@ async def update_user_password(
     if current_user.phone != req.phone:
         raise HTTPException(status_code=403, detail="Cannot verify another account")
 
-    consume_sms_code(db, req.phone, "reset_password", req.code)
+    _consume_sms_or_bypass(db, req.phone, "reset_password", req.code, request)
     current_user.password_hash = hash_password(req.password)
     db.commit()
     return SmsCodeResponse(ok=True)

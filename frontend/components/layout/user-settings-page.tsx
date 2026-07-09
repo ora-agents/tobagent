@@ -152,6 +152,8 @@ export function UserSettingsPage({
   const { locale } = useI18n()
   const zh = locale === "zh"
   const smsEnabled = capabilities.smsAuth
+  const smsDevBypass = capabilities.localDevBypass && !smsEnabled
+  const smsAvailable = smsEnabled || smsDevBypass
 
   // ---- Form state ----
   const [username, setUsername] = useState("")
@@ -545,6 +547,10 @@ export function UserSettingsPage({
   const normalizePhoneInput = (value: string) => value.trim().replace(/\s+/g, "").replace(/-/g, "")
 
   const handleSendBindPhoneCode = async () => {
+    if (smsDevBypass) {
+      setAccountSecurityStatus(zh ? "本地开发模式已跳过短信验证" : "Local development mode skips SMS verification")
+      return
+    }
     if (!smsEnabled) {
       setError(zh ? "短信服务未配置，手机号绑定已关闭" : "SMS is not configured, so phone binding is disabled")
       return
@@ -568,19 +574,19 @@ export function UserSettingsPage({
   }
 
   const handleBindPhone = async () => {
-    if (!smsEnabled) {
+    if (!smsAvailable) {
       setError(zh ? "短信服务未配置，手机号绑定已关闭" : "SMS is not configured, so phone binding is disabled")
       return
     }
     const normalized = normalizePhoneInput(bindPhoneValue)
-    if (!normalized || !bindPhoneCode.trim()) {
+    if (!normalized || (!smsDevBypass && !bindPhoneCode.trim())) {
       setError(zh ? "请填写手机号和验证码" : "Please enter the phone number and verification code")
       return
     }
     setError(null)
     setBindPhoneLoading(true)
     try {
-      await bindPhone(normalized, bindPhoneCode.trim())
+      await bindPhone(normalized, smsDevBypass ? "000000" : bindPhoneCode.trim())
       setBindPhoneValue("")
       setBindPhoneCode("")
       setAccountSecurityStatus(zh ? "手机号已绑定" : "Phone number bound")
@@ -592,6 +598,10 @@ export function UserSettingsPage({
   }
 
   const handleSendPasswordCode = async () => {
+    if (smsDevBypass) {
+      setAccountSecurityStatus(zh ? "本地开发模式已跳过短信验证" : "Local development mode skips SMS verification")
+      return
+    }
     if (!smsEnabled) {
       setError(zh ? "短信服务未配置，密码短信验证已关闭" : "SMS is not configured, so password verification is disabled")
       return
@@ -611,7 +621,7 @@ export function UserSettingsPage({
   }
 
   const handleChangePassword = async () => {
-    if (!smsEnabled) {
+    if (!smsAvailable) {
       setError(zh ? "短信服务未配置，密码修改已关闭" : "SMS is not configured, so password changes are disabled")
       return
     }
@@ -619,7 +629,7 @@ export function UserSettingsPage({
       setError(zh ? "请先绑定手机号" : "Bind a phone number first")
       return
     }
-    if (!passwordCode.trim() || !newPassword.trim() || !confirmNewPassword.trim()) {
+    if ((!smsDevBypass && !passwordCode.trim()) || !newPassword.trim() || !confirmNewPassword.trim()) {
       setError(zh ? "请填写验证码和新密码" : "Please enter the code and new password")
       return
     }
@@ -634,7 +644,7 @@ export function UserSettingsPage({
     setError(null)
     setPasswordLoading(true)
     try {
-      await changePassword(user.phone, passwordCode.trim(), newPassword.trim())
+      await changePassword(user.phone, smsDevBypass ? "000000" : passwordCode.trim(), newPassword.trim())
       setPasswordCode("")
       setNewPassword("")
       setConfirmNewPassword("")
@@ -898,13 +908,19 @@ export function UserSettingsPage({
                 </StatusNotice>
               )}
 
-              {!smsEnabled && (
+              {!smsAvailable && (
                 <StatusNotice tone="info" className={elderOptimized ? "p-4 text-base" : undefined}>
                   {zh ? "短信服务未配置，手机号绑定和短信改密已关闭。" : "SMS is not configured. Phone binding and SMS password changes are disabled."}
                 </StatusNotice>
               )}
 
-              {!user.phone && smsEnabled && (
+              {smsDevBypass && (
+                <StatusNotice tone="info" className={elderOptimized ? "p-4 text-base" : undefined}>
+                  {zh ? "本地开发模式：短信环境变量未配置，手机号验证已跳过。" : "Local development mode: SMS environment variables are not configured, so phone verification is skipped."}
+                </StatusNotice>
+              )}
+
+              {!user.phone && smsAvailable && (
                 <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary`}>
                   <div>
                     <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
@@ -921,40 +937,44 @@ export function UserSettingsPage({
                       placeholder={zh ? "输入手机号" : "Phone number"}
                       className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
                     />
-                    <ActionButton
-                      type="button"
-                      variant="outline"
-                      onClick={handleSendBindPhoneCode}
-                      disabled={bindPhoneSending || bindPhoneCooldown > 0}
-                      className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
-                    >
-                      {bindPhoneSending && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
-                      {bindPhoneCooldown > 0 ? `${bindPhoneCooldown}s` : (zh ? "获取验证码" : "Send code")}
-                    </ActionButton>
+                    {!smsDevBypass && (
+                      <ActionButton
+                        type="button"
+                        variant="outline"
+                        onClick={handleSendBindPhoneCode}
+                        disabled={bindPhoneSending || bindPhoneCooldown > 0}
+                        className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
+                      >
+                        {bindPhoneSending && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+                        {bindPhoneCooldown > 0 ? `${bindPhoneCooldown}s` : (zh ? "获取验证码" : "Send code")}
+                      </ActionButton>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      value={bindPhoneCode}
-                      onChange={(e) => setBindPhoneCode(e.target.value)}
-                      inputMode="numeric"
-                      placeholder={zh ? "短信验证码" : "Verification code"}
-                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
-                    />
+                    {!smsDevBypass && (
+                      <Input
+                        value={bindPhoneCode}
+                        onChange={(e) => setBindPhoneCode(e.target.value)}
+                        inputMode="numeric"
+                        placeholder={zh ? "短信验证码" : "Verification code"}
+                        className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                      />
+                    )}
                     <ActionButton
                       type="button"
                       variant="default"
                       onClick={handleBindPhone}
-                      disabled={bindPhoneLoading || !bindPhoneValue.trim() || !bindPhoneCode.trim()}
+                      disabled={bindPhoneLoading || !bindPhoneValue.trim() || (!smsDevBypass && !bindPhoneCode.trim())}
                       className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
                     >
                       {bindPhoneLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
-                      {zh ? "绑定手机号" : "Bind phone"}
+                      {smsDevBypass ? (zh ? "直接绑定手机号" : "Bind phone directly") : (zh ? "绑定手机号" : "Bind phone")}
                     </ActionButton>
                   </div>
                 </div>
               )}
 
-              {user.phone && smsEnabled && (
+              {user.phone && smsAvailable && (
                 <div className={`${elderOptimized ? "gap-4 p-4" : "gap-3 p-3.5"} flex flex-col rounded-lg bg-secondary`}>
                   <div>
                     <div className={`${elderOptimized ? "text-lg" : "text-sm"} font-semibold text-foreground`}>
@@ -964,25 +984,27 @@ export function UserSettingsPage({
                       {zh ? `验证码会发送到绑定手机号 ${user.phone}。` : `The verification code will be sent to ${user.phone}.`}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input
-                      value={passwordCode}
-                      onChange={(e) => setPasswordCode(e.target.value)}
-                      inputMode="numeric"
-                      placeholder={zh ? "短信验证码" : "Verification code"}
-                      className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
-                    />
-                    <ActionButton
-                      type="button"
-                      variant="outline"
-                      onClick={handleSendPasswordCode}
-                      disabled={passwordCodeSending || passwordCooldown > 0}
-                      className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
-                    >
-                      {passwordCodeSending && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
-                      {passwordCooldown > 0 ? `${passwordCooldown}s` : (zh ? "获取验证码" : "Send code")}
-                    </ActionButton>
-                  </div>
+                  {!smsDevBypass && (
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        value={passwordCode}
+                        onChange={(e) => setPasswordCode(e.target.value)}
+                        inputMode="numeric"
+                        placeholder={zh ? "短信验证码" : "Verification code"}
+                        className={`${elderOptimized ? "h-14 text-lg" : "h-10 text-sm"} bg-background`}
+                      />
+                      <ActionButton
+                        type="button"
+                        variant="outline"
+                        onClick={handleSendPasswordCode}
+                        disabled={passwordCodeSending || passwordCooldown > 0}
+                        className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} shrink-0 rounded-lg gap-1.5`}
+                      >
+                        {passwordCodeSending && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}
+                        {passwordCooldown > 0 ? `${passwordCooldown}s` : (zh ? "获取验证码" : "Send code")}
+                      </ActionButton>
+                    </div>
+                  )}
                   <div className="grid gap-2 sm:grid-cols-2">
                     <PasswordInput
                       value={newPassword}
@@ -1001,7 +1023,7 @@ export function UserSettingsPage({
                     type="button"
                     variant="default"
                     onClick={handleChangePassword}
-                    disabled={passwordLoading || !passwordCode.trim() || !newPassword.trim() || !confirmNewPassword.trim()}
+                    disabled={passwordLoading || (!smsDevBypass && !passwordCode.trim()) || !newPassword.trim() || !confirmNewPassword.trim()}
                     className={`${elderOptimized ? "h-14 px-5 text-lg" : "h-10"} self-start rounded-lg gap-1.5`}
                   >
                     {passwordLoading && <Loader2 className={`${elderOptimized ? "w-5 h-5" : "w-3.5 h-3.5"} animate-spin`} />}

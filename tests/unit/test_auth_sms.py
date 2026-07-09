@@ -89,6 +89,38 @@ def test_sms_register_creates_user_and_consumes_code(auth_sms_client):
         assert code.consumed_at is not None
 
 
+def test_local_unconfigured_sms_register_bypasses_verification(auth_sms_client, monkeypatch):
+    client, Session, sent_codes = auth_sms_client
+    monkeypatch.delenv("SMS_DEV_LOG_CODE", raising=False)
+    monkeypatch.delenv("ALIYUN_SMS_TEMPLATE_CODE", raising=False)
+    monkeypatch.delenv("ALIYUN_SMS_RESET_PASSWORD_TEMPLATE_CODE", raising=False)
+
+    response = client.post(
+        "/api/auth/sms-code",
+        json={"phone": "13800138016", "purpose": "register"},
+        headers={"host": "localhost:8000"},
+    )
+    assert response.status_code == 200
+    assert sent_codes == []
+
+    register = client.post(
+        "/api/auth/register",
+        json={
+            "username": "local-dev",
+            "phone": "13800138016",
+            "code": "000000",
+            "password": "secret123",
+        },
+        headers={"host": "localhost:8000"},
+    )
+    assert register.status_code == 200
+    assert register.json()["phone"] == "13800138016"
+
+    with Session() as db:
+        assert db.query(UserTable).filter(UserTable.phone == "13800138016").first() is not None
+        assert db.query(SmsVerificationCodeTable).count() == 0
+
+
 def test_password_login(auth_sms_client):
     client, Session, _sent_codes = auth_sms_client
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")

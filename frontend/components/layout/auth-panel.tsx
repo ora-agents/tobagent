@@ -44,8 +44,10 @@ export function AuthPanel({
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const activeTab = mode ?? internalTab
   const smsEnabled = capabilities.smsAuth
+  const smsDevBypass = capabilities.localDevBypass && !smsEnabled
+  const smsAvailable = smsEnabled || smsDevBypass
   const smsBackedMode = activeTab === 'register' || activeTab === 'reset'
-  const smsBlocked = smsBackedMode && !smsEnabled
+  const smsBlocked = smsBackedMode && !smsAvailable
 
   const setActiveTab = (nextMode: AuthMode) => {
     setSuccessMessage(null)
@@ -69,6 +71,10 @@ export function AuthPanel({
 
   const handleSendCode = async () => {
     setLocalError(null)
+    if (smsDevBypass) {
+      setSuccessMessage('本地开发模式已跳过短信验证。')
+      return
+    }
     if (!smsEnabled) {
       setLocalError(t.smsAuthUnavailable)
       return
@@ -95,8 +101,8 @@ export function AuthPanel({
     if (
       smsBlocked
       || (activeTab === 'login' && (!accountInput || !password.trim()))
-      || (activeTab === 'register' && (!username.trim() || !smsCode.trim() || !password.trim() || !confirmPassword.trim()))
-      || (activeTab === 'reset' && (!accountInput || !smsCode.trim() || !password.trim() || !confirmPassword.trim()))
+      || (activeTab === 'register' && (!username.trim() || (!smsDevBypass && !smsCode.trim()) || !password.trim() || !confirmPassword.trim()))
+      || (activeTab === 'reset' && (!accountInput || (!smsDevBypass && !smsCode.trim()) || !password.trim() || !confirmPassword.trim()))
     ) {
       setLocalError(smsBlocked ? t.smsAuthUnavailable : t.fillRequiredFields)
       return
@@ -115,9 +121,9 @@ export function AuthPanel({
       if (activeTab === 'login') {
         await login(accountInput, password.trim())
       } else if (activeTab === 'register') {
-        await register(username.trim(), normalizedPhone, smsCode.trim(), password.trim())
+        await register(username.trim(), normalizedPhone, smsDevBypass ? '000000' : smsCode.trim(), password.trim())
       } else {
-        await resetPassword(normalizedPhone, smsCode.trim(), password.trim())
+        await resetPassword(normalizedPhone, smsDevBypass ? '000000' : smsCode.trim(), password.trim())
       }
       onOpenChange(false)
       setUsername('')
@@ -190,6 +196,13 @@ export function AuthPanel({
             <div className="flex items-center gap-2.5 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <div className="font-medium">{t.smsAuthUnavailable}</div>
+            </div>
+          )}
+
+          {smsDevBypass && smsBackedMode && !shownError && !successMessage && (
+            <div className="flex items-center gap-2.5 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+              <div className="font-medium">本地开发模式：短信环境变量未配置，已跳过手机验证码。</div>
             </div>
           )}
 
