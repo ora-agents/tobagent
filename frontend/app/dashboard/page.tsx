@@ -19,6 +19,7 @@ import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
 import { WechatPayQrCode } from "@/components/payments/wechat-pay-qr-code"
 import { Button } from "@/components/ui/button"
 import { MarkdownContent } from "@/components/ui/markdown-content"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useThreads, type ClientProfile } from "@/lib/hooks/threads"
@@ -41,6 +42,7 @@ import type { AgentShareSubscriptionPlan } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { backendFetch } from "@/lib/api/backend-fetch"
+import { CreditCard } from "lucide-react"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "user-manual", "developer-manual", "traces"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
@@ -111,6 +113,7 @@ function DashboardContent() {
   const router = useRouter()
   const pathname = usePathname()
   const { user, loading: authLoading, capabilities, authHeaders } = useAuth()
+  const localDirectPayment = capabilities.localDevBypass
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
@@ -769,6 +772,13 @@ function DashboardContent() {
       return
     }
     setPurchaseOrder(order)
+    if (order.status === "paid" && order.paymentProvider === "local_dev_direct") {
+      if (trialPaidShare) {
+        setPendingPaidShare(trialPaidShare)
+      }
+      setPurchaseStatus("paid")
+      return
+    }
     if (order.status === "paid") {
       await completePaidShareImport()
       return
@@ -782,6 +792,8 @@ function DashboardContent() {
   const handleReturnToTrialSharedAgent = useCallback(() => {
     if (!isTrialActive) return
     setPendingPaidShare(null)
+    setPurchaseOrder(null)
+    setPurchaseStatus("idle")
     setCurrentView("chat")
   }, [isTrialActive, setCurrentView])
 
@@ -1035,16 +1047,24 @@ function DashboardContent() {
               hideWorkspaceControls={isSharedAgentApp}
             />
             {pendingPaidShare ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-6">
-                <div className="w-full max-w-md rounded-lg border border-border bg-card p-5 shadow-sm">
-                  <div className="flex flex-col gap-2">
+              <ScrollArea
+                className="min-h-0 flex-1 bg-background"
+                contentClassName="flex min-h-full items-center justify-center p-4 sm:p-6"
+              >
+                <section className="flex w-full max-w-md flex-col gap-4">
                     <div className="text-xl font-semibold text-foreground">
                       {pendingPaidShare.agent.name}
                     </div>
                     {pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description ? (
-                      <MarkdownContent
-                        value={pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description || ""}
-                      />
+                      <ScrollArea
+                        className="max-h-48 rounded-lg bg-muted/40"
+                        contentClassName="p-3"
+                      >
+                        <MarkdownContent
+                          value={pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description || ""}
+                          compact
+                        />
+                      </ScrollArea>
                     ) : (
                       <div className="text-sm text-muted-foreground">{t.noDescriptionProvided}</div>
                     )}
@@ -1097,7 +1117,16 @@ function DashboardContent() {
                         disabled={purchaseStatus === "creating"}
                         className="w-full"
                       >
-                        {purchaseStatus === "creating" ? "创建订单中..." : "微信支付购买"}
+                        {purchaseStatus === "creating" ? (
+                          "创建订单中..."
+                        ) : localDirectPayment ? (
+                          <>
+                            <CreditCard data-icon="inline-start" />
+                            本地开发直接支付
+                          </>
+                        ) : (
+                          "微信支付购买"
+                        )}
                       </Button>
                     ) : (
                       <div className="flex flex-col items-center gap-3">
@@ -1107,11 +1136,22 @@ function DashboardContent() {
                         <div className="break-all text-center font-mono text-[11px] text-muted-foreground">
                           {purchaseOrder.codeUrl || purchaseOrder.outTradeNo}
                         </div>
-                        <StatusNotice tone={purchaseOrder.paymentConfigured ? "info" : "warning"}>
-                          {purchaseOrder.paymentConfigured
+                        <StatusNotice tone={purchaseOrder.paymentProvider === "local_dev_direct" ? "success" : purchaseOrder.paymentConfigured ? "info" : "warning"}>
+                          {purchaseOrder.paymentProvider === "local_dev_direct"
+                            ? "本地开发模式已直接完成支付并授予访问权限。"
+                            : purchaseOrder.paymentConfigured
                             ? "请使用微信扫码支付，支付成功后会自动进入 Agent。"
                             : "微信支付环境变量尚未配置。订单已创建，但无法完成真实支付。"}
                         </StatusNotice>
+                        {purchaseOrder.paymentProvider === "local_dev_direct" && purchaseStatus === "paid" ? (
+                          <Button
+                            type="button"
+                            onClick={completePaidShareImport}
+                            className="w-full"
+                          >
+                            进入 Agent
+                          </Button>
+                        ) : null}
                       </div>
                     )}
                     {purchaseStatus === "error" && (
@@ -1129,9 +1169,8 @@ function DashboardContent() {
                         返回试用
                       </Button>
                     ) : null}
-                  </div>
-                </div>
-              </div>
+                </section>
+              </ScrollArea>
             ) : agentShareResolutionFailed ? (
               <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-6">
                 <StatusNotice tone="warning">这个 Agent 分享链接无法打开，请检查链接是否仍然有效。</StatusNotice>
@@ -1159,7 +1198,7 @@ function DashboardContent() {
                       disabled={purchaseStatus === "creating"}
                       className="w-full sm:w-auto"
                     >
-                      {purchaseStatus === "creating" ? "创建订单中..." : "购买"}
+                      {purchaseStatus === "creating" ? "创建订单中..." : localDirectPayment ? "直接支付" : "购买"}
                     </Button>
                   </div>
                 ) : null}

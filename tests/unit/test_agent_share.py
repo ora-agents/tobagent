@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from starlette.requests import Request
 
 from src.api.fastapi_app import (
     AgentShareImportRequest,
@@ -24,9 +25,11 @@ from src.api.routes.payments import (
     _grant_paid_access,
     _wechat_configured,
     get_agent_share_access,
+    purchase_agent_share,
 )
 from src.api.schemas import (
     AgentShareFaqItem,
+    AgentSharePurchaseRequest,
     AgentShareSubscriptionPlan,
     SiteTestimonialRequest,
 )
@@ -95,6 +98,15 @@ def _agent(agent_id: str, owner_user_id: str) -> AgentProfileTable:
         created_at=now,
         updated_at=now,
     )
+
+
+def _local_request() -> Request:
+    return Request({
+        "type": "http",
+        "method": "POST",
+        "path": "/",
+        "headers": [(b"host", b"localhost:8000")],
+    })
 
 
 @pytest.mark.anyio
@@ -517,6 +529,46 @@ def test_grant_paid_access_creates_purchase_and_wallet_ledger(db_session):
     assert len(ledger) == 1
     assert ledger[0].user_id == owner.id
     assert ledger[0].amount_cents == 880
+
+
+@pytest.mark.anyio
+async def test_local_unconfigured_payment_directly_grants_paid_access(db_session, monkeypatch):
+    monkeypatch.delenv("WECHAT_PAY_APPID", raising=False)
+    monkeypatch.delenv("WECHAT_PAY_MCHID", raising=False)
+    monkeypatch.delenv("WECHAT_PAY_SERIAL_NO", raising=False)
+    monkeypatch.delenv("WECHAT_PAY_NOTIFY_URL", raising=False)
+    monkeypatch.delenv("WECHAT_PAY_PRIVATE_KEY_PATH", raising=False)
+
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="paid-agent", priceCents=500),
+        db_session,
+        owner,
+    )
+
+    response = await purchase_agent_share(
+        share.customSlug,
+        _local_request(),
+        AgentSharePurchaseRequest(),
+        db_session,
+        receiver,
+    )
+
+    assert response.status == "paid"
+    assert response.amountCents == 500
+    assert response.paymentProvider == "local_dev_direct"
+    assert response.paymentConfigured is False
+    share_row = db_session.query(AgentShareLinkTable).filter_by(token=share.token).one()
+    assert db_session.query(AgentPurchaseTable).filter_by(
+        share_id=share_row.id,
+        buyer_user_id=receiver.id,
+    ).count() == 1
 
 
 def test_wechat_configured_requires_private_key_file(monkeypatch, tmp_path):

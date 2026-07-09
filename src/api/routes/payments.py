@@ -18,6 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user
+from src.api.local_dev import is_local_dev_request
 from src.api.schemas import (
     AgentShareAccessResponse,
     AgentSharePurchaseRequest,
@@ -172,6 +173,10 @@ def _wechat_configured() -> bool:
     )
 
 
+def _can_use_local_direct_payment(request: Request) -> bool:
+    return is_local_dev_request(request) and not _wechat_configured()
+
+
 def _wechat_authorization(method: str, url_path: str, body: str) -> str:
     mchid = os.environ["WECHAT_PAY_MCHID"]
     serial_no = os.environ["WECHAT_PAY_SERIAL_NO"]
@@ -315,6 +320,7 @@ async def get_agent_share_access(
 @router.post("/api/agent-shares/{token}/purchase", response_model=AgentSharePurchaseResponse)
 async def purchase_agent_share(
     token: str,
+    request: Request,
     purchase_data: AgentSharePurchaseRequest | None = None,
     db: Session = Depends(get_db),
     current_user: UserTable = Depends(get_current_user),
@@ -376,6 +382,40 @@ async def purchase_agent_share(
     ).first()
     if existing_paid:
         raise HTTPException(status_code=409, detail="Agent share already purchased")
+
+    if _can_use_local_direct_payment(request):
+        now = _now()
+        order = PaymentOrderTable(
+            id=f"order-{uuid.uuid4()}",
+            out_trade_no=f"TOB{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}{secrets.token_hex(4).upper()}",
+            buyer_user_id=current_user.id,
+            seller_user_id=share.owner_user_id,
+            agent_profile_id=share.agent_profile_id,
+            share_id=share.id,
+            pricing_mode=pricing_mode,
+            pricing_plan_id=(selected_plan or {}).get("id"),
+            amount_cents=amount,
+            currency=share.currency or "CNY",
+            status="pending",
+            access_expires_at=access_expires_at,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(order)
+        _grant_paid_access(db, order, now, {"provider": "local_dev_direct"})
+        db.commit()
+        return AgentSharePurchaseResponse(
+            orderId=order.id,
+            outTradeNo=order.out_trade_no,
+            status=order.status,
+            amountCents=order.amount_cents,
+            currency=order.currency,
+            pricingMode=order.pricing_mode,
+            pricingPlanId=order.pricing_plan_id,
+            accessExpiresAt=order.access_expires_at,
+            paymentProvider="local_dev_direct",
+            paymentConfigured=False,
+        )
 
     pending = db.query(PaymentOrderTable).filter(
         PaymentOrderTable.share_id == share.id,
