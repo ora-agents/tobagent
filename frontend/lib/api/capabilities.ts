@@ -3,6 +3,7 @@ import { backendFetch } from "@/lib/api/backend-fetch"
 export interface RuntimeCapabilities {
   smsAuth: boolean
   langfuseTracing: boolean
+  localDevBypass: boolean
   modules: Record<string, RuntimeModuleCapability>
 }
 
@@ -19,6 +20,7 @@ export interface RuntimeModuleCapability {
 export const DEFAULT_RUNTIME_CAPABILITIES: RuntimeCapabilities = {
   smsAuth: false,
   langfuseTracing: false,
+  localDevBypass: false,
   modules: {},
 }
 
@@ -51,6 +53,7 @@ export async function fetchRuntimeCapabilities(): Promise<RuntimeCapabilities> {
   return {
     smsAuth: data?.smsAuth === true,
     langfuseTracing: data?.langfuseTracing === true,
+    localDevBypass: data?.localDevBypass === true,
     modules,
   }
 }

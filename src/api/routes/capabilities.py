@@ -6,9 +6,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from src.api.local_dev import is_local_dev_request
 from src.api.sms_verification import aliyun_sms_is_configured
 from src.utils.langfuse_tracing import langfuse_is_configured
 
@@ -33,6 +34,7 @@ class RuntimeCapabilities(BaseModel):
     modules: dict[str, RuntimeModuleCapability]
     smsAuth: bool
     langfuseTracing: bool
+    localDevBypass: bool = False
 
 
 def _env_is_set(name: str) -> bool:
@@ -269,12 +271,14 @@ def _runtime_modules() -> dict[str, RuntimeModuleCapability]:
 
 
 @router.get("", response_model=RuntimeCapabilities)
-async def get_runtime_capabilities() -> RuntimeCapabilities:
+async def get_runtime_capabilities(request: Request) -> RuntimeCapabilities:
     """Return modules that are enabled for the current backend env."""
     modules = _runtime_modules()
+    local_dev_bypass = is_local_dev_request(request)
     return RuntimeCapabilities(
         modules=modules,
         # Compatibility fields for existing frontend code.
         smsAuth=modules["auth.sms"].enabled,
         langfuseTracing=modules["observability.langfuse"].enabled,
+        localDevBypass=local_dev_bypass,
     )
