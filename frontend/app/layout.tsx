@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     images: [
       {
-        url: "/logo.png",
+        url: "/assets/images/logo.png",
         width: 512,
         height: 512,
         alt: SITE_NAME,
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
-    images: ["/logo.png"],
+    images: ["/assets/images/logo.png"],
   },
   robots: {
     index: true,
@@ -84,10 +84,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/logo.png', type: 'image/png' },
+      { url: '/assets/images/logo.png', type: 'image/png' },
     ],
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    shortcut: '/assets/images/logo.png',
+    apple: '/assets/images/logo.png',
   },
 };
 

@@ -33,7 +33,7 @@ import { ICP_RECORD, SITE_NAME } from "@/lib/constants/site"
 import { useApiConfig } from "@/lib/config/api-config"
 import type { AgentSharePreview } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
-import logoImage from "@/public/logo.png"
+import logoImage from "@/public/assets/images/logo.png"
 
 interface ShareTestimonial {
   id: string

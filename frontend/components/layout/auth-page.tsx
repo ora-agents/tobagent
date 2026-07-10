@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { StatusNotice } from '@/components/ui/status-notice'
 import { normalizeLangGraphApiUrl, useApiConfig } from '@/lib/config/api-config'
 import { useI18n, useT } from '@/lib/i18n'
-import logoImage from '@/public/logo.png'
+import logoImage from '@/public/assets/images/logo.png'
 import { Home, LogIn, RotateCcw, Save, ServerCog } from 'lucide-react'
 
 interface AuthPageProps {
@@ -233,7 +233,7 @@ export function AuthPage({ mode }: AuthPageProps) {
         <aside className="relative hidden min-h-0 overflow-hidden bg-background-tint lg:block">
           <div className="relative h-full min-h-0 w-full">
             <Image
-              src="/login_sidepic.svg"
+              src="/assets/images/login_sidepic.svg"
               alt=""
               fill
               priority

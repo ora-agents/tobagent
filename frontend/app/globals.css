@@ -41,7 +41,7 @@ html[data-tauri-runtime="true"] .site-compliance-footer {
    Light theme (default) — white-first WSIRI workspace
    ============================================================ */
 :root {
-  /* WSIRI brand palette sampled from frontend/public/logo.png */
+  /* WSIRI brand palette sampled from frontend/public/assets/images/logo.png */
   --brand-blue: #164199;
   --brand-blue-active: #10357f;
   --brand-blue-soft: #eaf1ff;

@@ -36,9 +36,18 @@ import { backendFetch } from "@/lib/api/backend-fetch"
 import { useApiConfig } from "@/lib/config/api-config"
 import { ICP_RECORD, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site"
 import { cn } from "@/lib/utils"
-import logoImage from "@/public/logo.png"
+import logoImage from "@/public/assets/images/logo.png"
+import tiktokImage from "@/public/assets/images/social_tiktok.png"
+import wechatImage from "@/public/assets/images/social_wechat.png"
+import wechatOfficialAccountImage from "@/public/assets/images/social_wechat_officialaccount.png"
 
 const salesHelperAgentHref = `${SITE_URL}/agentapp/?agentShare=wsiri-sales-helper`
+
+const socialContacts = [
+  { label: "微信客服", image: wechatImage },
+  { label: "抖音号", image: tiktokImage },
+  { label: "公众号", image: wechatOfficialAccountImage },
+]
 
 const capabilities = [
   {
@@ -774,7 +783,7 @@ export function OfficialHomePage() {
 
       <footer id="contact" className="border-t border-border/60 px-4 py-10 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl text-sm text-muted-foreground">
-          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_0.7fr_1.5fr] lg:items-start">
             <div className="flex flex-col gap-6">
               <div className="flex items-center gap-4">
                 <Image
@@ -800,7 +809,7 @@ export function OfficialHomePage() {
                 </a>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <div className="flex flex-col gap-1">
                 <span className="text-xs">电话</span>
                 <a href="tel:+8618501507342" className="font-medium text-foreground hover:text-primary-text">
@@ -826,6 +835,24 @@ export function OfficialHomePage() {
                 >
                   18501507342@163.com
                 </a>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium text-foreground">关注与联系</p>
+              <div className="grid grid-cols-3 gap-3">
+                {socialContacts.map((contact) => (
+                  <figure key={contact.label} className="flex min-w-0 flex-col items-center gap-2">
+                    <div className="overflow-hidden rounded-lg bg-card p-1.5 shadow-sm">
+                      <Image
+                        src={contact.image}
+                        alt={`${contact.label}二维码`}
+                        className="size-20 object-contain sm:size-28"
+                        sizes="(min-width: 640px) 112px, 80px"
+                      />
+                    </div>
+                    <figcaption className="text-center text-xs text-foreground">{contact.label}</figcaption>
+                  </figure>
+                ))}
               </div>
             </div>
           </div>
