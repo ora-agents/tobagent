@@ -5036,7 +5036,7 @@ export function ManagementDashboard({
                           )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <div className="@container grid grid-cols-2 gap-2 sm:grid-cols-4">
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
                             <Label htmlFor="agent-share-slug" className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                               {locale === "zh" ? "自定义地址" : "Custom address"}
@@ -5106,16 +5106,16 @@ export function ManagementDashboard({
                               </Button>
                             </div>
                             <div className="flex flex-col gap-2">
-                              <div className="hidden px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_120px_130px_auto] sm:gap-2">
+                              <div className="hidden px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground @lg:grid @lg:grid-cols-[minmax(12rem,1fr)_120px_130px_auto] @lg:gap-2">
                                 <div>{locale === "zh" ? "套餐名称" : "Plan name"}</div>
                                 <div>{locale === "zh" ? "有效天数" : "Days"}</div>
                                 <div>{locale === "zh" ? "价格（元）" : "Price (CNY)"}</div>
                                 <div>{locale === "zh" ? "操作" : "Action"}</div>
                               </div>
                               {shareSubscriptionPlans.map((plan, index) => (
-                                <div key={index} className="grid gap-2 rounded-lg border border-border/50 bg-background/50 p-3 sm:grid-cols-[minmax(0,1fr)_120px_130px_auto]">
+                                <div key={index} className="grid gap-2 rounded-lg border border-border/50 bg-background/50 p-3 @lg:grid-cols-[minmax(12rem,1fr)_120px_130px_auto]">
                                   <div className="flex flex-col gap-1.5">
-                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground @lg:hidden">
                                       {locale === "zh" ? "套餐名称" : "Plan name"}
                                     </Label>
                                     <Input
@@ -5126,7 +5126,7 @@ export function ManagementDashboard({
                                     />
                                   </div>
                                   <div className="flex flex-col gap-1.5">
-                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground @lg:hidden">
                                       {locale === "zh" ? "有效天数" : "Days"}
                                     </Label>
                                     <Input
@@ -5138,7 +5138,7 @@ export function ManagementDashboard({
                                     />
                                   </div>
                                   <div className="flex flex-col gap-1.5">
-                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:hidden">
+                                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground @lg:hidden">
                                       {locale === "zh" ? "价格（元）" : "Price (CNY)"}
                                     </Label>
                                     <Input
