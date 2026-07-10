@@ -89,18 +89,20 @@ def _verify_totp(code: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid or expired authenticator code")
 
 
-def _current_platform_admin(db: Session) -> PlatformAdminTable | None:
-    """Return the singleton platform administrator account."""
-    return db.query(PlatformAdminTable).order_by(PlatformAdminTable.created_at.asc()).first()
+def _platform_admin_by_id(db: Session, admin_id: str) -> PlatformAdminTable | None:
+    """Return one platform administrator by its immutable account ID."""
+    return db.query(PlatformAdminTable).filter(PlatformAdminTable.id == admin_id).first()
 
 
 def _require_platform_admin(
     admin_session: str | None = Cookie(default=None, alias=PLATFORM_ADMIN_SESSION_COOKIE_NAME),
-) -> None:
+) -> str:
     """Require a valid platform-administrator session and enabled configuration."""
     _require_totp_configuration()
-    if not verify_platform_admin_session_token(admin_session):
+    admin_id = verify_platform_admin_session_token(admin_session)
+    if not admin_id:
         raise HTTPException(status_code=401, detail="Platform administrator authentication required")
+    return admin_id
 
 
 def _date_prefix(value: str | None) -> str:
@@ -109,11 +111,11 @@ def _date_prefix(value: str | None) -> str:
 
 @router.get("/session")
 def platform_admin_session_status(
-    _admin: None = Depends(_require_platform_admin),
+    admin_id: str = Depends(_require_platform_admin),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Return the current administrator-session status."""
-    admin = _current_platform_admin(db)
+    admin = _platform_admin_by_id(db, admin_id)
     if not admin:
         raise HTTPException(status_code=401, detail="Platform administrator registration required")
     return {"authenticated": True, "username": admin.username}
@@ -123,7 +125,7 @@ def platform_admin_session_status(
 def platform_admin_setup_status(db: Session = Depends(get_db)) -> dict[str, bool]:
     """Report whether TOTP is enabled and an administrator account exists."""
     _require_totp_configuration()
-    return {"registered": _current_platform_admin(db) is not None}
+    return {"registered": db.query(PlatformAdminTable).count() > 0}
 
 
 @router.post("/totp/provisioning")
@@ -151,14 +153,15 @@ def register_platform_admin(
     request: PlatformAdminRegisterRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    """Register the singleton administrator after TOTP confirmation."""
-    if _current_platform_admin(db):
-        raise HTTPException(status_code=409, detail="Platform administrator is already registered")
+    """Register a platform administrator after TOTP confirmation."""
+    username = request.username.strip()
+    if db.query(PlatformAdminTable).filter(PlatformAdminTable.username == username).first():
+        raise HTTPException(status_code=409, detail="Platform administrator username is already registered")
     _verify_totp(request.totpCode)
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     admin = PlatformAdminTable(
         id=f"platform-admin-{uuid.uuid4()}",
-        username=request.username.strip(),
+        username=username,
         password_hash=hash_password(request.password),
         created_at=now,
         updated_at=now,
@@ -176,21 +179,21 @@ def create_platform_admin_session(
 ) -> dict[str, object]:
     """Sign in with the administrator account password."""
     _require_totp_configuration()
-    admin = _current_platform_admin(db)
-    if not admin or admin.username != request.username.strip() or not verify_password(request.password, admin.password_hash):
+    admin = db.query(PlatformAdminTable).filter(PlatformAdminTable.username == request.username.strip()).first()
+    if not admin or not verify_password(request.password, admin.password_hash):
         raise HTTPException(status_code=401, detail="Invalid administrator credentials")
-    set_platform_admin_session_cookie(response)
+    set_platform_admin_session_cookie(response, admin.id)
     return {"authenticated": True, "username": admin.username}
 
 
 @router.put("/password", status_code=204)
 def update_platform_admin_password(
     request: PlatformAdminPasswordRequest,
-    _admin: None = Depends(_require_platform_admin),
+    admin_id: str = Depends(_require_platform_admin),
     db: Session = Depends(get_db),
 ) -> Response:
     """Change the administrator password after password and TOTP confirmation."""
-    admin = _current_platform_admin(db)
+    admin = _platform_admin_by_id(db, admin_id)
     if not admin or not verify_password(request.currentPassword, admin.password_hash):
         raise HTTPException(status_code=401, detail="Current administrator password is invalid")
     _verify_totp(request.totpCode)
@@ -206,8 +209,8 @@ def reset_platform_admin_password(
     db: Session = Depends(get_db),
 ) -> Response:
     """Reset the administrator password after TOTP confirmation."""
-    admin = _current_platform_admin(db)
-    if not admin or admin.username != request.username.strip():
+    admin = db.query(PlatformAdminTable).filter(PlatformAdminTable.username == request.username.strip()).first()
+    if not admin:
         raise HTTPException(status_code=401, detail="Invalid administrator account")
     _verify_totp(request.totpCode)
     admin.password_hash = hash_password(request.newPassword)
@@ -218,7 +221,7 @@ def reset_platform_admin_password(
 
 @router.delete("/session", status_code=204)
 def delete_platform_admin_session(
-    _admin: None = Depends(_require_platform_admin),
+    _admin_id: str = Depends(_require_platform_admin),
 ) -> Response:
     """End the current platform-administrator session."""
     response = Response(status_code=204)
@@ -228,7 +231,7 @@ def delete_platform_admin_session(
 
 @router.get("/overview")
 def platform_admin_overview(
-    _admin: None = Depends(_require_platform_admin),
+    _admin_id: str = Depends(_require_platform_admin),
     db: Session = Depends(get_db),
 ) -> dict[str, int]:
     """Return platform-level account, agent, and order totals."""
@@ -253,7 +256,7 @@ def list_platform_users(
     offset: int = 0,
     limit: int = 50,
     search: str = "",
-    _admin: None = Depends(_require_platform_admin),
+    _admin_id: str = Depends(_require_platform_admin),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Return paginated platform user records without credential material."""
@@ -286,7 +289,7 @@ def list_platform_orders(
     offset: int = 0,
     limit: int = 50,
     search: str = "",
-    _admin: None = Depends(_require_platform_admin),
+    _admin_id: str = Depends(_require_platform_admin),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Return paginated payment orders with buyer and seller identities."""

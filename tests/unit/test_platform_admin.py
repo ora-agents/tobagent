@@ -82,6 +82,8 @@ def test_platform_admin_totp_registration_and_sensitive_actions(platform_admin_c
     register = client.post("/api/platform-admin/register", json={"username": "platform-admin", "password": "password123", "totpCode": code})
     assert register.status_code == 200
     assert register.json()["username"] == "platform-admin"
+    second_register = client.post("/api/platform-admin/register", json={"username": "another", "password": "password123", "totpCode": code})
+    assert second_register.status_code == 200
     assert client.post("/api/platform-admin/register", json={"username": "another", "password": "password123", "totpCode": code}).status_code == 409
 
     login = client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123"})
@@ -125,3 +127,5 @@ def test_platform_admin_totp_registration_and_sensitive_actions(platform_admin_c
     assert reset.status_code == 204
     assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password456"}).status_code == 401
     assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password789"}).status_code == 200
+    assert client.post("/api/platform-admin/session", json={"username": "another", "password": "password123"}).status_code == 200
+    assert client.get("/api/platform-admin/session").json()["username"] == "another"

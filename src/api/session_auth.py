@@ -64,13 +64,13 @@ def create_session_token(user_id: str) -> str:
     return f"{signing_input}.{_b64url_encode(signature)}"
 
 
-def create_platform_admin_session_token() -> str:
-    """Create a short-lived signed session token for the platform console."""
+def create_platform_admin_session_token(admin_id: str) -> str:
+    """Create a short-lived signed session token for one platform administrator."""
     now = int(time.time())
     max_age = int(os.getenv("PLATFORM_ADMIN_SESSION_MAX_AGE_SECONDS", str(60 * 60 * 8)))
     header = {"alg": JWT_ALGORITHM, "typ": "JWT"}
     payload: dict[str, Any] = {
-        "sub": "platform-admin",
+        "sub": admin_id,
         "scope": "platform-admin",
         "iat": now,
         "exp": now + max_age,
@@ -123,10 +123,10 @@ def verify_session_token(token: str | None) -> str | None:
         return None
 
 
-def verify_platform_admin_session_token(token: str | None) -> bool:
-    """Return whether a signed token authorizes access to the platform console."""
+def verify_platform_admin_session_token(token: str | None) -> str | None:
+    """Return the administrator ID from a valid platform-console session token."""
     if not token:
-        return False
+        return None
     try:
         header_part, payload_part, signature_part = token.split(".", 2)
         signing_input = f"{header_part}.{payload_part}"
@@ -136,26 +136,30 @@ def verify_platform_admin_session_token(token: str | None) -> bool:
             hashlib.sha256,
         ).digest()
         if not hmac.compare_digest(expected, _b64url_decode(signature_part)):
-            return False
+            return None
         header = json.loads(_b64url_decode(header_part))
         payload = json.loads(_b64url_decode(payload_part))
-        return bool(
-            header.get("alg") == JWT_ALGORITHM
-            and payload.get("sub") == "platform-admin"
-            and payload.get("scope") == "platform-admin"
-            and isinstance(payload.get("exp"), int)
-            and payload["exp"] >= int(time.time())
-        )
+        subject = payload.get("sub")
+        if (
+            header.get("alg") != JWT_ALGORITHM
+            or payload.get("scope") != "platform-admin"
+            or not isinstance(payload.get("exp"), int)
+            or payload["exp"] < int(time.time())
+            or not isinstance(subject, str)
+            or not subject
+        ):
+            return None
+        return subject
     except Exception:
-        return False
+        return None
 
 
-def set_platform_admin_session_cookie(response: Response) -> None:
+def set_platform_admin_session_cookie(response: Response, admin_id: str) -> None:
     """Attach the HttpOnly platform-administrator session cookie."""
     max_age = int(os.getenv("PLATFORM_ADMIN_SESSION_MAX_AGE_SECONDS", str(60 * 60 * 8)))
     response.set_cookie(
         key=PLATFORM_ADMIN_SESSION_COOKIE_NAME,
-        value=create_platform_admin_session_token(),
+        value=create_platform_admin_session_token(admin_id),
         max_age=max_age,
         httponly=True,
         secure=SESSION_COOKIE_SECURE,
