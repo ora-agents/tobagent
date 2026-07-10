@@ -3182,6 +3182,19 @@ export function ManagementDashboard({
                         onChange={e => setMcpForm({ ...mcpForm, url: e.target.value })}
                         placeholder={t.mcpUrlPlaceholder}
                         className="font-mono text-xs rounded-lg"
+                        description={
+                          <>
+                            {t.mcpCommunityRecommendations} {" "}
+                            <a
+                              href="https://www.modelscope.cn/mcp"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              https://www.modelscope.cn/mcp
+                            </a>
+                          </>
+                        }
                       />
 
                       <FormField
