@@ -149,21 +149,21 @@ function ProductPreview() {
   ]
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-[#181715] p-3 text-[#faf9f5] shadow-depth-lg">
-      <div className="rounded-xl bg-[#1f1e1b]">
+    <div className="overflow-hidden rounded-2xl bg-card p-3 text-foreground shadow-depth-md">
+      <div className="rounded-xl bg-background-tint">
         <div className="flex items-center justify-between px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2" aria-hidden="true">
             <span className="size-2 rounded-full bg-error" />
             <span className="size-2 rounded-full bg-warning" />
             <span className="size-2 rounded-full bg-accent-cyan" />
           </div>
-          <div className="text-xs font-medium text-[#a09d96]">WSIRI · 运行中</div>
+          <div className="text-xs font-medium text-muted-foreground">WSIRI · 运行中</div>
         </div>
 
         <div className="grid min-h-[27rem] lg:grid-cols-[11rem_1fr]">
-          <aside className="hidden flex-col gap-2 rounded-l-xl bg-[#181715] p-4 lg:flex">
+          <aside className="hidden flex-col gap-2 rounded-l-xl bg-secondary p-4 lg:flex">
             <div className="mb-3 flex items-center gap-2 text-xs font-semibold">
-              <Bot className="size-4 text-accent-cyan" />
+              <Bot className="size-4 text-primary-text" />
               服务工作台
             </div>
             {["对话中心", "知识管理", "工具编排", "运行追踪"].map((item, index) => (
@@ -171,13 +171,13 @@ function ProductPreview() {
                 key={item}
                 className={cn(
                   "rounded-lg px-3 py-2 text-xs font-medium",
-                  index === 0 ? "bg-primary text-primary-foreground" : "text-[#a09d96]",
+                  index === 0 ? "bg-primary text-primary-foreground" : "text-muted-foreground",
                 )}
               >
                 {item}
               </div>
             ))}
-            <div className="mt-auto rounded-lg bg-[#252320] p-3 text-xs leading-5 text-[#a09d96]">
+            <div className="mt-auto rounded-lg bg-card p-3 text-xs leading-5 text-muted-foreground">
               8 个 Agent 在线
               <br />
               所有服务运行正常
@@ -188,23 +188,23 @@ function ProductPreview() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold">企业客服中枢</div>
-                <div className="mt-1 text-xs text-[#a09d96]">售前接待 Agent</div>
+                <div className="mt-1 text-xs text-muted-foreground">售前接待 Agent</div>
               </div>
-              <div className="rounded-md bg-[#252320] px-2.5 py-1 text-xs text-[#a09d96]">生产环境</div>
+              <div className="rounded-md bg-card px-2.5 py-1 text-xs text-muted-foreground">生产环境</div>
             </div>
 
             <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
               {stats.map((item) => (
-                <div key={item.label} className="rounded-lg bg-[#252320] p-3">
-                  <div className="text-[11px] text-[#a09d96]">{item.label}</div>
+                <div key={item.label} className="rounded-lg bg-card p-3">
+                  <div className="text-[11px] text-muted-foreground">{item.label}</div>
                   <div className="mt-2 text-lg font-semibold sm:text-xl">{item.value}</div>
                 </div>
               ))}
             </div>
 
             <div className="mt-5 flex flex-1 flex-col justify-end gap-3">
-              <div className="max-w-[88%] rounded-lg bg-[#252320] p-3.5">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-accent-cyan">
+              <div className="max-w-[88%] rounded-lg bg-card p-3.5">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-primary-text">
                   <Headphones className="size-4" />
                   客户咨询
                 </div>
@@ -594,12 +594,12 @@ export function OfficialHomePage() {
                 </div>
               ))}
             </div>
-            <div className="flex flex-col justify-between gap-8 bg-[#181715] p-7 text-[#faf9f5]">
+            <div className="flex flex-col justify-between gap-8 bg-secondary p-7 text-foreground">
               <div className="flex flex-col gap-4">
                 <div className="text-sm font-semibold">所有方案均包含</div>
                 {pricingFeatures.map((feature) => (
-                  <div key={feature} className="flex items-start gap-3 text-sm text-[#a09d96]">
-                    <Check className="mt-0.5 size-4 shrink-0 text-accent-cyan" />
+                  <div key={feature} className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary-text" />
                     {feature}
                   </div>
                 ))}
@@ -706,11 +706,44 @@ export function OfficialHomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-border/60 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Image src={logoImage} alt="威思瑞 WSIRI" width={88} height={56} className="h-8 w-auto" />
-            <span>{SITE_NAME}</span>
+      <footer id="contact" className="border-t border-border/60 px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8 text-sm text-muted-foreground">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <Image src={logoImage} alt="威思瑞 WSIRI" width={88} height={56} className="h-8 w-auto" />
+                <span className="font-semibold text-foreground">{SITE_NAME}</span>
+              </div>
+              <p className="text-base font-semibold text-foreground">苏州威思瑞智能技术有限公司</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs">电话</span>
+                <a href="tel:+8618501507342" className="font-medium text-foreground hover:text-primary-text">
+                  +86 18501507342
+                </a>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs">官网</span>
+                <a
+                  href="http://www.wsiri.cn/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground hover:text-primary-text"
+                >
+                  http://www.wsiri.cn/
+                </a>
+              </div>
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-xs">邮箱</span>
+                <a
+                  href="mailto:18501507342@163.com"
+                  className="w-fit font-medium text-foreground hover:text-primary-text"
+                >
+                  18501507342@163.com
+                </a>
+              </div>
+            </div>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
             <Link href={user ? "/dashboard" : "/login"} className="max-w-48 truncate hover:text-foreground">
