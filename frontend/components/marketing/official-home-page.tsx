@@ -544,7 +544,7 @@ export function OfficialHomePage() {
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <a href={salesHelperAgentHref}>
-                  免费体验 7 天
+                  免费体验
                   <ArrowRight data-icon="inline-end" />
                 </a>
               </Button>
@@ -702,7 +702,7 @@ export function OfficialHomePage() {
           <div className="flex max-w-2xl flex-col gap-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <ShieldCheck className="size-4" />
-              7 天完整体验
+              完整体验
             </div>
             <h2 className="text-3xl font-semibold leading-tight sm:text-4xl">从一次真实咨询开始。</h2>
             <p className="text-sm leading-6 text-primary-foreground/80 sm:text-base">
