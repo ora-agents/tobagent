@@ -115,8 +115,13 @@ def test_platform_admin_totp_registration_and_sensitive_actions(platform_admin_c
 
     password_change = client.put("/api/platform-admin/password", json={"currentPassword": "password123", "newPassword": "password456", "totpCode": code})
     assert password_change.status_code == 204
-    logout = client.request("DELETE", "/api/platform-admin/session", json={"totpCode": code})
+    logout = client.delete("/api/platform-admin/session")
     assert logout.status_code == 204
     assert client.get("/api/platform-admin/overview").status_code == 401
     assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123"}).status_code == 401
     assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password456"}).status_code == 200
+
+    reset = client.post("/api/platform-admin/password/reset", json={"username": "platform-admin", "newPassword": "password789", "totpCode": code})
+    assert reset.status_code == 204
+    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password456"}).status_code == 401
+    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password789"}).status_code == 200

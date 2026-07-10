@@ -9,7 +9,7 @@ from io import BytesIO
 
 import pyotp
 import qrcode
-from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, aliased
@@ -57,9 +57,11 @@ class PlatformAdminPasswordRequest(BaseModel):
     totpCode: str = Field(pattern=r"^\d{6}$")
 
 
-class PlatformAdminTotpRequest(BaseModel):
-    """TOTP confirmation payload for a sensitive session action."""
+class PlatformAdminPasswordResetRequest(BaseModel):
+    """Administrator password-reset payload protected by TOTP."""
 
+    username: str = Field(min_length=3, max_length=255)
+    newPassword: str = Field(min_length=8, max_length=1024)
     totpCode: str = Field(pattern=r"^\d{6}$")
 
 
@@ -198,13 +200,27 @@ def update_platform_admin_password(
     return Response(status_code=204)
 
 
+@router.post("/password/reset", status_code=204)
+def reset_platform_admin_password(
+    request: PlatformAdminPasswordResetRequest,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Reset the administrator password after TOTP confirmation."""
+    admin = _current_platform_admin(db)
+    if not admin or admin.username != request.username.strip():
+        raise HTTPException(status_code=401, detail="Invalid administrator account")
+    _verify_totp(request.totpCode)
+    admin.password_hash = hash_password(request.newPassword)
+    admin.updated_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.delete("/session", status_code=204)
 def delete_platform_admin_session(
-    request: PlatformAdminTotpRequest = Body(...),
     _admin: None = Depends(_require_platform_admin),
 ) -> Response:
-    """End the current platform-administrator session after TOTP confirmation."""
-    _verify_totp(request.totpCode)
+    """End the current platform-administrator session."""
     response = Response(status_code=204)
     clear_platform_admin_session_cookie(response)
     return response

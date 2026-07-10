@@ -46,6 +46,7 @@ type OrderRecord = {
 
 type Paged<T> = { total: number; items: T[] }
 type View = 'users' | 'orders'
+type AdminAuthMode = 'login' | 'register' | 'forgot'
 
 function formatDate(value: string | null) {
   if (!value) return '—'
@@ -72,6 +73,7 @@ function StatCard({ label, value, description }: { label: string; value: string 
 export function PlatformAdminPage() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null)
   const [registered, setRegistered] = useState<boolean | null>(null)
+  const [authMode, setAuthMode] = useState<AdminAuthMode>('login')
   const [adminUsername, setAdminUsername] = useState('')
   const [adminPassword, setAdminPassword] = useState('')
   const [totpCode, setTotpCode] = useState('')
@@ -116,7 +118,11 @@ export function PlatformAdminPage() {
       .then(([response, setupResponse]) => {
         if (!active) return
         setAuthenticated(response.ok)
-        if (setupResponse.ok) void setupResponse.json().then((payload) => active && setRegistered(payload.registered))
+        if (setupResponse.ok) void setupResponse.json().then((payload) => {
+          if (!active) return
+          setRegistered(payload.registered)
+          if (!payload.registered) setAuthMode('register')
+        })
       })
       .catch(() => active && setAuthenticated(false))
     return () => { active = false }
@@ -131,14 +137,24 @@ export function PlatformAdminPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const endpoint = registered ? '/api/platform-admin/session' : '/api/platform-admin/register'
-      const payload = registered ? { username: adminUsername, password: adminPassword } : { username: adminUsername, password: adminPassword, totpCode }
+      const endpoint = authMode === 'login' ? '/api/platform-admin/session' : authMode === 'register' ? '/api/platform-admin/register' : '/api/platform-admin/password/reset'
+      const payload = authMode === 'login'
+        ? { username: adminUsername, password: adminPassword }
+        : authMode === 'register'
+          ? { username: adminUsername, password: adminPassword, totpCode }
+          : { username: adminUsername, newPassword: adminPassword, totpCode }
       const response = await backendFetch(endpoint, { method: 'POST', json: payload, anonymous: true })
-      if (!response.ok) throw new Error(response.status === 404 ? '平台管理未在服务器上启用。' : registered ? '账号或密码无效。' : '注册失败：请确认动态验证码有效且尚未注册管理员。')
+      if (!response.ok) throw new Error(response.status === 404 ? '平台管理未在服务器上启用。' : authMode === 'login' ? '账号或密码无效。' : authMode === 'register' ? '注册失败：请确认动态验证码有效且尚未注册管理员。' : '重置失败：请确认账号和动态验证码。')
       setAdminPassword('')
       setTotpCode('')
-      if (!registered) {
+      if (authMode === 'register') {
         setRegistered(true)
+        setAuthMode('login')
+        return
+      }
+      if (authMode === 'forgot') {
+        setAuthMode('login')
+        setError('密码已重置，请使用新密码登录。')
         return
       }
       setAuthenticated(true)
@@ -162,11 +178,9 @@ export function PlatformAdminPage() {
   }
 
   const logout = async () => {
-    const code = window.prompt('请输入 Google Authenticator 的 6 位动态验证码以退出')
-    if (!code) return
-    const response = await backendFetch('/api/platform-admin/session', { method: 'DELETE', json: { totpCode: code } })
+    const response = await backendFetch('/api/platform-admin/session', { method: 'DELETE' })
     if (!response.ok) {
-      setError('动态验证码无效，未退出当前会话。')
+      setError('注销失败，请稍后重试。')
       return
     }
     setOverview(null)
@@ -184,7 +198,7 @@ export function PlatformAdminPage() {
           <CardHeader>
             <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"><KeyRound /></div>
             <CardTitle>平台管理</CardTitle>
-            <CardDescription>{registered ? '输入管理员账号和密码以访问平台数据。' : '先使用 Google Authenticator 扫描部署人员提供的二维码，再注册首个管理员账号。'}</CardDescription>
+            <CardDescription>{authMode === 'login' ? '输入管理员账号和密码以访问平台数据。' : authMode === 'register' ? '先使用 Google Authenticator 扫描部署人员提供的二维码，再注册管理员账号。' : '使用 Google Authenticator 动态验证码重置管理员密码。'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
@@ -192,13 +206,17 @@ export function PlatformAdminPage() {
               <FormField id="platform-admin-username" label="管理员账号" required>
                 <Input id="platform-admin-username" autoComplete="username" value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} disabled={submitting || registered === null} />
               </FormField>
-              <FormField id="platform-admin-password" label="密码" required>
-                <Input id="platform-admin-password" type="password" autoComplete={registered ? 'current-password' : 'new-password'} value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} disabled={submitting || registered === null} />
+              <FormField id="platform-admin-password" label={authMode === 'forgot' ? '新密码' : '密码'} required>
+                <Input id="platform-admin-password" type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} disabled={submitting || registered === null} />
               </FormField>
-              {!registered && <FormField id="platform-admin-totp" label="Google Authenticator 动态验证码" required>
+              {authMode !== 'login' && <FormField id="platform-admin-totp" label="Google Authenticator 动态验证码" required>
                 <Input id="platform-admin-totp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totpCode} onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, ''))} disabled={submitting || registered === null} />
               </FormField>}
-              <Button type="submit" disabled={submitting || registered === null || !adminUsername || !adminPassword || (!registered && totpCode.length !== 6)}>{submitting ? '验证中…' : registered ? '进入管理后台' : '注册管理员账号'}</Button>
+              <Button type="submit" disabled={submitting || registered === null || !adminUsername || !adminPassword || (authMode !== 'login' && totpCode.length !== 6)}>{submitting ? '验证中…' : authMode === 'login' ? '进入管理后台' : authMode === 'register' ? '注册管理员账号' : '重置密码'}</Button>
+              <div className="flex justify-between gap-3 text-sm">
+                {registered && authMode !== 'login' ? <Button type="button" variant="link" className="px-0" onClick={() => setAuthMode('login')}>返回登录</Button> : <span />}
+                {registered && authMode === 'login' && <div className="flex gap-3"><Button type="button" variant="link" className="px-0" onClick={() => setAuthMode('register')}>注册</Button><Button type="button" variant="link" className="px-0" onClick={() => setAuthMode('forgot')}>忘记密码</Button></div>}
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -221,7 +239,7 @@ export function PlatformAdminPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={() => void loadData()} disabled={loading}><RefreshCw data-icon="inline-start" />刷新</Button>
-            <Button type="button" variant="secondary" onClick={() => void logout()}><LogOut data-icon="inline-start" />退出</Button>
+            <Button type="button" variant="secondary" onClick={() => void logout()}><LogOut data-icon="inline-start" />注销</Button>
           </div>
         </header>
         {error && <StatusNotice tone="error" wrap>{error}</StatusNotice>}
