@@ -773,19 +773,31 @@ export function OfficialHomePage() {
       </section>
 
       <footer id="contact" className="border-t border-border/60 px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-8 text-sm text-muted-foreground">
+        <div className="mx-auto max-w-7xl text-sm text-muted-foreground">
           <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-            <div className="flex items-center gap-4">
-              <Image
-                src={logoImage}
-                alt="威思瑞 WSIRI"
-                width={88}
-                height={56}
-                className="h-11 w-auto shrink-0 sm:h-12"
-              />
-              <div className="flex min-w-0 flex-col gap-1">
-                <p className="text-base font-semibold leading-6 text-foreground">{SITE_NAME}</p>
-                <p className="text-sm leading-5 text-muted-foreground">苏州威思瑞智能技术有限公司</p>
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center gap-4">
+                <Image
+                  src={logoImage}
+                  alt="威思瑞 WSIRI"
+                  width={88}
+                  height={56}
+                  className="h-11 w-auto shrink-0 sm:h-12"
+                />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="text-base font-semibold leading-6 text-foreground">{SITE_NAME}</p>
+                  <p className="text-sm leading-5 text-muted-foreground">苏州威思瑞智能技术有限公司</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                <Link href={user ? "/dashboard" : "/login"} className="max-w-48 truncate hover:text-foreground">
+                  {authLoading ? "..." : accountButtonLabel}
+                </Link>
+                <Link href="/dashboard" className="hover:text-foreground">工作台</Link>
+                <a href="#faq" className="hover:text-foreground">常见问题</a>
+                <a href={ICP_RECORD.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+                  {ICP_RECORD.number}
+                </a>
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -816,16 +828,6 @@ export function OfficialHomePage() {
                 </a>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <Link href={user ? "/dashboard" : "/login"} className="max-w-48 truncate hover:text-foreground">
-              {authLoading ? "..." : accountButtonLabel}
-            </Link>
-            <Link href="/dashboard" className="hover:text-foreground">工作台</Link>
-            <a href="#faq" className="hover:text-foreground">常见问题</a>
-            <a href={ICP_RECORD.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              {ICP_RECORD.number}
-            </a>
           </div>
         </div>
       </footer>
