@@ -286,35 +286,59 @@ function HeroCapabilityMap() {
     {
       icon: Database,
       label: "企业知识",
-      detail: "准确检索",
-      position: "left-0 top-14 sm:left-6",
+      detail: "检索有据",
+      position: "left-0 top-20 sm:left-3",
+    },
+    {
+      icon: Wrench,
+      label: "技能规则",
+      detail: "沉淀 SOP",
+      position: "left-1/2 top-0 -translate-x-1/2",
+    },
+    {
+      icon: Cpu,
+      label: "MCP 连接",
+      detail: "接入外部能力",
+      position: "right-0 top-20 sm:right-3",
+    },
+    {
+      icon: TableProperties,
+      label: "表单与宏",
+      detail: "处理业务数据",
+      position: "bottom-24 left-0 sm:left-3",
     },
     {
       icon: Workflow,
       label: "业务工具",
-      detail: "自动执行",
-      position: "right-0 top-14 sm:right-6",
+      detail: "自动执行任务",
+      position: "bottom-24 right-0 sm:right-3",
     },
     {
       icon: Mic2,
       label: "自然语音",
-      detail: "随时响应",
-      position: "bottom-14 left-1/2 -translate-x-1/2",
+      detail: "多端服务协同",
+      position: "bottom-12 left-1/2 -translate-x-1/2",
     },
   ]
 
   return (
-    <div className="relative mx-auto min-h-[28rem] w-full max-w-[34rem]" aria-label="知识、工具与语音共同驱动企业智能服务">
-      <div className="absolute inset-x-12 top-1/2 h-64 -translate-y-1/2 rounded-full bg-primary-soft/70 blur-3xl" aria-hidden="true" />
+    <div
+      className="relative mx-auto min-h-[34rem] w-full max-w-[34rem]"
+      aria-label="以 Agent 为中心，连接知识、技能、表单、MCP、工具与语音能力的企业智能服务"
+    >
+      <div className="absolute inset-x-12 top-1/2 h-72 -translate-y-1/2 rounded-full bg-primary-soft/70 blur-3xl" aria-hidden="true" />
       <svg
         className="absolute inset-0 size-full text-primary/25"
-        viewBox="0 0 544 448"
+        viewBox="0 0 544 544"
         fill="none"
         aria-hidden="true"
       >
-        <path d="M126 105C164 126 195 153 230 190" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
-        <path d="M418 105C380 126 349 153 314 190" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
-        <path d="M272 358V282" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M272 70V168" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M122 136C158 158 189 188 211 218" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M422 136C386 158 355 188 333 218" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M122 390C158 370 187 347 211 326" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M422 390C386 370 357 347 333 326" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M272 472V376" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
       </svg>
 
       {capabilityNodes.map((item) => (
@@ -334,12 +358,12 @@ function HeroCapabilityMap() {
           <Sparkles className="size-6" />
         </span>
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-foreground/75">WSIRI Agent</span>
-        <strong className="mt-2 text-xl leading-snug">理解问题<br />完成服务</strong>
+        <strong className="mt-2 text-xl leading-snug">理解问题<br />编排服务</strong>
       </div>
 
       <div className="absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full bg-card px-4 py-2.5 text-xs font-medium text-muted-foreground shadow-depth-sm">
         <ShieldCheck className="size-4 text-primary-text" />
-        知识有据 · 流程可控 · 服务连续
+        权限配置 · 分享复用 · 运行追踪
       </div>
     </div>
   )
