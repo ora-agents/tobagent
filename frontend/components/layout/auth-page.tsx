@@ -226,6 +226,8 @@ export function AuthPage({ mode }: AuthPageProps) {
               </div>
             </ScrollArea>
           )}
+
+          <SiteComplianceFooter className="absolute inset-x-6 bottom-3 sm:inset-x-10 lg:inset-x-14" />
         </main>
 
         <aside className="relative hidden min-h-0 overflow-hidden bg-background-tint lg:block">
@@ -242,7 +244,6 @@ export function AuthPage({ mode }: AuthPageProps) {
           </div>
         </aside>
       </div>
-      <SiteComplianceFooter className="pt-2" />
     </div>
   )
 }
