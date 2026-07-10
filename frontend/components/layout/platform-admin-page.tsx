@@ -132,8 +132,9 @@ export function PlatformAdminPage() {
     setError(null)
     try {
       const endpoint = registered ? '/api/platform-admin/session' : '/api/platform-admin/register'
-      const response = await backendFetch(endpoint, { method: 'POST', json: { username: adminUsername, password: adminPassword, totpCode }, anonymous: true })
-      if (!response.ok) throw new Error(response.status === 404 ? '平台管理未在服务器上启用。' : registered ? '账号、密码或动态验证码无效。' : '注册失败：请确认动态验证码有效且尚未注册管理员。')
+      const payload = registered ? { username: adminUsername, password: adminPassword } : { username: adminUsername, password: adminPassword, totpCode }
+      const response = await backendFetch(endpoint, { method: 'POST', json: payload, anonymous: true })
+      if (!response.ok) throw new Error(response.status === 404 ? '平台管理未在服务器上启用。' : registered ? '账号或密码无效。' : '注册失败：请确认动态验证码有效且尚未注册管理员。')
       setAdminPassword('')
       setTotpCode('')
       if (!registered) {
@@ -183,7 +184,7 @@ export function PlatformAdminPage() {
           <CardHeader>
             <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"><KeyRound /></div>
             <CardTitle>平台管理</CardTitle>
-            <CardDescription>{registered ? '输入管理员账号、密码和 Google Authenticator 动态验证码。' : '先使用 Google Authenticator 扫描部署人员提供的二维码，再注册首个管理员账号。'}</CardDescription>
+            <CardDescription>{registered ? '输入管理员账号和密码以访问平台数据。' : '先使用 Google Authenticator 扫描部署人员提供的二维码，再注册首个管理员账号。'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
@@ -194,10 +195,10 @@ export function PlatformAdminPage() {
               <FormField id="platform-admin-password" label="密码" required>
                 <Input id="platform-admin-password" type="password" autoComplete={registered ? 'current-password' : 'new-password'} value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} disabled={submitting || registered === null} />
               </FormField>
-              <FormField id="platform-admin-totp" label="Google Authenticator 动态验证码" required>
+              {!registered && <FormField id="platform-admin-totp" label="Google Authenticator 动态验证码" required>
                 <Input id="platform-admin-totp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totpCode} onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, ''))} disabled={submitting || registered === null} />
-              </FormField>
-              <Button type="submit" disabled={submitting || registered === null || !adminUsername || !adminPassword || totpCode.length !== 6}>{submitting ? '验证中…' : registered ? '进入管理后台' : '注册管理员账号'}</Button>
+              </FormField>}
+              <Button type="submit" disabled={submitting || registered === null || !adminUsername || !adminPassword || (!registered && totpCode.length !== 6)}>{submitting ? '验证中…' : registered ? '进入管理后台' : '注册管理员账号'}</Button>
             </form>
           </CardContent>
         </Card>

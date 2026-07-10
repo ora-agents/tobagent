@@ -84,7 +84,7 @@ def test_platform_admin_totp_registration_and_sensitive_actions(platform_admin_c
     assert register.json()["username"] == "platform-admin"
     assert client.post("/api/platform-admin/register", json={"username": "another", "password": "password123", "totpCode": code}).status_code == 409
 
-    login = client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123", "totpCode": code})
+    login = client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123"})
     assert login.status_code == 200
     assert "tob_platform_admin" in login.cookies
     assert "httponly" in login.headers["set-cookie"].lower()
@@ -118,5 +118,5 @@ def test_platform_admin_totp_registration_and_sensitive_actions(platform_admin_c
     logout = client.request("DELETE", "/api/platform-admin/session", json={"totpCode": code})
     assert logout.status_code == 204
     assert client.get("/api/platform-admin/overview").status_code == 401
-    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123", "totpCode": code}).status_code == 401
-    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password456", "totpCode": code}).status_code == 200
+    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123"}).status_code == 401
+    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password456"}).status_code == 200

@@ -47,7 +47,6 @@ class PlatformAdminLoginRequest(BaseModel):
 
     username: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=1, max_length=1024)
-    totpCode: str = Field(pattern=r"^\d{6}$")
 
 
 class PlatformAdminPasswordRequest(BaseModel):
@@ -173,8 +172,8 @@ def create_platform_admin_session(
     response: Response,
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    """Sign in with the administrator password and an authenticator code."""
-    _verify_totp(request.totpCode)
+    """Sign in with the administrator account password."""
+    _require_totp_configuration()
     admin = _current_platform_admin(db)
     if not admin or admin.username != request.username.strip() or not verify_password(request.password, admin.password_hash):
         raise HTTPException(status_code=401, detail="Invalid administrator credentials")
