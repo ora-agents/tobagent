@@ -1,14 +1,12 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import Link from "next/link"
 import { backendFetch } from "@/lib/api/backend-fetch"
 import {
   Wrench,
   Bot,
   Database,
   ArrowLeft,
-  Home,
   Plus,
   Pencil,
   Trash2,
@@ -2840,17 +2838,6 @@ export function ManagementDashboard({
               </Button>
             </>
           )}
-          <NavActionButton
-            asChild
-            variant="outline"
-            title={locale === "zh" ? "返回首页" : "Back to home"}
-            aria-label={locale === "zh" ? "返回首页" : "Back to home"}
-          >
-            <Link href="/">
-              <Home className="w-4 h-4" />
-              {locale === "zh" ? "首页" : "Home"}
-            </Link>
-          </NavActionButton>
           <NavActionButton
             variant="outline"
             onClick={onBackToChat}
