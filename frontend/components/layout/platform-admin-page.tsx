@@ -198,7 +198,7 @@ export function PlatformAdminPage() {
           <CardHeader>
             <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"><KeyRound /></div>
             <CardTitle>平台管理</CardTitle>
-            <CardDescription>{authMode === 'login' ? '输入管理员账号和密码以访问平台数据。' : authMode === 'register' ? '先使用 Google Authenticator 扫描部署人员提供的二维码，再注册管理员账号。' : '使用 Google Authenticator 动态验证码重置管理员密码。'}</CardDescription>
+            <CardDescription>{authMode === 'login' ? '输入管理员账号和密码以访问平台数据。' : authMode === 'register' ? '先使用 Authenticator 设备扫描部署人员提供的二维码，再注册管理员账号。' : '使用 Authenticator 动态验证码重置管理员密码。'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
@@ -209,7 +209,7 @@ export function PlatformAdminPage() {
               <FormField id="platform-admin-password" label={authMode === 'forgot' ? '新密码' : '密码'} required>
                 <Input id="platform-admin-password" type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} disabled={submitting || registered === null} />
               </FormField>
-              {authMode !== 'login' && <FormField id="platform-admin-totp" label="Google Authenticator 动态验证码" required>
+              {authMode !== 'login' && <FormField id="platform-admin-totp" label="动态验证码" required>
                 <Input id="platform-admin-totp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totpCode} onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, ''))} disabled={submitting || registered === null} />
               </FormField>}
               <Button type="submit" disabled={submitting || registered === null || !adminUsername || !adminPassword || (authMode !== 'login' && totpCode.length !== 6)}>{submitting ? '验证中…' : authMode === 'login' ? '进入管理后台' : authMode === 'register' ? '注册管理员账号' : '重置密码'}</Button>
