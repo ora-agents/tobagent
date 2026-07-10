@@ -34,12 +34,12 @@ import { StatusNotice } from "@/components/ui/status-notice"
 import { Textarea } from "@/components/ui/textarea"
 import { backendFetch } from "@/lib/api/backend-fetch"
 import { useApiConfig } from "@/lib/config/api-config"
-import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site"
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/constants/site"
 import { cn } from "@/lib/utils"
 import logoImage from "@/public/assets/images/logo.png"
 import { PlatformFooter } from "@/components/layout/platform-footer"
 
-const salesHelperAgentHref = `${SITE_URL}/agentapp/?agentShare=wsiri-sales-helper`
+const dashboardHref = "/dashboard"
 
 const capabilities = [
   {
@@ -515,7 +515,7 @@ export function OfficialHomePage() {
               </Link>
             </Button>
             <Button asChild size="sm">
-              <a href={salesHelperAgentHref}>
+              <a href={dashboardHref}>
                 进入工作台
                 <ArrowRight data-icon="inline-end" />
               </a>
@@ -543,7 +543,7 @@ export function OfficialHomePage() {
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
-                <a href={salesHelperAgentHref}>
+                <a href={dashboardHref}>
                   免费体验
                   <ArrowRight data-icon="inline-end" />
                 </a>
@@ -710,7 +710,7 @@ export function OfficialHomePage() {
             </p>
           </div>
           <Button asChild variant="secondary" size="lg" className="shrink-0">
-            <a href={salesHelperAgentHref}>
+            <a href={dashboardHref}>
               立即体验
               <MessageSquareText data-icon="inline-end" />
             </a>
