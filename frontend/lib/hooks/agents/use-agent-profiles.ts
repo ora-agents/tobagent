@@ -372,6 +372,25 @@ export function useAgentProfiles() {
     return null
   }, [authHeaders, user, workspaceHeaders])
 
+  const payShareOrder = useCallback(async (
+    orderId: string,
+  ): Promise<AgentSharePurchase | null> => {
+    if (!user) return null
+    try {
+      const resp = await backendFetch(`/api/payment-orders/${encodeURIComponent(orderId)}/pay`, {
+        method: "POST",
+        authHeaders,
+        workspaceHeaders,
+      })
+      if (resp.ok) {
+        return await resp.json()
+      }
+    } catch (err) {
+      console.error(`Failed to initiate payment for order ${orderId}`, err)
+    }
+    return null
+  }, [authHeaders, user, workspaceHeaders])
+
   const fetchPaymentOrder = useCallback(async (
     orderId: string,
   ): Promise<{ status: string; paidAt?: string | null } | null> => {
@@ -507,6 +526,7 @@ export function useAgentProfiles() {
     deleteShareLink,
     fetchShareAccess,
     purchaseShare,
+    payShareOrder,
     fetchPaymentOrder,
     fetchSharePreview,
     importShareLink,

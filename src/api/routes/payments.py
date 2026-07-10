@@ -177,6 +177,26 @@ def _can_use_local_direct_payment(request: Request) -> bool:
     return is_local_dev_request(request) and not _wechat_configured()
 
 
+def _payment_order_response(
+    order: PaymentOrderTable,
+    *,
+    include_code_url: bool = False,
+) -> AgentSharePurchaseResponse:
+    return AgentSharePurchaseResponse(
+        orderId=order.id,
+        outTradeNo=order.out_trade_no,
+        status=order.status,
+        amountCents=order.amount_cents,
+        currency=order.currency,
+        pricingMode=order.pricing_mode,
+        pricingPlanId=order.pricing_plan_id,
+        accessExpiresAt=order.access_expires_at,
+        codeUrl=order.code_url if include_code_url else None,
+        paymentProvider=order.provider,
+        paymentConfigured=_wechat_configured(),
+    )
+
+
 def _wechat_authorization(method: str, url_path: str, body: str) -> str:
     mchid = os.environ["WECHAT_PAY_MCHID"]
     serial_no = os.environ["WECHAT_PAY_SERIAL_NO"]
@@ -197,7 +217,7 @@ def _wechat_authorization(method: str, url_path: str, body: str) -> str:
 
 async def _create_wechat_native_order(order: PaymentOrderTable, agent_name: str) -> str:
     if not _wechat_configured():
-        return f"weixin://wxpay/bizpayurl?pr=UNCONFIGURED_{order.out_trade_no}"
+        raise HTTPException(status_code=503, detail="WeChat Pay is not configured")
 
     url_path = "/v3/pay/transactions/native"
     payload = {
@@ -237,8 +257,7 @@ def _grant_paid_access(db: Session, order: PaymentOrderTable, paid_at: str, payl
         order.provider_transaction_id = payload.get("transaction_id") or order.provider_transaction_id
 
     purchase = db.query(AgentPurchaseTable).filter(
-        AgentPurchaseTable.share_id == order.share_id,
-        AgentPurchaseTable.buyer_user_id == order.buyer_user_id,
+        AgentPurchaseTable.order_id == order.id,
     ).first()
     if not purchase:
         db.add(AgentPurchaseTable(
@@ -360,17 +379,7 @@ async def purchase_agent_share(
         db.add(order)
         _grant_paid_access(db, order, now)
         db.commit()
-        return AgentSharePurchaseResponse(
-            orderId=order.id,
-            outTradeNo=order.out_trade_no,
-            status=order.status,
-            amountCents=order.amount_cents,
-            currency=order.currency,
-            pricingMode=order.pricing_mode,
-            pricingPlanId=order.pricing_plan_id,
-            accessExpiresAt=order.access_expires_at,
-            paymentConfigured=_wechat_configured(),
-        )
+        return _payment_order_response(order)
 
     existing_paid = db.query(AgentPurchaseTable).filter(
         AgentPurchaseTable.share_id == share.id,
@@ -383,59 +392,16 @@ async def purchase_agent_share(
     if existing_paid:
         raise HTTPException(status_code=409, detail="Agent share already purchased")
 
-    if _can_use_local_direct_payment(request):
-        now = _now()
-        order = PaymentOrderTable(
-            id=f"order-{uuid.uuid4()}",
-            out_trade_no=f"TOB{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}{secrets.token_hex(4).upper()}",
-            buyer_user_id=current_user.id,
-            seller_user_id=share.owner_user_id,
-            agent_profile_id=share.agent_profile_id,
-            share_id=share.id,
-            pricing_mode=pricing_mode,
-            pricing_plan_id=(selected_plan or {}).get("id"),
-            amount_cents=amount,
-            currency=share.currency or "CNY",
-            status="pending",
-            access_expires_at=access_expires_at,
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(order)
-        _grant_paid_access(db, order, now, {"provider": "local_dev_direct"})
-        db.commit()
-        return AgentSharePurchaseResponse(
-            orderId=order.id,
-            outTradeNo=order.out_trade_no,
-            status=order.status,
-            amountCents=order.amount_cents,
-            currency=order.currency,
-            pricingMode=order.pricing_mode,
-            pricingPlanId=order.pricing_plan_id,
-            accessExpiresAt=order.access_expires_at,
-            paymentProvider="local_dev_direct",
-            paymentConfigured=False,
-        )
-
     pending = db.query(PaymentOrderTable).filter(
         PaymentOrderTable.share_id == share.id,
         PaymentOrderTable.buyer_user_id == current_user.id,
         PaymentOrderTable.pricing_plan_id == ((selected_plan or {}).get("id")),
+        PaymentOrderTable.amount_cents == amount,
+        PaymentOrderTable.currency == (share.currency or "CNY"),
         PaymentOrderTable.status == "pending",
     ).order_by(PaymentOrderTable.created_at.desc()).first()
-    if pending and pending.code_url:
-        return AgentSharePurchaseResponse(
-            orderId=pending.id,
-            outTradeNo=pending.out_trade_no,
-            status=pending.status,
-            amountCents=pending.amount_cents,
-            currency=pending.currency,
-            pricingMode=pending.pricing_mode,
-            pricingPlanId=pending.pricing_plan_id,
-            accessExpiresAt=pending.access_expires_at,
-            codeUrl=pending.code_url,
-            paymentConfigured=_wechat_configured(),
-        )
+    if pending:
+        return _payment_order_response(pending)
 
     now = _now()
     order = PaymentOrderTable(
@@ -449,28 +415,53 @@ async def purchase_agent_share(
         pricing_plan_id=(selected_plan or {}).get("id"),
         amount_cents=amount,
         currency=share.currency or "CNY",
+        provider="local_dev_direct" if _can_use_local_direct_payment(request) else "wechat_native",
         status="pending",
         access_expires_at=access_expires_at,
         created_at=now,
         updated_at=now,
     )
     db.add(order)
-    db.flush()
-    order.code_url = await _create_wechat_native_order(order, profile.name)
-    order.updated_at = _now()
     db.commit()
-    return AgentSharePurchaseResponse(
-        orderId=order.id,
-        outTradeNo=order.out_trade_no,
-        status=order.status,
-        amountCents=order.amount_cents,
-        currency=order.currency,
-        pricingMode=order.pricing_mode,
-        pricingPlanId=order.pricing_plan_id,
-        accessExpiresAt=order.access_expires_at,
-        codeUrl=order.code_url,
-        paymentConfigured=_wechat_configured(),
-    )
+    return _payment_order_response(order)
+
+
+@router.post("/api/payment-orders/{order_id}/pay", response_model=AgentSharePurchaseResponse)
+async def pay_payment_order(
+    order_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: UserTable = Depends(get_current_user),
+):
+    order = db.query(PaymentOrderTable).filter(
+        PaymentOrderTable.id == order_id,
+        PaymentOrderTable.buyer_user_id == current_user.id,
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Payment order not found")
+    if order.status == "paid":
+        return _payment_order_response(order, include_code_url=True)
+    if order.status != "pending":
+        raise HTTPException(status_code=409, detail="Payment order cannot be paid")
+
+    if order.provider == "local_dev_direct" and _can_use_local_direct_payment(request):
+        now = _now()
+        _grant_paid_access(db, order, now, {"provider": "local_dev_direct"})
+        db.commit()
+        return _payment_order_response(order, include_code_url=True)
+
+    if order.provider != "wechat_native":
+        raise HTTPException(status_code=409, detail="Payment provider is unavailable")
+    if not order.code_url:
+        profile = db.query(AgentProfileTable).filter(
+            AgentProfileTable.id == order.agent_profile_id,
+        ).first()
+        if not profile:
+            raise HTTPException(status_code=404, detail="Shared agent profile not found")
+        order.code_url = await _create_wechat_native_order(order, profile.name)
+        order.updated_at = _now()
+        db.commit()
+    return _payment_order_response(order, include_code_url=True)
 
 
 @router.get("/api/payment-orders/{order_id}", response_model=PaymentOrderResponse)

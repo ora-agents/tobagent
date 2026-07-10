@@ -25,6 +25,7 @@ from src.api.routes.payments import (
     _grant_paid_access,
     _wechat_configured,
     get_agent_share_access,
+    pay_payment_order,
     purchase_agent_share,
 )
 from src.api.schemas import (
@@ -106,6 +107,15 @@ def _local_request() -> Request:
         "method": "POST",
         "path": "/",
         "headers": [(b"host", b"localhost:8000")],
+    })
+
+
+def _remote_request() -> Request:
+    return Request({
+        "type": "http",
+        "method": "POST",
+        "path": "/",
+        "headers": [(b"host", b"api.example.com")],
     })
 
 
@@ -531,8 +541,58 @@ def test_grant_paid_access_creates_purchase_and_wallet_ledger(db_session):
     assert ledger[0].amount_cents == 880
 
 
+def test_grant_paid_access_creates_new_entitlement_for_subscription_renewal(db_session):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    now = datetime.now(UTC).isoformat()
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.add(AgentPurchaseTable(
+        id="purchase-expired",
+        buyer_user_id=receiver.id,
+        seller_user_id=owner.id,
+        agent_profile_id="agent-source",
+        share_id="share-paid",
+        order_id="order-old",
+        pricing_mode="subscription",
+        pricing_plan_id="monthly",
+        price_cents=500,
+        currency="CNY",
+        access_expires_at="2020-01-01T00:00:00Z",
+        created_at="2019-12-01T00:00:00Z",
+    ))
+    order = PaymentOrderTable(
+        id="order-renewal",
+        out_trade_no="TOBRENEWAL",
+        buyer_user_id=receiver.id,
+        seller_user_id=owner.id,
+        agent_profile_id="agent-source",
+        share_id="share-paid",
+        pricing_mode="subscription",
+        pricing_plan_id="monthly",
+        amount_cents=500,
+        currency="CNY",
+        status="pending",
+        access_expires_at="2030-01-01T00:00:00Z",
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(order)
+    db_session.commit()
+
+    _grant_paid_access(db_session, order, now)
+    db_session.commit()
+
+    purchases = db_session.query(AgentPurchaseTable).filter_by(
+        buyer_user_id=receiver.id,
+        share_id="share-paid",
+    ).all()
+    assert len(purchases) == 2
+    assert {purchase.order_id for purchase in purchases} == {"order-old", "order-renewal"}
+
+
 @pytest.mark.anyio
-async def test_local_unconfigured_payment_directly_grants_paid_access(db_session, monkeypatch):
+async def test_local_unconfigured_payment_grants_access_only_after_pay(db_session, monkeypatch):
     monkeypatch.delenv("WECHAT_PAY_APPID", raising=False)
     monkeypatch.delenv("WECHAT_PAY_MCHID", raising=False)
     monkeypatch.delenv("WECHAT_PAY_SERIAL_NO", raising=False)
@@ -560,7 +620,7 @@ async def test_local_unconfigured_payment_directly_grants_paid_access(db_session
         receiver,
     )
 
-    assert response.status == "paid"
+    assert response.status == "pending"
     assert response.amountCents == 500
     assert response.paymentProvider == "local_dev_direct"
     assert response.paymentConfigured is False
@@ -568,7 +628,64 @@ async def test_local_unconfigured_payment_directly_grants_paid_access(db_session
     assert db_session.query(AgentPurchaseTable).filter_by(
         share_id=share_row.id,
         buyer_user_id=receiver.id,
+    ).count() == 0
+
+    paid = await pay_payment_order(response.orderId, _local_request(), db_session, receiver)
+
+    assert paid.status == "paid"
+    assert paid.paymentProvider == "local_dev_direct"
+    assert db_session.query(AgentPurchaseTable).filter_by(
+        share_id=share_row.id,
+        buyer_user_id=receiver.id,
     ).count() == 1
+
+
+@pytest.mark.anyio
+async def test_wechat_qr_code_is_created_only_after_pay(db_session, monkeypatch):
+    owner = _user("user-owner")
+    receiver = _user("user-receiver")
+    db_session.add_all([owner, receiver])
+    db_session.add(_agent("agent-source", owner.id))
+    db_session.commit()
+
+    share = await create_agent_share_link(
+        "agent-source",
+        AgentShareLinkRequest(customSlug="paid-agent", priceCents=500),
+        db_session,
+        owner,
+    )
+
+    async def create_native_order(order, agent_name):
+        assert order.status == "pending"
+        assert agent_name == "Source Agent"
+        return "weixin://wxpay/bizpayurl?pr=test-order"
+
+    monkeypatch.setattr(
+        "src.api.routes.payments._create_wechat_native_order",
+        create_native_order,
+    )
+
+    created = await purchase_agent_share(
+        share.customSlug,
+        _remote_request(),
+        AgentSharePurchaseRequest(),
+        db_session,
+        receiver,
+    )
+
+    assert created.status == "pending"
+    assert created.paymentProvider == "wechat_native"
+    assert created.codeUrl is None
+
+    payment = await pay_payment_order(
+        created.orderId,
+        _remote_request(),
+        db_session,
+        receiver,
+    )
+
+    assert payment.status == "pending"
+    assert payment.codeUrl == "weixin://wxpay/bizpayurl?pr=test-order"
 
 
 def test_wechat_configured_requires_private_key_file(monkeypatch, tmp_path):

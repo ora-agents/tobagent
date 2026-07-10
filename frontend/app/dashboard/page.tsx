@@ -16,9 +16,12 @@ import { UserSettingsPage } from "@/components/layout/user-settings-page"
 import { UserManualPage } from "@/components/layout/user-manual-page"
 import { DeveloperManualPage } from "@/components/layout/developer-manual-page"
 import { TraceBrowserPage } from "@/components/layout/trace-browser-page"
-import { WechatPayQrCode } from "@/components/payments/wechat-pay-qr-code"
+import {
+  AgentShareCheckout,
+  formatTrialRemaining,
+  type PurchaseStatus,
+} from "@/components/payments/agent-share-checkout"
 import { Button } from "@/components/ui/button"
-import { MarkdownContent } from "@/components/ui/markdown-content"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { useAuth } from "@/components/providers/auth-provider"
@@ -42,43 +45,12 @@ import type { AgentShareSubscriptionPlan } from "@/lib/types/agent-profiles"
 import { useT } from "@/lib/i18n"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { backendFetch } from "@/lib/api/backend-fetch"
-import { CreditCard } from "lucide-react"
 
 const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "user-manual", "developer-manual", "traces"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
   return DASHBOARD_VIEWS.includes(value as DashboardView)
-}
-
-function formatCny(cents: number) {
-  return `¥${(cents / 100).toFixed(2)}`
-}
-
-function formatTrialDuration(minutes: number) {
-  if (minutes <= 0) return ""
-  if (minutes % 1440 === 0) return `${minutes / 1440} 天`
-  if (minutes % 60 === 0) return `${minutes / 60} 小时`
-  return `${minutes} 分钟`
-}
-
-function formatTrialRemaining(milliseconds: number) {
-  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
-  const days = Math.floor(totalSeconds / 86400)
-  const hours = Math.floor((totalSeconds % 86400) / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  if (days > 0) return `${days} 天 ${hours} 小时`
-  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`
-  if (minutes > 0) return `${minutes} 分钟 ${seconds} 秒`
-  return `${seconds} 秒`
-}
-
-function formatPlanDuration(days: number) {
-  if (days % 365 === 0) return `${days / 365} 年`
-  if (days % 30 === 0) return `${days / 30} 个月`
-  return `${days} 天`
 }
 
 function AuthRedirect() {
@@ -113,7 +85,6 @@ function DashboardContent() {
   const router = useRouter()
   const pathname = usePathname()
   const { user, loading: authLoading, capabilities, authHeaders } = useAuth()
-  const localDirectPayment = capabilities.localDevBypass
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [showShortcutsDialog, setShowShortcutsDialog] = useState(false)
   const [forceShowTooltip, setForceShowTooltip] = useState(0)
@@ -142,6 +113,7 @@ function DashboardContent() {
     importShareLink: importAgentShareLink,
     fetchShareAccess,
     purchaseShare,
+    payShareOrder,
     fetchPaymentOrder,
     refreshProfiles: refreshAgentProfiles,
   } = useAgentProfiles()
@@ -152,7 +124,7 @@ function DashboardContent() {
   const [trialShareToken, setTrialShareToken] = useState<string | null>(null)
   const [trialNow, setTrialNow] = useState(() => Date.now())
   const [purchaseOrder, setPurchaseOrder] = useState<import("@/lib/types/agent-profiles").AgentSharePurchase | null>(null)
-  const [purchaseStatus, setPurchaseStatus] = useState<"idle" | "creating" | "waiting" | "paid" | "error">("idle")
+  const [purchaseStatus, setPurchaseStatus] = useState<PurchaseStatus>("idle")
   const [selectedSharePlanId, setSelectedSharePlanId] = useState<string | null>(null)
   const [agentShareResolutionFailed, setAgentShareResolutionFailed] = useState(false)
   const [agentShareResolving, setAgentShareResolving] = useState(false)
@@ -403,7 +375,12 @@ function DashboardContent() {
     && !trialShareAccess.purchased
     && trialPaidShare
   )
-  const isTrialActive = isTrialAgentApp && trialShareAccess?.trialActive && trialRemainingMs !== null && trialRemainingMs > 0
+  const isTrialActive = Boolean(
+    isTrialAgentApp
+    && trialShareAccess?.trialActive
+    && trialRemainingMs !== null
+    && trialRemainingMs > 0,
+  )
   const purchaseShareToken = agentShareToken?.trim()
     || trialShareToken
     || pendingPaidShare?.customSlug
@@ -756,15 +733,9 @@ function DashboardContent() {
     router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false })
   }, [importAgentShareLink, purchaseShareToken, router, setSelectedAgentProfileId])
 
-  const handlePurchaseSharedAgent = useCallback(async () => {
+  const handleConfirmSharedAgentOrder = useCallback(async () => {
     const token = purchaseShareToken
     if (!token || purchaseStatus === "creating") return
-    if (purchaseOrder && purchaseStatus === "waiting") {
-      if (trialPaidShare) {
-        setPendingPaidShare(trialPaidShare)
-      }
-      return
-    }
     setPurchaseStatus("creating")
     const order = await purchaseShare(token, selectedSharePlanId)
     if (!order) {
@@ -772,13 +743,6 @@ function DashboardContent() {
       return
     }
     setPurchaseOrder(order)
-    if (order.status === "paid" && order.paymentProvider === "local_dev_direct") {
-      if (trialPaidShare) {
-        setPendingPaidShare(trialPaidShare)
-      }
-      setPurchaseStatus("paid")
-      return
-    }
     if (order.status === "paid") {
       await completePaidShareImport()
       return
@@ -786,8 +750,33 @@ function DashboardContent() {
     if (trialPaidShare) {
       setPendingPaidShare(trialPaidShare)
     }
-    setPurchaseStatus("waiting")
-  }, [completePaidShareImport, purchaseOrder, purchaseShare, purchaseShareToken, purchaseStatus, selectedSharePlanId, trialPaidShare])
+    setPurchaseStatus("confirmed")
+  }, [completePaidShareImport, purchaseShare, purchaseShareToken, purchaseStatus, selectedSharePlanId, trialPaidShare])
+
+  const handlePaySharedAgentOrder = useCallback(async () => {
+    if (!purchaseOrder || purchaseStatus === "paying") return
+    setPurchaseStatus("paying")
+    const paidOrder = await payShareOrder(purchaseOrder.orderId)
+    if (!paidOrder) {
+      setPurchaseStatus("error")
+      return
+    }
+    setPurchaseOrder(paidOrder)
+    if (paidOrder.status === "paid" && paidOrder.paymentProvider === "local_dev_direct") {
+      setPurchaseStatus("paid")
+      return
+    }
+    if (paidOrder.status === "paid") {
+      await completePaidShareImport()
+      return
+    }
+    setPurchaseStatus(paidOrder.codeUrl ? "waiting" : "error")
+  }, [completePaidShareImport, payShareOrder, purchaseOrder, purchaseStatus])
+
+  const handleChangeSharedAgentPlan = useCallback(() => {
+    setPurchaseOrder(null)
+    setPurchaseStatus("idle")
+  }, [])
 
   const handleReturnToTrialSharedAgent = useCallback(() => {
     if (!isTrialActive) return
@@ -1051,125 +1040,25 @@ function DashboardContent() {
                 className="min-h-0 flex-1 bg-background"
                 contentClassName="flex min-h-full items-center justify-center p-4 sm:p-6"
               >
-                <section className="flex w-full max-w-md flex-col gap-4">
-                    <div className="text-xl font-semibold text-foreground">
-                      {pendingPaidShare.agent.name}
-                    </div>
-                    {pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description ? (
-                      <ScrollArea
-                        className="max-h-48 rounded-lg bg-muted/40"
-                        contentClassName="p-3"
-                      >
-                        <MarkdownContent
-                          value={pendingPaidShare.introductionText?.trim() || pendingPaidShare.agent.description || ""}
-                          compact
-                        />
-                      </ScrollArea>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">{t.noDescriptionProvided}</div>
-                    )}
-                    <div className="rounded-lg bg-secondary px-4 py-3">
-                      <div className="text-xs font-semibold text-muted-foreground">
-                        {pendingPaidShare.pricingMode === "subscription" ? "订阅访问" : "付费访问"}
-                      </div>
-                      <div className="mt-1 text-2xl font-semibold text-foreground">
-                        {formatCny(selectedSubscriptionPlan?.priceCents ?? pendingPaidShare.priceCents)}
-                      </div>
-                      {pendingPaidShare.pricingMode === "subscription" && pendingPaidShare.subscriptionPlans && pendingPaidShare.subscriptionPlans.length > 0 ? (
-                        <div className="mt-3 grid gap-2">
-                          {pendingPaidShare.subscriptionPlans.map((plan) => {
-                            const selected = (selectedSubscriptionPlan?.id || selectedSharePlanId) === plan.id
-                            return (
-                              <button
-                                key={plan.id}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedSharePlanId(plan.id)
-                                  setPurchaseOrder(null)
-                                  setPurchaseStatus("idle")
-                                }}
-                                className={`rounded-lg border px-3 py-2 text-left text-sm ${selected ? "border-primary bg-background" : "border-border bg-card"}`}
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="font-semibold text-foreground">{plan.label}</span>
-                                  <span className="font-semibold text-foreground">{formatCny(plan.priceCents)}</span>
-                                </div>
-                                <div className="mt-1 text-xs text-muted-foreground">
-                                  有效期 {formatPlanDuration(plan.durationDays)}
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                      {pendingPaidShare.trialDurationMinutes > 0 ? (
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          {isTrialActive && trialRemainingMs !== null
-                            ? `当前仍可试用 ${formatTrialRemaining(trialRemainingMs)}，购买后可永久使用。`
-                            : `试用 ${formatTrialDuration(pendingPaidShare.trialDurationMinutes)} 已结束或不可用，购买后可导入并使用。`}
-                        </div>
-                      ) : null}
-                    </div>
-                    {!purchaseOrder ? (
-                      <Button
-                        type="button"
-                        onClick={handlePurchaseSharedAgent}
-                        disabled={purchaseStatus === "creating"}
-                        className="w-full"
-                      >
-                        {purchaseStatus === "creating" ? (
-                          "创建订单中..."
-                        ) : localDirectPayment ? (
-                          <>
-                            <CreditCard data-icon="inline-start" />
-                            本地开发直接支付
-                          </>
-                        ) : (
-                          "微信支付购买"
-                        )}
-                      </Button>
-                    ) : (
-                      <div className="flex flex-col items-center gap-3">
-                        {purchaseOrder.codeUrl ? (
-                          <WechatPayQrCode value={purchaseOrder.codeUrl} />
-                        ) : null}
-                        <div className="break-all text-center font-mono text-[11px] text-muted-foreground">
-                          {purchaseOrder.codeUrl || purchaseOrder.outTradeNo}
-                        </div>
-                        <StatusNotice tone={purchaseOrder.paymentProvider === "local_dev_direct" ? "success" : purchaseOrder.paymentConfigured ? "info" : "warning"}>
-                          {purchaseOrder.paymentProvider === "local_dev_direct"
-                            ? "本地开发模式已直接完成支付并授予访问权限。"
-                            : purchaseOrder.paymentConfigured
-                            ? "请使用微信扫码支付，支付成功后会自动进入 Agent。"
-                            : "微信支付环境变量尚未配置。订单已创建，但无法完成真实支付。"}
-                        </StatusNotice>
-                        {purchaseOrder.paymentProvider === "local_dev_direct" && purchaseStatus === "paid" ? (
-                          <Button
-                            type="button"
-                            onClick={completePaidShareImport}
-                            className="w-full"
-                          >
-                            进入 Agent
-                          </Button>
-                        ) : null}
-                      </div>
-                    )}
-                    {purchaseStatus === "error" && (
-                      <StatusNotice tone="error">
-                        创建支付订单失败，请稍后重试。
-                      </StatusNotice>
-                    )}
-                    {isTrialActive ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleReturnToTrialSharedAgent}
-                        className="w-full"
-                      >
-                        返回试用
-                      </Button>
-                    ) : null}
-                </section>
+                <AgentShareCheckout
+                  share={pendingPaidShare}
+                  selectedPlan={selectedSubscriptionPlan}
+                  selectedPlanId={selectedSharePlanId}
+                  order={purchaseOrder}
+                  status={purchaseStatus}
+                  isTrialActive={isTrialActive}
+                  trialRemainingMs={trialRemainingMs}
+                  onSelectPlan={(planId) => {
+                    setSelectedSharePlanId(planId)
+                    setPurchaseOrder(null)
+                    setPurchaseStatus("idle")
+                  }}
+                  onConfirmOrder={handleConfirmSharedAgentOrder}
+                  onChangePlan={handleChangeSharedAgentPlan}
+                  onPay={handlePaySharedAgentOrder}
+                  onEnterAgent={completePaidShareImport}
+                  onReturnToTrial={handleReturnToTrialSharedAgent}
+                />
               </ScrollArea>
             ) : agentShareResolutionFailed ? (
               <div className="flex min-h-0 flex-1 items-center justify-center bg-background p-6">
@@ -1194,11 +1083,14 @@ function DashboardContent() {
                     <Button
                       type="button"
                       size="sm"
-                      onClick={handlePurchaseSharedAgent}
-                      disabled={purchaseStatus === "creating"}
+                      onClick={() => {
+                        if (trialPaidShare) setPendingPaidShare(trialPaidShare)
+                        setPurchaseOrder(null)
+                        setPurchaseStatus("idle")
+                      }}
                       className="w-full sm:w-auto"
                     >
-                      {purchaseStatus === "creating" ? "创建订单中..." : localDirectPayment ? "直接支付" : "购买"}
+                      选择方案
                     </Button>
                   </div>
                 ) : null}

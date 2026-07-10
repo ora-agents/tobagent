@@ -13,6 +13,7 @@ const icons = {
 interface StatusNoticeProps extends React.HTMLAttributes<HTMLDivElement> {
   tone?: keyof typeof icons
   compact?: boolean
+  wrap?: boolean
   icon?: React.ComponentType<{ className?: string }>
 }
 
@@ -20,6 +21,7 @@ function StatusNotice({
   className,
   tone = "info",
   compact = false,
+  wrap = false,
   icon,
   children,
   ...props
@@ -40,7 +42,7 @@ function StatusNotice({
       {...props}
     >
       <Icon className={cn(compact ? "h-4 w-4" : "h-4 w-4", "shrink-0")} />
-      <div className="min-w-0 truncate">{children}</div>
+      <div className={cn("min-w-0", wrap ? "whitespace-normal" : "truncate")}>{children}</div>
     </div>
   )
 }
