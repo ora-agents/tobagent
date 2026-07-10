@@ -972,7 +972,7 @@ function DashboardContent() {
       />
       <DashboardWorkspace
         className={isSharedAgentApp ? "text-foreground" : undefined}
-        footer={isAgentAppRoute ? <PlatformFooter /> : <SiteComplianceFooter className="border-t border-border/60 bg-background py-2" />}
+        footer={currentView === "pricing" && isAgentAppRoute ? undefined : <SiteComplianceFooter className="border-t border-border/60 bg-background py-2" />}
         sidebar={!isSharedAgentApp ? (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
@@ -1123,10 +1123,13 @@ function DashboardContent() {
 
         {currentView === "pricing" && isAgentAppRoute ? (
           <DashboardViewPane>
-            <ScrollArea className="min-h-0 flex-1 bg-background">
-              <PlatformPricing onStartTrial={() => {
-                window.location.assign("/agentapp/?agentShare=wsiri-sales-helper")
-              }} />
+            <ScrollArea className="min-h-0 flex-1 bg-background" contentClassName="min-h-full">
+              <div className="flex min-h-full flex-col">
+                <PlatformPricing onStartTrial={() => {
+                  window.location.assign("/agentapp/?agentShare=wsiri-sales-helper")
+                }} />
+                <PlatformFooter className="mt-auto" />
+              </div>
             </ScrollArea>
           </DashboardViewPane>
         ) : null}
