@@ -10,7 +10,6 @@ import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-
 import { DashboardFallback } from "@/components/layout/dashboard-fallback"
 import { DashboardMobileSidebar } from "@/components/layout/dashboard-mobile-sidebar"
 import { DashboardViewPane, DashboardWorkspace } from "@/components/layout/dashboard-workspace"
-import { PlatformFooter } from "@/components/layout/platform-footer"
 import { SiteComplianceFooter } from "@/components/layout/site-compliance-footer"
 import { PlatformPricing } from "@/components/marketing/platform-pricing"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
@@ -972,7 +971,7 @@ function DashboardContent() {
       />
       <DashboardWorkspace
         className={isSharedAgentApp ? "text-foreground" : undefined}
-        footer={currentView === "pricing" && isAgentAppRoute ? undefined : <SiteComplianceFooter className="border-t border-border/60 bg-background py-2" />}
+        footer={<SiteComplianceFooter className="border-t border-border/60 bg-background py-2" />}
         sidebar={!isSharedAgentApp ? (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
@@ -1123,13 +1122,10 @@ function DashboardContent() {
 
         {currentView === "pricing" && isAgentAppRoute ? (
           <DashboardViewPane>
-            <ScrollArea className="min-h-0 flex-1 bg-background" contentClassName="min-h-full">
-              <div className="flex min-h-full flex-col">
-                <PlatformPricing onStartTrial={() => {
-                  window.location.assign("/agentapp/?agentShare=wsiri-sales-helper")
-                }} />
-                <PlatformFooter className="mt-auto" />
-              </div>
+            <ScrollArea className="min-h-0 flex-1 bg-background">
+              <PlatformPricing onStartTrial={() => {
+                window.location.assign("/agentapp/?agentShare=wsiri-sales-helper")
+              }} />
             </ScrollArea>
           </DashboardViewPane>
         ) : null}

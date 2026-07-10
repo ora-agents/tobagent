@@ -28,8 +28,9 @@ import { MarkdownContent } from "@/components/ui/markdown-content"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/providers/auth-provider"
+import { PlatformFooter } from "@/components/layout/platform-footer"
 import { backendFetch } from "@/lib/api/backend-fetch"
-import { ICP_RECORD, SITE_NAME } from "@/lib/constants/site"
+import { SITE_NAME } from "@/lib/constants/site"
 import { useApiConfig } from "@/lib/config/api-config"
 import type { AgentSharePreview } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
@@ -446,22 +447,7 @@ export function AgentShareLandingPage({ token }: { token: string }) {
         </div>
       </section>
 
-      <footer className="bg-card px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Image src={logoImage} alt="威思瑞 WSIRI" width={88} height={56} className="h-8 w-auto" />
-            <span>{SITE_NAME}</span>
-          </div>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/" className="hover:text-foreground">首页</Link>
-            <Link href={agentAppHref} className="hover:text-foreground">进入 Agent</Link>
-            <a href="#faq" className="hover:text-foreground">常见问题</a>
-            <a href={ICP_RECORD.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              {ICP_RECORD.number}
-            </a>
-          </div>
-        </div>
-      </footer>
+      <PlatformFooter />
     </main>
   )
 }
