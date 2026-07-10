@@ -336,7 +336,7 @@ function TestimonialCard({ item }: { item: SiteTestimonial }) {
   const subtitle = [item.role, item.company].filter(Boolean).join(" · ")
 
   return (
-    <Card className="bg-secondary shadow-none">
+    <Card className="shadow-depth-sm">
       <CardHeader className="gap-3 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -394,7 +394,7 @@ function TestimonialComposer({
 
   if (authLoading) {
     return (
-      <Card className="bg-secondary shadow-none">
+      <Card className="shadow-depth-sm">
         <CardHeader className="p-6">
           <CardTitle className="text-base">正在检查登录状态</CardTitle>
           <CardDescription>登录后可以发表你的真实评价。</CardDescription>
@@ -405,7 +405,7 @@ function TestimonialComposer({
 
   if (!user) {
     return (
-      <Card className="bg-secondary shadow-none">
+      <Card className="shadow-depth-sm">
         <CardHeader className="gap-4 p-6">
           <CardTitle className="text-lg">分享你的使用体验</CardTitle>
           <CardDescription className="leading-6">
@@ -420,7 +420,7 @@ function TestimonialComposer({
   }
 
   return (
-    <Card className="bg-secondary shadow-none">
+    <Card className="shadow-depth-sm">
       <CardHeader className="p-6">
         <CardTitle className="text-lg">发表真实评价</CardTitle>
         <CardDescription>当前账号：{user.username}</CardDescription>
@@ -687,7 +687,7 @@ export function OfficialHomePage() {
         </div>
       </section>
 
-      <section id="reviews" className="px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+      <section id="reviews" className="bg-background-tint px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div className="mx-auto flex max-w-7xl flex-col gap-12">
           <SectionHeading
             eyebrow="用户评价"
@@ -697,7 +697,7 @@ export function OfficialHomePage() {
           <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="flex flex-col gap-4">
               {testimonialsLoading ? (
-                <Card className="bg-secondary shadow-none">
+                <Card className="shadow-depth-sm">
                   <CardHeader className="p-6">
                     <CardTitle className="text-base">正在加载评价</CardTitle>
                     <CardDescription>请稍候。</CardDescription>
@@ -724,7 +724,7 @@ export function OfficialHomePage() {
                   ) : null}
                 </>
               ) : (
-                <Card className="bg-secondary shadow-none">
+                <Card className="shadow-depth-sm">
                   <CardHeader className="p-6">
                     <CardTitle className="text-base">暂无评价</CardTitle>
                     <CardDescription>登录后发布第一条真实评价。</CardDescription>
