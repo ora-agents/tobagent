@@ -141,6 +141,18 @@ make dev-backend
 make dev-frontend
 ```
 
+When developing from an additional Git worktree, reuse the PostgreSQL, Redis,
+and speaker containers already running from the primary worktree:
+
+```bash
+make dev-worktree
+```
+
+This command reads the shared containers' published ports, selects available
+backend and frontend ports starting at `2025` and `3000`, and configures the
+frontend and backend CORS settings automatically. Start the shared containers
+from the primary worktree with `make dev-infra` first.
+
 ## Common Commands
 
 ```bash
@@ -149,6 +161,9 @@ make install
 
 # Start the full local development environment
 make dev-local
+
+# Start a worktree using shared infra and automatically selected ports
+make dev-worktree
 
 # Start only the backend
 make dev-backend
