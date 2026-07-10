@@ -21,6 +21,8 @@ The frontend has two deployable surfaces:
 - Website: the browser-hosted Next.js app. The main management UI is the root route `/`, and `agentapp` is the separate app under `/agentapp`. Web changes usually affect `frontend/app/**`, `frontend/components/**`, `frontend/lib/**`, and `frontend/public/**`.
 - Desktop app: the Tauri application under `frontend/src-tauri/`. It packages the static Next.js export from `frontend/out` and does not automatically start an embedded local backend. Desktop builds default to the official backend `https://gen.wsiri.cn`, and future backend-switching UI must be limited to the Tauri runtime unless explicitly requested for the website.
 
+The public introduction page for a shared Agent App is `/share?agentShare=<share-token>` (for example, `http://localhost:3000/share?agentShare=iumm-123`). Treat this as the canonical Agent App introduction page; the corresponding chat application is `/agentapp/?agentShare=<share-token>`. When adding navigation from the Agent App to its introduction, preserve and use the active share token rather than creating a second in-app introduction route.
+
 When changing frontend behavior, state whether the change affects the website, the desktop app, or both. For website-only changes, do not modify Tauri config or desktop release workflows. For desktop-only changes, verify `frontend/src-tauri`, `frontend/package.json` desktop scripts, and `frontend/lib/constants/api.ts` when backend routing is involved.
 
 ## Build, Test, and Development Commands
