@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+import pyotp
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -15,7 +16,7 @@ from src.utils.db import Base, PaymentOrderTable, UserTable, get_db
 @pytest.fixture()
 def platform_admin_client(monkeypatch):
     """Provide a clean database and enabled administrator key."""
-    monkeypatch.setenv("PLATFORM_ADMIN_KEY", "test-platform-admin-key")
+    monkeypatch.setenv("PLATFORM_ADMIN_TOTP_SECRET", "JBSWY3DPEHPK3PXP")
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -39,14 +40,14 @@ def platform_admin_client(monkeypatch):
         app.dependency_overrides.pop(get_db, None)
 
 
-def test_platform_admin_is_hidden_without_environment_key(monkeypatch):
-    monkeypatch.delenv("PLATFORM_ADMIN_KEY", raising=False)
+def test_platform_admin_is_hidden_without_totp_environment_secret(monkeypatch):
+    monkeypatch.delenv("PLATFORM_ADMIN_TOTP_SECRET", raising=False)
     with TestClient(app) as client:
-        response = client.post("/api/platform-admin/session", json={"key": "anything"})
+        response = client.post("/api/platform-admin/session", json={"username": "admin", "password": "password123", "totpCode": "000000"})
     assert response.status_code == 404
 
 
-def test_platform_admin_requires_key_and_returns_full_user_and_order_data(platform_admin_client):
+def test_platform_admin_totp_registration_and_sensitive_actions(platform_admin_client):
     client, Session = platform_admin_client
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     with Session() as db:
@@ -69,10 +70,21 @@ def test_platform_admin_requires_key_and_returns_full_user_and_order_data(platfo
         ])
         db.commit()
 
+    secret = "JBSWY3DPEHPK3PXP"
+    code = pyotp.TOTP(secret).now()
     assert client.get("/api/platform-admin/overview").status_code == 401
-    assert client.post("/api/platform-admin/session", json={"key": "wrong"}).status_code == 401
+    assert client.post("/api/platform-admin/totp/provisioning").status_code == 401
+    qr = client.post("/api/platform-admin/totp/provisioning", headers={"X-Platform-Admin-Setup-Key": secret})
+    assert qr.status_code == 200
+    assert qr.json()["qrCodeDataUrl"].startswith("data:image/png;base64,")
+    assert qr.json()["provisioningUri"].startswith("otpauth://totp/")
 
-    login = client.post("/api/platform-admin/session", json={"key": "test-platform-admin-key"})
+    register = client.post("/api/platform-admin/register", json={"username": "platform-admin", "password": "password123", "totpCode": code})
+    assert register.status_code == 200
+    assert register.json()["username"] == "platform-admin"
+    assert client.post("/api/platform-admin/register", json={"username": "another", "password": "password123", "totpCode": code}).status_code == 409
+
+    login = client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123", "totpCode": code})
     assert login.status_code == 200
     assert "tob_platform_admin" in login.cookies
     assert "httponly" in login.headers["set-cookie"].lower()
@@ -101,6 +113,10 @@ def test_platform_admin_requires_key_and_returns_full_user_and_order_data(platfo
     assert orders.json()["items"][0]["sellerUsername"] == "seller"
     assert orders.json()["items"][0]["amountCents"] == 1288
 
-    logout = client.delete("/api/platform-admin/session")
+    password_change = client.put("/api/platform-admin/password", json={"currentPassword": "password123", "newPassword": "password456", "totpCode": code})
+    assert password_change.status_code == 204
+    logout = client.request("DELETE", "/api/platform-admin/session", json={"totpCode": code})
     assert logout.status_code == 204
     assert client.get("/api/platform-admin/overview").status_code == 401
+    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password123", "totpCode": code}).status_code == 401
+    assert client.post("/api/platform-admin/session", json={"username": "platform-admin", "password": "password456", "totpCode": code}).status_code == 200

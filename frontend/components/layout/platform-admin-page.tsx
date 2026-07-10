@@ -71,7 +71,10 @@ function StatCard({ label, value, description }: { label: string; value: string 
 
 export function PlatformAdminPage() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null)
-  const [adminKey, setAdminKey] = useState('')
+  const [registered, setRegistered] = useState<boolean | null>(null)
+  const [adminUsername, setAdminUsername] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -109,10 +112,11 @@ export function PlatformAdminPage() {
 
   useEffect(() => {
     let active = true
-    backendFetch('/api/platform-admin/session')
-      .then((response) => {
+    Promise.all([backendFetch('/api/platform-admin/session'), backendFetch('/api/platform-admin/setup-status')])
+      .then(([response, setupResponse]) => {
         if (!active) return
         setAuthenticated(response.ok)
+        if (setupResponse.ok) void setupResponse.json().then((payload) => active && setRegistered(payload.registered))
       })
       .catch(() => active && setAuthenticated(false))
     return () => { active = false }
@@ -127,9 +131,15 @@ export function PlatformAdminPage() {
     setSubmitting(true)
     setError(null)
     try {
-      const response = await backendFetch('/api/platform-admin/session', { method: 'POST', json: { key: adminKey }, anonymous: true })
-      if (!response.ok) throw new Error(response.status === 404 ? '平台管理未在服务器上启用。' : '管理员密钥无效。')
-      setAdminKey('')
+      const endpoint = registered ? '/api/platform-admin/session' : '/api/platform-admin/register'
+      const response = await backendFetch(endpoint, { method: 'POST', json: { username: adminUsername, password: adminPassword, totpCode }, anonymous: true })
+      if (!response.ok) throw new Error(response.status === 404 ? '平台管理未在服务器上启用。' : registered ? '账号、密码或动态验证码无效。' : '注册失败：请确认动态验证码有效且尚未注册管理员。')
+      setAdminPassword('')
+      setTotpCode('')
+      if (!registered) {
+        setRegistered(true)
+        return
+      }
       setAuthenticated(true)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '无法验证管理员密钥。')
@@ -151,7 +161,13 @@ export function PlatformAdminPage() {
   }
 
   const logout = async () => {
-    await backendFetch('/api/platform-admin/session', { method: 'DELETE' })
+    const code = window.prompt('请输入 Google Authenticator 的 6 位动态验证码以退出')
+    if (!code) return
+    const response = await backendFetch('/api/platform-admin/session', { method: 'DELETE', json: { totpCode: code } })
+    if (!response.ok) {
+      setError('动态验证码无效，未退出当前会话。')
+      return
+    }
     setOverview(null)
     setAuthenticated(false)
   }
@@ -167,15 +183,21 @@ export function PlatformAdminPage() {
           <CardHeader>
             <div className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"><KeyRound /></div>
             <CardTitle>平台管理</CardTitle>
-            <CardDescription>输入服务器环境变量中的管理员密钥以访问平台数据。</CardDescription>
+            <CardDescription>{registered ? '输入管理员账号、密码和 Google Authenticator 动态验证码。' : '先使用 Google Authenticator 扫描部署人员提供的二维码，再注册首个管理员账号。'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={submitLogin} className="flex flex-col gap-4">
               {error && <StatusNotice tone="error" wrap>{error}</StatusNotice>}
-              <FormField id="platform-admin-key" label="管理员密钥" required>
-                <Input id="platform-admin-key" type="password" autoComplete="current-password" value={adminKey} onChange={(event) => setAdminKey(event.target.value)} disabled={submitting} />
+              <FormField id="platform-admin-username" label="管理员账号" required>
+                <Input id="platform-admin-username" autoComplete="username" value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} disabled={submitting || registered === null} />
               </FormField>
-              <Button type="submit" disabled={submitting || !adminKey}>{submitting ? '验证中…' : '进入管理后台'}</Button>
+              <FormField id="platform-admin-password" label="密码" required>
+                <Input id="platform-admin-password" type="password" autoComplete={registered ? 'current-password' : 'new-password'} value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} disabled={submitting || registered === null} />
+              </FormField>
+              <FormField id="platform-admin-totp" label="Google Authenticator 动态验证码" required>
+                <Input id="platform-admin-totp" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={totpCode} onChange={(event) => setTotpCode(event.target.value.replace(/\D/g, ''))} disabled={submitting || registered === null} />
+              </FormField>
+              <Button type="submit" disabled={submitting || registered === null || !adminUsername || !adminPassword || totpCode.length !== 6}>{submitting ? '验证中…' : registered ? '进入管理后台' : '注册管理员账号'}</Button>
             </form>
           </CardContent>
         </Card>

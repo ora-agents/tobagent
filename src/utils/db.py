@@ -102,6 +102,17 @@ class UserTable(Base):
     created_at = Column(String(50), nullable=False)
 
 
+class PlatformAdminTable(Base):
+    """Singleton account authorized to access platform-wide reporting."""
+    __tablename__ = "platform_admins"
+
+    id = Column(String(255), primary_key=True, index=True)
+    username = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    created_at = Column(String(50), nullable=False)
+    updated_at = Column(String(50), nullable=False)
+
+
 class UserApiKeyTable(Base):
     """User-scoped API keys for remote LangGraph SDK calls."""
     __tablename__ = "user_api_keys"
