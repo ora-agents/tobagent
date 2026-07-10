@@ -9,13 +9,18 @@ import {
   Check,
   ChevronRight,
   CircleHelp,
+  Cpu,
   Database,
+  FileText,
   Headphones,
   MessageSquareText,
   Mic2,
+  Share2,
   ShieldCheck,
   Sparkles,
   Star,
+  TableProperties,
+  Wrench,
   Workflow,
 } from "lucide-react"
 
@@ -65,6 +70,63 @@ const capabilities = [
   },
 ]
 
+const platformModules = [
+  {
+    icon: Bot,
+    title: "专属 Agent",
+    description: "为不同业务线配置模型、系统提示词、人格边界与默认语音，按需组合子 Agent。",
+    detail: "角色模板 · 子 Agent · 独立权限",
+  },
+  {
+    icon: Wrench,
+    title: "可复用技能",
+    description: "将服务 SOP、审核标准、写作格式和工具使用习惯沉淀为技能，供多个 Agent 复用。",
+    detail: "业务规则 · 团队复用 · 一致输出",
+  },
+  {
+    icon: Database,
+    title: "检索增强知识库",
+    description: "上传业务文档、政策和 FAQ，绑定到 Agent 后为回答提供可追溯的检索依据。",
+    detail: "文档管理 · 语义检索 · 知识引用",
+  },
+  {
+    icon: TableProperties,
+    title: "业务表单与宏工具",
+    description: "把结构化业务数据和固定操作步骤交给 Agent，在权限范围内完成查询与处理。",
+    detail: "表单数据 · 读写权限 · 宏操作",
+  },
+  {
+    icon: Cpu,
+    title: "MCP 外部连接",
+    description: "登记并连接外部 MCP Server，让 Agent 使用服务提供的工具、资源与提示词。",
+    detail: "外部系统 · 工具发现 · 动态注入",
+  },
+  {
+    icon: Mic2,
+    title: "多端语音服务",
+    description: "支持语音输入、实时听写、TTS 播报、打断控制与可选声纹验证，衔接网页、桌面与移动端。",
+    detail: "语音状态同步 · 播报中断 · 身份验证",
+  },
+]
+
+const serviceFlow = [
+  {
+    icon: FileText,
+    title: "沉淀资料与规则",
+    description: "将企业知识、流程 SOP 和结构化数据整理为可配置资源。",
+  },
+  {
+    icon: Bot,
+    title: "组装专属 Agent",
+    description: "为每个业务场景绑定模型、知识、技能、工具和语音体验。",
+  },
+  {
+    icon: Share2,
+    title: "分享、运行与迭代",
+    description: "通过分享链接复用配置，并从会话和运行追踪中持续优化服务。",
+  },
+]
+
 const faqs = [
   {
     question: "适合哪些企业场景？",
@@ -72,7 +134,11 @@ const faqs = [
   },
   {
     question: "可以接入企业已有资料吗？",
-    answer: "可以围绕企业文档、知识库、表单和工具接口构建专属 Agent，具体接入方式按部署环境配置。",
+    answer: "可以。企业文档可进入知识库，业务记录可用表单管理，外部系统可通过 MCP 或工具接口接入，再按 Agent 配置授权。",
+  },
+  {
+    question: "能把一套成熟的配置分享给团队吗？",
+    answer: "可以。Agent 可生成分享链接，按选择的范围打包角色及其关联的技能、知识库、表单、MCP 和多角色依赖，便于复用。",
   },
   {
     question: "网站和桌面端是什么关系？",
@@ -505,6 +571,7 @@ export function OfficialHomePage() {
           </Link>
           <nav className="hidden items-center gap-7 text-sm font-medium text-muted-foreground lg:flex">
             <a href="#product" className="transition-colors hover:text-foreground">产品能力</a>
+            <a href="#modules" className="transition-colors hover:text-foreground">能力模块</a>
             <a href="#interface" className="transition-colors hover:text-foreground">工作台</a>
             <a href="#reviews" className="transition-colors hover:text-foreground">用户评价</a>
           </nav>
@@ -534,10 +601,10 @@ export function OfficialHomePage() {
               <h1 className="max-w-3xl text-5xl font-semibold leading-[1.08] sm:text-6xl xl:text-7xl">
                 让每一次服务，
                 <br />
-                都有知识可依。
+                都能准确落地。
               </h1>
               <p className="max-w-xl text-lg leading-8 text-muted-foreground">
-                {SITE_DESCRIPTION} 统一管理知识、Agent、工具与语音能力，构建稳定、可控的企业智能服务中枢。
+                {SITE_DESCRIPTION} 将知识、Agent、技能、表单、MCP 工具和语音服务汇集到同一工作台，让企业智能服务有据可查、可执行、可持续优化。
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -552,7 +619,7 @@ export function OfficialHomePage() {
               </Button>
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              {["无需信用卡", "快速配置", "支持专属部署"].map((item) => (
+              {["角色、技能与知识按需组合", "网页、桌面与移动端语音协同", "分享、追踪与权限配置一体化"].map((item) => (
                 <span key={item} className="flex items-center gap-1.5">
                   <Check className="size-4 text-primary-text" />
                   {item}
@@ -590,6 +657,58 @@ export function OfficialHomePage() {
         </div>
       </section>
 
+      <section id="modules" className="px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto flex max-w-7xl flex-col gap-14">
+          <SectionHeading
+            eyebrow="能力模块"
+            title="从知识到执行，构建属于你的服务系统"
+            description="平台把资料、规则、角色、数据和外部能力拆成清晰模块。按场景选用并组合，无需为每一个新任务重新搭建服务链路。"
+          />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {platformModules.map((item) => (
+              <Card key={item.title} className="flex min-h-64 flex-col shadow-depth-xs">
+                <CardHeader className="gap-4 p-6">
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                    <item.icon className="size-5" />
+                  </div>
+                  <CardTitle className="text-xl leading-tight">{item.title}</CardTitle>
+                  <CardDescription className="leading-6">{item.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="mt-auto p-6 pt-0 text-xs font-semibold text-primary-text">
+                  {item.detail}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-background-tint px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto flex max-w-7xl flex-col gap-14">
+          <SectionHeading
+            eyebrow="搭建方式"
+            title="用一条可管理的链路，让智能服务走进业务"
+            description="从内容沉淀到上线运行，每一步都对应平台中的实际能力。团队可以先从一个场景开始，再逐步扩大服务范围。"
+          />
+          <div className="grid gap-4 lg:grid-cols-3">
+            {serviceFlow.map((item, index) => (
+              <article key={item.title} className="flex flex-col gap-5 rounded-xl bg-card p-6 sm:p-7">
+                <div className="flex items-center justify-between">
+                  <span className="flex size-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                    <item.icon className="size-5" />
+                  </span>
+                  <span className="text-xs font-semibold text-muted-foreground">0{index + 1}</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-xl font-semibold">{item.title}</h3>
+                  <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section id="interface" className="px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
           <div className="flex flex-col gap-6">
@@ -600,10 +719,10 @@ export function OfficialHomePage() {
               始终清晰可见。
             </h2>
             <p className="max-w-lg text-base leading-7 text-muted-foreground">
-              会话、知识命中、工具调用和人工接管都在同一条处理链路中。客服专注解决问题，管理员随时掌握运行状态。
+              对话、文件、知识命中、工具调用和人工接管都在同一条处理链路中；管理端还可查看运行追踪、配置变更与工作区状态。
             </p>
             <div className="flex flex-col gap-3 text-sm font-medium">
-              {["按业务线管理专属 Agent", "查看知识依据与工具结果", "追踪关键节点与异常状态"].map((item) => (
+              {["按业务线管理专属 Agent 与关联资源", "查看知识依据、文件和工具结果", "追踪关键节点、配置变更与异常状态"].map((item) => (
                 <div key={item} className="flex items-center gap-3">
                   <span className="flex size-6 items-center justify-center rounded-md bg-primary-soft text-primary">
                     <Check className="size-3.5" />
