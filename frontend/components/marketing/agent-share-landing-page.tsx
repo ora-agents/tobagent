@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   CircleHelp,
   MessageSquareText,
-  ShieldCheck,
   Star,
 } from "lucide-react"
 
@@ -315,10 +314,6 @@ export function AgentShareLandingPage({ token }: { token: string }) {
       <section id="intro" className="bg-background-tint">
         <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.92fr_1.08fr] lg:px-8 lg:py-20">
           <div className="flex flex-col gap-7">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-card px-3 py-1 text-xs font-semibold text-primary shadow-depth-xs">
-              <ShieldCheck className="size-4" />
-              共享 Agent
-            </div>
             <div className="flex flex-col gap-5">
               <h1 className="text-4xl font-semibold leading-tight text-foreground sm:text-5xl lg:text-6xl">
                 {preview.agent.name}
