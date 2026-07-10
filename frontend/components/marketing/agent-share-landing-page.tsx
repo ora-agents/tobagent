@@ -333,7 +333,7 @@ export function AgentShareLandingPage({ token }: { token: string }) {
                 <a href="#reviews">查看评价</a>
               </Button>
             </div>
-            <div className="grid max-w-xl grid-cols-3 gap-3">
+            <div className="grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-3">
               {[
                 preview.isPaid
                   ? preview.pricingMode === "subscription"
@@ -342,8 +342,14 @@ export function AgentShareLandingPage({ token }: { token: string }) {
                   : "免费体验",
                 `${Object.values(preview.resources).reduce((total, value) => total + value, 0)} 个资源`,
                 preview.agent.model || "默认模型",
-              ].map((item) => (
-                <div key={item} className="rounded-lg bg-card px-3 py-3 text-center text-sm font-semibold shadow-depth-xs">
+              ].map((item, index) => (
+                <div
+                  key={item}
+                  className={cn(
+                    "min-w-0 rounded-lg bg-card px-3 py-3 text-center text-sm font-semibold shadow-depth-xs",
+                    index === 0 && "col-span-2 sm:col-span-1",
+                  )}
+                >
                   {item}
                 </div>
               ))}
