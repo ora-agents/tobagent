@@ -6,13 +6,13 @@ import { Bell, Check, LoaderCircle, RefreshCw, X } from "lucide-react"
 import { ChangeDetail } from "@/components/layout/management-dashboard/change-detail"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAuth } from "@/components/providers/auth-provider"
 import { useI18n } from "@/lib/i18n"
@@ -108,27 +108,27 @@ export function WorkspaceNotifications() {
         )}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[88dvh] flex-col overflow-hidden sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      <Drawer open={open} onOpenChange={setOpen} direction="right">
+        <DrawerContent className="h-dvh w-full max-w-none border-border sm:max-w-2xl">
+          <DrawerHeader className="shrink-0 border-b border-border px-5 py-4">
+            <DrawerTitle className="flex items-center gap-2 text-lg">
               <Bell className="h-5 w-5 text-primary" />
               {zh ? "工作间通知" : "Workspace notifications"}
-            </DialogTitle>
-            <DialogDescription>
+            </DrawerTitle>
+            <DrawerDescription>
               {zh
                 ? `${unreadCount} 条待查看，${notifications.length} 条相关通知`
                 : `${unreadCount} unread, ${notifications.length} total`}
-            </DialogDescription>
-          </DialogHeader>
+            </DrawerDescription>
+          </DrawerHeader>
 
           {error && (
-            <div className="shrink-0 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="mx-5 mt-3 shrink-0 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </div>
           )}
 
-          <ScrollArea className="min-h-0 flex-1" contentClassName="pr-1">
+          <ScrollArea className="min-h-0 flex-1 px-5 py-4" contentClassName="pr-1">
             <div className="space-y-3">
               {notifications.map((notification) => {
                 const canReview = notification.kind === "pending_review" && notification.change.status === "pending"
@@ -205,7 +205,7 @@ export function WorkspaceNotifications() {
             </div>
           </ScrollArea>
 
-          <DialogFooter className="shrink-0">
+          <DrawerFooter className="shrink-0 border-t border-border px-5 py-4 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
               {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {zh ? "刷新" : "Refresh"}
@@ -213,9 +213,9 @@ export function WorkspaceNotifications() {
             <Button onClick={() => setOpen(false)}>
               {zh ? "关闭" : "Close"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </>
   )
 }
