@@ -530,7 +530,6 @@ export function OfficialHomePage() {
             <HeroCapabilityMap />
           </div>
           <div className="order-1 flex flex-col gap-7 lg:order-2">
-            <Eyebrow>威思瑞通用智能体平台</Eyebrow>
             <div className="flex flex-col gap-5">
               <h1 className="max-w-3xl text-5xl font-semibold leading-[1.08] sm:text-6xl xl:text-7xl">
                 让每一次服务，
