@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import Response
 
 SESSION_COOKIE_NAME = "tob_session"
+PLATFORM_ADMIN_SESSION_COOKIE_NAME = "tob_platform_admin"
 DESKTOP_SESSION_HEADER = "x-tob-desktop-session"
 SESSION_MAX_AGE_SECONDS = int(os.getenv("SESSION_MAX_AGE_SECONDS", str(60 * 60 * 24 * 30)))
 SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "lax").lower()
@@ -63,6 +64,31 @@ def create_session_token(user_id: str) -> str:
     return f"{signing_input}.{_b64url_encode(signature)}"
 
 
+def create_platform_admin_session_token() -> str:
+    """Create a short-lived signed session token for the platform console."""
+    now = int(time.time())
+    max_age = int(os.getenv("PLATFORM_ADMIN_SESSION_MAX_AGE_SECONDS", str(60 * 60 * 8)))
+    header = {"alg": JWT_ALGORITHM, "typ": "JWT"}
+    payload: dict[str, Any] = {
+        "sub": "platform-admin",
+        "scope": "platform-admin",
+        "iat": now,
+        "exp": now + max_age,
+    }
+    signing_input = ".".join(
+        (
+            _b64url_encode(json.dumps(header, separators=(",", ":")).encode("utf-8")),
+            _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8")),
+        )
+    )
+    signature = hmac.new(
+        _session_secret().encode("utf-8"),
+        signing_input.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return f"{signing_input}.{_b64url_encode(signature)}"
+
+
 def wants_desktop_session_token(value: str | None) -> bool:
     """Return whether a request explicitly asks for a desktop bearer token."""
     return value is not None and value.lower() in {"1", "true", "yes"}
@@ -95,6 +121,60 @@ def verify_session_token(token: str | None) -> str | None:
         return subject if isinstance(subject, str) and subject else None
     except Exception:
         return None
+
+
+def verify_platform_admin_session_token(token: str | None) -> bool:
+    """Return whether a signed token authorizes access to the platform console."""
+    if not token:
+        return False
+    try:
+        header_part, payload_part, signature_part = token.split(".", 2)
+        signing_input = f"{header_part}.{payload_part}"
+        expected = hmac.new(
+            _session_secret().encode("utf-8"),
+            signing_input.encode("ascii"),
+            hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(expected, _b64url_decode(signature_part)):
+            return False
+        header = json.loads(_b64url_decode(header_part))
+        payload = json.loads(_b64url_decode(payload_part))
+        return bool(
+            header.get("alg") == JWT_ALGORITHM
+            and payload.get("sub") == "platform-admin"
+            and payload.get("scope") == "platform-admin"
+            and isinstance(payload.get("exp"), int)
+            and payload["exp"] >= int(time.time())
+        )
+    except Exception:
+        return False
+
+
+def set_platform_admin_session_cookie(response: Response) -> None:
+    """Attach the HttpOnly platform-administrator session cookie."""
+    max_age = int(os.getenv("PLATFORM_ADMIN_SESSION_MAX_AGE_SECONDS", str(60 * 60 * 8)))
+    response.set_cookie(
+        key=PLATFORM_ADMIN_SESSION_COOKIE_NAME,
+        value=create_platform_admin_session_token(),
+        max_age=max_age,
+        httponly=True,
+        secure=SESSION_COOKIE_SECURE,
+        samesite=SESSION_COOKIE_SAMESITE,  # type: ignore[arg-type]
+        domain=SESSION_COOKIE_DOMAIN,
+        path="/",
+    )
+
+
+def clear_platform_admin_session_cookie(response: Response) -> None:
+    """Clear the platform-administrator session cookie."""
+    response.delete_cookie(
+        key=PLATFORM_ADMIN_SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=SESSION_COOKIE_SECURE,
+        samesite=SESSION_COOKIE_SAMESITE,  # type: ignore[arg-type]
+        domain=SESSION_COOKIE_DOMAIN,
+        path="/",
+    )
 
 
 def set_session_cookie(response: Response, user_id: str) -> None:

@@ -31,6 +31,7 @@ from src.api.routes.mcp_servers import router as mcp_servers_router
 from src.api.routes.model_gateway import router as model_gateway_router
 from src.api.routes.models import router as models_router
 from src.api.routes.payments import router as payments_router
+from src.api.routes.platform_admin import router as platform_admin_router
 from src.api.routes.site_testimonials import router as site_testimonials_router
 from src.api.routes.skills import router as skills_router
 from src.api.routes.sms_hooks import router as sms_hooks_router
@@ -208,6 +209,7 @@ app = FastAPI(
         {"name": "langsmith", "description": "LangSmith run lookup and share helpers."},
         {"name": "traces", "description": "Read-only Langfuse trace browsing for agent conversations."},
         {"name": "site-testimonials", "description": "Public homepage testimonials from authenticated users."},
+        {"name": "platform-admin", "description": "Restricted platform-level account and payment reporting."},
     ],
 )
 
@@ -263,6 +265,7 @@ app.include_router(workspaces_router)
 app.include_router(config_bundles_router)
 app.include_router(agent_profiles_router)
 app.include_router(payments_router)
+app.include_router(platform_admin_router)
 app.include_router(site_testimonials_router)
 app.include_router(forms_router)
 app.include_router(skills_router)
