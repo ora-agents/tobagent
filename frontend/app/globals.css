@@ -46,6 +46,7 @@ html[data-tauri-runtime="true"] .site-compliance-footer {
   --brand-blue-active: #10357f;
   --brand-blue-soft: #eaf1ff;
   --brand-blue-mist: #f5f8ff;
+  --brand-blue-text: #164199;
   --accent-cyan: #18a8b8;
   --accent-amber: #d99a24;
 
@@ -99,6 +100,7 @@ html[data-tauri-runtime="true"] .site-compliance-footer {
    Dark theme — black WSIRI product surface
    ============================================================ */
 .dark {
+  --brand-blue-text: #8fb2ff;
   --background: #181715;           /* surface-dark */
   --background-tint: #1f1e1b;
   --foreground: #faf9f5;           /* on-dark */
@@ -169,6 +171,7 @@ html[data-tauri-runtime="true"] .site-compliance-footer {
   --color-sidebar-ring: var(--sidebar-ring);
   --color-coral: var(--coral);
   --color-brand-blue: var(--brand-blue);
+  --color-primary-text: var(--brand-blue-text);
   --color-accent-cyan: var(--accent-cyan);
   --color-accent-amber: var(--accent-amber);
 

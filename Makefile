@@ -1,5 +1,6 @@
 .PHONY: \
 	dev dev-frontend dev-backend dev-local dev-infra \
+	dev-worktree \
 	prod prod-backend prod-frontend build-frontend start-frontend \
 	deploy-prod deploy-prod-no-build deploy-down deploy-logs \
 	check-backend-port check-frontend-port check-ports \
@@ -118,6 +119,18 @@ stop-ports: stop-backend-port stop-frontend-port
 # Run both frontend and backend concurrently
 dev: dev-infra stop-ports
 	@$(call run_concurrent,"$(MAKE)" dev-backend,$(call run_frontend_local))
+
+# Run this worktree on automatically selected ports while reusing the shared
+# PostgreSQL, Redis, and speaker containers started by another worktree.
+dev-worktree:
+	@BACKEND_HOST="$(BACKEND_HOST)" \
+	BACKEND_PORT_START="$(BACKEND_PORT)" \
+	FRONTEND_HOST="$(FRONTEND_HOST)" \
+	FRONTEND_PORT_START="$(FRONTEND_PORT)" \
+	SPEAKER_CONTAINER="$${SPEAKER_CONTAINER:-tobagent-speaker}" \
+	POSTGRES_CONTAINER="$${POSTGRES_CONTAINER:-tobagent-postgres}" \
+	REDIS_CONTAINER="$${REDIS_CONTAINER:-tobagent-redis}" \
+	bash scripts/dev-worktree.sh
 
 # Frontend only (connects to the configured Aegra/LangGraph API)
 dev-frontend: check-frontend-port
