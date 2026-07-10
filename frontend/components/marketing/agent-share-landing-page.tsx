@@ -29,7 +29,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/components/providers/auth-provider"
 import { PlatformFooter } from "@/components/layout/platform-footer"
 import { backendFetch } from "@/lib/api/backend-fetch"
-import { SITE_NAME } from "@/lib/constants/site"
 import { useApiConfig } from "@/lib/config/api-config"
 import type { AgentSharePreview } from "@/lib/types/agent-profiles"
 import { cn } from "@/lib/utils"
@@ -293,9 +292,8 @@ export function AgentShareLandingPage({ token }: { token: string }) {
     <main className="h-svh overflow-y-auto bg-background text-foreground">
       <header className="sticky top-0 z-10 bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-3" aria-label={SITE_NAME}>
+          <Link href="/" className="flex items-center" aria-label="威思瑞 WSIRI">
             <Image src={logoImage} alt="威思瑞 WSIRI" width={112} height={72} priority className="h-10 w-auto" />
-            <span className="hidden text-sm font-semibold sm:inline">{SITE_NAME}</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
             <a href="#intro" className="hover:text-foreground">介绍</a>
