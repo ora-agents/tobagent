@@ -4,26 +4,22 @@ import Image from "next/image"
 import Link from "next/link"
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Activity,
   ArrowRight,
-  BarChart3,
   Bot,
-  CalendarDays,
-  CheckCircle2,
+  Check,
+  ChevronRight,
   CircleHelp,
-  DatabaseZap,
-  FileSearch,
+  Database,
   Headphones,
-  Layers3,
   MessageSquareText,
   Mic2,
-  PanelLeft,
   ShieldCheck,
   Sparkles,
   Star,
   Workflow,
 } from "lucide-react"
 
+import { useAuth } from "@/components/providers/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -37,77 +33,66 @@ import { Input } from "@/components/ui/input"
 import { StatusNotice } from "@/components/ui/status-notice"
 import { Textarea } from "@/components/ui/textarea"
 import { backendFetch } from "@/lib/api/backend-fetch"
-import { ICP_RECORD, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site"
 import { useApiConfig } from "@/lib/config/api-config"
-import { useAuth } from "@/components/providers/auth-provider"
+import { ICP_RECORD, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants/site"
 import { cn } from "@/lib/utils"
 import logoImage from "@/public/logo.png"
 
-const productHighlights = [
+const salesHelperAgentHref = `${SITE_URL}/agentapp/?agentShare=wsiri-sales-helper`
+
+const capabilities = [
   {
-    icon: Bot,
-    title: "专属客服 Agent",
-    description: "按业务线配置角色、模型、知识与工具，让每个场景拥有稳定可控的数字客服。",
+    number: "01",
+    icon: Database,
+    title: "让企业知识真正可用",
+    description: "集中沉淀产品文档、FAQ 与服务流程，为每次回复提供一致、可追溯的依据。",
+    detail: "知识入库 · 语义检索 · 引用追踪",
   },
   {
-    icon: DatabaseZap,
-    title: "企业知识库问答",
-    description: "沉淀产品文档、FAQ 与流程资料，帮助客服回复保持一致、可追溯、可复用。",
-  },
-  {
+    number: "02",
     icon: Workflow,
-    title: "流程与工具编排",
-    description: "把查询、表单、外部系统与人工接管串联起来，覆盖咨询、售后与内部支持流程。",
+    title: "把工具接入服务流程",
+    description: "按业务场景编排查询、表单、外部系统与人工接管，让 Agent 不只回答问题。",
+    detail: "工具调用 · 流程编排 · 权限控制",
   },
   {
+    number: "03",
     icon: Mic2,
-    title: "语音交互能力",
-    description: "支持唤醒、听写、播报与打断等语音链路，为桌面与移动场景提供自然交互。",
+    title: "覆盖自然的语音交互",
+    description: "统一唤醒、听写、播报与中断链路，为桌面和移动场景提供连贯体验。",
+    detail: "语音唤醒 · 实时听写 · 自然播报",
   },
 ]
 
 const pricingPlans = [
-  { duration: "3 个月", price: "1200 元", note: "适合短期验证" },
-  { duration: "6 个月", price: "2200 元", note: "适合阶段部署" },
-  { duration: "12 个月", price: "4000 元", note: "适合长期使用" },
+  { duration: "3 个月", price: "1,200", note: "适合短期验证" },
+  { duration: "6 个月", price: "2,200", note: "适合阶段部署" },
+  { duration: "12 个月", price: "4,000", note: "适合长期使用" },
 ]
 
 const pricingFeatures = [
+  "7 天完整试用",
   "不限坐席和渠道数量",
-  "金牌客服话术、豆包、DeepSeek、千问等大模型驱动",
-  "设备报修/报警自动提醒家人、创建工单、及时呼叫救援，并实时反馈救援/维修状态",
-]
-
-const salesHelperAgentHref = `${SITE_URL}/agentapp/?agentShare=wsiri-sales-helper`
-
-const heroMetrics = [
-  { value: "01", label: "知识沉淀", description: "文档、FAQ、流程统一归档" },
-  { value: "02", label: "能力编排", description: "Agent、工具、策略按场景配置" },
-  { value: "03", label: "运行追踪", description: "知识命中与工具调用可回溯" },
-]
-
-const workflowStats = [
-  { label: "知识覆盖", value: "96.8%" },
-  { label: "平均响应", value: "1.2s" },
-  { label: "人工接管", value: "12%" },
+  "支持主流大模型与企业知识库",
+  "报修、报警、工单和救援流程联动",
 ]
 
 const faqs = [
   {
     question: "适合哪些企业场景？",
-    answer: "适合需要客服问答、售后支持、内部知识助手、业务流程咨询和多 Agent 管理的团队。",
+    answer: "适合客服问答、售后支持、内部知识助手、业务流程咨询和多 Agent 管理等场景。",
   },
   {
-    question: "是否可以接入企业已有资料？",
+    question: "可以接入企业已有资料吗？",
     answer: "可以围绕企业文档、知识库、表单和工具接口构建专属 Agent，具体接入方式按部署环境配置。",
   },
   {
     question: "网站和桌面端是什么关系？",
-    answer: "网站提供浏览器工作台，桌面端复用同一套界面并面向桌面运行环境做后端地址等能力适配。",
+    answer: "网站提供浏览器工作台，桌面端复用同一套界面，并针对桌面运行环境提供适配。",
   },
   {
     question: "是否支持语音客服体验？",
-    answer: "支持语音输入、TTS 播放、状态同步和中断控制等能力，可与原生端语音提供方协同工作。",
+    answer: "支持语音输入、TTS 播放、状态同步和中断控制，可与原生端语音能力协同工作。",
   },
 ]
 
@@ -121,6 +106,125 @@ interface SiteTestimonial {
   createdAt: string
   updatedAt: string
   isOwn?: boolean
+}
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary-text">
+      <span className="h-px w-6 bg-primary-text" aria-hidden="true" />
+      {children}
+    </div>
+  )
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+}) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+      <div className="flex flex-col gap-4">
+        <Eyebrow>{eyebrow}</Eyebrow>
+        <h2 className="max-w-2xl text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+          {title}
+        </h2>
+      </div>
+      <p className="max-w-2xl text-base leading-7 text-muted-foreground lg:justify-self-end">
+        {description}
+      </p>
+    </div>
+  )
+}
+
+function ProductPreview() {
+  const stats = [
+    { label: "知识覆盖", value: "96.8%" },
+    { label: "平均响应", value: "1.2s" },
+    { label: "今日会话", value: "248" },
+  ]
+
+  return (
+    <div className="overflow-hidden rounded-2xl bg-[#181715] p-3 text-[#faf9f5] shadow-depth-lg">
+      <div className="rounded-xl bg-[#1f1e1b]">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-5">
+          <div className="flex items-center gap-2" aria-hidden="true">
+            <span className="size-2 rounded-full bg-error" />
+            <span className="size-2 rounded-full bg-warning" />
+            <span className="size-2 rounded-full bg-accent-cyan" />
+          </div>
+          <div className="text-xs font-medium text-[#a09d96]">WSIRI · 运行中</div>
+        </div>
+
+        <div className="grid min-h-[27rem] lg:grid-cols-[11rem_1fr]">
+          <aside className="hidden flex-col gap-2 rounded-l-xl bg-[#181715] p-4 lg:flex">
+            <div className="mb-3 flex items-center gap-2 text-xs font-semibold">
+              <Bot className="size-4 text-accent-cyan" />
+              服务工作台
+            </div>
+            {["对话中心", "知识管理", "工具编排", "运行追踪"].map((item, index) => (
+              <div
+                key={item}
+                className={cn(
+                  "rounded-lg px-3 py-2 text-xs font-medium",
+                  index === 0 ? "bg-primary text-primary-foreground" : "text-[#a09d96]",
+                )}
+              >
+                {item}
+              </div>
+            ))}
+            <div className="mt-auto rounded-lg bg-[#252320] p-3 text-xs leading-5 text-[#a09d96]">
+              8 个 Agent 在线
+              <br />
+              所有服务运行正常
+            </div>
+          </aside>
+
+          <div className="flex min-w-0 flex-col p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold">企业客服中枢</div>
+                <div className="mt-1 text-xs text-[#a09d96]">售前接待 Agent</div>
+              </div>
+              <div className="rounded-md bg-[#252320] px-2.5 py-1 text-xs text-[#a09d96]">生产环境</div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
+              {stats.map((item) => (
+                <div key={item.label} className="rounded-lg bg-[#252320] p-3">
+                  <div className="text-[11px] text-[#a09d96]">{item.label}</div>
+                  <div className="mt-2 text-lg font-semibold sm:text-xl">{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-1 flex-col justify-end gap-3">
+              <div className="max-w-[88%] rounded-lg bg-[#252320] p-3.5">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-accent-cyan">
+                  <Headphones className="size-4" />
+                  客户咨询
+                </div>
+                <p className="text-sm leading-6">不同产品线可以配置独立的知识和回复策略吗？</p>
+              </div>
+              <div className="ml-auto max-w-[92%] rounded-lg bg-primary p-3.5 text-primary-foreground">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
+                  <Sparkles className="size-4" />
+                  Agent 回复
+                </div>
+                <p className="text-sm leading-6">
+                  可以。每个 Agent 都能绑定独立知识库、工具权限与服务流程。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function TestimonialStars({
@@ -143,12 +247,12 @@ function TestimonialStars({
             disabled={disabled}
             aria-label={`选择 ${star} 星`}
             onClick={() => onChange(star)}
-            className="flex size-8 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10 disabled:pointer-events-none disabled:opacity-50"
+            className="flex size-8 items-center justify-center rounded-md text-primary-text transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-50"
           >
             <Star className={cn("size-4", active && "fill-current")} />
           </button>
         ) : (
-          <Star key={star} className={cn("size-4 text-primary", active && "fill-current")} />
+          <Star key={star} className={cn("size-4 text-primary-text", active && "fill-current")} />
         )
       })}
     </div>
@@ -159,18 +263,14 @@ function TestimonialCard({ item }: { item: SiteTestimonial }) {
   const subtitle = [item.role, item.company].filter(Boolean).join(" · ")
 
   return (
-    <Card className="shadow-depth-xs">
+    <Card className="bg-secondary shadow-none">
       <CardHeader className="gap-3 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="truncate text-base">{item.authorName}</CardTitle>
             {subtitle ? <CardDescription className="mt-1 truncate">{subtitle}</CardDescription> : null}
           </div>
-          {item.isOwn ? (
-            <div className="rounded-full bg-primary-soft px-2.5 py-1 text-xs font-semibold text-primary">
-              我的评价
-            </div>
-          ) : null}
+          {item.isOwn ? <span className="text-xs font-semibold text-primary-text">我的评价</span> : null}
         </div>
         <TestimonialStars value={item.rating} />
       </CardHeader>
@@ -194,7 +294,6 @@ function TestimonialComposer({
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-
   const canSubmit = user && quote.trim().length >= 10 && !submitting
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -205,19 +304,12 @@ function TestimonialComposer({
     setMessage(null)
     setError(null)
     try {
-      const resp = await backendFetch("/api/site-testimonials", {
+      const response = await backendFetch("/api/site-testimonials", {
         method: "POST",
-        json: {
-          role,
-          company,
-          rating,
-          quote,
-        },
+        json: { role, company, rating, quote },
       })
-      if (!resp.ok) {
-        throw new Error("评价发布失败，请稍后再试。")
-      }
-      const saved = (await resp.json()) as SiteTestimonial
+      if (!response.ok) throw new Error("评价发布失败，请稍后再试。")
+      const saved = (await response.json()) as SiteTestimonial
       onPublished(saved)
       setMessage("评价已发布。再次提交会更新你的评价。")
     } catch (err) {
@@ -229,8 +321,8 @@ function TestimonialComposer({
 
   if (authLoading) {
     return (
-      <Card className="shadow-depth-xs">
-        <CardHeader className="p-5">
+      <Card className="bg-secondary shadow-none">
+        <CardHeader className="p-6">
           <CardTitle className="text-base">正在检查登录状态</CardTitle>
           <CardDescription>登录后可以发表你的真实评价。</CardDescription>
         </CardHeader>
@@ -240,11 +332,11 @@ function TestimonialComposer({
 
   if (!user) {
     return (
-      <Card className="shadow-depth-xs">
-        <CardHeader className="gap-3 p-5">
-          <CardTitle className="text-base">登录后发表真实评价</CardTitle>
+      <Card className="bg-secondary shadow-none">
+        <CardHeader className="gap-4 p-6">
+          <CardTitle className="text-lg">分享你的使用体验</CardTitle>
           <CardDescription className="leading-6">
-            评价会使用你的账号名称展示，未登录访客只能浏览已发布评价。
+            登录后即可发表真实评价，内容会使用你的账号名称展示。
           </CardDescription>
           <Button asChild className="w-fit">
             <Link href="/login">登录后评价</Link>
@@ -255,15 +347,15 @@ function TestimonialComposer({
   }
 
   return (
-    <Card className="shadow-depth-xs">
-      <CardHeader className="p-5">
-        <CardTitle className="text-base">发表真实评价</CardTitle>
+    <Card className="bg-secondary shadow-none">
+      <CardHeader className="p-6">
+        <CardTitle className="text-lg">发表真实评价</CardTitle>
         <CardDescription>当前账号：{user.username}</CardDescription>
       </CardHeader>
-      <CardContent className="p-5 pt-0">
+      <CardContent className="p-6 pt-0">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="你的角色" id="testimonial-role" description="可选，例如：客服主管">
+            <FormField label="你的角色" id="testimonial-role" description="可选">
               <Input
                 id="testimonial-role"
                 value={role}
@@ -272,7 +364,7 @@ function TestimonialComposer({
                 placeholder="客服主管"
               />
             </FormField>
-            <FormField label="公司或行业" id="testimonial-company" description="可选，例如：智能硬件企业">
+            <FormField label="公司或行业" id="testimonial-company" description="可选">
               <Input
                 id="testimonial-company"
                 value={company}
@@ -289,14 +381,14 @@ function TestimonialComposer({
             label="评价内容"
             id="testimonial-quote"
             required
-            description="至少 10 个字，建议描述真实使用感受。"
+            description="至少 10 个字"
           >
             <Textarea
               id="testimonial-quote"
               value={quote}
               minLength={10}
               maxLength={800}
-              rows={5}
+              rows={4}
               onChange={(event) => setQuote(event.target.value)}
               placeholder="请写下你的真实体验..."
               aria-invalid={quote.trim().length > 0 && quote.trim().length < 10}
@@ -313,197 +405,6 @@ function TestimonialComposer({
   )
 }
 
-const interfaceCapabilities = [
-  {
-    title: "快速切换业务 Agent",
-    description: "按售前、售后、内部支持等场景组织入口，让客服从同一界面接管不同业务线。",
-  },
-  {
-    title: "查看知识命中与工具调用",
-    description: "把回复依据、工具结果和处理状态放在同一流程中，便于复盘和纠偏。",
-  },
-  {
-    title: "管理语音和用户设置",
-    description: "统一配置语音体验、用户偏好和运行状态，减少跨端体验差异。",
-  },
-  {
-    title: "追踪问题处理过程",
-    description: "围绕会话、Agent 和工具链路记录关键节点，帮助管理员定位问题来源。",
-  },
-]
-
-function SectionHeading({
-  eyebrow,
-  title,
-  description,
-}: {
-  eyebrow: string
-  title: string
-  description: string
-}) {
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 text-center">
-      <div className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
-        {eyebrow}
-      </div>
-      <h2 className="text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
-        {title}
-      </h2>
-      <p className="text-base leading-7 text-muted-foreground">
-        {description}
-      </p>
-    </div>
-  )
-}
-
-function ProductPricing() {
-  return (
-    <div id="pricing" className="grid gap-6 lg:grid-cols-[0.76fr_1fr] lg:items-start">
-      <div className="flex flex-col gap-5">
-        <div className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <CalendarDays className="size-5" />
-        </div>
-        <div className="flex flex-col gap-3">
-          <div className="w-fit rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
-            产品价格
-          </div>
-          <h3 className="text-2xl font-semibold leading-tight text-foreground sm:text-3xl">
-            7 天试用，按使用周期灵活购买
-          </h3>
-          <p className="text-base leading-7 text-muted-foreground">
-            企业可先体验核心能力，再根据部署周期选择对应版本。
-          </p>
-        </div>
-      </div>
-      <div className="grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {pricingPlans.map((plan) => (
-            <Card key={plan.duration} className="shadow-depth-xs">
-              <CardHeader className="gap-3 p-5">
-                <CardDescription className="font-semibold text-primary">{plan.duration}</CardDescription>
-                <CardTitle className="text-2xl leading-none">{plan.price}</CardTitle>
-                <CardDescription>{plan.note}</CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-        <div className="rounded-xl bg-card p-5 shadow-depth-xs">
-          <div className="text-sm font-semibold text-foreground">包含功能</div>
-          <div className="mt-4 grid gap-3">
-            {pricingFeatures.map((feature) => (
-              <div key={feature} className="flex gap-3 rounded-lg bg-secondary p-3">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-                <span className="text-sm leading-6 text-foreground">{feature}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function InterfacePreview() {
-  return (
-    <div className="relative">
-      <div className="absolute -left-5 top-10 hidden h-[calc(100%-5rem)] w-5 rounded-l-xl bg-primary lg:block" />
-      <div className="rounded-xl bg-[#181715] p-3 text-[#faf9f5] shadow-depth-lg">
-        <div className="overflow-hidden rounded-lg bg-[#1f1e1b]">
-          <div className="flex items-center justify-between bg-[#252320] px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-error" />
-              <span className="size-2 rounded-full bg-warning" />
-              <span className="size-2 rounded-full bg-accent-cyan" />
-            </div>
-            <div className="rounded-md bg-[#1f1e1b] px-3 py-1 text-xs font-medium text-[#a09d96]">
-              WSIRI Agent Operations
-            </div>
-          </div>
-          <div className="grid min-h-[34rem] grid-cols-1 lg:grid-cols-[12.5rem_1fr]">
-            <aside className="hidden bg-[#181715] p-4 lg:flex lg:flex-col lg:gap-3">
-              <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-[#faf9f5]">
-                <PanelLeft className="size-4 text-accent-cyan" />
-                服务工作台
-              </div>
-              {["售前接待", "知识库管理", "工具编排", "运行追踪"].map((item, index) => (
-                <div
-                  key={item}
-                  className={cn(
-                    "rounded-lg px-3 py-2 text-sm",
-                    index === 0
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-[#252320] text-[#a09d96]",
-                  )}
-                >
-                  {item}
-                </div>
-              ))}
-              <div className="mt-auto rounded-lg bg-[#252320] p-3">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[#faf9f5]">
-                  <Activity className="size-4 text-accent-cyan" />
-                  今日状态
-                </div>
-                <div className="text-xs leading-5 text-[#a09d96]">在线 Agent 8 个，知识同步正常，语音服务就绪。</div>
-              </div>
-            </aside>
-            <main className="flex min-w-0 flex-col">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#37342f] px-5 py-4">
-                <div>
-                  <div className="text-sm font-semibold text-[#faf9f5]">企业客服中枢</div>
-                  <div className="mt-1 text-xs text-[#a09d96]">知识库已同步 · 工具权限已校验 · 语音就绪</div>
-                </div>
-                <div className="rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
-                  生产环境
-                </div>
-              </div>
-              <div className="grid gap-3 px-5 py-4 sm:grid-cols-3">
-                {workflowStats.map((item) => (
-                  <div key={item.label} className="rounded-lg bg-[#252320] p-3">
-                    <div className="text-xs text-[#a09d96]">{item.label}</div>
-                    <div className="mt-2 text-xl font-semibold text-[#faf9f5]">{item.value}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-1 flex-col gap-4 bg-[#181715] p-5">
-                <div className="max-w-[84%] rounded-lg bg-[#252320] p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-accent-cyan">
-                    <Headphones className="size-4" />
-                    客户咨询
-                  </div>
-                  <p className="text-sm leading-6 text-[#faf9f5]">
-                    请问企业知识库可以按不同产品线配置不同客服吗？
-                  </p>
-                </div>
-                <div className="ml-auto max-w-[88%] rounded-lg bg-primary p-4 text-primary-foreground">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
-                    <Sparkles className="size-4" />
-                    Agent 回复
-                  </div>
-                  <p className="text-sm leading-6">
-                    可以。你可以为每条产品线创建独立 Agent，绑定对应知识库、工具权限和回复策略。
-                  </p>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {[
-                    { icon: FileSearch, label: "命中知识" },
-                    { icon: Layers3, label: "调用工具" },
-                    { icon: BarChart3, label: "转人工规则" },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-lg bg-[#252320] p-3 text-xs font-medium text-[#a09d96]">
-                      <item.icon className="mb-2 size-4 text-accent-cyan" />
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </main>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function OfficialHomePage() {
   const { apiUrl, loading: apiConfigLoading } = useApiConfig()
   const { user, loading: authLoading } = useAuth()
@@ -512,9 +413,8 @@ export function OfficialHomePage() {
   const [testimonialsError, setTestimonialsError] = useState<string | null>(null)
   const [showAllTestimonials, setShowAllTestimonials] = useState(false)
   const accountButtonLabel = user?.username ?? "登录"
-
   const visibleTestimonials = useMemo(
-    () => showAllTestimonials ? testimonials : testimonials.slice(0, 6),
+    () => (showAllTestimonials ? testimonials : testimonials.slice(0, 4)),
     [showAllTestimonials, testimonials],
   )
 
@@ -522,11 +422,9 @@ export function OfficialHomePage() {
     setTestimonialsLoading(true)
     setTestimonialsError(null)
     try {
-      const resp = await backendFetch("/api/site-testimonials", { anonymous: true })
-      if (!resp.ok) {
-        throw new Error("暂时无法加载用户评价。")
-      }
-      setTestimonials((await resp.json()) as SiteTestimonial[])
+      const response = await backendFetch("/api/site-testimonials", { anonymous: true })
+      if (!response.ok) throw new Error("暂时无法加载用户评价。")
+      setTestimonials((await response.json()) as SiteTestimonial[])
     } catch (err) {
       setTestimonialsError(err instanceof Error ? err.message : "暂时无法加载用户评价。")
     } finally {
@@ -548,26 +446,20 @@ export function OfficialHomePage() {
 
   return (
     <main className="h-svh overflow-y-auto bg-background text-foreground">
-      <header className="sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-10 border-b border-border/60 bg-background">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-3" aria-label={SITE_NAME}>
-            <Image src={logoImage} alt="威思瑞 WSIRI" width={112} height={72} priority className="h-10 w-auto" />
-            <span className="hidden text-sm font-semibold sm:inline">{SITE_NAME}</span>
+            <Image src={logoImage} alt="威思瑞 WSIRI" width={112} height={72} priority className="h-9 w-auto" />
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-            <a href="#product" className="hover:text-foreground">产品介绍</a>
-            <a href="#pricing" className="hover:text-foreground">价格</a>
-            <a href="#interface" className="hover:text-foreground">界面</a>
-            <a href="#reviews" className="hover:text-foreground">用户评价</a>
-            <a href="#faq" className="hover:text-foreground">常见问题</a>
+          <nav className="hidden items-center gap-7 text-sm font-medium text-muted-foreground lg:flex">
+            <a href="#product" className="transition-colors hover:text-foreground">产品能力</a>
+            <a href="#interface" className="transition-colors hover:text-foreground">工作台</a>
+            <a href="#pricing" className="transition-colors hover:text-foreground">价格</a>
+            <a href="#reviews" className="transition-colors hover:text-foreground">用户评价</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button asChild variant="secondary" size="sm" className="max-w-48">
-              <Link
-                href={user ? "/dashboard" : "/login"}
-                title={user?.username ?? "登录"}
-                aria-label={user ? `当前账号 ${user.username}` : "登录"}
-              >
+            <Button asChild variant="ghost" size="sm" className="max-w-40">
+              <Link href={user ? "/dashboard" : "/login"} title={user?.username ?? "登录"}>
                 <span className="truncate">{authLoading ? "..." : accountButtonLabel}</span>
               </Link>
             </Button>
@@ -581,112 +473,157 @@ export function OfficialHomePage() {
         </div>
       </header>
 
-      <section className="bg-background">
-        <div className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-7xl items-center gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[0.84fr_1.16fr] lg:px-8 lg:py-16">
-          <div className="flex flex-col gap-8">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-primary-soft px-3 py-1 text-xs font-semibold text-primary">
-              <ShieldCheck className="size-4" />
-              企业客服智能体平台
-            </div>
+      <section>
+        <div className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
+          <div className="flex flex-col gap-7">
+            <Eyebrow>企业客服智能体平台</Eyebrow>
             <div className="flex flex-col gap-5">
-              <h1 className="max-w-3xl text-5xl font-semibold leading-[1.08] text-foreground sm:text-6xl lg:text-[4.25rem] xl:text-7xl">
-                <span className="block">威思瑞</span>
-                <span className="block whitespace-nowrap">客服智能体平台</span>
+              <h1 className="max-w-3xl text-5xl font-semibold leading-[1.08] sm:text-6xl xl:text-7xl">
+                让每一次服务，
+                <br />
+                都有知识可依。
               </h1>
-              <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
-                {SITE_DESCRIPTION} 从知识沉淀、Agent 配置到语音交互与运行追踪，帮助企业构建可管理、可复用的智能客服工作台。
+              <p className="max-w-xl text-lg leading-8 text-muted-foreground">
+                {SITE_DESCRIPTION} 统一管理知识、Agent、工具与语音能力，构建稳定、可控的企业服务中枢。
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg">
                 <a href={salesHelperAgentHref}>
-                  立即试用
+                  免费试用 7 天
                   <ArrowRight data-icon="inline-end" />
                 </a>
               </Button>
               <Button asChild variant="secondary" size="lg">
-                <a href="#product">了解产品</a>
+                <a href="#interface">查看产品界面</a>
               </Button>
             </div>
-            <div className="grid max-w-2xl gap-3 sm:grid-cols-3">
-              {heroMetrics.map((item) => (
-                <div key={item.label} className="rounded-lg bg-secondary p-4">
-                  <div className="text-xs font-semibold text-primary">{item.value}</div>
-                  <div className="mt-2 text-sm font-semibold text-foreground">{item.label}</div>
-                  <div className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</div>
-                </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              {["无需信用卡", "快速配置", "支持专属部署"].map((item) => (
+                <span key={item} className="flex items-center gap-1.5">
+                  <Check className="size-4 text-primary-text" />
+                  {item}
+                </span>
               ))}
             </div>
           </div>
-          <InterfacePreview />
+          <ProductPreview />
         </div>
       </section>
 
-      <section id="product" className="border-t border-border/60 bg-background-tint px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-12">
+      <section id="product" className="bg-background-tint px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto flex max-w-7xl flex-col gap-14">
           <SectionHeading
-            eyebrow="产品介绍"
-            title="围绕企业服务场景构建智能体工作台"
-            description="将知识、工具、流程、语音与追踪能力统一到一个可配置平台，减少重复回答，提升客服与运营团队的交付一致性。"
+            eyebrow="产品能力"
+            title="把分散的服务能力，收拢到一个清晰的平台"
+            description="从回答问题到执行任务，每项能力都围绕企业日常服务场景组织，减少重复配置，也让运营过程更容易追踪。"
           />
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {productHighlights.map((item) => (
-              <Card key={item.title} className="shadow-depth-xs">
-                <CardHeader className="gap-3 p-5">
+          <div className="grid gap-3 lg:grid-cols-3">
+            {capabilities.map((item) => (
+              <article key={item.title} className="flex min-h-72 flex-col rounded-xl bg-card p-6 sm:p-7">
+                <div className="flex items-center justify-between">
                   <div className="flex size-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
                     <item.icon className="size-5" />
                   </div>
-                  <CardTitle className="text-lg leading-snug">{item.title}</CardTitle>
-                  <CardDescription className="leading-6">{item.description}</CardDescription>
-                </CardHeader>
-              </Card>
+                  <span className="text-xs font-semibold text-muted-foreground">{item.number}</span>
+                </div>
+                <div className="mt-auto flex flex-col gap-3 pt-10">
+                  <h3 className="text-xl font-semibold">{item.title}</h3>
+                  <p className="text-sm leading-6 text-muted-foreground">{item.description}</p>
+                  <p className="pt-2 text-xs font-semibold text-primary-text">{item.detail}</p>
+                </div>
+              </article>
             ))}
           </div>
-          <ProductPricing />
         </div>
       </section>
 
-      <section id="interface" className="bg-background px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.72fr_1fr] lg:items-start">
-          <div className="max-w-3xl">
-            <div className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquareText className="size-5" />
-            </div>
-            <h2 className="mt-5 text-3xl font-semibold leading-tight sm:text-4xl">清晰、可控、面向日常运营的界面</h2>
-            <p className="mt-5 text-base leading-7 text-muted-foreground">
-              工作台把会话、Agent、知识库、工具和追踪放在同一套结构里。客服可以专注处理问题，管理员可以快速调整能力边界。
+      <section id="interface" className="px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
+          <div className="flex flex-col gap-6">
+            <Eyebrow>统一工作台</Eyebrow>
+            <h2 className="text-3xl font-semibold leading-tight sm:text-4xl">
+              服务进展，
+              <br />
+              始终清晰可见。
+            </h2>
+            <p className="max-w-lg text-base leading-7 text-muted-foreground">
+              会话、知识命中、工具调用和人工接管都在同一条处理链路中。客服专注解决问题，管理员随时掌握运行状态。
             </p>
+            <div className="flex flex-col gap-3 text-sm font-medium">
+              {["按业务线管理专属 Agent", "查看知识依据与工具结果", "追踪关键节点与异常状态"].map((item) => (
+                <div key={item} className="flex items-center gap-3">
+                  <span className="flex size-6 items-center justify-center rounded-md bg-primary-soft text-primary">
+                    <Check className="size-3.5" />
+                  </span>
+                  {item}
+                </div>
+              ))}
+            </div>
+            <Button asChild variant="secondary" className="w-fit">
+              <Link href="/dashboard">
+                了解管理工作台
+                <ChevronRight data-icon="inline-end" />
+              </Link>
+            </Button>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {interfaceCapabilities.map((item) => (
-              <Card key={item.title} className="shadow-depth-xs">
-                <CardHeader className="gap-3 p-5">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                    <CheckCircle2 className="size-4" />
+          <ProductPreview />
+        </div>
+      </section>
+
+      <section id="pricing" className="bg-background-tint px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto flex max-w-7xl flex-col gap-12">
+          <SectionHeading
+            eyebrow="简单定价"
+            title="先完整体验，再按周期使用"
+            description="无需复杂套餐对比。试用期覆盖核心能力，正式使用仅按部署周期选择。"
+          />
+          <div className="grid overflow-hidden rounded-2xl bg-card lg:grid-cols-[1.25fr_0.75fr]">
+            <div className="grid sm:grid-cols-3">
+              {pricingPlans.map((plan, index) => (
+                <div
+                  key={plan.duration}
+                  className={cn("flex flex-col gap-5 p-7", index === 1 && "bg-primary-soft")}
+                >
+                  <div className="text-sm font-semibold text-foreground">{plan.duration}</div>
+                  <div>
+                    <span className="text-4xl font-semibold text-foreground">¥{plan.price}</span>
+                    <span className="ml-1 text-sm text-muted-foreground">/ 期</span>
                   </div>
-                  <CardTitle className="text-base leading-snug">{item.title}</CardTitle>
-                  <CardDescription className="leading-6">
-                    {item.description}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
+                  <p className="text-sm text-muted-foreground">{plan.note}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col justify-between gap-8 bg-[#181715] p-7 text-[#faf9f5]">
+              <div className="flex flex-col gap-4">
+                <div className="text-sm font-semibold">所有方案均包含</div>
+                {pricingFeatures.map((feature) => (
+                  <div key={feature} className="flex items-start gap-3 text-sm text-[#a09d96]">
+                    <Check className="mt-0.5 size-4 shrink-0 text-accent-cyan" />
+                    {feature}
+                  </div>
+                ))}
+              </div>
+              <Button asChild>
+                <a href={salesHelperAgentHref}>开始免费试用</a>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
 
-      <section id="reviews" className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-10">
+      <section id="reviews" className="px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto flex max-w-7xl flex-col gap-12">
           <SectionHeading
             eyebrow="用户评价"
-            title="来自已登录用户的真实反馈"
-            description="登录账号后可以发布自己的使用评价，内容会展示在首页评价模块中。"
+            title="来自真实用户的反馈"
+            description="已登录用户可以分享实际使用感受，帮助更多团队了解产品。"
           />
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(22rem,0.65fr)]">
+          <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
             <div className="flex flex-col gap-4">
               {testimonialsLoading ? (
-                <Card className="shadow-depth-xs">
-                  <CardHeader className="p-5">
+                <Card className="bg-secondary shadow-none">
+                  <CardHeader className="p-6">
                     <CardTitle className="text-base">正在加载评价</CardTitle>
                     <CardDescription>请稍候。</CardDescription>
                   </CardHeader>
@@ -694,31 +631,26 @@ export function OfficialHomePage() {
               ) : testimonialsError ? (
                 <StatusNotice tone="warning">{testimonialsError}</StatusNotice>
               ) : visibleTestimonials.length > 0 ? (
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm text-muted-foreground">
-                      已展示 {visibleTestimonials.length} 条，共 {testimonials.length} 条评价
-                    </div>
-                    {testimonials.length > 6 ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setShowAllTestimonials((value) => !value)}
-                      >
-                        {showAllTestimonials ? "收起评价" : "查看全部评价"}
-                      </Button>
-                    ) : null}
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2">
                     {visibleTestimonials.map((item) => (
                       <TestimonialCard key={item.id} item={item} />
                     ))}
                   </div>
-                </div>
+                  {testimonials.length > 4 ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="w-fit"
+                      onClick={() => setShowAllTestimonials((value) => !value)}
+                    >
+                      {showAllTestimonials ? "收起评价" : `查看全部 ${testimonials.length} 条评价`}
+                    </Button>
+                  ) : null}
+                </>
               ) : (
-                <Card className="shadow-depth-xs">
-                  <CardHeader className="p-5">
+                <Card className="bg-secondary shadow-none">
+                  <CardHeader className="p-6">
                     <CardTitle className="text-base">暂无评价</CardTitle>
                     <CardDescription>登录后发布第一条真实评价。</CardDescription>
                   </CardHeader>
@@ -730,49 +662,63 @@ export function OfficialHomePage() {
         </div>
       </section>
 
-      <section id="faq" className="bg-background-tint px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-5xl flex-col gap-10">
-          <SectionHeading
-            eyebrow="常见问题"
-            title="上线前你可能关心的问题"
-            description="以下内容覆盖适用场景、资料接入、部署形态和语音能力。"
-          />
-          <div className="grid gap-4">
+      <section id="faq" className="bg-background-tint px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.72fr_1.28fr]">
+          <div className="flex flex-col gap-5">
+            <Eyebrow>常见问题</Eyebrow>
+            <h2 className="text-3xl font-semibold leading-tight sm:text-4xl">上线之前，了解更多。</h2>
+            <p className="text-base leading-7 text-muted-foreground">
+              关于场景、资料接入和产品形态的常见问题。
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             {faqs.map((item) => (
-              <Card key={item.question} className="shadow-depth-xs">
-                <CardHeader className="flex-row items-start gap-4 p-5">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                    <CircleHelp className="size-4" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <CardTitle className="text-base leading-snug">{item.question}</CardTitle>
-                    <CardDescription className="leading-6">{item.answer}</CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
+              <div key={item.question} className="rounded-xl bg-card p-6">
+                <div className="flex items-center gap-3">
+                  <CircleHelp className="size-5 text-primary-text" />
+                  <h3 className="font-semibold">{item.question}</h3>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-muted-foreground">{item.answer}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      <footer className="bg-card px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+      <section className="px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 rounded-2xl bg-primary px-7 py-10 text-primary-foreground sm:px-10 lg:flex-row lg:items-center lg:px-12 lg:py-12">
+          <div className="flex max-w-2xl flex-col gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck className="size-4" />
+              7 天完整试用
+            </div>
+            <h2 className="text-3xl font-semibold leading-tight sm:text-4xl">从一次真实咨询开始。</h2>
+            <p className="text-sm leading-6 text-primary-foreground/80 sm:text-base">
+              体验知识驱动的企业客服 Agent，看看它如何理解问题、调用能力并给出可靠回答。
+            </p>
+          </div>
+          <Button asChild variant="secondary" size="lg" className="shrink-0">
+            <a href={salesHelperAgentHref}>
+              立即体验
+              <MessageSquareText data-icon="inline-end" />
+            </a>
+          </Button>
+        </div>
+      </section>
+
+      <footer className="border-t border-border/60 px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-5 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <Image src={logoImage} alt="威思瑞 WSIRI" width={88} height={56} className="h-8 w-auto" />
             <span>{SITE_NAME}</span>
           </div>
-          <div className="flex flex-wrap gap-4">
-            <Link href={user ? "/dashboard" : "/login"} className="max-w-48 truncate hover:text-foreground" title={user?.username ?? "登录"}>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href={user ? "/dashboard" : "/login"} className="max-w-48 truncate hover:text-foreground">
               {authLoading ? "..." : accountButtonLabel}
             </Link>
             <Link href="/dashboard" className="hover:text-foreground">工作台</Link>
             <a href="#faq" className="hover:text-foreground">常见问题</a>
-            <a
-              href={ICP_RECORD.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground"
-            >
+            <a href={ICP_RECORD.url} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
               {ICP_RECORD.number}
             </a>
           </div>
