@@ -52,6 +52,12 @@ function formatCny(cents: number) {
   return `¥${(cents / 100).toFixed(2)}`
 }
 
+function formatPlanDuration(days: number) {
+  if (days % 365 === 0) return `${days / 365} 年`
+  if (days % 30 === 0) return `${days / 30} 个月`
+  return `${days} 天`
+}
+
 function TestimonialStars({
   value,
   onChange,
@@ -333,23 +339,41 @@ export function AgentShareLandingPage({ token }: { token: string }) {
                 <a href="#reviews">查看评价</a>
               </Button>
             </div>
-            <div className="grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid max-w-xl grid-cols-2 gap-3">
+              {preview.isPaid && preview.pricingMode === "subscription" && preview.subscriptionPlans?.length ? (
+                <Card className="col-span-2">
+                  <CardHeader className="gap-1 p-3">
+                    <CardTitle className="text-sm leading-5">订阅套餐</CardTitle>
+                    <CardDescription>选择后按对应有效期使用</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-2 p-3 pt-0">
+                    {preview.subscriptionPlans.map((plan) => (
+                      <div
+                        key={plan.id}
+                        className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-muted px-3 py-2.5"
+                        aria-label={`${plan.label}，${formatCny(plan.priceCents)}，有效期 ${formatPlanDuration(plan.durationDays)}`}
+                      >
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="break-words text-sm font-semibold">{plan.label}</span>
+                          <span className="text-xs text-muted-foreground">有效期 {formatPlanDuration(plan.durationDays)}</span>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold">{formatCny(plan.priceCents)}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div
+                  className="col-span-2 min-w-0 rounded-lg bg-card px-3 py-3 text-center text-sm font-semibold shadow-depth-xs"
+                >
+                  {preview.isPaid ? formatCny(preview.priceCents) : "免费体验"}
+                </div>
+              )}
               {[
-                preview.isPaid
-                  ? preview.pricingMode === "subscription"
-                    ? `${formatCny(preview.priceCents)} 起 / ${preview.subscriptionPlans?.length || 0} 个套餐`
-                    : formatCny(preview.priceCents)
-                  : "免费体验",
                 `${Object.values(preview.resources).reduce((total, value) => total + value, 0)} 个资源`,
                 preview.agent.model || "默认模型",
-              ].map((item, index) => (
-                <div
-                  key={item}
-                  className={cn(
-                    "min-w-0 rounded-lg bg-card px-3 py-3 text-center text-sm font-semibold shadow-depth-xs",
-                    index === 0 && "col-span-2 sm:col-span-1",
-                  )}
-                >
+              ].map((item) => (
+                <div key={item} className="min-w-0 rounded-lg bg-card px-3 py-3 text-center text-sm font-semibold shadow-depth-xs">
                   {item}
                 </div>
               ))}
