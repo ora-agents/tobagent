@@ -308,9 +308,9 @@ function HeroCapabilityMap() {
       position: "bottom-24 left-0 sm:left-3",
     },
     {
-      icon: Workflow,
-      label: "业务工具",
-      detail: "自动执行任务",
+      icon: Bot,
+      label: "多智能体",
+      detail: "协同完成任务",
       position: "bottom-24 right-0 sm:right-3",
     },
     {
