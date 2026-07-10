@@ -837,19 +837,16 @@ export function OfficialHomePage() {
                 </a>
               </div>
             </div>
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium text-foreground">关注与联系</p>
+            <div>
               <div className="grid grid-cols-3 gap-3">
                 {socialContacts.map((contact) => (
                   <figure key={contact.label} className="flex min-w-0 flex-col items-center gap-2">
-                    <div className="overflow-hidden rounded-lg bg-card p-1.5 shadow-sm">
-                      <Image
-                        src={contact.image}
-                        alt={`${contact.label}二维码`}
-                        className="size-20 object-contain sm:size-28"
-                        sizes="(min-width: 640px) 112px, 80px"
-                      />
-                    </div>
+                    <Image
+                      src={contact.image}
+                      alt={`${contact.label}二维码`}
+                      className="size-20 object-contain sm:size-28"
+                      sizes="(min-width: 640px) 112px, 80px"
+                    />
                     <figcaption className="text-center text-xs text-foreground">{contact.label}</figcaption>
                   </figure>
                 ))}
