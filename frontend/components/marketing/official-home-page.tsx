@@ -149,8 +149,8 @@ function ProductPreview() {
   ]
 
   return (
-    <div className="overflow-hidden rounded-2xl bg-card p-3 text-foreground shadow-depth-md">
-      <div className="rounded-xl bg-background-tint">
+    <div className="overflow-hidden rounded-2xl bg-background-tint text-foreground">
+      <div>
         <div className="flex items-center justify-between px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2" aria-hidden="true">
             <span className="size-2 rounded-full bg-error" />
@@ -222,6 +222,70 @@ function ProductPreview() {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function HeroCapabilityMap() {
+  const capabilityNodes = [
+    {
+      icon: Database,
+      label: "企业知识",
+      detail: "准确检索",
+      position: "left-0 top-14 sm:left-6",
+    },
+    {
+      icon: Workflow,
+      label: "业务工具",
+      detail: "自动执行",
+      position: "right-0 top-14 sm:right-6",
+    },
+    {
+      icon: Mic2,
+      label: "自然语音",
+      detail: "随时响应",
+      position: "bottom-14 left-1/2 -translate-x-1/2",
+    },
+  ]
+
+  return (
+    <div className="relative mx-auto min-h-[28rem] w-full max-w-[34rem]" aria-label="知识、工具与语音共同驱动企业智能服务">
+      <div className="absolute inset-x-12 top-1/2 h-64 -translate-y-1/2 rounded-full bg-primary-soft/70 blur-3xl" aria-hidden="true" />
+      <svg
+        className="absolute inset-0 size-full text-primary/25"
+        viewBox="0 0 544 448"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path d="M126 105C164 126 195 153 230 190" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M418 105C380 126 349 153 314 190" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+        <path d="M272 358V282" stroke="currentColor" strokeWidth="2" strokeDasharray="5 9" />
+      </svg>
+
+      {capabilityNodes.map((item) => (
+        <div key={item.label} className={cn("absolute flex items-center gap-3", item.position)}>
+          <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-primary-text shadow-depth-sm">
+            <item.icon className="size-5" />
+          </span>
+          <span className="flex flex-col gap-0.5">
+            <span className="text-sm font-semibold text-foreground">{item.label}</span>
+            <span className="text-xs text-muted-foreground">{item.detail}</span>
+          </span>
+        </div>
+      ))}
+
+      <div className="absolute left-1/2 top-1/2 flex size-48 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-primary text-center text-primary-foreground shadow-depth-md sm:size-52">
+        <span className="mb-4 flex size-12 items-center justify-center rounded-full bg-primary-foreground/10">
+          <Sparkles className="size-6" />
+        </span>
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-foreground/75">WSIRI Agent</span>
+        <strong className="mt-2 text-xl leading-snug">理解问题<br />完成服务</strong>
+      </div>
+
+      <div className="absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-full bg-card px-4 py-2.5 text-xs font-medium text-muted-foreground shadow-depth-sm">
+        <ShieldCheck className="size-4 text-primary-text" />
+        知识有据 · 流程可控 · 服务连续
       </div>
     </div>
   )
@@ -474,8 +538,11 @@ export function OfficialHomePage() {
       </header>
 
       <section>
-        <div className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-20">
-          <div className="flex flex-col gap-7">
+        <div className="mx-auto grid min-h-[calc(100svh-4rem)] max-w-7xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:gap-16 lg:px-8 lg:py-20">
+          <div className="order-2 lg:order-1">
+            <HeroCapabilityMap />
+          </div>
+          <div className="order-1 flex flex-col gap-7 lg:order-2">
             <Eyebrow>企业客服智能体平台</Eyebrow>
             <div className="flex flex-col gap-5">
               <h1 className="max-w-3xl text-5xl font-semibold leading-[1.08] sm:text-6xl xl:text-7xl">
@@ -507,7 +574,6 @@ export function OfficialHomePage() {
               ))}
             </div>
           </div>
-          <ProductPreview />
         </div>
       </section>
 
