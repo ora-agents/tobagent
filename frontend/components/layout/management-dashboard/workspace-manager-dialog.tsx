@@ -5,13 +5,13 @@ import { Check, LoaderCircle, Plus, Shield, Trash2, Users, X } from "lucide-reac
 
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -277,21 +277,21 @@ export function WorkspaceManagerDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[88dvh] flex-col overflow-hidden sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Drawer open={open} onOpenChange={onOpenChange} direction="right">
+      <DrawerContent className="h-dvh w-full max-w-none border-border sm:max-w-2xl">
+        <DrawerHeader className="shrink-0 border-b border-border px-5 py-4">
+          <DrawerTitle className="flex items-center gap-2 text-lg">
             <Shield className="h-5 w-5 text-primary" />
             {zh ? "工作间管理" : "Workspace management"}
-          </DialogTitle>
-          <DialogDescription>
+          </DrawerTitle>
+          <DrawerDescription>
             {activeWorkspace
               ? `${activeWorkspace.name} · ${roleLabels[locale][activeWorkspace.currentUserRole]}`
               : zh ? "创建或选择一个工作间" : "Create or select a workspace"}
-          </DialogDescription>
-        </DialogHeader>
+          </DrawerDescription>
+        </DrawerHeader>
 
-        <div className="flex shrink-0 gap-1 rounded-lg bg-muted p-1">
+        <div className="mx-5 mt-4 flex shrink-0 gap-1 rounded-lg bg-muted p-1">
           {[
             ["workspaces", zh ? "工作间" : "Workspaces"],
             ["members", zh ? "成员" : "Members"],
@@ -304,7 +304,7 @@ export function WorkspaceManagerDialog({
               onClick={() => setTab(key as typeof tab)}
               className={cn(
                 "h-8 flex-1 rounded-md px-3 text-sm transition-colors",
-                tab === key ? "bg-background text-foreground shadow-depth-xs" : "text-muted-foreground hover:text-foreground",
+                tab === key ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-background hover:text-foreground",
               )}
             >
               {label}
@@ -313,12 +313,12 @@ export function WorkspaceManagerDialog({
         </div>
 
         {error && (
-          <div className="shrink-0 rounded-lg border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="mx-5 mt-3 shrink-0 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </div>
         )}
 
-        <ScrollArea className="min-h-0 flex-1" contentClassName="pr-1">
+        <ScrollArea className="min-h-0 flex-1 px-5 py-4" contentClassName="pr-1">
           {tab === "workspaces" && (
             <div className="space-y-4">
               <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
@@ -478,12 +478,12 @@ export function WorkspaceManagerDialog({
           )}
         </ScrollArea>
 
-        <DialogFooter className="shrink-0">
+        <DrawerFooter className="shrink-0 border-t border-border px-5 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {zh ? "关闭" : "Close"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </DrawerFooter>
+      </DrawerContent>
+    </Drawer>
   )
 }
