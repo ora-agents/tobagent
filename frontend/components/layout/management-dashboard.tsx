@@ -5050,8 +5050,8 @@ export function ManagementDashboard({
                             />
                             <div className="text-[11px] text-muted-foreground">
                               {locale === "zh"
-                                ? `可留空自动生成地址；填写时会默认加账号前缀，例如 ${shareSlugPrefix}-sales-helper。`
-                                : `Leave blank to generate an address automatically. Custom addresses are prefixed by your account, for example ${shareSlugPrefix}-sales-helper.`}
+                                ? `不支持中文。可留空自动生成地址；填写时仅支持小写英文字母、数字、连字符或下划线，并会默认加账号前缀，例如 ${shareSlugPrefix}-sales-helper。`
+                                : `Chinese characters are not supported. Leave blank to generate an address automatically. Custom addresses accept lowercase English letters, numbers, hyphens, and underscores, and are prefixed by your account, for example ${shareSlugPrefix}-sales-helper.`}
                             </div>
                           </div>
                           <div className="col-span-2 flex flex-col gap-1.5 sm:col-span-2">
