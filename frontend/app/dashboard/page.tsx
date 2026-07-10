@@ -10,6 +10,9 @@ import { KeyboardShortcutsDialog } from "@/components/layout/keyboard-shortcuts-
 import { DashboardFallback } from "@/components/layout/dashboard-fallback"
 import { DashboardMobileSidebar } from "@/components/layout/dashboard-mobile-sidebar"
 import { DashboardViewPane, DashboardWorkspace } from "@/components/layout/dashboard-workspace"
+import { PlatformFooter } from "@/components/layout/platform-footer"
+import { SiteComplianceFooter } from "@/components/layout/site-compliance-footer"
+import { PlatformPricing } from "@/components/marketing/platform-pricing"
 import { ManagementDashboard } from "@/components/layout/management-dashboard"
 import type { ConfigBundleImportResult } from "@/components/layout/management-dashboard/config-bundle-dialog"
 import { UserSettingsPage } from "@/components/layout/user-settings-page"
@@ -46,7 +49,7 @@ import { useT } from "@/lib/i18n"
 import { STORAGE_KEYS } from "@/lib/constants/features"
 import { backendFetch } from "@/lib/api/backend-fetch"
 
-const DASHBOARD_VIEWS = ["chat", "skills", "agents", "knowledge", "forms", "mcp", "settings", "user-manual", "developer-manual", "traces"] as const
+const DASHBOARD_VIEWS = ["chat", "pricing", "skills", "agents", "knowledge", "forms", "mcp", "settings", "user-manual", "developer-manual", "traces"] as const
 type DashboardView = (typeof DASHBOARD_VIEWS)[number]
 
 function isDashboardView(value: string | null): value is DashboardView {
@@ -969,6 +972,7 @@ function DashboardContent() {
       />
       <DashboardWorkspace
         className={isSharedAgentApp ? "text-foreground" : undefined}
+        footer={isAgentAppRoute ? <PlatformFooter /> : <SiteComplianceFooter className="border-t border-border/60 bg-background py-2" />}
         sidebar={!isSharedAgentApp ? (
           <Sidebar
             isCollapsed={isSidebarCollapsed}
@@ -1034,6 +1038,7 @@ function DashboardContent() {
               onOpenAgentSettings={isSharedAgentApp ? undefined : handleOpenActiveAgentSettings}
               onOpenSidebar={() => setIsMobileSidebarOpen(true)}
               hideWorkspaceControls={isSharedAgentApp}
+              onShowPricing={isAgentAppRoute ? () => setCurrentView("pricing") : undefined}
             />
             {pendingPaidShare ? (
               <ScrollArea
@@ -1115,6 +1120,16 @@ function DashboardContent() {
               </div>
             )}
         </DashboardViewPane>
+
+        {currentView === "pricing" && isAgentAppRoute ? (
+          <DashboardViewPane>
+            <ScrollArea className="min-h-0 flex-1 bg-background">
+              <PlatformPricing onStartTrial={() => {
+                window.location.assign("/agentapp/?agentShare=wsiri-sales-helper")
+              }} />
+            </ScrollArea>
+          </DashboardViewPane>
+        ) : null}
 
         {currentView === "settings" ? (
           <UserSettingsPage

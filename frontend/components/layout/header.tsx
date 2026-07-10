@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, GripVertical, Home, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
+import { ChevronLeft, ChevronRight, CircleDollarSign, GripVertical, Home, LoaderCircle, Menu, Plus, Settings, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NavActionButton } from "@/components/ui/nav-action-button"
 import {
@@ -41,6 +41,7 @@ interface HeaderProps {
   onOpenAgentSettings?: () => void
   onOpenSidebar?: () => void
   hideWorkspaceControls?: boolean
+  onShowPricing?: () => void
 }
 
 export function Header({
@@ -58,6 +59,7 @@ export function Header({
   onOpenAgentSettings,
   onOpenSidebar,
   hideWorkspaceControls = false,
+  onShowPricing,
 }: HeaderProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -281,6 +283,19 @@ export function Header({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+          {onShowPricing ? (
+            <NavActionButton
+              type="button"
+              variant="ghost"
+              onClick={onShowPricing}
+              className="bg-muted text-foreground hover:bg-primary-soft hover:text-primary"
+              title={locale === "zh" ? "价格方案" : "Pricing"}
+              aria-label={locale === "zh" ? "价格方案" : "Pricing"}
+            >
+              <CircleDollarSign data-icon="inline-start" />
+              <span className="hidden sm:inline">{locale === "zh" ? "价格" : "Pricing"}</span>
+            </NavActionButton>
+          ) : null}
           <Button
             asChild
             variant="ghost"
